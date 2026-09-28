@@ -194,9 +194,9 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         operation: 'manageDaycareBooking bookings/${widget.bookingId}',
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(ChatErrorProbe.describe(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(DaycareFunctionException.from(error))),
+        );
       }
     } finally {
       if (mounted) {

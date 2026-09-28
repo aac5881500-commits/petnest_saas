@@ -24,9 +24,33 @@ import '../widgets/platform_media_asset_picker.dart';
 import '../widgets/store/store_banner_color_field.dart';
 
 class DailyCareSettingPage extends StatefulWidget {
-  const DailyCareSettingPage({super.key, required this.shopId});
+  const DailyCareSettingPage({
+    super.key,
+    required this.shopId,
+    this.initialSetting,
+    this.shopData,
+    this.saveOverride,
+    this.showTaskCenterButton = true,
+  });
 
   final String shopId;
+
+  /// 測試注入已載入設定，正式頁面不傳，仍從 Firestore 讀取。
+  final DailyCareSettingModel? initialSetting;
+
+  /// 測試注入店家資料，正式頁面不傳。
+  final Map<String, dynamic>? shopData;
+
+  /// 測試取代儲存呼叫，正式頁面不傳。
+  final Future<void> Function({
+    required DailyCareSettingModel setting,
+    required int? expectedRevision,
+    required DailyCareSettingSection section,
+  })?
+  saveOverride;
+
+  /// 正式頁面顯示任務中心。測試可關閉，避免連到 Firebase。
+  final bool showTaskCenterButton;
 
   @override
   State<DailyCareSettingPage> createState() => _DailyCareSettingPageState();
@@ -230,79 +254,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   }
 
   Future<void> _loadSetting() async {
+    final DailyCareSettingModel? injected = widget.initialSetting;
+    if (injected != null) {
+      _applyLoaded(injected);
+      return;
+    }
+
     try {
       final DailyCareSettingModel setting = await DailyCareSettingService
           .instance
           .getSetting(widget.shopId);
-
-      if (!mounted) return;
-
-      setState(() {
-        _loaded = setting;
-        _enabled = setting.enabled;
-        _sessionCount = setting.sessionCount;
-        _photoEnabled = setting.photoEnabled;
-        _stayReportMode = setting.stayReportMode;
-        _stayPhotosIncluded = setting.stayPhotosIncluded;
-        _stayAddonUpgradeEnabled = setting.stayAddonUpgradeEnabled;
-        _stayOfferQuotas = Map<String, DailyCareOfferQuota>.from(
-          setting.stayOfferQuotas,
-        );
-        _daycareEnabled = setting.daycareEnabled;
-        _daycareSessionCount = setting.daycareSessionCount;
-        _daycareReportMode = setting.daycareReportMode;
-        _daycarePhotosIncluded = setting.daycarePhotosIncluded;
-        _daycareAddonUpgradeEnabled = setting.daycareAddonUpgradeEnabled;
-        _daycareOfferQuotas = Map<String, DailyCareOfferQuota>.from(
-          setting.daycareOfferQuotas,
-        );
-        _stayPaidPlan = setting.stayPaidPlan;
-        _daycarePaidPlan = setting.daycarePaidPlan;
-        _logoVisible = setting.logoVisible;
-        _textColorKey = setting.textColorKey;
-        _accentColorKey = setting.accentColorKey;
-        _iconSize = setting.iconSize;
-        _iconColorKey = setting.iconColorKey;
-        _cardRadius = setting.cardRadius;
-        _cardPadding = setting.cardPadding;
-        _cardGap = setting.cardGap;
-        _showCardBorder = setting.showCardBorder;
-        _photoRadius = setting.photoRadius;
-        _enabledFields = setting.enabledFields.toSet();
-        _customFields = List<DailyCareCustomField>.from(setting.customFields);
-        _backgroundType = setting.backgroundType;
-        _backgroundColorKey = setting.backgroundColorKey;
-        _backgroundImageUrl = setting.backgroundImageUrl;
-        _backgroundImagePath = setting.backgroundImagePath;
-        _backgroundImageFit = setting.backgroundImageFit;
-        _backgroundImageFade = setting.backgroundImageFade;
-        _pageBackgroundSource = setting.pageBackgroundSource.trim().isEmpty
-            ? setting.resolvedPageBackgroundSource
-            : setting.pageBackgroundSource;
-        _pageBackgroundAssetId = setting.pageBackgroundAssetId;
-        _cardBackgroundType = setting.cardBackgroundType;
-        _cardBackgroundPreset = setting.cardBackgroundPreset;
-        _cardBackgroundImageUrl = setting.cardBackgroundImageUrl;
-        _cardBackgroundImagePath = setting.cardBackgroundImagePath;
-        _cardBackgroundImageFit = setting.cardBackgroundImageFit;
-        _cardBackgroundImageFade = setting.cardBackgroundImageFade;
-        _cardDefaultSurfaceMode = setting.cardDefaultSurfaceMode.trim().isEmpty
-            ? DailyCareJournalCardStyle.surfaceSolid
-            : setting.cardDefaultSurfaceMode;
-        _cardDefaultBackgroundAssetId = setting.cardDefaultBackgroundAssetId;
-        _journalDisplay = setting.journalDisplay;
-        _journalCards = setting.resolvedJournalCards;
-        _journalHeader = setting.journalHeader;
-        _syncSessionLabelControllers(
-          setting.sessionCount,
-          labels: setting.resolvedSessionLabels(),
-        );
-        _syncDaycareLabelControllers(
-          setting.daycareSessionCount,
-          labels: setting.resolvedDaycareSessionLabels(),
-        );
-        _loading = false;
-      });
+      _applyLoaded(setting);
     } catch (e) {
       if (!mounted) return;
 
@@ -314,6 +276,81 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('讀取設定失敗：$e')));
     }
+  }
+
+  void _applyLoaded(DailyCareSettingModel setting) {
+    if (!mounted) return;
+
+    setState(() {
+      _loaded = setting;
+      _enabled = setting.enabled;
+      _sessionCount = setting.sessionCount;
+      _photoEnabled = setting.photoEnabled;
+      _stayReportMode = setting.stayReportMode;
+      _stayPhotosIncluded = setting.stayPhotosIncluded;
+      _stayAddonUpgradeEnabled = setting.stayAddonUpgradeEnabled;
+      _stayOfferQuotas = _clampedQuotas(setting.stayOfferQuotas);
+      _daycareEnabled = setting.daycareEnabled;
+      _daycareSessionCount = setting.daycareSessionCount;
+      _daycareReportMode = setting.daycareReportMode;
+      _daycarePhotosIncluded = setting.daycarePhotosIncluded;
+      _daycareAddonUpgradeEnabled = setting.daycareAddonUpgradeEnabled;
+      _daycareOfferQuotas = _clampedQuotas(setting.daycareOfferQuotas);
+      _stayPaidPlan = _clampedPaidPlan(setting.stayPaidPlan);
+      _daycarePaidPlan = _clampedPaidPlan(setting.daycarePaidPlan);
+      _logoVisible = setting.logoVisible;
+      _textColorKey = setting.textColorKey;
+      _accentColorKey = setting.accentColorKey;
+      _iconSize = setting.iconSize;
+      _iconColorKey = setting.iconColorKey;
+      _cardRadius = setting.cardRadius;
+      _cardPadding = setting.cardPadding;
+      _cardGap = setting.cardGap;
+      _showCardBorder = setting.showCardBorder;
+      _photoRadius = setting.photoRadius;
+      _enabledFields = setting.enabledFields.toSet();
+      _customFields = List<DailyCareCustomField>.from(setting.customFields);
+      _backgroundType = setting.backgroundType;
+      _backgroundColorKey = setting.backgroundColorKey;
+      _backgroundImageUrl = setting.backgroundImageUrl;
+      _backgroundImagePath = setting.backgroundImagePath;
+      _backgroundImageFit = setting.backgroundImageFit;
+      _backgroundImageFade = setting.backgroundImageFade;
+      _pageBackgroundSource = setting.pageBackgroundSource.trim().isEmpty
+          ? setting.resolvedPageBackgroundSource
+          : setting.pageBackgroundSource;
+      _pageBackgroundAssetId = setting.pageBackgroundAssetId;
+      _cardBackgroundType = setting.cardBackgroundType;
+      _cardBackgroundPreset = setting.cardBackgroundPreset;
+      _cardBackgroundImageUrl = setting.cardBackgroundImageUrl;
+      _cardBackgroundImagePath = setting.cardBackgroundImagePath;
+      _cardBackgroundImageFit = setting.cardBackgroundImageFit;
+      _cardBackgroundImageFade = setting.cardBackgroundImageFade;
+      _cardDefaultSurfaceMode = setting.cardDefaultSurfaceMode.trim().isEmpty
+          ? DailyCareJournalCardStyle.surfaceSolid
+          : setting.cardDefaultSurfaceMode;
+      _cardDefaultBackgroundAssetId = setting.cardDefaultBackgroundAssetId;
+      _journalDisplay = setting.journalDisplay;
+      _journalCards = setting.resolvedJournalCards;
+      _journalHeader = setting.journalHeader;
+      _syncSessionLabelControllers(
+        setting.sessionCount,
+        labels: setting.resolvedSessionLabels(),
+      );
+      _syncDaycareLabelControllers(
+        setting.daycareSessionCount,
+        labels: setting.resolvedDaycareSessionLabels(),
+      );
+      _loading = false;
+    });
+  }
+
+  Stream<Map<String, dynamic>?> _shopStream() {
+    final Map<String, dynamic>? shopData = widget.shopData;
+    if (shopData != null) {
+      return Stream<Map<String, dynamic>?>.value(shopData);
+    }
+    return ShopService.instance.streamShop(widget.shopId);
   }
 
   void _syncDaycareLabelControllers(int sessionCount, {List<String>? labels}) {
@@ -353,34 +390,118 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     }
   }
 
-  List<String>? _readSessionLabelsOrNull() {
-    final List<String> labels = <String>[];
-    for (int index = 0; index < 3; index++) {
-      labels.add(_sessionLabelControllers[index].text.trim());
-    }
-    int required = 0;
-    if (_enabled && _stayReportMode == DailyCareReportMode.includedFixed) {
-      required = _sessionCount;
-    }
-    if (_enabled && _stayReportMode == DailyCareReportMode.paidAddon) {
-      required = _stayPaidPlan.reports;
-    }
-    for (int index = 0; index < required; index++) {
-      if (labels[index].isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('住宿第 ${index + 1} 場名稱不可空白')));
-        return null;
-      }
-    }
-    return labels;
+  List<String> _readSessionLabels() {
+    return List<String>.generate(
+      3,
+      (int index) => _sessionLabelControllers[index].text.trim(),
+    );
   }
 
-  DailyCareSettingModel? _draftSetting() {
-    final List<String>? sessionLabels = _readSessionLabelsOrNull();
-    if (sessionLabels == null) {
-      return null;
+  List<String> _readDaycareSessionLabels() {
+    return List<String>.generate(
+      3,
+      (int index) => _daycareLabelControllers[index].text.trim(),
+    );
+  }
+
+  int _requiredStayLabelCount() {
+    if (!_enabled) {
+      return 0;
     }
+    if (_stayReportMode == DailyCareReportMode.includedFixed) {
+      return _sessionCount.clamp(0, 3).toInt();
+    }
+    if (_stayReportMode == DailyCareReportMode.paidAddon) {
+      return _boundedReports(_stayPaidPlan.reports);
+    }
+    return 0;
+  }
+
+  int _requiredDaycareLabelCount() {
+    if (!_daycareEnabled) {
+      return 0;
+    }
+    if (_daycareReportMode == DailyCareReportMode.includedFixed) {
+      return _daycareSessionCount.clamp(0, 3).toInt();
+    }
+    if (_daycareReportMode == DailyCareReportMode.paidAddon) {
+      return _boundedReports(_daycarePaidPlan.reports);
+    }
+    return 0;
+  }
+
+  String? _sessionLabelValidationMessage() {
+    final List<String> stayLabels = _readSessionLabels();
+    final int stayRequired = _requiredStayLabelCount();
+    for (int index = 0; index < stayRequired; index++) {
+      if (stayLabels[index].isEmpty) {
+        return '住宿第 ${index + 1} 場名稱不可空白';
+      }
+    }
+
+    final List<String> daycareLabels = _readDaycareSessionLabels();
+    final int daycareRequired = _requiredDaycareLabelCount();
+    for (int index = 0; index < daycareRequired; index++) {
+      if (daycareLabels[index].isEmpty) {
+        return '安親第 ${index + 1} 場名稱不可空白';
+      }
+    }
+    return null;
+  }
+
+  int _boundedReports(int reports) {
+    if (reports < 1) {
+      return 1;
+    }
+    if (reports > DailyCareReportMode.maxSessions) {
+      return DailyCareReportMode.maxSessions;
+    }
+    return reports;
+  }
+
+  DailyCarePaidPlan _clampedPaidPlan(DailyCarePaidPlan plan) {
+    return plan.copyWith(reports: _boundedReports(plan.reports));
+  }
+
+  DailyCareOfferQuota _clampedQuota(DailyCareOfferQuota quota) {
+    int reports = quota.reports;
+    if (reports < 0) {
+      reports = 0;
+    } else if (reports > DailyCareReportMode.maxSessions) {
+      reports = DailyCareReportMode.maxSessions;
+    }
+    return DailyCareOfferQuota(
+      configured: quota.configured,
+      reports: reports,
+      sessionLabels: quota.sessionLabels,
+    );
+  }
+
+  Map<String, DailyCareOfferQuota> _clampedQuotas(
+    Map<String, DailyCareOfferQuota> quotas,
+  ) {
+    return quotas.map(
+      (String key, DailyCareOfferQuota quota) =>
+          MapEntry<String, DailyCareOfferQuota>(key, _clampedQuota(quota)),
+    );
+  }
+
+  List<String> _labelsForReports(
+    int reports,
+    List<TextEditingController> controllers,
+  ) {
+    final int count = _boundedReports(reports);
+    final int safeCount = count > controllers.length
+        ? controllers.length
+        : count;
+    return List<String>.generate(
+      safeCount,
+      (int index) => controllers[index].text.trim(),
+    );
+  }
+
+  DailyCareSettingModel _draftSetting() {
+    final List<String> sessionLabels = _readSessionLabels();
 
     String backgroundType = DailyCareJournalTheme.typeSystem;
     if (_pageBackgroundSource == DailyCareJournalTheme.pageSourceColor) {
@@ -410,17 +531,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       stayReportMode: _stayReportMode,
       stayPhotosIncluded: _stayPhotosIncluded,
       stayAddonUpgradeEnabled: _stayAddonUpgradeEnabled,
-      stayOfferQuotas: _stayOfferQuotas,
-      stayPaidPlan: _stayPaidPlan.copyWith(
-        sessionLabels: List<String>.generate(
+      stayOfferQuotas: _clampedQuotas(_stayOfferQuotas),
+      stayPaidPlan: _clampedPaidPlan(_stayPaidPlan).copyWith(
+        sessionLabels: _labelsForReports(
           _stayPaidPlan.reports,
-          (int index) => _sessionLabelControllers[index].text.trim(),
+          _sessionLabelControllers,
         ),
       ),
-      daycarePaidPlan: _daycarePaidPlan.copyWith(
-        sessionLabels: List<String>.generate(
+      daycarePaidPlan: _clampedPaidPlan(_daycarePaidPlan).copyWith(
+        sessionLabels: _labelsForReports(
           _daycarePaidPlan.reports,
-          (int index) => _daycareLabelControllers[index].text.trim(),
+          _daycareLabelControllers,
         ),
       ),
       logoVisible: _logoVisible,
@@ -436,14 +557,11 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       photoRadius: _photoRadius,
       daycareEnabled: _daycareEnabled,
       daycareSessionCount: _daycareSessionCount,
-      daycareSessionLabels: List<String>.generate(
-        3,
-        (int index) => _daycareLabelControllers[index].text.trim(),
-      ),
+      daycareSessionLabels: _readDaycareSessionLabels(),
       daycareReportMode: _daycareReportMode,
       daycarePhotosIncluded: _daycarePhotosIncluded,
       daycareAddonUpgradeEnabled: _daycareAddonUpgradeEnabled,
-      daycareOfferQuotas: _daycareOfferQuotas,
+      daycareOfferQuotas: _clampedQuotas(_daycareOfferQuotas),
       revision: _loaded.revision,
       downloadHoursAfterCheckout: 24,
       backgroundType: backgroundType,
@@ -474,7 +592,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   }
 
   DailyCareSettingModel _previewSetting() {
-    return _draftSetting() ?? _loaded;
+    return _draftSetting();
   }
 
   Future<void> _pickPageAsset() async {
@@ -637,31 +755,57 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       return false;
     }
 
-    final DailyCareSettingModel? setting = _draftSetting();
-    if (setting == null) {
+    final String? labelError = _sessionLabelValidationMessage();
+    if (labelError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(labelError)));
       return false;
     }
+
+    final DailyCareSettingModel setting = _draftSetting();
+    final DailyCareSettingSection resolvedSection =
+        section == DailyCareSettingSection.all
+        ? _sectionForTab(_tabIndex)
+        : section;
 
     setState(() {
       _saving = true;
     });
 
     try {
-      await DailyCareSettingService.instance.saveSetting(
-        shopId: widget.shopId,
-        setting: setting,
-        expectedRevision: _loaded.revision,
-        section: section == DailyCareSettingSection.all
-            ? _sectionForTab(_tabIndex)
-            : section,
-      );
-      final DailyCareSettingModel stored = await DailyCareSettingService
-          .instance
-          .getSetting(widget.shopId);
-      if (mounted) {
-        setState(() {
-          _loaded = stored;
-        });
+      final Future<void> Function({
+        required DailyCareSettingModel setting,
+        required int? expectedRevision,
+        required DailyCareSettingSection section,
+      })?
+      saveOverride = widget.saveOverride;
+      if (saveOverride != null) {
+        await saveOverride(
+          setting: setting,
+          expectedRevision: _loaded.revision,
+          section: resolvedSection,
+        );
+        if (mounted) {
+          setState(() {
+            _loaded = setting.copyWith(revision: _loaded.revision + 1);
+          });
+        }
+      } else {
+        await DailyCareSettingService.instance.saveSetting(
+          shopId: widget.shopId,
+          setting: setting,
+          expectedRevision: _loaded.revision,
+          section: resolvedSection,
+        );
+        final DailyCareSettingModel stored = await DailyCareSettingService
+            .instance
+            .getSetting(widget.shopId);
+        if (mounted) {
+          setState(() {
+            _loaded = stored;
+          });
+        }
       }
 
       if (!mounted) return true;
@@ -672,7 +816,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       return true;
     } catch (e, stack) {
       DailyCareSaveErrorProbe.debugLog(
-        'DailyCareSetting page save failed',
+        'DailyCareSetting page save failed '
+        'section=$resolvedSection expectedRevision=${_loaded.revision}',
         e,
         stack,
       );
@@ -703,10 +848,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   }
 
   bool _sectionDirty(int index) {
-    final DailyCareSettingModel? draft = _draftSetting();
-    if (draft == null) {
-      return true;
-    }
+    final DailyCareSettingModel draft = _draftSetting();
     switch (_sectionForTab(index)) {
       case DailyCareSettingSection.rules:
         return draft.enabled != _loaded.enabled ||
@@ -968,7 +1110,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           backgroundColor: const Color(0xFFF7F7F7),
           appBar: AppBar(
             title: const Text('每日照護紀錄設定'),
-            actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+            actions: widget.showTaskCenterButton
+                ? <Widget>[ShopTaskCenterButton(shopId: widget.shopId)]
+                : const <Widget>[],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(48),
               child: Row(
@@ -988,35 +1132,60 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                       child: IndexedStack(
                         index: _tabIndex,
                         children: <Widget>[
-                          _wrapWidth(wide, _buildReportRulesTab()),
+                          _buildReportRulesTab(),
                           _buildContentTab(wide),
                           _buildAppearanceTab(wide),
                         ],
                       ),
                     ),
                     SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: FilledButton.icon(
-                            onPressed: _saving
-                                ? null
-                                : () =>
-                                      _save(section: _sectionForTab(_tabIndex)),
-                            icon: _saving
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                      child: LayoutBuilder(
+                        builder:
+                            (BuildContext context, BoxConstraints constraints) {
+                              final double barWidth =
+                                  constraints.maxWidth > 1280
+                                  ? 1280
+                                  : constraints.maxWidth;
+                              final double buttonWidth = barWidth > 32
+                                  ? barWidth - 32
+                                  : barWidth;
+                              return Align(
+                                alignment: Alignment.center,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    12,
+                                  ),
+                                  child: SizedBox(
+                                    width: buttonWidth,
+                                    height: 50,
+                                    child: FilledButton.icon(
+                                      onPressed: _saving
+                                          ? null
+                                          : () => _save(
+                                              section: _sectionForTab(
+                                                _tabIndex,
+                                              ),
+                                            ),
+                                      icon: _saving
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(Icons.save_outlined),
+                                      label: Text(
+                                        _saving ? '儲存中...' : '確認儲存此分頁',
+                                      ),
                                     ),
-                                  )
-                                : const Icon(Icons.save_outlined),
-                            label: Text(_saving ? '儲存中...' : '確認儲存此分頁'),
-                          ),
-                        ),
+                                  ),
+                                ),
+                              );
+                            },
                       ),
                     ),
                   ],
@@ -1054,66 +1223,94 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     );
   }
 
-  Widget _wrapWidth(bool wide, Widget child) {
-    if (!wide) {
-      return child;
-    }
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 980),
-        child: child,
-      ),
+  Widget _buildReportRulesTab() {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: _shopStream(),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool showDaycare = DaycareEnabled.isOn(shop: shopSnap.data);
+            return LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final double viewport = constraints.maxWidth.isFinite
+                    ? constraints.maxWidth
+                    : 1280;
+                final double contentWidth = viewport > 1280 ? 1280 : viewport;
+                final bool twoColumn = showDaycare && viewport >= 1000;
+                final Widget stay = _buildStayRuleCard();
+                final Widget daycare = showDaycare
+                    ? _buildDaycareRuleCard()
+                    : const SizedBox.shrink();
+                final Widget rules = twoColumn
+                    ? Row(
+                        key: const Key('daily-care-rules-columns'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(child: stay),
+                          const SizedBox(width: 18),
+                          Expanded(child: daycare),
+                        ],
+                      )
+                    : Column(
+                        children: <Widget>[
+                          stay,
+                          if (showDaycare) ...<Widget>[
+                            const SizedBox(height: 16),
+                            daycare,
+                          ],
+                        ],
+                      );
+                final double height = constraints.maxHeight.isFinite
+                    ? constraints.maxHeight
+                    : 640;
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: contentWidth,
+                    height: height,
+                    child: ListView(
+                      key: const Key('daily-care-rules-list'),
+                      padding: const EdgeInsets.all(16),
+                      children: <Widget>[
+                        rules,
+                        const SizedBox(height: 16),
+                        _buildPhotoRuleCard(),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
     );
   }
 
-  Widget _buildReportRulesTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        _buildMainSwitchCard(),
-        const SizedBox(height: 16),
-        _buildStayRuleCard(),
-        const SizedBox(height: 16),
-        StreamBuilder<Map<String, dynamic>?>(
-          stream: ShopService.instance.streamShop(widget.shopId),
-          builder:
-              (
-                BuildContext context,
-                AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-              ) {
-                if (!DaycareEnabled.isOn(shop: shopSnap.data)) {
-                  return const SizedBox.shrink();
-                }
-                return _buildDaycareRuleCard();
-              },
-        ),
-        const SizedBox(height: 16),
-        _SettingCard(
-          title: '照片與保存',
-          subtitle: '回報照片與保存期限由平台規則決定。',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('啟用回報照片'),
-                value: _photoEnabled,
-                onChanged: (bool value) {
-                  setState(() {
-                    _photoEnabled = value;
-                  });
-                },
-              ),
-              const Text('每場最多 3 張'),
-              const SizedBox(height: 6),
-              const Text('服務實際結束後保留 24 小時'),
-              const SizedBox(height: 6),
-              const Text('到期自動清除'),
-            ],
+  Widget _buildPhotoRuleCard() {
+    return _SettingCard(
+      title: '照片與保存',
+      subtitle: '回報照片與保存期限由平台規則決定。',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('啟用回報照片'),
+            value: _photoEnabled,
+            onChanged: (bool value) {
+              setState(() {
+                _photoEnabled = value;
+              });
+            },
           ),
-        ),
-      ],
+          const Text('每場最多 3 張'),
+          const SizedBox(height: 6),
+          const Text('服務實際結束後保留 24 小時'),
+          const SizedBox(height: 6),
+          const Text('到期自動清除'),
+        ],
+      ),
     );
   }
 
@@ -1176,7 +1373,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
   Widget _desktopPreviewPane() {
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(widget.shopId),
+      stream: _shopStream(),
       builder:
           (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snap) {
             final String shopName =
@@ -1735,53 +1932,84 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     required bool daycare,
     bool roomBased = true,
   }) {
-    return Column(
-      children: <Widget>[
-        RadioListTile<String>(
-          value: DailyCareReportMode.includedFixed,
-          groupValue: value,
-          title: const Text('固定提供'),
-          subtitle: const Text('所有訂單提供相同場次數量與名稱'),
-          onChanged: (String? next) {
-            if (next != null) {
-              onChanged(next);
-            }
-          },
-        ),
-        RadioListTile<String>(
-          value: DailyCareReportMode.includedByOffer,
-          groupValue: value,
-          title: Text(daycare && !roomBased ? '依方案提供' : '依房型提供'),
-          subtitle: Text(
-            daycare
-                ? (roomBased ? '依安親房型設定場次，購買時即確定，不等分房。' : '依安親方案設定場次。')
-                : '各房型只設定回報幾場與各場名稱，購買房型時即確定。',
-          ),
-          onChanged: (String? next) {
-            if (next != null) {
-              onChanged(next);
-            }
-          },
-        ),
-        RadioListTile<String>(
-          value: DailyCareReportMode.paidAddon,
-          groupValue: value,
-          title: const Text('付費加購'),
-          subtitle: const Text('店家不免費提供；顧客購買後才享有回報及可附照片的服務。'),
-          onChanged: (String? next) {
-            if (next != null) {
-              onChanged(next);
-            }
-          },
-        ),
-      ],
+    final List<_ReportModeOption> options = <_ReportModeOption>[
+      const _ReportModeOption(
+        value: DailyCareReportMode.includedFixed,
+        title: '固定提供',
+        subtitle: '所有訂單提供相同場次數量與名稱',
+      ),
+      _ReportModeOption(
+        value: DailyCareReportMode.includedByOffer,
+        title: daycare && !roomBased ? '依方案提供' : '依房型提供',
+        subtitle: daycare
+            ? (roomBased ? '依安親房型設定場次，購買時即確定，不等分房。' : '依安親方案設定場次。')
+            : '各房型只設定回報幾場與各場名稱，購買房型時即確定。',
+      ),
+      const _ReportModeOption(
+        value: DailyCareReportMode.paidAddon,
+        title: '付費加購',
+        subtitle: '店家不免費提供；顧客購買後才享有回報及可附照片的服務。',
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxWidth >= 440;
+        if (!compact) {
+          return RadioGroup<String>(
+            groupValue: value,
+            onChanged: (String? next) {
+              if (next != null) {
+                onChanged(next);
+              }
+            },
+            child: Column(
+              children: <Widget>[
+                for (final _ReportModeOption option in options)
+                  RadioListTile<String>(
+                    value: option.value,
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                  ),
+              ],
+            ),
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (int index = 0; index < options.length; index++) ...<Widget>[
+              if (index > 0) const SizedBox(width: 8),
+              Expanded(
+                child: _ReportModeCard(
+                  option: options[index],
+                  selected: value == options[index].value,
+                  onTap: () => onChanged(options[index].value),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildStayRuleCard() {
     return _SettingCard(
       title: '住宿回報規則',
-      subtitle: '住宿獨立保存啟用狀態、模式、場次與付費方案。',
+      subtitle: '住宿獨立保存啟用狀態、模式、場次與付費方案。開啟後，入住中的房間才會出現住宿照護紀錄填寫入口。此開關不控制安親。',
+      trailing: _EnableSwitch(
+        label: '啟用',
+        value: _enabled,
+        switchKey: const Key('stay-report-enabled'),
+        onChanged: (bool value) {
+          setState(() {
+            _enabled = value;
+          });
+        },
+      ),
+      dimmed: !_enabled,
       child: Column(
         children: <Widget>[
           const Align(
@@ -1835,20 +2063,62 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     int count,
     List<TextEditingController> controllers,
   ) {
-    return List<Widget>.generate(count, (int index) {
-      return Padding(
+    final int safeCount = count < 0
+        ? 0
+        : (count > controllers.length ? controllers.length : count);
+    return <Widget>[
+      Padding(
         padding: const EdgeInsets.only(top: 8),
-        child: TextField(
-          controller: controllers[index],
-          decoration: InputDecoration(labelText: '第 ${index + 1} 場名稱'),
-          onChanged: (_) => setState(() {}),
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            const double gap = 8;
+            const double minFieldWidth = 160;
+            final bool sideBySide =
+                safeCount > 1 &&
+                constraints.maxWidth >=
+                    safeCount * minFieldWidth + (safeCount - 1) * gap;
+            final List<Widget> fields = List<Widget>.generate(safeCount, (
+              int index,
+            ) {
+              return TextField(
+                controller: controllers[index],
+                decoration: InputDecoration(labelText: '第 ${index + 1} 場名稱'),
+                onChanged: (_) => setState(() {}),
+              );
+            });
+            if (!sideBySide) {
+              return Column(
+                children: <Widget>[
+                  for (
+                    int index = 0;
+                    index < fields.length;
+                    index++
+                  ) ...<Widget>[
+                    if (index > 0) const SizedBox(height: 8),
+                    fields[index],
+                  ],
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (int index = 0; index < fields.length; index++) ...<Widget>[
+                  if (index > 0) const SizedBox(width: gap),
+                  Expanded(child: fields[index]),
+                ],
+              ],
+            );
+          },
         ),
-      );
-    });
+      ),
+    ];
   }
 
   Widget _paidPlanEditor({required bool daycare}) {
-    final DailyCarePaidPlan plan = daycare ? _daycarePaidPlan : _stayPaidPlan;
+    final DailyCarePaidPlan plan = _clampedPaidPlan(
+      daycare ? _daycarePaidPlan : _stayPaidPlan,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -2094,6 +2364,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     return _SettingCard(
       title: '安親回報規則',
       subtitle: '顯示為每筆安親回報次數。全店安親關閉時會隱藏此區，不會清除資料。',
+      trailing: _EnableSwitch(
+        label: '啟用',
+        value: _daycareEnabled,
+        switchKey: const Key('daycare-report-enabled'),
+        onChanged: (bool value) {
+          setState(() {
+            _daycareEnabled = value;
+          });
+        },
+      ),
+      dimmed: !_daycareEnabled,
       child: Column(
         children: <Widget>[
           const Align(
@@ -2101,16 +2382,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             child: Text('每筆安親服務於服務當日提供回報。', style: TextStyle(height: 1.4)),
           ),
           const SizedBox(height: 8),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('啟用安親照護回報'),
-            value: _daycareEnabled,
-            onChanged: (bool value) {
-              setState(() {
-                _daycareEnabled = value;
-              });
-            },
-          ),
           _modeSelector(
             value: _daycareReportMode,
             onChanged: (String value) {
@@ -2150,28 +2421,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           if (_daycareReportMode == DailyCareReportMode.paidAddon)
             _paidPlanEditor(daycare: true),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMainSwitchCard() {
-    return _SettingCard(
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text(
-          '啟用住宿照護回報',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        subtitle: const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text('開啟後，入住中的房間才會出現住宿照護紀錄填寫入口。此開關不控制安親。'),
-        ),
-        value: _enabled,
-        onChanged: (bool value) {
-          setState(() {
-            _enabled = value;
-          });
-        },
       ),
     );
   }
@@ -3068,11 +3317,19 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 }
 
 class _SettingCard extends StatelessWidget {
-  const _SettingCard({required this.child, this.title, this.subtitle});
+  const _SettingCard({
+    required this.child,
+    this.title,
+    this.subtitle,
+    this.trailing,
+    this.dimmed = false,
+  });
 
   final Widget child;
   final String? title;
   final String? subtitle;
+  final Widget? trailing;
+  final bool dimmed;
 
   @override
   Widget build(BuildContext context) {
@@ -3088,25 +3345,136 @@ class _SettingCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           if (title != null) ...<Widget>[
-            Text(
-              title!,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title!,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (subtitle != null) ...<Widget>[
+                        const SizedBox(height: 5),
+                        Text(
+                          subtitle!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...<Widget>[
+                  const SizedBox(width: 8),
+                  trailing!,
+                ],
+              ],
             ),
-            if (subtitle != null) ...<Widget>[
-              const SizedBox(height: 5),
+            const SizedBox(height: 14),
+          ],
+          Opacity(opacity: dimmed ? 0.48 : 1, child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _EnableSwitch extends StatelessWidget {
+  const _EnableSwitch({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.switchKey,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Key switchKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        Switch(key: switchKey, value: value, onChanged: onChanged),
+      ],
+    );
+  }
+}
+
+class _ReportModeOption {
+  const _ReportModeOption({
+    required this.value,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String value;
+  final String title;
+  final String subtitle;
+}
+
+class _ReportModeCard extends StatelessWidget {
+  const _ReportModeCard({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _ReportModeOption option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color brand = Color(0xFF3D6F9F);
+    return Material(
+      color: selected ? const Color(0xFFE7F0F8) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? brand : const Color(0xFFE5E7EB),
+          width: selected ? 1.6 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
               Text(
-                subtitle!,
+                option.title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: selected ? brand : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                option.subtitle,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
+                  height: 1.35,
                   color: Colors.black54,
-                  height: 1.4,
                 ),
               ),
             ],
-            const SizedBox(height: 14),
-          ],
-          child,
-        ],
+          ),
+        ),
       ),
     );
   }

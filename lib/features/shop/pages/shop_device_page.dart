@@ -1108,38 +1108,583 @@ void _showCameraCompatibilitySheet(BuildContext context) {
   showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (BuildContext sheetContext) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        children: const <Widget>[
-          Text(
-            '相容性與測試方式',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          SizedBox(height: 14),
-          Text(
-            'PetNest 不直接串流攝影機，只開啟店家提供的 HTTPS 外部網址。',
-            style: TextStyle(height: 1.5),
-          ),
-          SizedBox(height: 16),
-          Text('可使用條件', style: TextStyle(fontWeight: FontWeight.w800)),
-          SizedBox(height: 6),
-          Text(
-            '• 店外網路可開啟\n• 瀏覽器可直接觀看\n• 不需要原廠 App',
-            style: TextStyle(height: 1.6),
-          ),
-          SizedBox(height: 16),
-          Text('設定前測試', style: TextStyle(fontWeight: FontWeight.w800)),
-          SizedBox(height: 6),
-          Text(
-            '• 關閉店內 Wi-Fi\n• 用手機行動網路開啟網址\n• 確認不需登入原廠 App 就能看到畫面',
-            style: TextStyle(height: 1.6),
-          ),
-        ],
+      return DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.88,
+        minChildSize: 0.55,
+        maxChildSize: 0.96,
+        builder: (BuildContext context, ScrollController controller) {
+          return _CameraCompatibilityGuide(controller: controller);
+        },
       );
     },
   );
+}
+
+class _CameraCompatibilityGuide extends StatelessWidget {
+  const _CameraCompatibilityGuide({required this.controller});
+
+  final ScrollController controller;
+
+  static const List<String> _usable = <String>[
+    '有 https:// 開頭的觀看網址',
+    '在店外、用手機行動網路也能開啟',
+    'Chrome、Safari 可直接看到即時畫面',
+    '會員不需要下載原廠 App',
+    '會員不需要登入店家的攝影機帳號',
+  ];
+
+  static const List<String> _unusable = <String>[
+    '只能在原廠 App 內觀看',
+    '網址是 192.168.x.x、10.x.x.x 或其他店內 IP',
+    '網址是 rtsp://、rtmp:// 等串流協定',
+    '離開店內 Wi-Fi 就無法觀看',
+    '客人必須使用你的帳號密碼登入',
+    '只提供攝影機後台管理網址',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      child: ListView(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '攝影機相容性與設定教學',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'PetNest 不直接連接攝影機；會員會開啟店家提供的外部觀看網址。',
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: '關閉',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const _GuideCallout(
+            icon: Icons.videocam_outlined,
+            title: '先確認：你的攝影機有「外網瀏覽器觀看網址」嗎？',
+            body: '店主需提供一個可由店外直接開啟的 HTTPS 網址。入住會員點擊後會在瀏覽器開啟，不會安裝或登入你的攝影機 App。',
+          ),
+          const SizedBox(height: 10),
+          const _GuideNotice('請提供「僅供觀看」的分享連結，不要提供攝影機管理員帳號、密碼或後台網址。'),
+          const SizedBox(height: 22),
+          const _GuideHeading('1. 先判斷能不能使用'),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool sideBySide = constraints.maxWidth >= 720;
+              final Widget usable = _GuideCompareCard(
+                usable: true,
+                title: '可以使用',
+                icon: Icons.check_circle_outline,
+                points: _usable,
+              );
+              final Widget blocked = _GuideCompareCard(
+                usable: false,
+                title: '目前不能直接使用',
+                icon: Icons.cancel_outlined,
+                points: _unusable,
+              );
+              if (!sideBySide) {
+                return Column(
+                  children: <Widget>[
+                    usable,
+                    const SizedBox(height: 10),
+                    blocked,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: usable),
+                  const SizedBox(width: 12),
+                  Expanded(child: blocked),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '如果設備只有原廠 App，PetNest 目前無法直接把畫面提供給會員。',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 22),
+          const _GuideHeading('2. 設定前，照這三步測試'),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              const List<_GuideStepData> steps = <_GuideStepData>[
+                _GuideStepData(
+                  step: 1,
+                  title: '先在瀏覽器開啟網址',
+                  body: '把攝影機提供的分享網址貼到 Chrome、Safari 或 Edge。',
+                  note: '必須是 https:// 網頁網址，不是 RTSP 或店內 IP。',
+                  icons: <IconData>[Icons.language_rounded],
+                ),
+                _GuideStepData(
+                  step: 2,
+                  title: '關閉店內 Wi-Fi',
+                  body: '用手機行動網路再次開啟同一網址。',
+                  note: '這一步是在模擬入住會員不在店內網路時的狀況。',
+                  icons: <IconData>[
+                    Icons.wifi_off_rounded,
+                    Icons.signal_cellular_alt_rounded,
+                  ],
+                ),
+                _GuideStepData(
+                  step: 3,
+                  title: '確認能直接看到畫面',
+                  body: '不安裝 App、不登入帳號，也能直接看到攝影機畫面。',
+                  note: '三步都成功，這個網址才適合貼到 PetNest。',
+                  icons: <IconData>[Icons.visibility_outlined],
+                ),
+              ];
+              if (constraints.maxWidth < 840) {
+                return Column(
+                  children: <Widget>[
+                    _GuideStepCard(data: steps[0]),
+                    const SizedBox(height: 10),
+                    _GuideStepCard(data: steps[1]),
+                    const SizedBox(height: 10),
+                    _GuideStepCard(data: steps[2]),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: _GuideStepCard(data: steps[0])),
+                  const _GuideArrow(),
+                  Expanded(child: _GuideStepCard(data: steps[1])),
+                  const _GuideArrow(),
+                  Expanded(child: _GuideStepCard(data: steps[2])),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 22),
+          const _GuideHeading('3. 常見情況怎麼判斷'),
+          const SizedBox(height: 10),
+          const _GuideQaCard(
+            question: '我有小米、Tapo、Eufy、Google 等家用攝影機，可以用嗎？',
+            answer:
+                '不一定。只要它只能透過原廠 App 看，通常就不能直接使用；是否能用只看有沒有可外網直接開啟的 HTTPS 分享網址。',
+          ),
+          const SizedBox(height: 8),
+          const _GuideQaCard(
+            question: '我可以貼店內 NVR 或路由器網址嗎？',
+            answer: '不可以。192.168.x.x、10.x.x.x 或只能在店內 Wi-Fi 使用的網址，會員在店外無法開啟。',
+          ),
+          const SizedBox(height: 8),
+          const _GuideQaCard(
+            question: '網址需要登入帳號怎麼辦？',
+            answer: '不適合提供給會員。請改用設備支援的「僅供觀看分享連結」；不要把店家管理帳號、密碼或管理後台交給客人。',
+          ),
+          const SizedBox(height: 8),
+          const _GuideQaCard(
+            question: '我測試時可以看，客人還是看不到？',
+            answer: '通常是因為測試時仍連著店內 Wi-Fi，或網址需要你的登入狀態。請務必用手機行動網路、無登入狀態重新測試。',
+          ),
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F6EE),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFB7E0C8)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(
+                      Icons.verified_outlined,
+                      color: const Color(0xFF1B7A45),
+                      size: 26,
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '符合以上條件後，再回到房間設定網址',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              height: 1.35,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            '請先確認：外網可開啟、直接看得到畫面、不需 App、不需登入店家帳號。',
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.45,
+                              color: Color(0xFF3F4A44),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('我已完成測試，回到設定'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideHeading extends StatelessWidget {
+  const _GuideHeading(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+    );
+  }
+}
+
+class _GuideCallout extends StatelessWidget {
+  const _GuideCallout({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: primary, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: Color(0xFF3F4A57),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideNotice extends StatelessWidget {
+  const _GuideNotice(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Icon(
+          Icons.privacy_tip_outlined,
+          size: 18,
+          color: Color(0xFFB45309),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: Color(0xFF92400E),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GuideCompareCard extends StatelessWidget {
+  const _GuideCompareCard({
+    required this.usable,
+    required this.title,
+    required this.icon,
+    required this.points,
+  });
+
+  final bool usable;
+  final String title;
+  final IconData icon;
+  final List<String> points;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color tone = usable
+        ? const Color(0xFF1B7A45)
+        : const Color(0xFFC2410C);
+    final Color background = usable
+        ? const Color(0xFFF1F8F2)
+        : const Color(0xFFFFF6F0);
+    final Color border = usable
+        ? const Color(0xFFC8E6C9)
+        : const Color(0xFFF3D6C4);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: tone, size: 36),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: tone,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final String point in points) ...<Widget>[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(
+                    usable ? Icons.check : Icons.close,
+                    size: 16,
+                    color: tone,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      point,
+                      style: const TextStyle(fontSize: 13, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideStepData {
+  const _GuideStepData({
+    required this.step,
+    required this.title,
+    required this.body,
+    required this.note,
+    required this.icons,
+  });
+
+  final int step;
+  final String title;
+  final String body;
+  final String note;
+  final List<IconData> icons;
+}
+
+class _GuideStepCard extends StatelessWidget {
+  const _GuideStepCard({required this.data});
+
+  final _GuideStepData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              for (final IconData icon in data.icons) ...<Widget>[
+                Icon(icon, size: 32, color: primary),
+                const SizedBox(width: 6),
+              ],
+              const Spacer(),
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '${data.step}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            data.title,
+            style: const TextStyle(fontWeight: FontWeight.w800, height: 1.3),
+          ),
+          const SizedBox(height: 6),
+          Text(data.body, style: const TextStyle(fontSize: 13, height: 1.4)),
+          const SizedBox(height: 8),
+          Text(
+            data.note,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideArrow extends StatelessWidget {
+  const _GuideArrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 28),
+      child: Icon(Icons.arrow_forward_rounded, color: Color(0xFF9CA3AF)),
+    );
+  }
+}
+
+class _GuideQaCard extends StatelessWidget {
+  const _GuideQaCard({required this.question, required this.answer});
+
+  final String question;
+  final String answer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            question,
+            style: const TextStyle(fontWeight: FontWeight.w800, height: 1.35),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            answer,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 void _showEditDeviceDialog(

@@ -7,7 +7,9 @@ import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
 import 'package:petnest_saas/core/models/inventory_movement_model.dart';
 import 'package:petnest_saas/core/services/inventory_service.dart';
+import 'package:petnest_saas/core/services/inventory_linkage_service.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_item_cover.dart';
+import 'package:petnest_saas/features/shop/widgets/inventory/inventory_linkage_badge.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_movement_tile.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_status_chip.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_stock_dialogs.dart';
@@ -20,6 +22,8 @@ class InventoryOverviewTab extends StatelessWidget {
     required this.canReceive,
     required this.canAdjust,
     required this.canViewCost,
+    required this.linkages,
+    required this.onViewLinkages,
     required this.onViewAllMovements,
   });
 
@@ -28,6 +32,8 @@ class InventoryOverviewTab extends StatelessWidget {
   final bool canReceive;
   final bool canAdjust;
   final bool canViewCost;
+  final InventoryLinkageSnapshot linkages;
+  final VoidCallback onViewLinkages;
   final VoidCallback onViewAllMovements;
 
   @override
@@ -35,7 +41,11 @@ class InventoryOverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: <Widget>[
-        _ItemHeader(item: item),
+        _ItemHeader(
+          item: item,
+          linkages: linkages,
+          onViewLinkages: onViewLinkages,
+        ),
         const SizedBox(height: 16),
         _SectionLabel(title: '庫存概況'),
         const SizedBox(height: 8),
@@ -108,9 +118,15 @@ class InventoryOverviewTab extends StatelessWidget {
 }
 
 class _ItemHeader extends StatelessWidget {
-  const _ItemHeader({required this.item});
+  const _ItemHeader({
+    required this.item,
+    required this.linkages,
+    required this.onViewLinkages,
+  });
 
   final InventoryItemModel item;
+  final InventoryLinkageSnapshot linkages;
+  final VoidCallback onViewLinkages;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +166,14 @@ class _ItemHeader extends StatelessWidget {
                     icon: Icons.qr_code_scanner,
                     text: '條碼 ${item.barcode}',
                   ),
+                const SizedBox(height: 6),
+                InventoryLinkageBadge(
+                  snapshot: linkages,
+                  item: item,
+                  onTap: linkages.canClassify && linkages.countOf(item.id) > 0
+                      ? onViewLinkages
+                      : null,
+                ),
               ],
             ),
           ),
@@ -209,8 +233,13 @@ class _StockSummaryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<_SummaryData> cards = <_SummaryData>[
       _SummaryData(
-        label: '目前庫存',
+        label: '現有庫存',
         value: InventoryConstants.formatQuantity(item.currentStock),
+        suffix: item.unit,
+      ),
+      _SummaryData(
+        label: '可用庫存',
+        value: InventoryConstants.formatQuantity(item.availableStock),
         suffix: item.unit,
       ),
       _SummaryData(
@@ -218,6 +247,12 @@ class _StockSummaryGrid extends StatelessWidget {
         value: InventoryConstants.formatQuantity(item.safetyStock),
         suffix: item.unit,
       ),
+      if (item.reservedQuantity > 0)
+        _SummaryData(
+          label: '已保留',
+          value: InventoryConstants.formatQuantity(item.reservedQuantity),
+          suffix: item.unit,
+        ),
       if (canViewCost)
         _SummaryData(
           label: '最近進貨價',
@@ -427,11 +462,12 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget child = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          Icon(icon, size: 22),
-          const SizedBox(height: 4),
+          Icon(icon, size: 18),
+          const SizedBox(width: 6),
           Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),

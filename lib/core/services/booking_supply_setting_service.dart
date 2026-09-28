@@ -1,12 +1,14 @@
 // 檔案名稱：lib/core/services/booking_supply_setting_service.dart
-// 功能說明：讀取與儲存店家的住宿必要用品。可純手動記錄，或綁定中央庫存於入住時扣除。
-// 🧹 住宿耗材設定 Service
+// 功能說明：讀取與儲存住宿／安親共用的服務耗材。可純手動記錄，或綁定中央庫存。
+// 🧹 服務耗材設定 Service
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/booking_supply_setting_model.dart';
+import 'package:petnest_saas/core/models/inventory_item_model.dart';
+import 'package:petnest_saas/core/services/inventory_service.dart';
 
 class BookingSupplySettingService {
   BookingSupplySettingService._();
@@ -82,8 +84,12 @@ class BookingSupplySettingService {
     String inventoryItemId = '',
     String inventoryItemName = '',
     String unit = '',
-    required num quantityPerUnit,
-    required BookingSupplyDeductionMode deductionMode,
+    required bool appliesToStay,
+    required bool appliesToDaycare,
+    required num stayQuantityPerUnit,
+    required BookingSupplyDeductionMode stayDeductionMode,
+    required num daycareQuantityPerUnit,
+    required DaycareSupplyDeductionMode daycareDeductionMode,
     bool enabled = true,
     String note = '',
   }) async {
@@ -96,15 +102,42 @@ class BookingSupplySettingService {
     }
 
     if (normalizedName.isEmpty) {
-      throw const InventoryException('請輸入用品名稱');
+      throw const InventoryException('請輸入耗材名稱');
     }
 
-    if (quantityPerUnit <= 0) {
-      throw const InventoryException('扣除數量必須大於 0');
+    if (!appliesToStay && !appliesToDaycare) {
+      throw const InventoryException('請至少選擇住宿或安親');
     }
 
-    if (useInventory && inventoryItemId.trim().isEmpty) {
+    if (appliesToStay && stayQuantityPerUnit <= 0) {
+      throw const InventoryException('住宿扣除數量必須大於 0');
+    }
+
+    if (appliesToDaycare && daycareQuantityPerUnit <= 0) {
+      throw const InventoryException('安親扣除數量必須大於 0');
+    }
+
+    final String normalizedItemId = inventoryItemId.trim();
+    if (useInventory && normalizedItemId.isEmpty) {
       throw const InventoryException('請選擇中央庫存品項');
+    }
+
+    if (useInventory) {
+      final InventoryItemModel? item = await InventoryService.instance.getItem(
+        shopId: normalizedShopId,
+        itemId: normalizedItemId,
+      );
+      if (item == null) {
+        throw const InventoryException('找不到選擇的庫存品項');
+      }
+      if (!item.allowDecimal) {
+        final bool stayFraction = appliesToStay && stayQuantityPerUnit % 1 != 0;
+        final bool daycareFraction =
+            appliesToDaycare && daycareQuantityPerUnit % 1 != 0;
+        if (stayFraction || daycareFraction) {
+          throw const InventoryException('此庫存品項不支援小數數量');
+        }
+      }
     }
 
     final DateTime now = DateTime.now();
@@ -117,11 +150,17 @@ class BookingSupplySettingService {
       shopId: normalizedShopId,
       name: normalizedName,
       useInventory: useInventory,
-      inventoryItemId: useInventory ? inventoryItemId.trim() : '',
+      inventoryItemId: useInventory ? normalizedItemId : '',
       inventoryItemName: useInventory ? inventoryItemName.trim() : '',
       unit: unit.trim(),
-      quantityPerUnit: quantityPerUnit,
-      deductionMode: deductionMode,
+      quantityPerUnit: stayQuantityPerUnit,
+      deductionMode: stayDeductionMode,
+      appliesToStay: appliesToStay,
+      appliesToDaycare: appliesToDaycare,
+      stayQuantityPerUnit: stayQuantityPerUnit,
+      stayDeductionMode: stayDeductionMode,
+      daycareQuantityPerUnit: daycareQuantityPerUnit,
+      daycareDeductionMode: daycareDeductionMode,
       enabled: enabled,
       note: note.trim(),
       createdBy: operatorUid,

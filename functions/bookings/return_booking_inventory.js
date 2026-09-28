@@ -13,6 +13,10 @@ const {
   prepareReturnFromDeduct,
   commitPreparedConsumption,
 } = require("../inventory/inventory_consumption");
+const {
+  canReturnDaycareSuppliesAfterCancel,
+  prepareDaycareSupplyReturn,
+} = require("../daycare/daycare_supply");
 
 /**
  * @param {string} value
@@ -112,8 +116,15 @@ exports.returnBookingInventory = onCall(
             movementType: "return",
             note: "取消訂單返還住宿耗材",
           });
+          const daycarePrepared = canReturnDaycareSuppliesAfterCancel(booking) ?
+            await prepareDaycareSupplyReturn(transaction, {
+              shopId,
+              bookingId,
+            }) :
+            {skip: true, lines: []};
           commitPreparedConsumption(transaction, addonPrepared, userId);
           commitPreparedConsumption(transaction, supplyPrepared, userId);
+          commitPreparedConsumption(transaction, daycarePrepared, userId);
         });
       } catch (error) {
         if (error instanceof HttpsError) {

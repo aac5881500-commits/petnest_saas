@@ -24,6 +24,9 @@ class InventoryMovementTile extends StatelessWidget {
     final String typeLabel = InventoryConstants.movementTypeLabel(
       movement.type,
     );
+    final String headline = movement.reason.startsWith('安親耗材')
+        ? '安親耗材'
+        : typeLabel;
     final String sourceLabel = InventoryConstants.sourceTypeLabel(
       movement.sourceType,
     );
@@ -59,7 +62,7 @@ class InventoryMovementTile extends StatelessWidget {
                   children: <Widget>[
                     Expanded(
                       child: Text(
-                        typeLabel,
+                        headline,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,

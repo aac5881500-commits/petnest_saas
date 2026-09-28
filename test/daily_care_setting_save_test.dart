@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daily_care_journal_layout.dart';
+import 'package:petnest_saas/core/models/daily_care_offer_quota.dart';
+import 'package:petnest_saas/core/models/daily_care_paid_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 
@@ -260,5 +262,74 @@ void main() {
       libraryBlock.contains('allow create, update, delete: if true'),
       isFalse,
     );
+  });
+
+  test('舊資料 reports 異常與場次名稱不足時仍可組成可寫 payload', () {
+    final DailyCareSettingModel legacy = DailyCareSettingModel.fromMap(
+      <String, dynamic>{
+        'enabled': true,
+        'sessionLabels': <String>['只有一場'],
+        'daycareSessionLabels': null,
+        'stayPaidPlan': <String, dynamic>{
+          'reports': null,
+          'sessionLabels': <String>['早'],
+        },
+        'daycarePaidPlan': <String, dynamic>{
+          'reports': 0,
+          'price': 300,
+          'name': '寫真回報',
+        },
+      },
+    );
+    final DailyCareSettingModel abnormal = DailyCareSettingModel(
+      sessionLabels: const <String>['甲'],
+      stayPaidPlan: const DailyCarePaidPlan(
+        reports: 0,
+        sessionLabels: <String>['早'],
+      ),
+      daycarePaidPlan: const DailyCarePaidPlan(
+        reports: 9,
+        price: 300,
+        sessionLabels: <String>['安親一'],
+      ),
+      stayOfferQuotas: const <String, DailyCareOfferQuota>{
+        'room-a': DailyCareOfferQuota(
+          configured: false,
+          reports: -4,
+          sessionLabels: <String>['房型場'],
+        ),
+      },
+    );
+    final DailyCareSettingModel prepared =
+        DailyCareSettingFirestoreValue.prepareForSave(abnormal);
+    expect(prepared.stayPaidPlan.reports, inInclusiveRange(1, 3));
+    expect(prepared.daycarePaidPlan.reports, inInclusiveRange(1, 3));
+    expect(prepared.stayOfferQuotas['room-a']!.reports, 0);
+    expect(prepared.enabled, abnormal.enabled);
+
+    expect(
+      () => DailyCareSettingFirestoreValue.payloadForWrite(legacy),
+      returnsNormally,
+    );
+    final Map<String, dynamic> payload =
+        DailyCareSettingFirestoreValue.payloadForWrite(abnormal);
+    expect(payload['stayPaidPlan'], isA<Map<String, dynamic>>());
+    expect(
+      (payload['stayPaidPlan'] as Map<String, dynamic>)['reports'],
+      inInclusiveRange(1, 3),
+    );
+    expect(
+      (payload['daycarePaidPlan'] as Map<String, dynamic>)['reports'],
+      inInclusiveRange(1, 3),
+    );
+    expect(
+      ((payload['stayPaidPlan'] as Map<String, dynamic>)['sessionLabels']
+              as List)
+          .length,
+      lessThanOrEqualTo(3),
+    );
+    expect((payload['sessionLabels'] as List).length, 3);
+    expect(payload.values.every(isPlainFirestoreValue), isTrue);
+    expect(payload.containsKey('welcomeText'), isFalse);
   });
 }

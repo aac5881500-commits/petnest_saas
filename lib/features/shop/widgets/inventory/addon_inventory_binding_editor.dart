@@ -224,6 +224,13 @@ class AddonInventoryStatusChip extends StatelessWidget {
   }
 }
 
+String _sheetServiceName(Map<String, dynamic> service) {
+  final String name = (service['name'] ?? service['label'] ?? '')
+      .toString()
+      .trim();
+  return name.isEmpty ? '此服務' : name;
+}
+
 Future<void> showAddonInventoryBindingSheet({
   required BuildContext context,
   required String shopId,
@@ -536,7 +543,7 @@ class _AddonInventoryBindingSheetState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               const Text(
-                                '管理庫存綁定',
+                                '設定售出扣除品項',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
@@ -544,7 +551,7 @@ class _AddonInventoryBindingSheetState
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                '此服務每售出 1 份，系統會依下方設定自動扣除庫存。',
+                                '每售出 1 份「${_sheetServiceName(widget.service)}」，系統會依下方數量扣除庫存。',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.grey.shade700,
@@ -621,18 +628,11 @@ class _AddonInventoryBindingSheetState
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                           child: SizedBox(
                             width: double.infinity,
-                            child: OutlinedButton.icon(
+                            child: FilledButton.icon(
                               onPressed: _addBinding,
                               icon: const Icon(Icons.add),
-                              label: const Text('新增庫存品項'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: colors.primary,
-                                backgroundColor: colors.primary.withValues(
-                                  alpha: 0.06,
-                                ),
-                                side: BorderSide(
-                                  color: colors.primary.withValues(alpha: 0.28),
-                                ),
+                              label: const Text('新增扣除品項'),
+                              style: FilledButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
@@ -681,26 +681,22 @@ class _EmptyBindingState extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            '尚未綁定庫存品項',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '此服務目前只計費，不會扣除任何庫存。',
+            '此服務尚未設定扣除品項，售出時目前不會扣除任何庫存。',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child: FilledButton.icon(
               onPressed: onAdd,
               icon: const Icon(Icons.add),
-              label: const Text('選擇庫存品項'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: colors.primary,
-                backgroundColor: colors.primary.withValues(alpha: 0.06),
-                side: BorderSide(color: colors.primary.withValues(alpha: 0.28)),
+              label: const Text('選擇要扣除的庫存品項'),
+              style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -868,6 +864,15 @@ class _BoundItemCard extends StatelessWidget {
                   allowDecimal: allowDecimal,
                   onChanged: onNudge,
                   onEditTap: onEditQuantity,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '每售出 1 份服務 → 扣 ${InventoryConstants.formatQuantity(model.quantityPerUnit)}${unit.isEmpty ? '' : ' $unit'}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),

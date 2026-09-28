@@ -32,6 +32,16 @@ const {
   writeHoldEntries,
 } = require("./daycare_occupancy");
 const {syncBookingPoints} = require("../points/sync_booking_points");
+const {
+  prepareDaycareSupplyDeduct,
+  prepareDaycareSupplyReturn,
+  parseSupplySetting,
+  shouldReturnDaycareSupplies,
+  toDaycareSupplyError,
+} = require("./daycare_supply");
+const {
+  commitPreparedConsumption,
+} = require("../inventory/inventory_consumption");
 
 function formatLogTime(value) {
   const date = toDate(value);
@@ -313,12 +323,46 @@ exports.manageDaycareBooking = onCall(
         if (!normalizeString(booking.roomId)) {
           throw new HttpsError("failed-precondition", "請先分配房間後再入住");
         }
-        await bookingRef.update({
-          status: "checked_in",
-          actualStartAt: now,
-          checkedInAt: now,
-          updatedAt: now,
-        });
+        try {
+          await firestore.runTransaction(async (transaction) => {
+            const freshSnap = await transaction.get(bookingRef);
+            const current = freshSnap.data() || {};
+            if (normalizeString(current.status) !== "confirmed") {
+              throw new HttpsError(
+                  "failed-precondition",
+                  "請先確認訂單後再入住",
+              );
+            }
+            if (!normalizeString(current.roomId)) {
+              throw new HttpsError(
+                  "failed-precondition",
+                  "請先分配房間後再入住",
+              );
+            }
+            const settingsSnap = await transaction.get(
+                firestore.collection("shops").doc(shopId)
+                    .collection("booking_supply_settings"),
+            );
+            const settings = settingsSnap.docs.map((doc) => {
+              return parseSupplySetting(doc.data());
+            });
+            const prepared = await prepareDaycareSupplyDeduct(transaction, {
+              shopId,
+              bookingId,
+              booking: current,
+              settings,
+            });
+            commitPreparedConsumption(transaction, prepared, uid);
+            transaction.update(bookingRef, {
+              status: "checked_in",
+              actualStartAt: now,
+              checkedInAt: now,
+              updatedAt: now,
+            });
+          });
+        } catch (error) {
+          throw toDaycareSupplyError(error, "安親耗材扣庫存失敗，請稍後再試");
+        }
       } else if (action === "previewSettle" || action === "complete" ||
           action === "settle") {
         await requirePerm(uid, shopId, "manage_daycare_bookings");
@@ -690,6 +734,20 @@ exports.manageDaycareBooking = onCall(
             firestore, shopId, bookingId,
         );
         await firestore.runTransaction(async (transaction) => {
+          const freshSnap = await transaction.get(bookingRef);
+          const current = freshSnap.data() || booking;
+          if (["completed", "cancelled"].includes(
+              normalizeString(current.status),
+          )) {
+            throw new HttpsError("failed-precondition", "目前狀態不可取消");
+          }
+          let supplyPrepared = {skip: true, lines: []};
+          if (shouldReturnDaycareSupplies(current)) {
+            supplyPrepared = await prepareDaycareSupplyReturn(transaction, {
+              shopId,
+              bookingId,
+            });
+          }
           const holdBooking = holdIdentity(booking, bookingId, shopId);
           const holdRef = holdRefForBooking(firestore, holdBooking);
           const holdSnap = holdRef ? await transaction.get(holdRef) : null;
@@ -700,6 +758,7 @@ exports.manageDaycareBooking = onCall(
           applyHoldReleaseFromSnap(
               transaction, holdRef, holdSnap, holdBooking,
           );
+          commitPreparedConsumption(transaction, supplyPrepared, uid);
           transaction.update(bookingRef, cancelUpdates);
         });
         await syncBookingPoints(firestore, {

@@ -25,6 +25,19 @@ class _ThrowingEverythingError {
   }
 }
 
+class _WrappedFutureError {
+  _WrappedFutureError(this.error);
+
+  final Object error;
+
+  @override
+  String toString() {
+    return "Error: Dart exception thrown from converted Future. "
+        "Use the properties 'error' to fetch the boxed error and "
+        "'stack' to recover the stack trace.";
+  }
+}
+
 void main() {
   test('permission-denied 顯示權限文案', () {
     final DailyCareSettingSaveException parsed =
@@ -39,24 +52,75 @@ void main() {
   });
 
   test('revision 衝突顯示重新載入', () {
-    const DailyCareSettingSaveException parsed =
-        DailyCareSettingSaveException(
-          '設定已被其他人更新，請重新載入後再儲存',
-          code: 'revision-conflict',
-        );
+    const DailyCareSettingSaveException parsed = DailyCareSettingSaveException(
+      '設定已被其他人更新，請重新載入後再儲存',
+      code: 'revision-conflict',
+    );
     expect(
       DailyCareSettingSaveException.fromError(parsed).message,
       '設定已被其他人更新，請重新載入後再儲存',
     );
   });
 
-  test('converted Future 不直接顯示給店主', () {
+  test('converted Future 外層包裝會還原真正例外', () {
+    final RangeError root = RangeError.index(5, <int>[0, 1, 2]);
+    final _WrappedFutureError wrapped = _WrappedFutureError(root);
+    DailyCareSaveErrorProbe.debugLog(
+      'step=payload section=rules expectedRevision=4 currentRevision=4',
+      wrapped,
+      StackTrace.current,
+    );
     final DailyCareSettingSaveException parsed =
-        DailyCareSettingSaveException.fromError(
-          Exception(
-            'Error: Dart exception thrown from converted Future. Use the dart:js_util exception helper to extract it.',
+        DailyCareSettingSaveException.fromError(wrapped);
+    expect(parsed.message, '設定資料格式異常，請重新載入後再試');
+    expect(parsed.message.contains('converted Future'), isFalse);
+    expect(parsed.message.contains('RangeError'), isFalse);
+    expect(DailyCareSaveErrorProbe.debugRoot, same(root));
+    expect(DailyCareSaveErrorProbe.debugRoot, isA<RangeError>());
+    expect(DailyCareSaveErrorProbe.debugRootType, 'IndexError');
+    expect(
+      DailyCareSaveErrorProbe.debugLabel.contains('expectedRevision=4'),
+      isTrue,
+    );
+    expect(
+      DailyCareSaveErrorProbe.debugLabel.contains('currentRevision=4'),
+      isTrue,
+    );
+  });
+
+  test('包裝後的 revision 與權限錯誤仍維持原提示', () {
+    expect(
+      DailyCareSettingSaveException.fromError(
+        _WrappedFutureError(
+          const DailyCareSettingSaveException(
+            '設定已被其他人更新，請重新載入後再儲存',
+            code: 'revision-conflict',
           ),
-        );
+        ),
+      ).message,
+      '設定已被其他人更新，請重新載入後再儲存',
+    );
+    expect(
+      DailyCareSettingSaveException.fromError(
+        _WrappedFutureError(
+          FirebaseException(
+            plugin: 'cloud_firestore',
+            code: 'permission-denied',
+            message: 'Missing or insufficient permissions.',
+          ),
+        ),
+      ).message,
+      '沒有儲存每日照護設定的權限',
+    );
+  });
+
+  test('converted Future 不直接顯示給店主', () {
+    final DailyCareSettingSaveException
+    parsed = DailyCareSettingSaveException.fromError(
+      Exception(
+        'Error: Dart exception thrown from converted Future. Use the dart:js_util exception helper to extract it.',
+      ),
+    );
     expect(parsed.message.contains('converted Future'), isFalse);
     expect(parsed.message, '儲存失敗，請稍後再試');
   });
@@ -78,14 +142,17 @@ void main() {
   });
 
   test('safeToString 失敗時回傳空字串', () {
-    expect(DailyCareSaveErrorProbe.safeToString(_ThrowingEverythingError()), '');
+    expect(
+      DailyCareSaveErrorProbe.safeToString(_ThrowingEverythingError()),
+      '',
+    );
     expect(DailyCareSaveErrorProbe.readCode(_ThrowingEverythingError()), '');
     expect(DailyCareSaveErrorProbe.readMessage(_ThrowingEverythingError()), '');
   });
 
   test('Firestore sanitize 轉成純 Map/List/數字', () {
-    final Map<String, dynamic> clean = DailyCareSettingFirestoreValue
-        .sanitizeMap(<String, dynamic>{
+    final Map<String, dynamic> clean =
+        DailyCareSettingFirestoreValue.sanitizeMap(<String, dynamic>{
           'titleFontSize': 18.0,
           'enabled': true,
           'labels': <String>['上午場', '下午場'],

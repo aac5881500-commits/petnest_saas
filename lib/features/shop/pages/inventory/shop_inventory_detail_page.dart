@@ -1,14 +1,18 @@
 // 檔案名稱：lib/features/shop/pages/inventory/shop_inventory_detail_page.dart
-// 功能說明：手機優先的分頁式詳情。總覽、進貨紀錄、異動流水、設定分開，不改庫存計算邏輯。
+// 功能說明：庫存品項詳情。總覽、連動用途、進貨紀錄、異動流水、設定分開。
 // 📦 庫存品項詳情頁
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
+import 'package:petnest_saas/core/services/inventory_linkage_service.dart';
 import 'package:petnest_saas/core/services/inventory_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_form_page.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_batches_tab.dart';
+import 'package:petnest_saas/features/shop/widgets/inventory/inventory_linkages_tab.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_movements_tab.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_overview_tab.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_settings_tab.dart';
@@ -33,6 +37,8 @@ class ShopInventoryDetailPage extends StatefulWidget {
 class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  StreamSubscription<InventoryLinkageSnapshot>? _linkSubscription;
+  InventoryLinkageSnapshot _linkages = const InventoryLinkageSnapshot.pending();
 
   bool _can(String key) {
     return ShopService.instance.hasPermission(widget.memberData, key);
@@ -41,11 +47,34 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
+    _linkSubscription = InventoryLinkageService.instance
+        .watchShop(widget.shopId)
+        .listen(
+          (InventoryLinkageSnapshot snapshot) {
+            if (!mounted) {
+              return;
+            }
+            setState(() => _linkages = snapshot);
+          },
+          onError: (Object _) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _linkages = const InventoryLinkageSnapshot(
+                ready: true,
+                hasError: true,
+                byItemId: <String, List<InventoryLinkage>>{},
+              );
+            });
+          },
+        );
   }
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -59,7 +88,7 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
         _can(ShopPermissionKeys.adjustInventory) || canManage;
     final bool canViewCost = _can(ShopPermissionKeys.viewInventoryCost);
     final double pageWidth = MediaQuery.sizeOf(context).width;
-    final bool compactTabs = pageWidth < 430;
+    final bool scrollTabs = pageWidth < 900;
 
     return StreamBuilder<InventoryItemModel?>(
       stream: InventoryService.instance.streamItem(
@@ -95,8 +124,8 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
                 ],
                 bottom: TabBar(
                   controller: _tabController,
-                  isScrollable: compactTabs,
-                  tabAlignment: compactTabs
+                  isScrollable: scrollTabs,
+                  tabAlignment: scrollTabs
                       ? TabAlignment.start
                       : TabAlignment.fill,
                   labelPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -107,6 +136,7 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
                   unselectedLabelStyle: const TextStyle(fontSize: 13),
                   tabs: const <Widget>[
                     Tab(text: '總覽'),
+                    Tab(text: '連動用途'),
                     Tab(text: '進貨紀錄'),
                     Tab(text: '異動流水'),
                     Tab(text: '設定'),
@@ -114,7 +144,11 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
                 ),
               ),
               body: item == null
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: snapshot.hasError
+                          ? const Text('暫時無法讀取此庫存品項')
+                          : const CircularProgressIndicator(),
+                    )
                   : TabBarView(
                       controller: _tabController,
                       children: <Widget>[
@@ -124,8 +158,11 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
                           canReceive: canReceive,
                           canAdjust: canAdjust,
                           canViewCost: canViewCost,
-                          onViewAllMovements: () => _tabController.animateTo(2),
+                          linkages: _linkages,
+                          onViewLinkages: () => _tabController.animateTo(1),
+                          onViewAllMovements: () => _tabController.animateTo(3),
                         ),
+                        InventoryLinkagesTab(item: item, snapshot: _linkages),
                         InventoryBatchesTab(
                           shopId: widget.shopId,
                           item: item,

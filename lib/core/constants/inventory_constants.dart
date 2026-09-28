@@ -55,6 +55,9 @@ enum BookingSupplyDeductionMode {
   perPetPerStay,
 }
 
+/// 安親耗材扣除方式。安親是單日服務，不使用每晚或入住。
+enum DaycareSupplyDeductionMode { perRoomPerVisit, perPetPerVisit }
+
 /// 庫存狀態
 enum InventoryStockStatus { normal, low, outOfStock, disabled }
 
@@ -240,6 +243,28 @@ class InventoryConstants {
     }
   }
 
+  static String daycareDeductionModeValue(DaycareSupplyDeductionMode mode) {
+    return mode.name;
+  }
+
+  static DaycareSupplyDeductionMode daycareDeductionModeFromValue(
+    String value,
+  ) {
+    return DaycareSupplyDeductionMode.values.firstWhere(
+      (DaycareSupplyDeductionMode item) => item.name == value,
+      orElse: () => DaycareSupplyDeductionMode.perRoomPerVisit,
+    );
+  }
+
+  static String daycareDeductionModeLabel(DaycareSupplyDeductionMode mode) {
+    switch (mode) {
+      case DaycareSupplyDeductionMode.perRoomPerVisit:
+        return '每房每次安親';
+      case DaycareSupplyDeductionMode.perPetPerVisit:
+        return '每隻寵物每次安親';
+    }
+  }
+
   static String stockStatusLabel(InventoryStockStatus status) {
     switch (status) {
       case InventoryStockStatus.normal:
@@ -378,6 +403,22 @@ class InventoryConstants {
   static String bookingSupplyReturnId(String bookingId) {
     return consumptionId(
       prefix: 'bs',
+      sourceId: bookingId,
+      operation: consumptionOperationReturn,
+    );
+  }
+
+  static String daycareSupplyDeductId(String bookingId) {
+    return consumptionId(
+      prefix: 'ds',
+      sourceId: bookingId,
+      operation: consumptionOperationDeduct,
+    );
+  }
+
+  static String daycareSupplyReturnId(String bookingId) {
+    return consumptionId(
+      prefix: 'ds',
       sourceId: bookingId,
       operation: consumptionOperationReturn,
     );

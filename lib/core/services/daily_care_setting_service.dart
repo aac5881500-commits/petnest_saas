@@ -5,12 +5,49 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/daily_care_offer_quota.dart';
+import '../models/daily_care_paid_plan.dart';
+import '../models/daily_care_report_mode.dart';
 import '../models/daily_care_setting_model.dart';
+import 'daily_care_js_error_stub.dart'
+    if (dart.library.js_interop) 'daily_care_js_error_web.dart';
 
 class DailyCareSaveErrorProbe {
   DailyCareSaveErrorProbe._();
 
+  /// debug 用：保留 transaction 裡真正的 Dart 例外，不讓 Web 外層包裝蓋掉。
+  static Object? debugRoot;
+  static String debugRootType = '';
+  static String debugLabel = '';
+
   static String readCode(Object error) {
+    final Object root = unwrapRoot(error);
+    final String dartCode = _readDartCode(root);
+    if (dartCode.isNotEmpty) {
+      return _normalizeCode(dartCode);
+    }
+    return _normalizeCode(readDailyCareJsProperty(root, 'code'));
+  }
+
+  static String readMessage(Object error) {
+    final Object root = unwrapRoot(error);
+    final String dartMessage = _readDartMessage(root);
+    if (dartMessage.isNotEmpty) {
+      return dartMessage;
+    }
+    return readDailyCareJsProperty(root, 'message');
+  }
+
+  static String _normalizeCode(String code) {
+    final String text = code.trim();
+    const String prefix = 'firestore/';
+    if (text.startsWith(prefix)) {
+      return text.substring(prefix.length);
+    }
+    return text;
+  }
+
+  static String _readDartCode(Object error) {
     try {
       if (error is FirebaseException) {
         return error.code;
@@ -27,7 +64,7 @@ class DailyCareSaveErrorProbe {
     }
   }
 
-  static String readMessage(Object error) {
+  static String _readDartMessage(Object error) {
     try {
       if (error is FirebaseException) {
         return (error.message ?? '').trim();
@@ -44,6 +81,47 @@ class DailyCareSaveErrorProbe {
     }
   }
 
+  /// Web transaction 會把 callback 裡的 Dart 例外裝進 JS Error.error。
+  static Object unwrapRoot(Object error) {
+    Object current = error;
+    final Set<Object> seen = <Object>{};
+    for (int depth = 0; depth < 4; depth++) {
+      if (!seen.add(current)) {
+        break;
+      }
+      final Object? inner = _innerError(current);
+      if (inner == null) {
+        break;
+      }
+      current = inner;
+    }
+    return current;
+  }
+
+  static Object? _innerError(Object error) {
+    final Object? boxed = _unboxJsError(error);
+    if (boxed != null) {
+      return boxed;
+    }
+    try {
+      final Object? inner = (error as dynamic).error;
+      if (inner == null || identical(inner, error) || inner is String) {
+        return null;
+      }
+      return inner;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Object? _unboxJsError(Object error) {
+    try {
+      return unboxDailyCareJsError(error);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static String safeToString(Object? value) {
     if (value == null) {
       return '';
@@ -56,26 +134,33 @@ class DailyCareSaveErrorProbe {
   }
 
   static void debugLog(String label, Object error, [StackTrace? stack]) {
-    if (!kDebugMode) {
-      return;
-    }
-    debugPrint(label);
-    if (error is FirebaseException) {
-      debugPrint('FirebaseException code=${error.code}');
-      debugPrint('FirebaseException message=${error.message}');
-    } else {
-      final String code = readCode(error);
-      final String message = readMessage(error);
+    final Object root = unwrapRoot(error);
+    if (kDebugMode) {
+      debugRoot = root;
+      debugRootType = root.runtimeType.toString();
+      debugLabel = label;
+      debugPrint(label);
+      debugPrint('runtimeType=${error.runtimeType}');
+      debugPrint('rootRuntimeType=${root.runtimeType}');
+      debugPrint('safe=${safeToString(root)}');
+      final String code = _readDartCode(root).isNotEmpty
+          ? _normalizeCode(_readDartCode(root))
+          : _normalizeCode(readDailyCareJsProperty(root, 'code'));
+      final String message = _readDartMessage(root).isNotEmpty
+          ? _readDartMessage(root)
+          : readDailyCareJsProperty(root, 'message');
       if (code.isNotEmpty) {
-        debugPrint('error code=$code');
+        debugPrint('code=$code');
       }
       if (message.isNotEmpty) {
-        debugPrint('error message=$message');
+        debugPrint('message=$message');
       }
-    }
-    debugPrint('exception=${safeToString(error)}');
-    if (stack != null) {
-      debugPrint(safeToString(stack));
+      if (!identical(root, error)) {
+        debugPrint('outer=${safeToString(error)}');
+      }
+      if (stack != null) {
+        debugPrint(safeToString(stack));
+      }
     }
   }
 }
@@ -89,17 +174,22 @@ class DailyCareSettingSaveException implements Exception {
   @override
   String toString() => message;
 
+  static const String formatMessage = '設定資料格式異常，請重新載入後再試';
+  static const String genericMessage = '儲存失敗，請稍後再試';
+
   static DailyCareSettingSaveException fromError(Object error) {
-    if (error is DailyCareSettingSaveException) {
-      return error;
+    final Object root = DailyCareSaveErrorProbe.unwrapRoot(error);
+    if (root is DailyCareSettingSaveException) {
+      return root;
     }
-    final String code = DailyCareSaveErrorProbe.readCode(error);
-    final String rawMessage = DailyCareSaveErrorProbe.readMessage(error);
-    final String asString = DailyCareSaveErrorProbe.safeToString(error);
+    final String code = DailyCareSaveErrorProbe.readCode(root);
+    final String rawMessage = DailyCareSaveErrorProbe.readMessage(root);
+    final String asString = DailyCareSaveErrorProbe.safeToString(root);
     final String combined = <String>[
       code,
       rawMessage,
       asString,
+      root.runtimeType.toString(),
     ].join(' ').toLowerCase();
 
     if (code == 'permission-denied' ||
@@ -119,15 +209,28 @@ class DailyCareSettingSaveException implements Exception {
         code: 'revision-conflict',
       );
     }
-    if (combined.contains('converted future') ||
-        combined.contains('javascriptobject') ||
-        combined.contains('dart exception thrown')) {
-      return const DailyCareSettingSaveException('儲存失敗，請稍後再試', code: 'unknown');
+    if (_isFormatError(root, combined)) {
+      return const DailyCareSettingSaveException(
+        formatMessage,
+        code: 'invalid-data',
+      );
     }
-    if (rawMessage.isNotEmpty) {
-      return DailyCareSettingSaveException(rawMessage, code: code);
+    return const DailyCareSettingSaveException(genericMessage, code: 'unknown');
+  }
+
+  static bool _isFormatError(Object error, String combined) {
+    if (error is ArgumentError ||
+        error is TypeError ||
+        error is FormatException ||
+        error is NoSuchMethodError ||
+        error is UnsupportedError) {
+      return true;
     }
-    return const DailyCareSettingSaveException('儲存失敗，請稍後再試', code: 'unknown');
+    return combined.contains('unsupported field') ||
+        combined.contains('invalid-argument') ||
+        combined.contains('invalid data') ||
+        combined.contains('rangeerror') ||
+        combined.contains('index out of range');
   }
 }
 
@@ -166,8 +269,104 @@ class DailyCareSettingFirestoreValue {
     'showFilledTime',
   ];
 
+  static int readRevision(Object? raw) {
+    if (raw is num) {
+      if (raw.isNaN || raw.isInfinite) {
+        return 0;
+      }
+      return raw.round();
+    }
+    final num? parsed = num.tryParse(
+      DailyCareSaveErrorProbe.safeToString(raw).trim(),
+    );
+    if (parsed == null || parsed.isNaN || parsed.isInfinite) {
+      return 0;
+    }
+    return parsed.round();
+  }
+
+  static int clampPaidReports(int reports) {
+    if (reports < 1) {
+      return 1;
+    }
+    if (reports > DailyCareReportMode.maxSessions) {
+      return DailyCareReportMode.maxSessions;
+    }
+    return reports;
+  }
+
+  static int clampQuotaReports(int reports) {
+    if (reports < 0) {
+      return 0;
+    }
+    if (reports > DailyCareReportMode.maxSessions) {
+      return DailyCareReportMode.maxSessions;
+    }
+    return reports;
+  }
+
+  static String _safeLabel(List<String> labels, int index) {
+    try {
+      if (index < 0 || index >= labels.length) {
+        return '';
+      }
+      return labels[index].trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static DailyCarePaidPlan preparePaidPlan(DailyCarePaidPlan plan) {
+    final int reports = clampPaidReports(plan.reports);
+    final List<String> labels = <String>[];
+    final int limit =
+        plan.sessionLabels.length < DailyCareReportMode.maxSessions
+        ? plan.sessionLabels.length
+        : DailyCareReportMode.maxSessions;
+    for (int index = 0; index < limit; index++) {
+      labels.add(_safeLabel(plan.sessionLabels, index));
+    }
+    return plan.copyWith(reports: reports, sessionLabels: labels);
+  }
+
+  static DailyCareOfferQuota prepareQuota(DailyCareOfferQuota quota) {
+    final int reports = clampQuotaReports(quota.reports);
+    final List<String> labels = <String>[];
+    final int limit =
+        quota.sessionLabels.length < DailyCareReportMode.maxSessions
+        ? quota.sessionLabels.length
+        : DailyCareReportMode.maxSessions;
+    for (int index = 0; index < limit; index++) {
+      labels.add(_safeLabel(quota.sessionLabels, index));
+    }
+    return DailyCareOfferQuota(
+      configured: quota.configured,
+      reports: reports,
+      sessionLabels: labels,
+    );
+  }
+
+  static Map<String, DailyCareOfferQuota> prepareQuotas(
+    Map<String, DailyCareOfferQuota> quotas,
+  ) {
+    return quotas.map(
+      (String key, DailyCareOfferQuota quota) =>
+          MapEntry<String, DailyCareOfferQuota>(key, prepareQuota(quota)),
+    );
+  }
+
+  /// 舊資料場次數量異常時先補成可寫入的範圍，不清空其他欄位。
+  static DailyCareSettingModel prepareForSave(DailyCareSettingModel setting) {
+    return setting.copyWith(
+      stayPaidPlan: preparePaidPlan(setting.stayPaidPlan),
+      daycarePaidPlan: preparePaidPlan(setting.daycarePaidPlan),
+      stayOfferQuotas: prepareQuotas(setting.stayOfferQuotas),
+      daycareOfferQuotas: prepareQuotas(setting.daycareOfferQuotas),
+    );
+  }
+
   static Map<String, dynamic> payloadForWrite(DailyCareSettingModel setting) {
-    final DailyCareSettingModel safe = setting.forShopWrite();
+    final DailyCareSettingModel safe = prepareForSave(setting).forShopWrite();
     final Map<String, dynamic> payload = sanitizeMap(safe.toMap());
     for (final String key in _removedSettingKeys) {
       payload.remove(key);
@@ -304,65 +503,94 @@ class DailyCareSettingService {
       throw ArgumentError('缺少店家 ID');
     }
 
+    String step = 'prepare';
+    int? currentRevision;
+    Object? callbackError;
+    StackTrace? callbackStack;
     try {
+      final DailyCareSettingModel prepared =
+          DailyCareSettingFirestoreValue.prepareForSave(setting);
       await _firestore.runTransaction((Transaction transaction) async {
-        final DocumentSnapshot<Map<String, dynamic>> snapshot =
-            await transaction.get(_shopReference(normalizedShopId));
-        final Object? raw = snapshot.data()?['dailyCareSetting'];
-        int currentRevision = 0;
-        if (raw is Map && raw['revision'] is num) {
-          currentRevision = (raw['revision'] as num).round();
-        }
-        if (expectedRevision != null && expectedRevision != currentRevision) {
-          throw const DailyCareSettingSaveException(
-            '設定已被其他人更新，請重新載入後再儲存',
-            code: 'revision-conflict',
+        try {
+          step = 'read';
+          final DocumentSnapshot<Map<String, dynamic>> snapshot =
+              await transaction.get(_shopReference(normalizedShopId));
+          final Object? raw = snapshot.data()?['dailyCareSetting'];
+          step = 'revision';
+          currentRevision = 0;
+          if (raw is Map) {
+            currentRevision = DailyCareSettingFirestoreValue.readRevision(
+              raw['revision'],
+            );
+          }
+          if (expectedRevision != null && expectedRevision != currentRevision) {
+            throw const DailyCareSettingSaveException(
+              '設定已被其他人更新，請重新載入後再儲存',
+              code: 'revision-conflict',
+            );
+          }
+          step = 'parse';
+          final DailyCareSettingModel current = raw is Map
+              ? DailyCareSettingModel.fromMap(
+                  DailyCareSettingFirestoreValue.sanitizeMap(
+                    DailyCareSettingFirestoreValue.copyRawMap(raw),
+                  ),
+                )
+              : const DailyCareSettingModel();
+          step = 'merge';
+          final DailyCareSettingModel merged = _mergeSection(
+            current: current,
+            incoming: prepared,
+            section: section,
           );
-        }
-        final DailyCareSettingModel current = raw is Map
-            ? DailyCareSettingModel.fromMap(
-                DailyCareSettingFirestoreValue.sanitizeMap(
-                  DailyCareSettingFirestoreValue.copyRawMap(raw),
-                ),
-              )
-            : const DailyCareSettingModel();
-        final DailyCareSettingModel merged = _mergeSection(
-          current: current,
-          incoming: setting,
-          section: section,
-        );
-        final DailyCareSettingModel next = merged.copyWith(
-          revision: currentRevision + 1,
-        );
-        final Map<String, dynamic> payload =
-            DailyCareSettingFirestoreValue.payloadForWrite(next);
-        payload['revision'] = currentRevision + 1;
-        if (kDebugMode) {
-          debugPrint('DailyCareSetting write shopId=$normalizedShopId');
-          debugPrint('section=$section revision=$currentRevision');
-          debugPrint(
-            'pageBackgroundSource=${next.pageBackgroundSource} pageBackgroundAssetId=${next.pageBackgroundAssetId}',
+          final DailyCareSettingModel next = merged.copyWith(
+            revision: currentRevision! + 1,
           );
-          debugPrint(
-            'cardDefaultSurfaceMode=${next.cardDefaultSurfaceMode} cardDefaultBackgroundAssetId=${next.cardDefaultBackgroundAssetId}',
+          step = 'payload';
+          final Map<String, dynamic> payload =
+              DailyCareSettingFirestoreValue.payloadForWrite(next);
+          payload['revision'] = currentRevision! + 1;
+          if (kDebugMode) {
+            debugPrint(
+              'DailyCareSetting write shopId=$normalizedShopId '
+              'section=$section expectedRevision=$expectedRevision '
+              'currentRevision=$currentRevision',
+            );
+            debugPrint('writeFields=${payload.keys.toList()}');
+          }
+          step = 'write';
+          transaction.set(_shopReference(normalizedShopId), <String, dynamic>{
+            'dailyCareSetting': payload,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          step = 'done';
+        } catch (error, stack) {
+          callbackError = error;
+          callbackStack = stack;
+          DailyCareSaveErrorProbe.debugLog(
+            'DailyCareSetting transaction failed '
+            'step=$step section=$section shopId=$normalizedShopId '
+            'expectedRevision=$expectedRevision currentRevision=$currentRevision',
+            error,
+            stack,
           );
-          debugPrint('writeFields=${payload.keys.toList()}');
+          rethrow;
         }
-        transaction.set(_shopReference(normalizedShopId), <String, dynamic>{
-          'dailyCareSetting': payload,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
       });
     } catch (error, stack) {
-      DailyCareSaveErrorProbe.debugLog(
-        'DailyCareSetting save failed shopId=$normalizedShopId '
-        'pageBackgroundAssetId=${setting.pageBackgroundAssetId} '
-        'cardDefaultBackgroundAssetId=${setting.cardDefaultBackgroundAssetId} '
-        'writeFields=${setting.toMap().keys.toList()}',
-        error,
-        stack,
-      );
-      throw DailyCareSettingSaveException.fromError(error);
+      final Object root =
+          callbackError ?? DailyCareSaveErrorProbe.unwrapRoot(error);
+      final StackTrace rootStack = callbackStack ?? stack;
+      if (callbackError == null) {
+        DailyCareSaveErrorProbe.debugLog(
+          'DailyCareSetting save failed '
+          'step=$step section=$section shopId=$normalizedShopId '
+          'expectedRevision=$expectedRevision currentRevision=$currentRevision',
+          root,
+          rootStack,
+        );
+      }
+      throw DailyCareSettingSaveException.fromError(root);
     }
   }
 

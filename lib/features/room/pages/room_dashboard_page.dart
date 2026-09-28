@@ -6,19 +6,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/presentation/room_day_status.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
+import 'package:petnest_saas/features/room/models/housekeeping_workbench_task.dart';
 import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
+import 'package:petnest_saas/features/room/services/housekeeping_workbench_logic.dart';
+import 'package:petnest_saas/features/room/widgets/housekeeping_workbench.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
 
@@ -78,7 +84,7 @@ class RoomDashboardPage extends StatefulWidget {
 
 class _RoomDashboardPageState extends State<RoomDashboardPage> {
   static const double _desktopMin = 700;
-  static const double _splitMin = 1100;
+  static const double _splitMin = HousekeepingWorkbenchLogic.desktopMinWidth;
   static const Color _accent = Color(0xFF1565C0);
 
   DateTime selectedDate = DateTime.now();
@@ -89,8 +95,10 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   final Set<String> _collapsedTypes = <String>{};
   final Set<String> _busyKeys = <String>{};
   _DeskView _deskView = _DeskView.rooms;
-  String _focusBookingId = '';
   String _selectedRoomId = '';
+  HousekeepingWorkbenchFilter _workbenchFilter =
+      HousekeepingWorkbenchFilter.todo;
+  HousekeepingWorkbenchSelection? _workbenchSelection;
   int _streamRetry = 0;
   DailyCareReportCenterSnapshot? _lastReport;
 
@@ -531,50 +539,61 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       );
     }
 
-    if (view == _DeskView.split) {
-      return Column(
-        children: <Widget>[
-          stats,
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Expanded(
-                    flex: 38,
-                    child: _quickRoomPane(
-                      allRows: allRows,
-                      usingCount: usingCount,
-                      pendingHousekeeping: pendingHousekeeping,
-                      bookings: bookings,
-                      calendarStatus: calendarStatus,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: VerticalDivider(width: 1, thickness: 1),
-                  ),
-                  Expanded(
-                    flex: 62,
-                    child: Material(
-                      color: const Color(0xFFF7F8FA),
-                      clipBehavior: Clip.antiAlias,
-                      borderRadius: BorderRadius.circular(12),
-                      child: DailyCareReportCenterPage(
-                        key: ValueKey<String>('split-$_focusBookingId'),
-                        shopId: widget.shopId,
-                        canOperate: true,
-                        embedded: true,
-                        initialBookingId: _focusBookingId,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+    if (view == _DeskView.split &&
+        HousekeepingWorkbenchLogic.showsDesktopWorkbench(
+          width: width,
+          reportsEnabled: true,
+          splitSelected: true,
+        )) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: StreamBuilder<DailyCareSettingModel>(
+          stream: DailyCareSettingService.instance.streamSetting(widget.shopId),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<DailyCareSettingModel> settingSnap,
+              ) {
+                return HousekeepingWorkbench(
+                  shopId: widget.shopId,
+                  rooms: _workbenchRooms(allRows),
+                  bookings: _workbenchBookings(bookings),
+                  items: report?.items ?? const <DailyCareReportCenterItem>[],
+                  today: DailyCareDateHelper.todayInTaipei(),
+                  selectedDate: selectedDate,
+                  filter: _workbenchFilter,
+                  selection: _workbenchSelection,
+                  setting: settingSnap.data ?? const DailyCareSettingModel(),
+                  onFilter: (HousekeepingWorkbenchFilter value) {
+                    setState(() => _workbenchFilter = value);
+                  },
+                  onSelection: (HousekeepingWorkbenchSelection? value) {
+                    setState(() => _workbenchSelection = value);
+                  },
+                  onShiftDate: (int days) {
+                    setState(() {
+                      selectedDate = selectedDate.add(Duration(days: days));
+                    });
+                  },
+                  onToday: () {
+                    final DateTime now = DateTime.now();
+                    setState(() {
+                      selectedDate = DateTime(now.year, now.month, now.day);
+                    });
+                  },
+                  actionsFor: (String roomId) =>
+                      _workbenchActions(roomId, allRows, report),
+                  onOpenRoom: (String roomId) {
+                    for (final _DashRoom row in allRows) {
+                      if (row.id == roomId) {
+                        _openCalendar(row.room);
+                        return;
+                      }
+                    }
+                  },
+                );
+              },
+        ),
       );
     }
 
@@ -939,109 +958,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _quickRoomPane({
-    required List<_DashRoom> allRows,
-    required int usingCount,
-    required int pendingHousekeeping,
-    required List<QueryDocumentSnapshot> bookings,
-    required Map<String, String> calendarStatus,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  '房間快速處理',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 8),
-                _compactDateRow(),
-                const SizedBox(height: 6),
-                Text(
-                  '入住中 $usingCount 間／待處理 $pendingHousekeeping 項',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: _groupedList(
-              filtered: allRows,
-              allRows: allRows,
-              bookings: bookings,
-              calendarStatus: calendarStatus,
-              dense: true,
-              splitSelect: true,
-              reportsOn: true,
-              compact: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _compactDateRow() {
-    return Row(
-      children: <Widget>[
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          onPressed: () {
-            setState(() {
-              selectedDate = selectedDate.subtract(const Duration(days: 1));
-            });
-          },
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Expanded(
-          child: Text(
-            DateFormat('MM/dd').format(selectedDate),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          onPressed: () {
-            setState(() {
-              selectedDate = selectedDate.add(const Duration(days: 1));
-            });
-          },
-          icon: const Icon(Icons.chevron_right),
-        ),
-        TextButton(
-          onPressed: DateUtils.isSameDay(selectedDate, DateTime.now())
-              ? null
-              : () {
-                  setState(() {
-                    selectedDate = DateTime(
-                      DateTime.now().year,
-                      DateTime.now().month,
-                      DateTime.now().day,
-                    );
-                  });
-                },
-          child: const Text('今天'),
-        ),
-      ],
     );
   }
 
@@ -1650,7 +1566,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           if (splitSelect) {
             setState(() {
               _selectedRoomId = row.id;
-              _focusBookingId = row.label == '入住中' ? row.bookingId : '';
             });
             return;
           }
@@ -1841,7 +1756,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                           MediaQuery.sizeOf(context).width >= _splitMin) {
                         setState(() {
                           _selectedRoomId = row.id;
-                          _focusBookingId = row.bookingId;
                         });
                         return;
                       }
@@ -2019,6 +1933,150 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
               ),
       ),
     );
+  }
+
+  List<HousekeepingRoomInput> _workbenchRooms(List<_DashRoom> rows) {
+    return rows
+        .map(
+          (_DashRoom row) => HousekeepingRoomInput(
+            id: row.id,
+            name: row.name,
+            typeName: row.typeName,
+            statusLabel: row.label,
+            bookingId: row.bookingId,
+            customerName: (row.booking?['customerName'] ?? '').toString(),
+            petNames: _petNames(row.booking),
+            stayRange: row.booking == null ? '' : _stayRange(row.booking!),
+            stayStart: row.booking == null
+                ? null
+                : _asDate(row.booking!['startDate']),
+            stayEnd: row.booking == null
+                ? null
+                : _asDate(row.booking!['endDate']),
+          ),
+        )
+        .toList();
+  }
+
+  List<HousekeepingBookingMark> _workbenchBookings(
+    List<QueryDocumentSnapshot> bookings,
+  ) {
+    final List<HousekeepingBookingMark> marks = <HousekeepingBookingMark>[];
+    for (final QueryDocumentSnapshot doc in bookings) {
+      final Object? raw = doc.data();
+      if (raw is! Map) {
+        continue;
+      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
+      marks.add(
+        HousekeepingBookingMark(
+          roomId: (data['roomId'] ?? '').toString(),
+          bookingId: doc.id,
+          customerName: (data['customerName'] ?? '').toString(),
+          petNames: _petNames(data),
+          start: _asDate(data['startDate']),
+          end: _asDate(data['endDate']),
+          status: (data['status'] ?? '').toString(),
+        ),
+      );
+    }
+    return marks;
+  }
+
+  List<HousekeepingWorkbenchAction> _workbenchActions(
+    String roomId,
+    List<_DashRoom> rows,
+    DailyCareReportCenterSnapshot? report,
+  ) {
+    _DashRoom? row;
+    for (final _DashRoom item in rows) {
+      if (item.id == roomId) {
+        row = item;
+        break;
+      }
+    }
+    if (row == null) {
+      return const <HousekeepingWorkbenchAction>[];
+    }
+    final _DashRoom current = row;
+    final bool busy = _busyKeys.contains(_actionKey(current.id));
+    if (current.label == DaycareOccupancyService.cleaningLabel) {
+      return <HousekeepingWorkbenchAction>[
+        HousekeepingWorkbenchAction(
+          label: '完成清潔',
+          busy: busy,
+          onPressed: busy
+              ? null
+              : () => _runRoomAction(
+                  roomId: current.id,
+                  successMessage: '${current.name} 已完成清潔，房間已恢復開放',
+                  action: () => ShopRoomService.instance.completeCleaning(
+                    shopId: widget.shopId,
+                    roomId: current.id,
+                    date: selectedDate,
+                  ),
+                ),
+        ),
+      ];
+    }
+    if (current.label == DaycareOccupancyService.disabledLabel) {
+      return <HousekeepingWorkbenchAction>[
+        HousekeepingWorkbenchAction(
+          label: '啟用房間',
+          busy: busy,
+          onPressed: busy
+              ? null
+              : () => _runRoomAction(
+                  roomId: current.id,
+                  successMessage: '${current.name} 已啟用',
+                  action: () => ShopService.instance.updateRoomStatus(
+                    shopId: widget.shopId,
+                    roomId: current.id,
+                    enabled: true,
+                  ),
+                ),
+        ),
+      ];
+    }
+    if (current.label == '入住中') {
+      return <HousekeepingWorkbenchAction>[
+        HousekeepingWorkbenchAction(
+          label: '查看訂單',
+          busy: busy,
+          onPressed: busy || current.bookingId.isEmpty
+              ? null
+              : () => AdminBookingRoute.open(
+                  context,
+                  bookingId: current.bookingId,
+                  data: current.booking,
+                  canEdit: true,
+                ),
+        ),
+        if ((report?.settingEnabled ?? false) && current.pendingSessions > 0)
+          HousekeepingWorkbenchAction(
+            label: '回報',
+            busy: busy,
+            onPressed: busy || current.bookingId.isEmpty
+                ? null
+                : () {
+                    final HousekeepingRoomInput input = _workbenchRooms(
+                      <_DashRoom>[current],
+                    ).first;
+                    setState(() {
+                      _workbenchSelection =
+                          HousekeepingWorkbenchLogic.selectionForStay(
+                            room: input,
+                            items:
+                                report?.items ??
+                                const <DailyCareReportCenterItem>[],
+                            today: DailyCareDateHelper.todayInTaipei(),
+                          );
+                    });
+                  },
+          ),
+      ];
+    }
+    return const <HousekeepingWorkbenchAction>[];
   }
 
   Widget _errorPane(String title, Object? error) {

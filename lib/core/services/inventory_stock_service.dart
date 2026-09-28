@@ -371,10 +371,17 @@ class InventoryStockService {
     final List<BookingSupplySettingModel> settings =
         await BookingSupplySettingService.instance.getSettings(shopId);
 
-    final List<InventoryStockLine> lines = _supplyLinesFromBooking(
-      booking: data,
-      settings: settings,
-    );
+    final List<InventoryStockLine> lines =
+        BookingSupplyDeduction.stayLines(booking: data, settings: settings).map(
+          (BookingSupplyDeductLine line) {
+            return InventoryStockLine(
+              inventoryItemId: line.inventoryItemId,
+              quantityChange: -line.quantity,
+              reason: line.reason,
+              sourceSubId: line.settingId,
+            );
+          },
+        ).toList();
 
     if (lines.isEmpty) {
       return;
@@ -916,73 +923,6 @@ class InventoryStockService {
     return count <= 0 ? 1 : count;
   }
 
-  List<InventoryStockLine> _supplyLinesFromBooking({
-    required Map<String, dynamic> booking,
-    required List<BookingSupplySettingModel> settings,
-  }) {
-    final int nights = _positiveInt(booking['nights'], fallback: 1);
-    final int petCount = _bookingPetCount(booking);
-    final int roomCount = 1;
-
-    final List<InventoryStockLine> lines = <InventoryStockLine>[];
-
-    for (final BookingSupplySettingModel setting in settings) {
-      if (!setting.shouldDeductInventory) {
-        continue;
-      }
-
-      num multiplier;
-
-      switch (setting.deductionMode) {
-        case BookingSupplyDeductionMode.perRoomPerNight:
-          multiplier = roomCount * nights;
-          break;
-        case BookingSupplyDeductionMode.perRoomPerStay:
-          multiplier = roomCount;
-          break;
-        case BookingSupplyDeductionMode.perPetPerNight:
-          multiplier = petCount * nights;
-          break;
-        case BookingSupplyDeductionMode.perPetPerStay:
-          multiplier = petCount;
-          break;
-      }
-
-      final num quantity = InventoryConstants.roundQuantity(
-        setting.quantityPerUnit * multiplier,
-      );
-
-      if (quantity <= 0) {
-        continue;
-      }
-
-      lines.add(
-        InventoryStockLine(
-          inventoryItemId: setting.inventoryItemId,
-          quantityChange: -quantity,
-          reason: '住宿耗材「${setting.name}」',
-          sourceSubId: setting.id,
-        ),
-      );
-    }
-
-    return lines;
-  }
-
-  int _bookingPetCount(Map<String, dynamic> booking) {
-    final Object? petIds = booking['petIds'];
-    if (petIds is List && petIds.isNotEmpty) {
-      return petIds.length;
-    }
-
-    final Object? pets = booking['pets'];
-    if (pets is List && pets.isNotEmpty) {
-      return pets.length;
-    }
-
-    return 1;
-  }
-
   List<InventoryStockLine> _mergeLines(List<InventoryStockLine> lines) {
     final Map<String, InventoryStockLine> merged =
         <String, InventoryStockLine>{};
@@ -1100,18 +1040,6 @@ class InventoryStockService {
     }
 
     return incoming.isBefore(current) ? incoming : current;
-  }
-
-  int _positiveInt(dynamic value, {required int fallback}) {
-    if (value is int && value > 0) {
-      return value;
-    }
-
-    if (value is num && value > 0) {
-      return value.toInt();
-    }
-
-    return fallback;
   }
 
   String _requireUid() {
