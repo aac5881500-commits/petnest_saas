@@ -41,6 +41,31 @@ class HomeBannerDisplay {
     }
   }
 
+  static String homeContentModeLabel(String mode) {
+    if (mode == StoreBannerContentModes.templateOverlay) {
+      return '使用海報製作器';
+    }
+    return '直接上傳完成海報';
+  }
+
+  static String homeContentModeHelp(String mode) {
+    if (mode == StoreBannerContentModes.templateOverlay) {
+      return '使用背景圖片、文字、漸層與按鈕製作海報；發布時會自動輸出成固定 16:9 成品圖。';
+    }
+    return '上傳已設計完成的 16:9 海報，發布後前台直接使用此成品。';
+  }
+
+  /// 直接上傳的完整海報不裁切。製作器只有放大後才需要移動位置。
+  static bool showsImagePositionControls({
+    required String contentMode,
+    required double imageScale,
+  }) {
+    if (contentMode != StoreBannerContentModes.templateOverlay) {
+      return false;
+    }
+    return imageScale > 1.001;
+  }
+
   static String? validateAction(StoreBannerModel banner) {
     switch (banner.actionType) {
       case HomeBannerActionTypes.url:

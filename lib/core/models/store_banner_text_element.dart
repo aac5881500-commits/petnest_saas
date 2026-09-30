@@ -1,8 +1,6 @@
 // 檔案名稱：lib/core/models/store_banner_text_element.dart
 // 功能說明：商城海報自由文字元件。位置用 0~1，不存 pixel。
 
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_banner_placement.dart';
 
@@ -20,9 +18,15 @@ class StoreBannerFontSizes {
     display,
   ];
 
-  static const double minPx = 12;
-  static const double maxPx = 64;
-  static const int sliderDivisions = 52;
+  static const double minPx = 18;
+  static const double maxPx = 220;
+
+  /// 1600×900 完成海報上的字級。預覽用 fontSize × 畫布高度 / 900。
+  static const double designHeight = 900;
+  static const double designTitle = 104;
+  static const double designSubtitle = 46;
+  static const double designBody = 52;
+  static const double designCta = 28;
 
   static String label(String value) {
     switch (value) {
@@ -60,7 +64,7 @@ class StoreBannerFontSizes {
     String best = title;
     double bestDelta = double.infinity;
     for (final String preset in presets) {
-      final double delta = (basePx(preset) - px).abs();
+      final double delta = (designPx(preset) - px).abs();
       if (delta < bestDelta) {
         bestDelta = delta;
         best = preset;
@@ -73,18 +77,36 @@ class StoreBannerFontSizes {
     return value.clamp(minPx, maxPx);
   }
 
-  static double clampForBanner(double px, double bannerHeight) {
-    return px.clamp(minPx, sliderMaxForBanner(bannerHeight));
+  /// 100px 以下每 2px，超過 100px 每 4px。
+  static double snapPosterPx(double value) {
+    final double clamped = clampPx(value);
+    if (clamped <= 100) {
+      return (clamped / 2).roundToDouble() * 2;
+    }
+    return (clamped / 4).roundToDouble() * 4;
   }
 
-  /// 編輯器滑桿上限與 [clampForBanner] 相同。
-  static double sliderMaxForBanner(double bannerHeight) {
-    return math.min(maxPx, math.max(minPx, bannerHeight * 0.30));
+  static double designPx(String value) {
+    switch (value) {
+      case small:
+        return 28;
+      case body:
+        return designSubtitle;
+      case subhead:
+        return designBody;
+      case display:
+        return 140;
+      default:
+        return designTitle;
+    }
   }
 
-  static double fontSize(String value, double bannerHeight) {
-    final double scale = (bannerHeight / 190).clamp(0.82, 1.35);
-    return (basePx(value) * scale).clamp(11.0, 48.0);
+  /// 把 1600×900 的字級換到目前畫布，比例與完成圖一致。
+  static double scaleDesign(double designPx, double bannerHeight) {
+    if (bannerHeight <= 0) {
+      return designPx;
+    }
+    return designPx * bannerHeight / designHeight;
   }
 
   static int maxLines(String value) {
@@ -376,20 +398,20 @@ class StoreBannerTextElement {
 
   bool get hasText => text.trim().isNotEmpty;
 
-  /// 有保存 fontSize 時用數值；舊海報只剩 preset 時維持原本依高度縮放。
-  double resolvedFontSize(double bannerHeight) {
-    final double raw = fontSize != null
-        ? StoreBannerFontSizes.clampPx(fontSize!)
-        : StoreBannerFontSizes.fontSize(fontSizePreset, bannerHeight);
-    return StoreBannerFontSizes.clampForBanner(raw, bannerHeight);
-  }
-
-  /// 編輯器 Slider 顯示值：新資料用保存的 px，舊資料用 preset 基準 px。
-  double get sliderFontSize {
+  /// 完成海報 px。舊資料沒有 fontSize 時，才用 preset 換算。
+  double get posterFontPx {
     return StoreBannerFontSizes.clampPx(
-      fontSize ?? StoreBannerFontSizes.basePx(fontSizePreset),
+      fontSize ?? StoreBannerFontSizes.designPx(fontSizePreset),
     );
   }
+
+  /// 預覽字級 = 完成海報 px × 畫布高度 / 900。輸出 900 高時等於原始 px。
+  double previewFontSize(double bannerHeight) {
+    return StoreBannerFontSizes.scaleDesign(posterFontPx, bannerHeight);
+  }
+
+  /// 編輯器顯示的是完成海報 px，不是預覽畫面的顯示 px。
+  double get sliderFontSize => posterFontPx;
 
   int get maxLines {
     if (fontSize != null) {

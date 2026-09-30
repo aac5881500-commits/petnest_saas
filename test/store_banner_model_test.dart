@@ -243,7 +243,7 @@ void main() {
     expect(applied.imageStoragePath, source.imageStoragePath);
     expect(applied.imageScale, 1.4);
     expect(applied.imageAlignmentX, 0.8);
-    expect(applied.textElements.length, 3);
+    expect(applied.textElements.length, 2);
     expect(applied.overlayMode, StoreBannerOverlayModes.bottom);
     expect(applied.ctaEnabled, isTrue);
     expect(
@@ -265,54 +265,48 @@ void main() {
     expect(StoreBannerModel.imageUserMessage('圖片大小不可超過 5MB'), '圖片不可超過 5 MB');
   });
 
-  test('normalized position 會扣掉元件尺寸與安全距', () {
-    const Size banner = Size(390, 190);
-    const Size element = Size(120, 36);
+  test('normalized position 以畫布比例定位，並停在 5% 安全區', () {
+    const Size banner = Size(1600, 900);
+    const Size element = Size(200, 80);
+    final double marginX = banner.width * StoreBannerPlacement.safeFraction;
+    final double marginY = banner.height * StoreBannerPlacement.safeFraction;
     final Offset leftTop = StoreBannerPlacement.offsetOf(
       positionX: 0,
       positionY: 0,
       bannerSize: banner,
       elementSize: element,
     );
-    expect(leftTop.dx, StoreBannerPlacement.padX);
-    expect(leftTop.dy, StoreBannerPlacement.padY);
+    expect(leftTop.dx, marginX);
+    expect(leftTop.dy, marginY);
     final Offset rightBottom = StoreBannerPlacement.offsetOf(
       positionX: 1,
       positionY: 1,
       bannerSize: banner,
       elementSize: element,
     );
-    expect(
-      rightBottom.dx,
-      banner.width - StoreBannerPlacement.padX - element.width,
-    );
-    expect(
-      rightBottom.dy,
-      banner.height - StoreBannerPlacement.padY - element.height,
-    );
-    final Offset mid = StoreBannerPlacement.offsetOf(
-      positionX: 0.5,
-      positionY: 0.5,
+    expect(rightBottom.dx, banner.width - marginX - element.width);
+    expect(rightBottom.dy, banner.height - marginY - element.height);
+    const Offset finger = Offset(640, 360);
+    final Offset stored = StoreBannerPlacement.normalize(
+      actual: finger,
       bannerSize: banner,
       elementSize: element,
     );
-    final Offset back = StoreBannerPlacement.normalize(
-      actual: mid,
+    final Offset painted = StoreBannerPlacement.offsetOf(
+      positionX: stored.dx,
+      positionY: stored.dy,
       bannerSize: banner,
       elementSize: element,
     );
-    expect(back.dx, closeTo(0.5, 0.001));
-    expect(back.dy, closeTo(0.5, 0.001));
-    final Offset clamped = StoreBannerPlacement.clampActual(
-      actual: const Offset(-40, 400),
+    expect(painted.dx, closeTo(finger.dx, 0.01));
+    expect(painted.dy, closeTo(finger.dy, 0.01));
+    final Offset clamped = StoreBannerPlacement.clampTopLeft(
+      topLeft: const Offset(-40, 2000),
       bannerSize: banner,
       elementSize: element,
     );
-    expect(clamped.dx, StoreBannerPlacement.padX);
-    expect(
-      clamped.dy,
-      lessThanOrEqualTo(banner.height - StoreBannerPlacement.padY),
-    );
+    expect(clamped.dx, marginX);
+    expect(clamped.dy, banner.height - marginY - element.height);
   });
 
   test('舊 positionPreset 可轉成 normalized position', () {
@@ -449,5 +443,60 @@ void main() {
     expect(banner.resolvedTextAlignH, StoreBannerAlignX.center);
     expect(banner.toMap()['imageUrl'], 'https://example.com/c.jpg');
     expect(banner.toMap()['contentMode'], 'template_overlay');
+  });
+
+  test('首頁快速版型在 1600×900 預留三區且不重疊', () {
+    const StoreBannerModel source = StoreBannerModel(
+      id: 'layout',
+      title: '店主標題',
+      subtitle: '店主副標',
+      ctaText: '立即預約',
+      imageUrl: 'https://example.com/cat.jpg',
+      actionType: 'rooms',
+    );
+    const double margin = StoreBannerPlacement.safeFraction;
+    for (final String id in StoreBannerTemplates.homeIds) {
+      final StoreBannerModel applied = StoreBannerTemplates.apply(source, id);
+      expect(applied.imageUrl, source.imageUrl, reason: id);
+      expect(applied.actionType, source.actionType, reason: id);
+      final List<Rect> blocks = StoreBannerTemplates.reservedBlocks(
+        id,
+        ctaText: '立即預約',
+      );
+      if (id == StoreBannerTemplates.imageOnly) {
+        expect(applied.textElements, isEmpty, reason: id);
+        expect(applied.ctaEnabled, isFalse, reason: id);
+        expect(blocks, isEmpty, reason: id);
+        continue;
+      }
+      expect(applied.textElements.first.text, '店主標題', reason: id);
+      expect(applied.textElements[1].text, '店主副標', reason: id);
+      expect(applied.ctaText, '立即預約', reason: id);
+      expect(blocks, hasLength(3), reason: id);
+      for (final Rect block in blocks) {
+        expect(block.left, greaterThanOrEqualTo(1600 * margin - 1), reason: id);
+        expect(block.top, greaterThanOrEqualTo(900 * margin - 1), reason: id);
+        expect(
+          block.right,
+          lessThanOrEqualTo(1600 * (1 - margin) + 1),
+          reason: id,
+        );
+        expect(
+          block.bottom,
+          lessThanOrEqualTo(900 * (1 - margin) + 1),
+          reason: id,
+        );
+        expect(block.width, greaterThan(0), reason: id);
+        expect(block.height, greaterThan(0), reason: id);
+      }
+      expect(blocks[0].overlaps(blocks[1]), isFalse, reason: '$id title/sub');
+      expect(blocks[1].overlaps(blocks[2]), isFalse, reason: '$id sub/cta');
+      expect(blocks[0].overlaps(blocks[2]), isFalse, reason: '$id title/cta');
+      expect(
+        blocks[2].top - blocks[1].bottom,
+        greaterThanOrEqualTo(24),
+        reason: id,
+      );
+    }
   });
 }

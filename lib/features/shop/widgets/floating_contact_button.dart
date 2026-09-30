@@ -18,6 +18,7 @@ class FloatingContactButton extends StatefulWidget {
     super.key,
     required this.shop,
     required this.shopId,
+    this.isPreview = false,
   });
 
   /// 店家資料
@@ -25,6 +26,11 @@ class FloatingContactButton extends StatefulWidget {
 
   /// 目前店家 ID
   final String shopId;
+
+  /// 外觀預覽只提示，不開啟電話或放大按鈕。
+  final bool isPreview;
+
+  static const Key buttonKey = ValueKey<String>('floating-contact-button');
 
   @override
   State<FloatingContactButton> createState() => _FloatingContactButtonState();
@@ -34,14 +40,15 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
   /// 按鈕與畫面邊緣的安全距離
   static const double _screenPadding = 12;
 
+  /// 撥打電話按鈕固定直徑。其他聯絡方式也不可超過這個上限。
+  static const double _phoneButtonSize = 52;
+  static const double _maxButtonSize = 56;
+
   /// 目前按鈕的左側位置
   double? _left;
 
   /// 目前按鈕的頂部位置
   double? _top;
-
-  /// 是否正在拖曳
-  bool _isDragging = false;
 
   /// 本次手勢是否真的有移動按鈕
   bool _didDrag = false;
@@ -79,9 +86,12 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
     /// 舊資料沒有 size 或資料錯誤時，
     /// 自動使用 medium。
     final buttonStyle = _resolveButtonStyle(_setting);
-
-    final buttonSize = buttonStyle.buttonSize;
-    final iconSize = buttonStyle.iconSize;
+    final bool isPhone = contact?.type == 'phone';
+    final double buttonSize = _visualButtonSize(
+      buttonStyle.buttonSize,
+      phone: isPhone,
+    );
+    final double iconSize = isPhone ? 22 : buttonStyle.iconSize;
 
     final mediaQuery = MediaQuery.of(context);
     final screenSize = mediaQuery.size;
@@ -118,113 +128,158 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         .clamp(_screenPadding, maxTop)
         .toDouble();
 
-    return AnimatedPositioned(
-      duration: _isDragging ? Duration.zero : const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      left: safeLeft,
-      top: safeTop,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+    return Stack(
+      children: <Widget>[
+        Positioned(
+          left: safeLeft,
+          top: safeTop,
+          width: buttonSize,
+          height: buttonSize,
+          child: _buildFace(
+            buttonSize: buttonSize,
+            iconSize: iconSize,
+            tooltip: tooltip,
+            isChat: isChat,
+            contact: contact,
+            safeLeft: safeLeft,
+            safeTop: safeTop,
+            maxLeft: maxLeft,
+            maxTop: maxTop,
+            screenWidth: screenSize.width,
+          ),
+        ),
+      ],
+    );
+  }
 
-        /// 開始拖曳時關閉吸附動畫。
-        onPanStart: (_) {
-          setState(() {
-            _isDragging = true;
-            _didDrag = false;
-          });
-        },
+  /// 設定值再大也維持小型圓鈕，避免被父層撐成全螢幕。
+  double _visualButtonSize(double requested, {required bool phone}) {
+    if (phone) {
+      return _phoneButtonSize;
+    }
+    if (requested > _maxButtonSize) {
+      return _maxButtonSize;
+    }
+    return requested;
+  }
 
-        /// 拖曳時持續更新按鈕位置。
-        onPanUpdate: (details) {
-          setState(() {
-            if (details.delta.distance > 0) {
-              _didDrag = true;
-            }
+  Widget _buildFace({
+    required double buttonSize,
+    required double iconSize,
+    required String tooltip,
+    required bool isChat,
+    required _FloatingContactData? contact,
+    required double safeLeft,
+    required double safeTop,
+    required double maxLeft,
+    required double maxTop,
+    required double screenWidth,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
 
-            _left = (safeLeft + details.delta.dx)
-                .clamp(_screenPadding, maxLeft)
-                .toDouble();
+      /// 開始拖曳時關閉吸附動畫。
+      onPanStart: (_) {
+        setState(() {
+          _didDrag = false;
+        });
+      },
 
-            _top = (safeTop + details.delta.dy)
-                .clamp(_screenPadding, maxTop)
-                .toDouble();
-          });
-        },
+      /// 拖曳時持續更新按鈕位置。
+      onPanUpdate: (details) {
+        setState(() {
+          if (details.delta.distance > 0) {
+            _didDrag = true;
+          }
 
-        /// 放開後平滑吸附到左側或右側。
-        onPanEnd: (_) {
-          final currentLeft = _left ?? safeLeft;
-          final currentTop = _top ?? safeTop;
+          _left = (safeLeft + details.delta.dx)
+              .clamp(_screenPadding, maxLeft)
+              .toDouble();
 
-          final buttonCenter = currentLeft + (buttonSize / 2);
-          final screenCenter = screenSize.width / 2;
+          _top = (safeTop + details.delta.dy)
+              .clamp(_screenPadding, maxTop)
+              .toDouble();
+        });
+      },
 
-          setState(() {
-            _isDragging = false;
+      /// 放開後平滑吸附到左側或右側。
+      onPanEnd: (_) {
+        final currentLeft = _left ?? safeLeft;
+        final currentTop = _top ?? safeTop;
 
-            _left = buttonCenter < screenCenter ? _screenPadding : maxLeft;
+        final buttonCenter = currentLeft + (buttonSize / 2);
+        final screenCenter = screenWidth / 2;
 
-            _top = currentTop.clamp(_screenPadding, maxTop).toDouble();
-          });
-        },
+        setState(() {
+          _left = buttonCenter < screenCenter ? _screenPadding : maxLeft;
 
-        /// 拖曳意外中斷時恢復吸附動畫。
-        onPanCancel: () {
-          setState(() {
-            _isDragging = false;
-          });
-        },
+          _top = currentTop.clamp(_screenPadding, maxTop).toDouble();
+        });
+      },
 
-        child: Tooltip(
-          message: tooltip,
-          child: Semantics(
-            button: true,
-            label: tooltip,
-            child: Material(
-              color: isChat
-                  ? const Color(0xFFFF8A00)
-                  : contact!.backgroundColor,
-              elevation: 6,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () {
-                  /// 本次手勢曾經拖曳過，就不開啟聯絡方式。
-                  if (_didDrag) {
-                    _didDrag = false;
-                    return;
-                  }
+      child: Tooltip(
+        message: tooltip,
+        child: Semantics(
+          button: true,
+          label: tooltip,
+          child: Material(
+            key: FloatingContactButton.buttonKey,
+            color: isChat ? const Color(0xFFFF8A00) : contact!.backgroundColor,
+            elevation: 6,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () {
+                /// 本次手勢曾經拖曳過，就不開啟聯絡方式。
+                if (_didDrag) {
+                  _didDrag = false;
+                  return;
+                }
 
-                  if (isChat) {
-                    _openChat(context);
-                    return;
-                  }
+                if (widget.isPreview) {
+                  _showPreviewMessage(
+                    context,
+                    isChat
+                        ? '預覽模式不會開啟聊天'
+                        : contact?.type == 'phone'
+                        ? '預覽模式不會撥打電話'
+                        : '預覽模式不會開啟聯絡方式',
+                  );
+                  return;
+                }
 
-                  _openContact(context, contact!);
-                },
-                child: SizedBox(
-                  width: buttonSize,
-                  height: buttonSize,
-                  child: isChat
-                      ? _ChatButtonFace(
-                          shopId: widget.shopId,
-                          iconSize: iconSize,
-                        )
-                      : Center(
-                          child: FaIcon(
-                            contact!.icon,
-                            size: iconSize,
-                            color: Colors.white,
-                          ),
+                if (isChat) {
+                  _openChat(context);
+                  return;
+                }
+
+                _openContact(context, contact!);
+              },
+              child: SizedBox(
+                width: buttonSize,
+                height: buttonSize,
+                child: isChat
+                    ? _ChatButtonFace(shopId: widget.shopId, iconSize: iconSize)
+                    : Center(
+                        child: FaIcon(
+                          contact!.icon,
+                          size: iconSize,
+                          color: Colors.white,
                         ),
-                ),
+                      ),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _showPreviewMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _resolveLabel(String contactType) {
@@ -244,7 +299,7 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
   /// 按鈕 52 px、圖示 22 px
   ///
   /// large：
-  /// 按鈕 58 px、圖示 25 px
+  /// 按鈕 56 px、圖示 24 px。撥打電話固定 52 px。
   _FloatingButtonStyle _resolveButtonStyle(Map<String, dynamic> setting) {
     final sizeType = (setting['size'] ?? 'medium').toString().trim();
 
@@ -253,7 +308,7 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         return const _FloatingButtonStyle(buttonSize: 44, iconSize: 19);
 
       case 'large':
-        return const _FloatingButtonStyle(buttonSize: 58, iconSize: 25);
+        return const _FloatingButtonStyle(buttonSize: 56, iconSize: 24);
 
       case 'medium':
       default:

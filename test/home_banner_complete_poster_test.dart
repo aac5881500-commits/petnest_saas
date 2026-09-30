@@ -34,13 +34,66 @@ void main() {
     expect(media.contains('ShopStoreBannerEditorPage'), isTrue);
     expect(media.contains('預覽海報'), isTrue);
     expect(media.contains('發布海報'), isTrue);
-    expect(media.contains('return _bannerList(dense: false)'), isTrue);
+    expect(media.contains('return _bannerList(mobile: true)'), isTrue);
+    expect(media.contains('_mobileManageList'), isTrue);
+    expect(media.contains('新增活動海報'), isTrue);
+    expect(media.contains('已建立的海報'), isTrue);
+    expect(media.contains('正在編輯：'), isTrue);
+    expect(media.contains('maxWidth >= 1350'), isTrue);
+    expect(media.contains('長按拖曳可調整順序'), isTrue);
+    expect(media.contains('可新增最多 5 張，顧客可左右滑動查看'), isFalse);
+    expect(media.contains('1. 選擇背景圖片'), isFalse);
+    expect(media.contains('編輯活動海報'), isTrue);
+    expect(media.contains('請選擇一張海報'), isFalse);
+    expect(editor.contains('homeContentModeLabel'), isTrue);
+    expect(editor.contains('使用海報製作器'), isTrue);
+    expect(editor.contains('此模式使用完整 16:9 海報，不需要調整裁切位置。'), isTrue);
+    expect(editor.contains('目前完整顯示，不需調整位置'), isTrue);
+    final String display = File(
+      'lib/core/models/home_banner_display.dart',
+    ).readAsStringSync();
+    expect(display.contains('直接上傳完成海報'), isTrue);
+    expect(display.contains('使用海報製作器'), isTrue);
     expect(media.contains('ModernHomeEditorPreview'), isTrue);
     expect(media.contains('showPhoneChrome: false'), isTrue);
     expect(media.contains('draftHomeBanners:'), isTrue);
     expect(media.contains('ShopBannerDevicePreview'), isFalse);
     expect(preview.contains('ShopPublicModernPage'), isTrue);
     expect(preview.contains('draftHomeBanners'), isTrue);
+  });
+
+  test('直接上傳不顯示位置滑桿，製作器放大後才可調整位置', () {
+    expect(
+      HomeBannerDisplay.homeContentModeLabel(StoreBannerContentModes.imageOnly),
+      '直接上傳完成海報',
+    );
+    expect(
+      HomeBannerDisplay.homeContentModeLabel(
+        StoreBannerContentModes.templateOverlay,
+      ),
+      '使用海報製作器',
+    );
+    expect(
+      HomeBannerDisplay.showsImagePositionControls(
+        contentMode: StoreBannerContentModes.imageOnly,
+        imageScale: 1.8,
+      ),
+      isFalse,
+    );
+    expect(
+      HomeBannerDisplay.showsImagePositionControls(
+        contentMode: StoreBannerContentModes.templateOverlay,
+        imageScale: 1,
+      ),
+      isFalse,
+    );
+    expect(
+      HomeBannerDisplay.showsImagePositionControls(
+        contentMode: StoreBannerContentModes.templateOverlay,
+        imageScale: 1.4,
+      ),
+      isTrue,
+    );
   });
 
   test('發布畫布固定 1600 × 900', () {
@@ -177,6 +230,59 @@ void main() {
     );
   });
 
+  testWidgets('製作器放大與位置會套到即時預覽，直接上傳則完整顯示', (WidgetTester tester) async {
+    Future<void> pump(StoreBannerModel banner) {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 360,
+              height: 203,
+              child: StoreBannerView(
+                banner: banner,
+                theme: HomeThemeModel.modernDefault,
+                scope: PetNestBannerScope.home,
+                composeLive: true,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pump(
+      const StoreBannerModel(
+        id: 'maker',
+        contentMode: StoreBannerContentModes.templateOverlay,
+        imageUrl: 'https://example.com/raw.jpg',
+        imageScale: 1.6,
+        imageAlignmentX: 0,
+        title: '標題',
+      ),
+    );
+    await tester.pump();
+    final Transform scaled = tester.widget<Transform>(
+      find.byType(Transform).first,
+    );
+    expect(scaled.transform.getMaxScaleOnAxis(), closeTo(1.6, 0.01));
+    expect(scaled.alignment, const Alignment(-1, 0));
+
+    await pump(
+      const StoreBannerModel(
+        id: 'upload',
+        contentMode: StoreBannerContentModes.imageOnly,
+        imageUrl: 'https://example.com/raw.jpg',
+        imageScale: 1.8,
+        imageAlignmentX: 0,
+      ),
+    );
+    await tester.pump();
+    final Transform plain = tester.widget<Transform>(
+      find.byType(Transform).first,
+    );
+    expect(plain.transform.getMaxScaleOnAxis(), closeTo(1, 0.01));
+  });
+
   testWidgets('編輯預覽仍可即時看到草稿文字', (WidgetTester tester) async {
     final StoreBannerModel banner = StoreBannerModel(
       id: 'draft',
@@ -211,5 +317,173 @@ void main() {
     );
     await tester.pump();
     expect(find.text('草稿標題'), findsWidgets);
+  });
+
+  testWidgets('製作器可在預覽上拖曳文字，位置維持 0 到 1', (WidgetTester tester) async {
+    StoreBannerModel current = StoreBannerModel(
+      id: 'drag',
+      contentMode: StoreBannerContentModes.templateOverlay,
+      imageUrl: 'https://example.com/raw.jpg',
+      ctaEnabled: true,
+      ctaText: '前往',
+      ctaPositionX: 0.15,
+      ctaPositionY: 0.78,
+      textElements: <StoreBannerTextElement>[
+        StoreBannerTextElement(
+          id: 'title',
+          text: '可拖標題',
+          positionX: 0.2,
+          positionY: 0.2,
+          textColor: StoreBannerCommonColors.white,
+        ),
+      ],
+    );
+    String? selected;
+    bool ctaSelected = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Center(
+                child: SizedBox(
+                  width: 320,
+                  height: 180,
+                  child: StoreBannerView(
+                    banner: current,
+                    theme: HomeThemeModel.modernDefault,
+                    scope: PetNestBannerScope.home,
+                    composeLive: true,
+                    interactMode: StoreBannerInteractMode.text,
+                    selectedTextId: selected,
+                    ctaSelected: ctaSelected,
+                    onTextSelected: (String? id) {
+                      setState(() {
+                        selected = id;
+                        ctaSelected = false;
+                      });
+                    },
+                    onCtaSelected: () {
+                      setState(() {
+                        selected = null;
+                        ctaSelected = true;
+                      });
+                    },
+                    onChanged: (StoreBannerModel next) {
+                      setState(() => current = next);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('可拖標題'), findsOneWidget);
+    expect(find.text('拖曳'), findsNothing);
+    await tester.drag(find.text('可拖標題'), const Offset(48, 24));
+    await tester.pump();
+    expect(selected, 'title');
+    expect(find.text('拖曳'), findsOneWidget);
+    expect(current.textElements.single.positionX, inInclusiveRange(0, 1));
+    expect(current.textElements.single.positionY, inInclusiveRange(0, 1));
+    expect(current.textElements.single.positionX, isNot(closeTo(0.2, 0.01)));
+    expect(current.ctaPositionX, closeTo(0.15, 0.001));
+
+    final double titleX = current.textElements.single.positionX;
+    await tester.drag(find.text('前往'), const Offset(30, -10));
+    await tester.pump();
+    expect(ctaSelected, isTrue);
+    expect(current.ctaPositionX, inInclusiveRange(0, 1));
+    expect(current.ctaPositionX, isNot(closeTo(0.15, 0.01)));
+    expect(current.textElements.single.positionX, closeTo(titleX, 0.001));
+  });
+
+  testWidgets('拖曳放手前後位置一致', (WidgetTester tester) async {
+    for (final double width in <double>[390, 1440]) {
+      final double height = width * 9 / 16;
+      tester.view.physicalSize = Size(width, height);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      StoreBannerModel current = StoreBannerModel(
+        id: 'hold-$width',
+        contentMode: StoreBannerContentModes.templateOverlay,
+        imageUrl: 'https://example.com/raw.jpg',
+        ctaEnabled: true,
+        ctaText: '前往',
+        ctaPositionX: 0.62,
+        ctaPositionY: 0.72,
+        textElements: <StoreBannerTextElement>[
+          StoreBannerTextElement(
+            id: 'hold_title',
+            text: '可拖標題',
+            positionX: 0.12,
+            positionY: 0.2,
+            fontSize: 64,
+            fontSizePreset: StoreBannerFontSizes.title,
+            textColor: StoreBannerCommonColors.white,
+          ),
+          StoreBannerTextElement(
+            id: 'hold_sub',
+            text: '可拖副標',
+            positionX: 0.12,
+            positionY: 0.42,
+            fontSize: 32,
+            fontSizePreset: StoreBannerFontSizes.body,
+            fontWeightPreset: StoreBannerFontWeights.regular,
+            textColor: StoreBannerCommonColors.white,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: StoreBannerView(
+                      banner: current,
+                      theme: HomeThemeModel.modernDefault,
+                      scope: PetNestBannerScope.home,
+                      composeLive: true,
+                      interactMode: StoreBannerInteractMode.text,
+                      onChanged: (StoreBannerModel next) {
+                        setState(() => current = next);
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      for (final String label in <String>['可拖標題', '可拖副標', '前往']) {
+        final Finder target = find.text(label);
+        expect(target, findsOneWidget, reason: '$width $label');
+        final TestGesture gesture = await tester.startGesture(
+          tester.getCenter(target),
+        );
+        await gesture.moveBy(const Offset(28, 16));
+        await tester.pump();
+        final Offset during = tester.getTopLeft(target);
+        await gesture.up();
+        await tester.pump();
+        final Offset after = tester.getTopLeft(target);
+        expect(
+          (after - during).distance,
+          lessThan(1),
+          reason: '$width $label 放手跳位 ${after - during}',
+        );
+      }
+    }
   });
 }

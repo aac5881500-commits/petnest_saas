@@ -1,11 +1,13 @@
 // 檔案名稱：lib/core/models/store_banner_placement.dart
-// 功能說明：海報文字 / CTA 共用位置換算。Preview 與前台必須走同一套。
+// 功能說明：海報文字 / CTA 位置。以 16:9 畫布寬高的比例儲存，預覽與輸出同一套。
+
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 class StoreBannerPlacement {
-  static const double padX = 16;
-  static const double padY = 12;
+  /// 文字與按鈕離海報邊緣的安全比例。不用固定像素。
+  static const double safeFraction = 0.05;
 
   static Offset offsetOf({
     required double positionX,
@@ -13,19 +15,13 @@ class StoreBannerPlacement {
     required Size bannerSize,
     required Size elementSize,
   }) {
-    final double availableX = _available(
-      bannerSize.width,
-      elementSize.width,
-      padX,
-    );
-    final double availableY = _available(
-      bannerSize.height,
-      elementSize.height,
-      padY,
-    );
-    return Offset(
-      padX + positionX.clamp(0.0, 1.0) * availableX,
-      padY + positionY.clamp(0.0, 1.0) * availableY,
+    return clampTopLeft(
+      topLeft: Offset(
+        positionX * bannerSize.width,
+        positionY * bannerSize.height,
+      ),
+      bannerSize: bannerSize,
+      elementSize: elementSize,
     );
   }
 
@@ -34,36 +30,40 @@ class StoreBannerPlacement {
     required Size bannerSize,
     required Size elementSize,
   }) {
-    final double availableX = _available(
-      bannerSize.width,
-      elementSize.width,
-      padX,
+    final Offset clamped = clampTopLeft(
+      topLeft: actual,
+      bannerSize: bannerSize,
+      elementSize: elementSize,
     );
-    final double availableY = _available(
-      bannerSize.height,
-      elementSize.height,
-      padY,
-    );
+    if (bannerSize.width <= 0 || bannerSize.height <= 0) {
+      return Offset.zero;
+    }
     return Offset(
-      availableX <= 0 ? 0 : ((actual.dx - padX) / availableX).clamp(0.0, 1.0),
-      availableY <= 0 ? 0 : ((actual.dy - padY) / availableY).clamp(0.0, 1.0),
+      clamped.dx / bannerSize.width,
+      clamped.dy / bannerSize.height,
     );
   }
 
-  static Offset clampActual({
-    required Offset actual,
+  /// [topLeft] 是元素左上角在畫布內的座標。會依整個元素的寬高停在安全區內。
+  static Offset clampTopLeft({
+    required Offset topLeft,
     required Size bannerSize,
     required Size elementSize,
   }) {
-    final double maxX = (bannerSize.width - padX - elementSize.width).clamp(
-      padX,
-      bannerSize.width,
+    final double marginX = bannerSize.width * safeFraction;
+    final double marginY = bannerSize.height * safeFraction;
+    final double maxX = math.max(
+      marginX,
+      bannerSize.width - marginX - math.max(0, elementSize.width),
     );
-    final double maxY = (bannerSize.height - padY - elementSize.height).clamp(
-      padY,
-      bannerSize.height,
+    final double maxY = math.max(
+      marginY,
+      bannerSize.height - marginY - math.max(0, elementSize.height),
     );
-    return Offset(actual.dx.clamp(padX, maxX), actual.dy.clamp(padY, maxY));
+    return Offset(
+      topLeft.dx.clamp(marginX, maxX),
+      topLeft.dy.clamp(marginY, maxY),
+    );
   }
 
   static Offset? fromLegacyPreset(dynamic raw) {
@@ -101,9 +101,5 @@ class StoreBannerPlacement {
       default:
         return null;
     }
-  }
-
-  static double _available(double banner, double element, double pad) {
-    return (banner - element - pad * 2).clamp(0.0, banner);
   }
 }

@@ -22,6 +22,12 @@ class ModernHomeBannerCarousel extends StatefulWidget {
     this.onBannerTap,
     this.liveComposeBannerId,
     this.initialBannerId,
+    this.onComposeChanged,
+    this.onComposeTextSelected,
+    this.onComposeCtaSelected,
+    this.composeImageBytes,
+    this.composeSelectedTextId,
+    this.composeCtaSelected = false,
   });
 
   final List<StoreBannerModel> banners;
@@ -33,6 +39,12 @@ class ModernHomeBannerCarousel extends StatefulWidget {
   /// 後台預覽：這張用草稿即時合成，顧客前台不傳。
   final String? liveComposeBannerId;
   final String? initialBannerId;
+  final ValueChanged<StoreBannerModel>? onComposeChanged;
+  final ValueChanged<String?>? onComposeTextSelected;
+  final VoidCallback? onComposeCtaSelected;
+  final Uint8List? composeImageBytes;
+  final String? composeSelectedTextId;
+  final bool composeCtaSelected;
 
   @override
   State<ModernHomeBannerCarousel> createState() =>
@@ -165,6 +177,29 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
         scope: PetNestBannerScope.home,
         borderRadius: 0,
         composeLive: widget.liveComposeBannerId == banner.id ? true : null,
+        interactMode:
+            widget.liveComposeBannerId == banner.id &&
+                widget.onComposeChanged != null
+            ? StoreBannerInteractMode.text
+            : StoreBannerInteractMode.none,
+        previewImageBytes: widget.liveComposeBannerId == banner.id
+            ? widget.composeImageBytes
+            : null,
+        selectedTextId: widget.liveComposeBannerId == banner.id
+            ? widget.composeSelectedTextId
+            : null,
+        ctaSelected:
+            widget.liveComposeBannerId == banner.id &&
+            widget.composeCtaSelected,
+        onChanged: widget.liveComposeBannerId == banner.id
+            ? widget.onComposeChanged
+            : null,
+        onTextSelected: widget.liveComposeBannerId == banner.id
+            ? widget.onComposeTextSelected
+            : null,
+        onCtaSelected: widget.liveComposeBannerId == banner.id
+            ? widget.onComposeCtaSelected
+            : null,
         onTap: widget.onBannerTap == null || !banner.hasNavigableAction
             ? null
             : () => widget.onBannerTap!(banner),

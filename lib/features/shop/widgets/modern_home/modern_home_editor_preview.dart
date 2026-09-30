@@ -1,6 +1,8 @@
 // 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_editor_preview.dart
 // 功能說明：新版 Beta 外觀設定的手機預覽。內容就是正式新版首頁。
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_modern_page.dart';
@@ -16,6 +18,12 @@ class ModernHomeEditorPreview extends StatelessWidget {
     this.frameWidth = 390,
     this.draftHomeBanners,
     this.initialPreviewBannerId,
+    this.onPreviewBannerChanged,
+    this.onPreviewTextSelected,
+    this.onPreviewCtaSelected,
+    this.previewImageBytes,
+    this.previewSelectedTextId,
+    this.previewCtaSelected = false,
   });
 
   final String shopId;
@@ -26,6 +34,12 @@ class ModernHomeEditorPreview extends StatelessWidget {
   final double frameWidth;
   final List<StoreBannerModel>? draftHomeBanners;
   final String? initialPreviewBannerId;
+  final ValueChanged<StoreBannerModel>? onPreviewBannerChanged;
+  final ValueChanged<String?>? onPreviewTextSelected;
+  final VoidCallback? onPreviewCtaSelected;
+  final Uint8List? previewImageBytes;
+  final String? previewSelectedTextId;
+  final bool previewCtaSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +72,12 @@ class ModernHomeEditorPreview extends StatelessWidget {
       draftLogoUrl: draftLogoUrl,
       draftHomeBanners: draftHomeBanners,
       initialPreviewBannerId: initialPreviewBannerId,
+      onPreviewBannerChanged: onPreviewBannerChanged,
+      onPreviewTextSelected: onPreviewTextSelected,
+      onPreviewCtaSelected: onPreviewCtaSelected,
+      previewImageBytes: previewImageBytes,
+      previewSelectedTextId: previewSelectedTextId,
+      previewCtaSelected: previewCtaSelected,
     );
   }
 

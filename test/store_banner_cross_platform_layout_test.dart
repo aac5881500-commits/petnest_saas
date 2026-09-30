@@ -91,11 +91,14 @@ void main() {
     expect(banner.imageUrl, 'https://example.com/a.jpg');
   });
 
-  test('過大字級會被 clamp 到與滑桿相同上限', () {
-    const double height = 190;
-    final double maxPx = StoreBannerFontSizes.sliderMaxForBanner(height);
-    expect(StoreBannerFontSizes.clampForBanner(80, height), maxPx);
-    expect(maxPx, lessThanOrEqualTo(StoreBannerFontSizes.maxPx));
+  test('完成海報字級最高 220，不依預覽高度縮小', () {
+    expect(StoreBannerFontSizes.maxPx, 220);
+    expect(StoreBannerFontSizes.clampPx(240), 220);
+    expect(StoreBannerFontSizes.clampPx(80), 80);
+    expect(
+      StoreBannerFontSizes.scaleDesign(104, 210),
+      closeTo(104 * 210 / 900, 0.01),
+    );
   });
 
   testWidgets('不同 textScaler 下海報文字尺寸一致', (WidgetTester tester) async {

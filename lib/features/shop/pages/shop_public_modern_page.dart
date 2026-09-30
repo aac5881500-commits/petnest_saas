@@ -2,6 +2,8 @@
 // 功能說明：讀取店家資料，顯示適合手機的緊湊型頂部與 Banner
 // ✨ 店家新版前台首頁 Beta
 
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -39,6 +41,12 @@ class ShopPublicModernPage extends StatefulWidget {
     this.draftLogoUrl,
     this.draftHomeBanners,
     this.initialPreviewBannerId,
+    this.onPreviewBannerChanged,
+    this.onPreviewTextSelected,
+    this.onPreviewCtaSelected,
+    this.previewImageBytes,
+    this.previewSelectedTextId,
+    this.previewCtaSelected = false,
   });
 
   final String shopId;
@@ -58,6 +66,12 @@ class ShopPublicModernPage extends StatefulWidget {
 
   /// 預覽時先顯示這張海報，並用草稿即時合成。
   final String? initialPreviewBannerId;
+  final ValueChanged<StoreBannerModel>? onPreviewBannerChanged;
+  final ValueChanged<String?>? onPreviewTextSelected;
+  final VoidCallback? onPreviewCtaSelected;
+  final Uint8List? previewImageBytes;
+  final String? previewSelectedTextId;
+  final bool previewCtaSelected;
 
   @override
   State<ShopPublicModernPage> createState() => _ShopPublicModernPageState();
@@ -388,9 +402,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 ),
               ),
 
-              IgnorePointer(
-                ignoring: widget.isPreview,
-                child: FloatingContactButton(shop: shop, shopId: widget.shopId),
+              FloatingContactButton(
+                shop: shop,
+                shopId: widget.shopId,
+                isPreview: widget.isPreview,
               ),
             ],
           ),
@@ -1035,6 +1050,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           ? widget.initialPreviewBannerId
           : null,
       initialBannerId: widget.initialPreviewBannerId,
+      onComposeChanged: widget.isPreview ? widget.onPreviewBannerChanged : null,
+      onComposeTextSelected: widget.isPreview
+          ? widget.onPreviewTextSelected
+          : null,
+      onComposeCtaSelected: widget.isPreview
+          ? widget.onPreviewCtaSelected
+          : null,
+      composeImageBytes: widget.isPreview ? widget.previewImageBytes : null,
+      composeSelectedTextId: widget.isPreview
+          ? widget.previewSelectedTextId
+          : null,
+      composeCtaSelected: widget.isPreview && widget.previewCtaSelected,
       onBannerTap: widget.isPreview
           ? null
           : (StoreBannerModel banner) {

@@ -1,6 +1,8 @@
 // 檔案名稱：lib/features/shop/widgets/store/store_banner_view.dart
 // 功能說明：商城海報 renderer：後台 Preview 與前台共用，效果只 overlay、不改原圖。
 
+import 'dart:typed_data';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -19,7 +21,10 @@ class StoreBannerView extends StatelessWidget {
     this.selectedTextId,
     this.onChanged,
     this.onTextSelected,
+    this.onCtaSelected,
     this.onTap,
+    this.previewImageBytes,
+    this.ctaSelected = false,
     this.borderRadius = 18,
     this.scope = PetNestBannerScope.store,
     this.sizePresetOverride,
@@ -32,7 +37,10 @@ class StoreBannerView extends StatelessWidget {
   final String? selectedTextId;
   final ValueChanged<StoreBannerModel>? onChanged;
   final ValueChanged<String?>? onTextSelected;
+  final VoidCallback? onCtaSelected;
   final VoidCallback? onTap;
+  final Uint8List? previewImageBytes;
+  final bool ctaSelected;
   final double borderRadius;
   final PetNestBannerScope scope;
   final String? sizePresetOverride;
@@ -79,7 +87,12 @@ class StoreBannerView extends StatelessWidget {
                 selectedTextId: selectedTextId,
                 onChanged: onChanged,
                 onTextSelected: onTextSelected,
+                onCtaSelected: onCtaSelected,
                 onTap: onTap,
+                previewImageBytes: previewImageBytes,
+                ctaSelected: ctaSelected,
+                homeFreeCompose:
+                    live && scope == PetNestBannerScope.home && !publishedHome,
                 completePoster: publishedHome,
                 composeLive: live,
               ),
@@ -101,7 +114,11 @@ class _BannerStage extends StatelessWidget {
     required this.selectedTextId,
     required this.onChanged,
     required this.onTextSelected,
+    required this.onCtaSelected,
     required this.onTap,
+    required this.previewImageBytes,
+    required this.ctaSelected,
+    required this.homeFreeCompose,
     required this.composeLive,
     required this.completePoster,
   });
@@ -114,7 +131,11 @@ class _BannerStage extends StatelessWidget {
   final String? selectedTextId;
   final ValueChanged<StoreBannerModel>? onChanged;
   final ValueChanged<String?>? onTextSelected;
+  final VoidCallback? onCtaSelected;
   final VoidCallback? onTap;
+  final Uint8List? previewImageBytes;
+  final bool ctaSelected;
+  final bool homeFreeCompose;
   final bool composeLive;
   final bool completePoster;
 
@@ -128,6 +149,8 @@ class _BannerStage extends StatelessWidget {
       theme: theme,
       useRendered: completePoster || (!composeLive && banner.hasRenderedImage),
       contain: completePoster,
+      composeSource: composeLive && !completePoster,
+      previewBytes: previewImageBytes,
     );
     if (completePoster) {
       return _wrapFrontTap(image);
@@ -138,7 +161,7 @@ class _BannerStage extends StatelessWidget {
     if (banner.isImageOnly) {
       return _wrapFrontTap(image);
     }
-    if (banner.usesSafeTemplateOverlay) {
+    if (banner.usesSafeTemplateOverlay && !homeFreeCompose) {
       return _wrapFrontTap(
         _SafeTemplateOverlay(
           banner: banner,
@@ -155,7 +178,9 @@ class _BannerStage extends StatelessWidget {
       children: <Widget>[
         if (interactMode == StoreBannerInteractMode.image)
           _EagerPanDetector(
-            onUpdate: _dragImage,
+            onUpdate: (DragUpdateDetails details) {
+              _dragImage(details.delta);
+            },
             onTap: () => onTextSelected?.call(null),
             child: image,
           )
@@ -198,6 +223,7 @@ class _BannerStage extends StatelessWidget {
               selected: selectedTextId == item.id,
               brandColor: theme.primaryColor,
               allowTextBackground: !banner.showsCta,
+              designScale: homeFreeCompose,
             ),
           );
           if (!_editing) {
@@ -213,13 +239,17 @@ class _BannerStage extends StatelessWidget {
               positionX: banner.ctaPositionX,
               positionY: banner.ctaPositionY,
               enabled: _editing,
-              selected: interactMode == StoreBannerInteractMode.cta,
-              onSelect: null,
+              selected: ctaSelected,
+              onSelect: _editing ? onCtaSelected : null,
               onMoved: _commitCta,
               child: _BannerCtaButton(
                 banner: banner,
                 theme: theme,
+                selected: ctaSelected,
                 onTap: null,
+                bannerWidth: width,
+                bannerHeight: height,
+                designScale: homeFreeCompose,
               ),
             ),
           ),
@@ -473,33 +503,63 @@ class _BannerImage extends StatelessWidget {
     required this.theme,
     this.useRendered = false,
     this.contain = false,
+    this.composeSource = false,
+    this.previewBytes,
   });
 
   final StoreBannerModel banner;
   final HomeThemeModel theme;
   final bool useRendered;
   final bool contain;
+  final bool composeSource;
+  final Uint8List? previewBytes;
 
   @override
   Widget build(BuildContext context) {
-    if (!banner.hasImage) {
+    final bool fullFrame = contain || (composeSource && banner.isImageOnly);
+    final Uint8List? bytes = composeSource ? previewBytes : null;
+    if ((bytes == null || bytes.isEmpty) && !banner.hasImage) {
       return ColoredBox(
         color: theme.cardColor,
         child: Icon(Icons.image_outlined, color: theme.primaryColor),
       );
     }
+    if (bytes != null && bytes.isNotEmpty) {
+      return ColoredBox(
+        color: theme.cardColor,
+        child: ClipRect(
+          child: Transform.scale(
+            scale: fullFrame ? 1 : banner.imageScale.clamp(1.0, 2.5),
+            alignment: fullFrame ? Alignment.center : banner.imageAlignment,
+            child: Image.memory(
+              bytes,
+              fit: fullFrame ? BoxFit.contain : BoxFit.cover,
+              alignment: fullFrame ? Alignment.center : banner.imageAlignment,
+              width: double.infinity,
+              height: double.infinity,
+              gaplessPlayback: true,
+            ),
+          ),
+        ),
+      );
+    }
+    final String url = useRendered
+        ? banner.renderedImageUrl
+        : (composeSource ? banner.imageUrl.trim() : banner.frontImageUrl);
     return ColoredBox(
       color: theme.cardColor,
       child: ClipRect(
         child: Transform.scale(
-          scale: useRendered || contain ? 1 : banner.imageScale.clamp(1.0, 2.5),
-          alignment: useRendered || contain
+          scale: useRendered || fullFrame
+              ? 1
+              : banner.imageScale.clamp(1.0, 2.5),
+          alignment: useRendered || fullFrame
               ? Alignment.center
               : banner.imageAlignment,
           child: Image.network(
-            useRendered ? banner.renderedImageUrl : banner.frontImageUrl,
-            fit: contain ? BoxFit.contain : BoxFit.cover,
-            alignment: contain ? Alignment.center : banner.imageAlignment,
+            url,
+            fit: fullFrame ? BoxFit.contain : BoxFit.cover,
+            alignment: fullFrame ? Alignment.center : banner.imageAlignment,
             width: double.infinity,
             height: double.infinity,
             gaplessPlayback: true,
@@ -566,6 +626,7 @@ class _BannerDraggableItemState extends State<_BannerDraggableItem> {
   late double _y = widget.positionY;
   bool _dragging = false;
   Size _elementSize = Size.zero;
+  Offset? _grabOffset;
 
   @override
   void didUpdateWidget(covariant _BannerDraggableItem oldWidget) {
@@ -578,48 +639,76 @@ class _BannerDraggableItemState extends State<_BannerDraggableItem> {
     }
   }
 
-  void _applyDelta(Offset delta) {
-    if (_elementSize == Size.zero ||
-        widget.bannerSize.width <= 0 ||
-        widget.bannerSize.height <= 0) {
+  _RenderBannerPlaced? _canvasBox() {
+    RenderObject? node = context.findRenderObject();
+    while (node != null) {
+      if (node is _RenderBannerPlaced) {
+        return node;
+      }
+      node = node.parent;
+    }
+    return null;
+  }
+
+  void _rememberGrab(Offset globalPosition) {
+    final _RenderBannerPlaced? canvas = _canvasBox();
+    final RenderBox? element = canvas?.child;
+    if (canvas == null ||
+        element == null ||
+        !element.hasSize ||
+        !canvas.hasSize) {
+      _grabOffset = null;
       return;
     }
-    final Offset current = StoreBannerPlacement.offsetOf(
-      positionX: _x,
-      positionY: _y,
-      bannerSize: widget.bannerSize,
+    final Offset finger = canvas.globalToLocal(globalPosition);
+    final Offset topLeft = canvas.globalToLocal(
+      element.localToGlobal(Offset.zero),
+    );
+    _grabOffset = finger - topLeft;
+    _elementSize = element.size;
+  }
+
+  void _moveToFinger(Offset globalPosition) {
+    final _RenderBannerPlaced? canvas = _canvasBox();
+    final Offset? grab = _grabOffset;
+    if (canvas == null || grab == null || !canvas.hasSize) {
+      return;
+    }
+    final Size canvasSize = canvas.size;
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) {
+      return;
+    }
+    final Offset finger = canvas.globalToLocal(globalPosition);
+    final Offset normalized = StoreBannerPlacement.normalize(
+      actual: finger - grab,
+      bannerSize: canvasSize,
       elementSize: _elementSize,
     );
-    final Offset next = StoreBannerPlacement.normalize(
-      actual: StoreBannerPlacement.clampActual(
-        actual: current + delta,
-        bannerSize: widget.bannerSize,
-        elementSize: _elementSize,
-      ),
-      bannerSize: widget.bannerSize,
-      elementSize: _elementSize,
-    );
+    if (normalized.dx == _x && normalized.dy == _y) {
+      return;
+    }
     setState(() {
-      _x = next.dx;
-      _y = next.dy;
+      _x = normalized.dx;
+      _y = normalized.dy;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     Widget content = widget.child;
-    if (_dragging) {
-      content = Opacity(opacity: widget.selected ? 0.95 : 0.92, child: content);
-    }
     if (widget.enabled) {
       content = _EagerPanDetector(
-        onStart: () {
+        onStart: (DragStartDetails details) {
           _dragging = true;
+          _rememberGrab(details.globalPosition);
           widget.onSelect?.call();
         },
-        onUpdate: _applyDelta,
+        onUpdate: (DragUpdateDetails details) {
+          _moveToFinger(details.globalPosition);
+        },
         onEnd: () {
           _dragging = false;
+          _grabOffset = null;
           widget.onMoved(Offset(_x, _y));
         },
         onTap: widget.onSelect,
@@ -655,8 +744,8 @@ class _EagerPanDetector extends StatelessWidget {
   });
 
   final Widget child;
-  final VoidCallback? onStart;
-  final ValueChanged<Offset>? onUpdate;
+  final ValueChanged<DragStartDetails>? onStart;
+  final ValueChanged<DragUpdateDetails>? onUpdate;
   final VoidCallback? onEnd;
   final VoidCallback? onTap;
 
@@ -669,10 +758,8 @@ class _EagerPanDetector extends StatelessWidget {
             GestureRecognizerFactoryWithHandlers<_EagerPanGestureRecognizer>(
               _EagerPanGestureRecognizer.new,
               (_EagerPanGestureRecognizer instance) {
-                instance.onStart = (_) => onStart?.call();
-                instance.onUpdate = (DragUpdateDetails details) {
-                  onUpdate?.call(details.delta);
-                };
+                instance.onStart = onStart;
+                instance.onUpdate = onUpdate;
                 instance.onEnd = (_) => onEnd?.call();
                 instance.onCancel = onEnd;
               },
@@ -772,16 +859,12 @@ class _RenderBannerPlaced extends RenderShiftedBox {
     if (box == null) {
       return;
     }
+    final double safeX = size.width * StoreBannerPlacement.safeFraction;
+    final double safeY = size.height * StoreBannerPlacement.safeFraction;
     box.layout(
       BoxConstraints(
-        maxWidth: (size.width - StoreBannerPlacement.padX * 2).clamp(
-          48.0,
-          size.width,
-        ),
-        maxHeight: (size.height - StoreBannerPlacement.padY * 2).clamp(
-          24.0,
-          size.height,
-        ),
+        maxWidth: (size.width - safeX * 2).clamp(48.0, size.width),
+        maxHeight: (size.height - safeY * 2).clamp(24.0, size.height),
       ),
       parentUsesSize: true,
     );
@@ -805,6 +888,7 @@ class _BannerTextChip extends StatelessWidget {
     required this.selected,
     required this.brandColor,
     this.allowTextBackground = true,
+    this.designScale = false,
   });
 
   final StoreBannerTextElement element;
@@ -813,6 +897,7 @@ class _BannerTextChip extends StatelessWidget {
   final bool selected;
   final Color brandColor;
   final bool allowTextBackground;
+  final bool designScale;
 
   @override
   Widget build(BuildContext context) {
@@ -820,14 +905,19 @@ class _BannerTextChip extends StatelessWidget {
     final TextAlign align = StoreBannerTextAligns.textAlign(element.textAlign);
     final bool showBackground = allowTextBackground && element.showsBackground;
     final bool lightText = textColor.computeLuminance() > 0.55;
+    final bool titleLike =
+        element.fontSizePreset == StoreBannerFontSizes.title ||
+        element.fontSizePreset == StoreBannerFontSizes.display ||
+        element.fontSizePreset == StoreBannerFontSizes.subhead;
+    final double fontSize = element.previewFontSize(bannerHeight);
     final Widget label = Text(
       element.hasText ? element.text : '文字',
-      maxLines: element.maxLines,
+      maxLines: designScale ? 2 : element.maxLines,
       overflow: TextOverflow.ellipsis,
       textAlign: align,
       style: TextStyle(
-        fontSize: element.resolvedFontSize(bannerHeight),
-        height: 1.15,
+        fontSize: fontSize,
+        height: designScale ? (titleLike ? 1.15 : 1.3) : 1.15,
         fontWeight: StoreBannerFontWeights.weight(element.fontWeightPreset),
         color: element.hasText ? textColor : textColor.withValues(alpha: 0.45),
         shadows: showBackground
@@ -863,24 +953,60 @@ class _BannerTextChip extends StatelessWidget {
       );
     }
 
+    final double maxWidth =
+        (bannerWidth *
+                StoreBannerTextWidthPresets.ratio(element.maxWidthPreset))
+            .clamp(
+              48.0,
+              bannerWidth * (1 - StoreBannerPlacement.safeFraction * 2),
+            );
+    final bool stretch = align == TextAlign.center;
+    Widget body = child;
     if (selected) {
-      child = DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: brandColor, width: 1.5),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(padding: const EdgeInsets.all(3), child: child),
+      body = Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          child,
+          Positioned(
+            left: -2,
+            top: -2,
+            right: -2,
+            bottom: -2,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: brandColor, width: 1.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: -12,
+            child: IgnorePointer(
+              child: Text(
+                '拖曳',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 9,
+                  height: 1.1,
+                  color: brandColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       );
     }
-
+    if (stretch) {
+      return SizedBox(width: maxWidth, child: body);
+    }
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth:
-            (bannerWidth *
-                    StoreBannerTextWidthPresets.ratio(element.maxWidthPreset))
-                .clamp(72.0, bannerWidth - 32),
-      ),
-      child: child,
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: body,
     );
   }
 }
@@ -890,38 +1016,62 @@ class _BannerCtaButton extends StatelessWidget {
     required this.banner,
     required this.theme,
     required this.onTap,
+    this.selected = false,
+    this.bannerWidth = 360,
+    this.bannerHeight = 203,
+    this.designScale = false,
   });
 
   final StoreBannerModel banner;
   final HomeThemeModel theme;
   final VoidCallback? onTap;
+  final bool selected;
+  final double bannerWidth;
+  final double bannerHeight;
+  final bool designScale;
 
   @override
   Widget build(BuildContext context) {
     final Color background = banner.resolvedCtaBackground(theme);
     final Color foreground = banner.resolvedCtaForeground(theme);
-    final double radius = StoreBannerCtaRadii.radius(banner.ctaRadius);
+    final double radius = designScale
+        ? StoreBannerFontSizes.scaleDesign(
+            StoreBannerCtaRadii.radius(
+              banner.ctaRadius,
+            ).clamp(8, 28).toDouble(),
+            bannerHeight,
+          )
+        : StoreBannerCtaRadii.radius(banner.ctaRadius);
+    final double scale = designScale ? bannerHeight / 900 : 1;
     final EdgeInsets padding = switch (banner.ctaSize) {
-      StoreBannerCtaSizes.small => const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
+      StoreBannerCtaSizes.small => EdgeInsets.symmetric(
+        horizontal: 22 * scale,
+        vertical: 8 * scale,
       ),
-      StoreBannerCtaSizes.large => const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 9,
+      StoreBannerCtaSizes.large => EdgeInsets.symmetric(
+        horizontal: 32 * scale,
+        vertical: 12 * scale,
       ),
-      _ => const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      _ => EdgeInsets.symmetric(horizontal: 26 * scale, vertical: 10 * scale),
     };
-    final double fontSize = switch (banner.ctaSize) {
-      StoreBannerCtaSizes.small => 11,
-      StoreBannerCtaSizes.large => 15,
-      _ => 13,
-    };
+    final double fontSize = designScale
+        ? StoreBannerFontSizes.scaleDesign(switch (banner.ctaSize) {
+            StoreBannerCtaSizes.small => 26,
+            StoreBannerCtaSizes.large => 32,
+            _ => StoreBannerFontSizes.designCta,
+          }, bannerHeight)
+        : switch (banner.ctaSize) {
+            StoreBannerCtaSizes.small => 11,
+            StoreBannerCtaSizes.large => 15,
+            _ => 13,
+          };
     final String label = banner.ctaShowArrow
         ? '${banner.ctaText.trim()} →'
         : banner.ctaText.trim();
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 220),
+    Widget button = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: designScale ? bannerWidth * 0.42 : 220,
+      ),
       child: Material(
         color: background,
         borderRadius: BorderRadius.circular(radius),
@@ -936,13 +1086,53 @@ class _BannerCtaButton extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: fontSize,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: foreground,
               ),
             ),
           ),
         ),
       ),
+    );
+    if (!selected) {
+      return button;
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        button,
+        Positioned(
+          left: -2,
+          top: -2,
+          right: -2,
+          bottom: -2,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: theme.primaryColor, width: 1.2),
+                borderRadius: BorderRadius.circular(radius + 3),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: -12,
+          child: IgnorePointer(
+            child: Text(
+              '拖曳',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9,
+                height: 1.1,
+                color: theme.primaryColor,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

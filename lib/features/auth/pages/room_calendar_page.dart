@@ -19,6 +19,7 @@ import 'package:petnest_saas/core/services/daily_care_record_service.dart';
 import 'package:petnest_saas/features/booking/pages/customer_daily_care_page.dart';
 import 'package:petnest_saas/features/room/daily_care_record_edit_launcher.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 
 class RoomCalendarPage extends StatefulWidget {
   const RoomCalendarPage({
@@ -32,6 +33,7 @@ class RoomCalendarPage extends StatefulWidget {
     this.embeddedHeader,
     this.room = const <String, dynamic>{},
     this.embeddedDetail,
+    this.focusDate,
   });
 
   final String shopId;
@@ -54,6 +56,9 @@ class RoomCalendarPage extends StatefulWidget {
   /// 桌機房務總覽用來取代右側「日期詳細資訊」的內容。
   /// 手機完整頁不帶入，仍顯示原本的日期詳細資訊。
   final Widget? embeddedDetail;
+
+  /// 房務總覽目前選取的日期。有值時右側直接顯示該日，而不是只顯示今天待辦。
+  final DateTime? focusDate;
 
   @override
   State<RoomCalendarPage> createState() => _RoomCalendarPageState();
@@ -83,6 +88,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   @override
   void initState() {
     super.initState();
+    _adoptFocusDate(widget.focusDate);
     _loadBookingRangeDays();
     _loadDailyCareSetting();
   }
@@ -90,8 +96,9 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   @override
   void didUpdateWidget(covariant RoomCalendarPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.roomId != widget.roomId ||
-        oldWidget.shopId != widget.shopId) {
+    final bool roomChanged =
+        oldWidget.roomId != widget.roomId || oldWidget.shopId != widget.shopId;
+    if (roomChanged) {
       _selectedDate = null;
       _selectedBooking = null;
       _selectedBookingId = null;
@@ -103,6 +110,30 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         _dailyCareSettingLoaded = false;
         _loadDailyCareSetting();
       }
+    }
+    final DateTime? next = widget.focusDate;
+    final DateTime? previous = oldWidget.focusDate;
+    final bool focusChanged =
+        next != null &&
+        (roomChanged ||
+            previous == null ||
+            !DateUtils.isSameDay(previous, next));
+    if (focusChanged) {
+      _adoptFocusDate(next);
+    }
+  }
+
+  void _adoptFocusDate(DateTime? raw) {
+    if (raw == null) {
+      return;
+    }
+    final DateTime day = DateTime(raw.year, raw.month, raw.day);
+    _selectedDate = day;
+    _selectedBooking = null;
+    _selectedBookingId = null;
+    _selectedStatus = 'available';
+    if (_currentMonth.year != day.year || _currentMonth.month != day.month) {
+      _currentMonth = DateTime(day.year, day.month);
     }
   }
 
@@ -118,6 +149,25 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
   String _format(DateTime d) {
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  String _bookingRangeText(Map<String, dynamic> booking) {
+    final DateTime? start = _readBookingDate(booking['startDate']);
+    final DateTime? end = _readBookingDate(booking['endDate']);
+    if (start == null || end == null) {
+      return '';
+    }
+    return '${_format(start)} ～ ${_format(end)}';
+  }
+
+  DateTime? _readBookingDate(Object? raw) {
+    if (raw is Timestamp) {
+      return raw.toDate();
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    return null;
   }
 
   DateTime get _monthStart {
@@ -505,63 +555,32 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                         Map<String, dynamic>? dayBooking;
                         String? dayBookingId;
 
-                        /// 🔥 訂單覆蓋（紅色）
-                        /// 維修中 / 關閉日優先，不讓訂單狀態蓋掉黑點
-                        if (!_isBlockedStatus(status)) {
-                          if (widget.embedded) {
-                            /// 桌機房務總覽：與左側 7 天點用同一套訂單挑選規則
-                            QueryDocumentSnapshot<Map<String, dynamic>>? best;
-                            int bestPriority = -1;
-                            for (final doc in bookings) {
-                              final data = doc.data();
-                              if (!isActiveRoomDayBooking(data) ||
-                                  !roomDayBookingCovers(
-                                    booking: data,
-                                    date: date,
-                                  )) {
-                                continue;
-                              }
-                              final int priority = roomDayBookingPriority(data);
-                              if (priority > bestPriority) {
-                                bestPriority = priority;
-                                best = doc;
-                              }
-                            }
-                            if (best != null) {
-                              dayBooking = best.data();
-                              dayBookingId = best.id;
-                              status = _calendarStatusOfBooking(dayBooking);
-                            }
-                          } else {
-                            for (var doc in bookings) {
-                              final data = doc.data();
-
-                              final start = (data['startDate'] as Timestamp)
-                                  .toDate();
-                              final end = (data['endDate'] as Timestamp)
-                                  .toDate();
-
-                              final dateObj = DateTime.parse(key);
-
-                              if (dateObj.isAfter(
-                                    start.subtract(const Duration(days: 1)),
-                                  ) &&
-                                  dateObj.isBefore(end)) {
-                                if (data['status'] == 'checked_in') {
-                                  status = 'occupied';
-                                } else if (data['status'] == 'completed') {
-                                  status = 'completed';
-                                } else {
-                                  status = 'booked';
-                                }
-
-                                dayBooking = data;
-                                dayBookingId = doc.id;
-
-                                break;
-                              }
-                            }
-                          }
+                        /// 維修中 / 關閉日優先，不讓訂單狀態蓋掉。
+                        /// 顯示用的代表訂單只影響顏色；點擊仍會列出全部有效訂單。
+                        final List<RoomDayBookingChoice> dayMatches =
+                            _isBlockedStatus(status)
+                            ? const <RoomDayBookingChoice>[]
+                            : activeBookingsOnRoomDay(
+                                bookings: <RoomDayBookingChoice>[
+                                  for (final QueryDocumentSnapshot<
+                                        Map<String, dynamic>
+                                      >
+                                      doc
+                                      in bookings)
+                                    RoomDayBookingChoice(
+                                      id: doc.id,
+                                      data: doc.data(),
+                                    ),
+                                ],
+                                roomId: widget.roomId,
+                                day: date,
+                              );
+                        final RoomDayBookingChoice? displayBooking =
+                            preferredRoomDayBooking(dayMatches);
+                        if (displayBooking != null) {
+                          dayBooking = displayBooking.data;
+                          dayBookingId = displayBooking.id;
+                          status = _calendarStatusOfBooking(dayBooking);
                         }
 
                         /// 🔥 可操作範圍
@@ -584,9 +603,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           booking: dayBooking,
                         );
 
-                        /// 桌機房務總覽：過去日期一律灰色，但仍可點開查紀錄。
-                        final bool historyDay =
-                            widget.embedded && dayStatus.isHistory;
+                        /// 過去且沒有有效訂單時，桌機與手機都用同一套歷史灰色。
+                        final bool historyDay = dayStatus.isHistory;
 
                         /// 過去日期如果有訂單或維修紀錄，要能顯示出來
                         final isDisabled = widget.embedded
@@ -600,57 +618,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                             date.month == _selectedDate!.month &&
                             date.day == _selectedDate!.day;
 
-                        /// 🎨 顏色
-                        Color color;
-                        switch (status) {
-                          case 'booked':
-                            color = RoomStatusPresentation.calendarDot(
-                              (dayBooking?['bookingKind'] ?? '') == 'daycare'
-                                  ? 'booked_daycare'
-                                  : 'booked',
-                            ).color;
-                            break;
-                          case 'occupied':
-                            color = RoomStatusPresentation.calendarDot(
-                              (dayBooking?['bookingKind'] ?? '') == 'daycare'
-                                  ? 'occupied_daycare'
-                                  : 'occupied',
-                            ).color;
-                            break;
-                          case 'completed':
-                            color = RoomStatusPresentation.calendarDot(
-                              'completed',
-                            ).color;
-                            break;
-                          case 'cleaning':
-                            color = RoomStatusPresentation.calendarDot(
-                              'cleaning',
-                            ).color;
-                            break;
-                          case 'closed':
-                            color = RoomStatusPresentation.calendarDot(
-                              'closed',
-                            ).color;
-                            break;
-
-                          case 'blocked':
-                          case 'maintenance':
-                          case 'unavailable':
-                            color = RoomStatusPresentation.calendarDot(
-                              'maintenance',
-                            ).color;
-                            break;
-                          default:
-                            color = RoomStatusPresentation.calendarDot(
-                              'available',
-                            ).color;
-                        }
-
-                        if (widget.embedded) {
-                          /// 與左側 7 天點共用同一支 helper 的顏色
-                          color = dayStatus.color;
-                        }
-
+                        /// 圓點顏色只走 RoomDayStatus，桌機與手機同一套。
+                        Color color = dayStatus.color;
                         if (isDisabled) {
                           color = Colors.grey.shade300;
                         }
@@ -665,6 +634,9 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                     _selectedBooking = dayBooking;
                                     _selectedBookingId = dayBookingId;
                                   });
+                                  if (dayMatches.isNotEmpty) {
+                                    _openBookingChoices(dayMatches);
+                                  }
                                 },
                           child: Container(
                             margin: EdgeInsets.all(widget.embedded ? 1 : 4),
@@ -747,31 +719,56 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
               );
             }
 
+            final DateTime? panelDate = _selectedDate;
+            final _CalendarDayFacts? selectedFacts = panelDate == null
+                ? null
+                : _factsFor(
+                    date: panelDate,
+                    calendarStatus: map[_format(panelDate)] ?? '',
+                    bookings: bookings,
+                  );
+            final RoomDayStatus? selectedDayStatus = panelDate == null
+                ? null
+                : resolveRoomDayStatus(
+                    date: panelDate,
+                    today: today,
+                    room: widget.room,
+                    calendarStatus: map[_format(panelDate)] ?? '',
+                    booking: selectedFacts?.booking,
+                  );
+            final Map<String, dynamic>? panelBooking = selectedFacts?.booking;
+
             if (widget.embedded) {
-              return _embeddedWorkspace(monthCard: buildMonthCard());
+              return _embeddedWorkspace(
+                monthCard: buildMonthCard(),
+                facts: selectedFacts,
+                dayStatus: selectedDayStatus,
+              );
             }
             return ListView(
               padding: EdgeInsets.zero,
               children: <Widget>[
                 ...topChrome,
                 buildMonthCard(),
-                if (_selectedDate != null)
+                if (panelDate != null &&
+                    selectedFacts != null &&
+                    selectedDayStatus != null)
                   _selectedDateActionPanel(
-                    date: _selectedDate!,
-                    status: _selectedBooking != null
-                        ? (_selectedBooking!['status'] ?? _selectedStatus)
-                        : _selectedStatus,
+                    date: panelDate,
+                    status: selectedFacts.status,
+                    facts: selectedFacts,
+                    dayStatus: selectedDayStatus,
                   ),
 
-                if (_selectedDate != null &&
+                if (panelDate != null &&
                     _dailyCareSettingLoaded &&
                     _dailyCareSetting.enabled &&
-                    _selectedBooking != null &&
-                    _selectedBooking!['status'] == 'checked_in' &&
+                    panelBooking != null &&
+                    panelBooking['status'] == 'checked_in' &&
                     _isSelectedDateACareDate() &&
                     DailyCareReportEligibility.isEntitled(
                       DailyCareReportEligibility.resolvedEntitlement(
-                        booking: _selectedBooking!,
+                        booking: panelBooking,
                         setting: _dailyCareSetting,
                         daycare: false,
                       ),
@@ -845,7 +842,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     }
   }
 
-  Widget _embeddedWorkspace({required Widget monthCard}) {
+  Widget _embeddedWorkspace({
+    required Widget monthCard,
+    required _CalendarDayFacts? facts,
+    required RoomDayStatus? dayStatus,
+  }) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double maxH = constraints.maxHeight;
@@ -884,7 +885,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
               ),
             ),
             const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
-            Expanded(child: widget.embeddedDetail ?? _embeddedDetailScroll()),
+            Expanded(
+              child:
+                  widget.embeddedDetail ??
+                  _embeddedDetailScroll(facts: facts, dayStatus: dayStatus),
+            ),
           ],
         );
       },
@@ -971,21 +976,23 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
-  Widget _embeddedDetailScroll() {
+  Widget _embeddedDetailScroll({
+    required _CalendarDayFacts? facts,
+    required RoomDayStatus? dayStatus,
+  }) {
     final DateTime? date = _selectedDate;
-    final String title = date == null
-        ? '日期詳細資訊'
-        : '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')} 日期詳細資訊';
+    final String title = date == null ? '所選日期' : '所選日期資訊';
+    final Map<String, dynamic>? careBooking = facts?.booking;
     final bool showCare =
         date != null &&
         _dailyCareSettingLoaded &&
         _dailyCareSetting.enabled &&
-        _selectedBooking != null &&
-        _selectedBooking!['status'] == 'checked_in' &&
+        careBooking != null &&
+        careBooking['status'] == 'checked_in' &&
         _isSelectedDateACareDate() &&
         DailyCareReportEligibility.isEntitled(
           DailyCareReportEligibility.resolvedEntitlement(
-            booking: _selectedBooking!,
+            booking: careBooking,
             setting: _dailyCareSetting,
             daycare: false,
           ),
@@ -1005,9 +1012,20 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             style: TextStyle(fontSize: 13, color: Colors.black54),
           )
         else ...<Widget>[
-          _embeddedStatusCard(date),
+          if (dayStatus != null) ...<Widget>[
+            RoomSelectedDateSummary(date: date, status: dayStatus),
+            const SizedBox(height: 8),
+          ],
+          _embeddedStatusCard(
+            date,
+            status: facts?.status ?? _selectedStatus,
+            booking: facts?.booking,
+          ),
           const SizedBox(height: 8),
-          _embeddedBookingCard(),
+          _embeddedBookingCard(
+            facts: facts,
+            onOpenRoomRecord: () => _openStandaloneRoomRecord(date),
+          ),
           if (showCare) ...<Widget>[
             const SizedBox(height: 8),
             _dailyCarePanel(dense: true),
@@ -1019,18 +1037,24 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
-  Widget _embeddedStatusCard(DateTime date) {
+  Widget _embeddedStatusCard(
+    DateTime date, {
+    required String status,
+    required Map<String, dynamic>? booking,
+  }) {
     final String key = _format(date);
-    final String status = _selectedBooking != null
-        ? (_selectedBooking!['status'] ?? _selectedStatus).toString()
-        : _selectedStatus;
+    final String shown = booking == null
+        ? status
+        : (booking['status'] ?? status).toString();
     final bool lockedByBooking =
+        shown == 'booked' ||
+        shown == 'occupied' ||
         status == 'booked' ||
         status == 'occupied' ||
-        status == 'pending' ||
-        status == 'confirmed' ||
-        status == 'checked_in' ||
-        status == 'completed';
+        shown == 'pending' ||
+        shown == 'confirmed' ||
+        shown == 'checked_in' ||
+        shown == 'completed';
 
     /// 過去日期只能查，不能再變更房間狀態。
     final bool pastDate = roomDayOnly(
@@ -1043,9 +1067,13 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              '當日狀態：${_statusText(status)}',
+              '當日狀態：${_statusText(status, booking: booking)}',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
+            if (status == 'cleaning') ...<Widget>[
+              const SizedBox(height: 8),
+              _cleaningCompleteButton(key),
+            ],
             const SizedBox(height: 4),
             const Text(
               '歷史日期僅供查詢，不可再變更房間狀態。',
@@ -1065,7 +1093,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            '目前狀態：${_statusText(status)}',
+            '目前狀態：${_statusText(status, booking: booking)}',
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
@@ -1089,30 +1117,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           if (status == 'cleaning')
             Align(
               alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: RoomStatusPresentation.cleaningColor,
-                  foregroundColor: Colors.white,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                onPressed: _busyActionKey == 'clean:$key'
-                    ? null
-                    : () {
-                        _showCleaningCompleteDialog(dateKey: key);
-                      },
-                icon: _busyActionKey == 'clean:$key'
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check_circle_outline, size: 16),
-                label: const Text('清潔完成'),
-              ),
+              child: _cleaningCompleteButton(key),
             )
           else if (status == 'closed')
             Row(
@@ -1193,23 +1198,40 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
-  Widget _embeddedBookingCard() {
-    final Map<String, dynamic>? booking = _selectedBooking;
+  Widget _embeddedBookingCard({
+    required _CalendarDayFacts? facts,
+    required VoidCallback onOpenRoomRecord,
+  }) {
+    final Map<String, dynamic>? booking = facts?.booking;
+    final List<RoomDayBookingChoice> matches =
+        facts?.matches ?? const <RoomDayBookingChoice>[];
     if (booking == null) {
       return _embeddedInfoCard(
         title: '訂單摘要',
-        child: const Text(
-          '此日期無入住訂單',
-          style: TextStyle(fontSize: 13, color: Colors.black54),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              '此日期沒有有效住宿或安親訂單',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: onOpenRoomRecord,
+                child: const Text('開啟單房紀錄'),
+              ),
+            ),
+          ],
         ),
       );
     }
     final String pets = _bookingPetNames(booking);
-    final DateTime? start = (booking['startDate'] as Timestamp?)?.toDate();
-    final DateTime? end = (booking['endDate'] as Timestamp?)?.toDate();
-    final String range = start != null && end != null
-        ? '${_format(start)} ～ ${_format(end)}'
-        : '';
+    final String range = _bookingRangeText(booking);
     return _embeddedInfoCard(
       title: '訂單摘要',
       child: Column(
@@ -1230,9 +1252,16 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           ),
           const SizedBox(height: 2),
           Text(
-            '訂單狀態：${_statusText((booking['status'] ?? '').toString())}',
+            '訂單狀態：${_statusText((booking['status'] ?? '').toString(), booking: booking)}',
             style: const TextStyle(fontSize: 13),
           ),
+          if (matches.length > 1) ...<Widget>[
+            const SizedBox(height: 2),
+            Text(
+              '此日期有 ${matches.length} 筆有效訂單',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ],
           if (range.isNotEmpty) ...<Widget>[
             const SizedBox(height: 2),
             Text('入住／退房：$range', style: const TextStyle(fontSize: 13)),
@@ -1244,16 +1273,9 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
-              onPressed: _selectedBookingId == null
+              onPressed: matches.isEmpty
                   ? null
-                  : () {
-                      AdminBookingRoute.open(
-                        context,
-                        bookingId: _selectedBookingId!,
-                        data: booking,
-                        canEdit: true,
-                      );
-                    },
+                  : () => _openBookingChoices(matches),
               child: const Text('查看訂單'),
             ),
           ),
@@ -1315,8 +1337,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   Widget _selectedDateActionPanel({
     required DateTime date,
     required String status,
+    required _CalendarDayFacts facts,
+    required RoomDayStatus dayStatus,
   }) {
     final key = _format(date);
+    final Map<String, dynamic>? panelBooking = facts.booking;
     final lockedByBooking =
         status == 'booked' ||
         status == 'occupied' ||
@@ -1359,9 +1384,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             ],
           ),
           const SizedBox(height: 8),
+          RoomSelectedDateSummary(date: date, status: dayStatus),
+          const SizedBox(height: 8),
 
           Text(
-            '$key　目前狀態：${_selectedBooking != null ? _statusText(_selectedBooking!['status']) : _statusText(status)}',
+            '$key　目前狀態：${_statusText(status, booking: panelBooking)}',
             style: const TextStyle(fontSize: 13, color: Colors.grey),
           ),
           const Text(
@@ -1373,7 +1400,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             ),
           ),
 
-          if (_selectedBooking != null) ...[
+          if (panelBooking != null) ...[
             const SizedBox(height: 14),
 
             Container(
@@ -1395,42 +1422,42 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                   const SizedBox(height: 10),
 
                   Text(
-                    '客人：${_selectedBooking!['customerName'] ?? '未知'}',
+                    '客人：${panelBooking['customerName'] ?? '未知'}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
 
                   const SizedBox(height: 4),
 
-                  Text('狀態：${_statusText(_selectedBooking!['status'])}'),
+                  Text(
+                    '狀態：${_statusText((panelBooking['status'] ?? '').toString(), booking: panelBooking)}',
+                  ),
 
                   const SizedBox(height: 4),
 
-                  Text(
-                    '日期：'
-                    '${_format((_selectedBooking!['startDate'] as Timestamp).toDate())}'
-                    ' ～ '
-                    '${_format((_selectedBooking!['endDate'] as Timestamp).toDate())}',
-                  ),
+                  Text('日期：${_bookingRangeText(panelBooking)}'),
+                  if (facts.matches.length > 1) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Text('此日期有 ${facts.matches.length} 筆有效訂單'),
+                  ],
 
                   const SizedBox(height: 12),
 
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        AdminBookingRoute.open(
-                          context,
-                          bookingId: _selectedBookingId!,
-                          data: _selectedBooking,
-                          canEdit: true,
-                        );
-                      },
+                      onPressed: () => _openBookingChoices(facts.matches),
                       icon: const Icon(Icons.receipt_long),
                       label: const Text('查看訂單'),
                     ),
                   ),
                 ],
               ),
+            ),
+          ] else ...<Widget>[
+            const SizedBox(height: 8),
+            const Text(
+              '此日期沒有有效住宿或安親訂單',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
             ),
           ],
           const SizedBox(height: 12),
@@ -2155,86 +2182,14 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
-  /// 🧹 完成清潔操作
+  /// 🧹 完成清潔操作。確認視窗與房務總覽共用，取消不會寫入。
   Future<void> _showCleaningCompleteDialog({required String dateKey}) async {
-    String selectedResult = 'available';
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Row(
-                children: [
-                  Icon(
-                    Icons.cleaning_services_outlined,
-                    color: RoomStatusPresentation.cleaningColor,
-                  ),
-                  SizedBox(width: 8),
-                  Text('清潔完成'),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<String>(
-                    value: 'available',
-                    groupValue: selectedResult,
-                    activeColor: RoomStatusPresentation.availableColor,
-                    title: const Text(
-                      '完成並立即開放',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: const Text('此日期恢復為空房，可再次接受預約'),
-                    onChanged: (value) {
-                      if (value == null) return;
-
-                      setDialogState(() {
-                        selectedResult = value;
-                      });
-                    },
-                  ),
-                  RadioListTile<String>(
-                    value: 'closed',
-                    groupValue: selectedResult,
-                    activeColor: Colors.grey,
-                    title: const Text(
-                      '完成但今日維持關閉',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: const Text('完成清潔，但此日期仍不開放預約'),
-                    onChanged: (value) {
-                      if (value == null) return;
-
-                      setDialogState(() {
-                        selectedResult = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop(false);
-                  },
-                  child: const Text('取消'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop(true);
-                  },
-                  child: const Text('確認'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final String? selectedResult = await showRoomCleaningCompleteDialog(
+      context,
     );
-
-    if (confirmed != true) return;
+    if (selectedResult == null) {
+      return;
+    }
 
     final String actionKey = 'clean:$dateKey';
     setState(() {
@@ -2379,6 +2334,96 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     }
   }
 
+  _CalendarDayFacts _factsFor({
+    required DateTime date,
+    required String calendarStatus,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+  }) {
+    final String stored = calendarStatus.isEmpty ? 'available' : calendarStatus;
+    if (_isBlockedStatus(stored)) {
+      return _CalendarDayFacts(status: stored);
+    }
+    final List<RoomDayBookingChoice> matches = activeBookingsOnRoomDay(
+      bookings: <RoomDayBookingChoice>[
+        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in bookings)
+          RoomDayBookingChoice(id: doc.id, data: doc.data()),
+      ],
+      roomId: widget.roomId,
+      day: date,
+    );
+    final RoomDayBookingChoice? display = preferredRoomDayBooking(matches);
+    if (display == null) {
+      return _CalendarDayFacts(status: stored);
+    }
+    return _CalendarDayFacts(
+      status: _calendarStatusOfBooking(display.data),
+      booking: display.data,
+      bookingId: display.id,
+      matches: matches,
+    );
+  }
+
+  Widget _cleaningCompleteButton(String dateKey) {
+    final bool busy = _busyActionKey == 'clean:$dateKey';
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: RoomStatusPresentation.cleaningColor,
+        foregroundColor: Colors.white,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+      ),
+      onPressed: busy
+          ? null
+          : () => _showCleaningCompleteDialog(dateKey: dateKey),
+      icon: busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.check_circle_outline, size: 16),
+      label: const Text('清潔完成'),
+    );
+  }
+
+  Future<void> _openBookingChoices(List<RoomDayBookingChoice> matches) async {
+    final RoomOverviewOpenPlan plan = planRoomOverviewOpen(matches);
+    RoomDayBookingChoice? chosen = plan.booking;
+    if (plan.kind == RoomOverviewOpenKind.bookingPicker) {
+      chosen = await showRoomDayBookingPicker(context, matches);
+    }
+    if (!mounted ||
+        chosen == null ||
+        plan.kind == RoomOverviewOpenKind.roomRecord) {
+      return;
+    }
+    AdminBookingRoute.open(
+      context,
+      bookingId: chosen.id,
+      data: chosen.data,
+      canEdit: true,
+    );
+  }
+
+  Future<void> _openStandaloneRoomRecord(DateTime date) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoomCalendarPage(
+          shopId: widget.shopId,
+          roomId: widget.roomId,
+          roomName: widget.roomName,
+          roomTypeName: widget.roomTypeName,
+          roomImageUrl: widget.roomImageUrl,
+          room: widget.room,
+          focusDate: date,
+        ),
+      ),
+    );
+  }
+
   /// 有效訂單對應的日曆顯示狀態。
   String _calendarStatusOfBooking(Map<String, dynamic> booking) {
     switch ((booking['status'] ?? '').toString()) {
@@ -2399,44 +2444,15 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         status == 'unavailable';
   }
 
-  /// 🔥 狀態文字
-  String _statusText(String status) {
-    switch (status) {
-      /// 日曆狀態
-      case 'booked':
-        return '已訂';
-
-      case 'occupied':
-        return '入住中';
-
-      /// 訂單狀態
-      case 'pending':
-        return '預訂中';
-
-      case 'confirmed':
-        return '已確認';
-
-      case 'checked_in':
-        return '入住中';
-
-      case 'completed':
-        return '退房/完成';
-
-      case 'cleaning':
-        return '清潔中';
-
-      case 'closed':
-        return '今日關閉';
-
-      case 'blocked':
-      case 'maintenance':
-      case 'unavailable':
-        return '維修中';
-
-      case 'available':
-      default:
-        return '空房';
+  /// 狀態文字只走共用呈現，避免頁面再寫一套名稱。
+  String _statusText(String status, {Map<String, dynamic>? booking}) {
+    if (booking != null && booking.isNotEmpty) {
+      return RoomStatusPresentation.of(
+        roomStatus: status,
+        booking: booking,
+      ).label;
     }
+    return RoomStatusPresentation.calendarDot(status).label;
   }
 
   Widget _legend(Color color, String text) {
@@ -2453,6 +2469,20 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
       ],
     );
   }
+}
+
+class _CalendarDayFacts {
+  const _CalendarDayFacts({
+    required this.status,
+    this.booking,
+    this.bookingId,
+    this.matches = const <RoomDayBookingChoice>[],
+  });
+
+  final String status;
+  final Map<String, dynamic>? booking;
+  final String? bookingId;
+  final List<RoomDayBookingChoice> matches;
 }
 
 class _WeekdayText extends StatelessWidget {

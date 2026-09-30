@@ -2,7 +2,7 @@
 // 功能說明：活動海報編輯器：首頁 / 商城共用 StoreBannerView。
 // scope 決定儲存位置與連結選項，不要複製第二套 Editor。
 
-import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
@@ -44,6 +44,7 @@ class ShopStoreBannerEditorPage extends StatefulWidget {
     this.controller,
     this.onDraftChanged,
     this.onPublished,
+    this.onLocalImageBytes,
   });
 
   final String shopId;
@@ -63,6 +64,7 @@ class ShopStoreBannerEditorPage extends StatefulWidget {
   final StoreBannerEditorController? controller;
   final ValueChanged<StoreBannerModel>? onDraftChanged;
   final ValueChanged<List<StoreBannerModel>>? onPublished;
+  final ValueChanged<Uint8List?>? onLocalImageBytes;
 
   bool get isHomeScope => scope == PetNestBannerScope.home;
 
@@ -80,6 +82,8 @@ class StoreBannerEditorController {
 
   bool get dirty => _state?._dirty ?? false;
 
+  bool get saved => _state?._saved ?? false;
+
   Future<void> publish() {
     final Future<void> Function()? save = _state?._save;
     if (save == null) {
@@ -91,6 +95,28 @@ class StoreBannerEditorController {
   List<HomeBannerStoredImage> detachStoredImages() {
     return _state?.detachStoredImages() ?? const <HomeBannerStoredImage>[];
   }
+
+  void updateEnabled(bool enabled) {
+    _state?._updateEnabled(enabled);
+  }
+
+  String? get selectedTextId => _state?._selectedTextId;
+
+  bool get ctaFocused => _state?._ctaFocused ?? false;
+
+  Uint8List? get localImageBytes => _state?._localImageBytes;
+
+  void applyExternalDraft(StoreBannerModel draft) {
+    _state?._applyExternalDraft(draft);
+  }
+
+  void focusText(String? id) {
+    _state?._focusText(id);
+  }
+
+  void focusCta() {
+    _state?._focusCta();
+  }
 }
 
 class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
@@ -100,6 +126,10 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   late final TextEditingController _text;
   late final TextEditingController _cta;
   String? _selectedTextId;
+  bool _ctaFocused = false;
+  Uint8List? _localImageBytes;
+  String _retiredSourceUrl = '';
+  String _retiredSourcePath = '';
   final HomeBannerImageCleanup _images = HomeBannerImageCleanup();
   bool _saving = false;
   bool _saved = false;
@@ -108,6 +138,42 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   final GlobalKey _captureKey = GlobalKey();
 
   StoreBannerModel get currentDraft => _draft.copyWith(ctaText: _cta.text);
+
+  void _updateEnabled(bool enabled) {
+    _dirty = true;
+    setState(() => _draft = _draft.copyWith(enabled: enabled));
+  }
+
+  void _applyExternalDraft(StoreBannerModel draft) {
+    _dirty = true;
+    _draft = draft;
+    final StoreBannerTextElement? selected = _selected;
+    if (selected != null && _text.text != selected.text) {
+      _text.value = TextEditingValue(
+        text: selected.text,
+        selection: TextSelection.collapsed(offset: selected.text.length),
+      );
+    }
+    super.setState(() {});
+  }
+
+  void _focusText(String? id) {
+    _ctaFocused = false;
+    if (_tabs.index != 2) {
+      _tabs.index = 2;
+    }
+    _selectText(id, updateController: true);
+    setState(() {});
+  }
+
+  void _focusCta() {
+    _ctaFocused = true;
+    _selectedTextId = null;
+    if (_tabs.index != 3) {
+      _tabs.index = 3;
+    }
+    setState(() {});
+  }
 
   List<HomeBannerStoredImage> detachStoredImages() {
     final List<HomeBannerStoredImage> images = <HomeBannerStoredImage>[
@@ -137,6 +203,15 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     super.initState();
     widget.controller?._state = this;
     _draft = widget.banner.hydrateLegacyForEditor();
+    if (widget.isNew && _draft.contentMode.isEmpty && widget.isHomeScope) {
+      _draft = _draft.copyWith(
+        contentMode: StoreBannerContentModes.templateOverlay,
+        overlayMode: _draft.overlayMode == StoreBannerOverlayModes.none
+            ? StoreBannerOverlayModes.left
+            : _draft.overlayMode,
+        overlayColorMode: StoreBannerOverlayColors.dark,
+      );
+    }
     if (widget.isNew && _draft.contentMode.isEmpty && !widget.isHomeScope) {
       _draft = _draft.copyWith(contentMode: StoreBannerContentModes.imageOnly);
     }
@@ -184,7 +259,15 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   StoreBannerInteractMode get _interactMode {
-    if (_draft.isImageOnly || _draft.usesSafeTemplateOverlay) {
+    if (_draft.isImageOnly) {
+      return StoreBannerInteractMode.none;
+    }
+    if (widget.isHomeScope) {
+      return _ctaFocused
+          ? StoreBannerInteractMode.cta
+          : StoreBannerInteractMode.text;
+    }
+    if (_draft.usesSafeTemplateOverlay) {
       return StoreBannerInteractMode.none;
     }
     switch (_tabs.index) {
@@ -213,6 +296,9 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
 
   void _selectText(String? id, {bool updateController = true}) {
     _selectedTextId = id;
+    if (id != null) {
+      _ctaFocused = false;
+    }
     if (updateController) {
       _text.text = _selected?.text ?? '';
     }
@@ -255,6 +341,21 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   Future<void> _pickImage() async {
     try {
       setState(() => _uploading = true);
+      if (widget.isHomeScope) {
+        final Uint8List? bytes = await FixedImagePickFlow.pickAndCrop(
+          context: context,
+          spec: FixedImageSpec.homeBanner,
+          title: '裁切首頁活動海報',
+        );
+        if (!mounted || bytes == null) {
+          return;
+        }
+        _localImageBytes = bytes;
+        _dirty = true;
+        setState(() {});
+        widget.onLocalImageBytes?.call(bytes);
+        return;
+      }
       final FixedImageSpec spec = widget.isHomeScope
           ? FixedImageSpec.homeBanner
           : FixedImageSpec.storeBanner;
@@ -317,7 +418,25 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     }
   }
 
+  void _rememberPublishedSource() {
+    if (_draft.imageStoragePath.isEmpty && _draft.imageUrl.isEmpty) {
+      return;
+    }
+    _retiredSourceUrl = _draft.imageUrl;
+    _retiredSourcePath = _draft.imageStoragePath;
+  }
+
   Future<void> _removeImage() async {
+    if (widget.isHomeScope) {
+      _rememberPublishedSource();
+      _localImageBytes = null;
+      _dirty = true;
+      setState(() {
+        _draft = _draft.copyWith(imageUrl: '', imageStoragePath: '');
+      });
+      widget.onLocalImageBytes?.call(null);
+      return;
+    }
     final List<HomeBannerStoredImage> replaced = _images.replacePending(
       const HomeBannerStoredImage(),
     );
@@ -346,7 +465,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       createdAt: _draft.createdAt ?? now,
       updatedAt: now,
     );
-    if (!next.hasImage) {
+    if (!next.hasImage && _localImageBytes == null) {
       setState(() => _saving = false);
       ScaffoldMessenger.of(
         context,
@@ -365,9 +484,32 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     }
     String uploadedUrl = '';
     String uploadedPath = '';
+    String freshSourceUrl = '';
+    String freshSourcePath = '';
     final String oldRenderedUrl = next.renderedImageUrl;
     final String oldRenderedPath = next.renderedImageStoragePath;
+    final String oldSourceUrl = next.imageUrl;
+    final String oldSourcePath = next.imageStoragePath;
     try {
+      if (widget.isHomeScope && _localImageBytes != null) {
+        final InventoryImageUploadResult source = await InventoryImageService
+            .instance
+            .uploadBytes(
+              shopId: widget.shopId,
+              itemId: '${next.id}/p_${DateTime.now().millisecondsSinceEpoch}',
+              bytes: _localImageBytes!,
+              folder: HomeBannerService.imageFolder,
+              imageType: 'home_banner',
+              idMetadataKey: 'bannerId',
+            );
+        freshSourceUrl = source.imageUrl;
+        freshSourcePath = source.imageStoragePath;
+        next = next.copyWith(
+          imageUrl: freshSourceUrl,
+          imageStoragePath: freshSourcePath,
+        );
+        _draft = next;
+      }
       await WidgetsBinding.instance.endOfFrame;
       final bytes = await StoreBannerRenderService.instance.captureJpeg(
         _captureKey,
@@ -423,6 +565,25 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       }
       final List<HomeBannerStoredImage> retired = _images.commitSave();
       await _deleteImages(retired);
+      final String dropSourcePath = oldSourcePath.isNotEmpty
+          ? oldSourcePath
+          : _retiredSourcePath;
+      final String dropSourceUrl = oldSourcePath.isNotEmpty
+          ? oldSourceUrl
+          : _retiredSourceUrl;
+      if (freshSourcePath.isNotEmpty &&
+          dropSourcePath.isNotEmpty &&
+          dropSourcePath != freshSourcePath) {
+        await InventoryImageService.instance.tryDeleteImage(
+          imageUrl: dropSourceUrl,
+          imageStoragePath: dropSourcePath,
+        );
+      }
+      _retiredSourceUrl = '';
+      _retiredSourcePath = '';
+      _localImageBytes = null;
+      widget.onLocalImageBytes?.call(null);
+      _draft = next;
       _saved = true;
       widget.onPublished?.call(all);
       if (!mounted || widget.embedded) {
@@ -434,6 +595,12 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
         await InventoryImageService.instance.tryDeleteImage(
           imageUrl: uploadedUrl,
           imageStoragePath: uploadedPath,
+        );
+      }
+      if (freshSourcePath.isNotEmpty || freshSourceUrl.isNotEmpty) {
+        await InventoryImageService.instance.tryDeleteImage(
+          imageUrl: freshSourceUrl,
+          imageStoragePath: freshSourcePath,
         );
       }
       if (!mounted) {
@@ -450,39 +617,48 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   Future<void> _applyTemplate(String template) async {
-    if (_draft.hasLayoutToPreserve) {
-      final bool? confirmed = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('套用快速版型？'),
-            content: const Text('套用後會重新排列目前的文字與按鈕位置，是否繼續？'),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('套用版型'),
-              ),
-            ],
-          );
-        },
-      );
-      if (!mounted || confirmed != true) {
-        return;
-      }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('套用快速版型？'),
+          content: const Text('套用後會調整目前文字、漸層與按鈕位置。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('套用版型'),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted || confirmed != true) {
+      return;
     }
     final String imageUrl = _draft.imageUrl;
     final String imagePath = _draft.imageStoragePath;
+    final ({StoreBannerModel banner, bool copyTooLong}) applied =
+        StoreBannerTemplates.applyDetailed(_draft, template);
     setState(() {
-      _draft = StoreBannerTemplates.apply(
-        _draft,
-        template,
-      ).copyWith(imageUrl: imageUrl, imageStoragePath: imagePath);
+      _draft = applied.banner.copyWith(
+        imageUrl: imageUrl,
+        imageStoragePath: imagePath,
+      );
       _cta.text = _draft.ctaText;
-      if (_draft.textElements.isNotEmpty) {
+      String? titleId;
+      for (final StoreBannerTextElement item in _draft.textElements) {
+        if (item.id.endsWith('_title')) {
+          titleId = item.id;
+          break;
+        }
+      }
+      if (titleId != null) {
+        _selectText(titleId, updateController: true);
+      } else if (_draft.textElements.isNotEmpty) {
         _selectText(_draft.textElements.first.id, updateController: true);
       } else {
         _selectText(null, updateController: true);
@@ -491,8 +667,14 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     if (!mounted) {
       return;
     }
+    final String templateLabel =
+        template == StoreBannerTemplates.promo && widget.isHomeScope
+        ? '活動宣傳'
+        : StoreBannerTemplates.label(template);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已套用${StoreBannerTemplates.label(template)}')),
+      SnackBar(
+        content: Text(applied.copyTooLong ? '文案過長，請縮短' : '已套用$templateLabel'),
+      ),
     );
   }
 
@@ -508,11 +690,11 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     final StoreBannerTextElement created = StoreBannerTextElement.create(
       id: 'te_${DateTime.now().millisecondsSinceEpoch}',
       text: '新文字',
-      positionX: 0.08,
-      positionY: (0.16 + order * 0.12).clamp(0.08, 0.72),
-      fontSizePreset: StoreBannerFontSizes.title,
-      fontSize: StoreBannerFontSizes.basePx(StoreBannerFontSizes.title),
-      fontWeightPreset: StoreBannerFontWeights.bold,
+      positionX: 0.5,
+      positionY: 0.5,
+      fontSizePreset: StoreBannerFontSizes.body,
+      fontSize: StoreBannerFontSizes.designBody,
+      fontWeightPreset: StoreBannerFontWeights.regular,
       textColor: StoreBannerCommonColors.black,
       sortOrder: order,
     );
@@ -637,6 +819,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
                 scope: widget.scope,
                 composeLive: true,
                 borderRadius: 0,
+                previewImageBytes: _localImageBytes,
               ),
             ),
           ),
@@ -838,7 +1021,7 @@ class _PreviewBlock extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: StoreBannerTemplates.all.map((String value) {
+              children: StoreBannerTemplates.idsFor(scope).map((String value) {
                 final String label =
                     value == StoreBannerTemplates.promo &&
                         scope == PetNestBannerScope.home
@@ -920,7 +1103,7 @@ class _EditorColumn extends StatelessWidget {
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: StoreBannerTemplates.all.map((String value) {
+              children: StoreBannerTemplates.idsFor(scope).map((String value) {
                 final String label =
                     value == StoreBannerTemplates.promo &&
                         scope == PetNestBannerScope.home
@@ -1011,98 +1194,54 @@ class _ImagePanel extends StatelessWidget {
   final VoidCallback onPickImage;
   final VoidCallback onRemoveImage;
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-      children: <Widget>[
-        FixedImageSpecHint(
-          spec: scope == PetNestBannerScope.home
-              ? FixedImageSpec.homeBanner
-              : FixedImageSpec.storeBanner,
+  List<Widget> _imagePlacementControls(
+    StoreBannerModel draft,
+    PetNestBannerScope scope,
+    ValueChanged<StoreBannerModel> onDraft,
+  ) {
+    final String mode = draft.contentMode.isEmpty
+        ? draft.resolvedContentMode
+        : draft.contentMode;
+    final bool home = scope == PetNestBannerScope.home;
+    if (home && mode != StoreBannerContentModes.templateOverlay) {
+      return const <Widget>[
+        Text(
+          '此模式使用完整 16:9 海報，不需要調整裁切位置。',
+          style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black54),
         ),
-        const SizedBox(height: 8),
-        const Text('內容來源模式', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        _ChipRow(
-          values: StoreBannerContentModes.all,
-          selected: draft.contentMode.isEmpty
-              ? draft.resolvedContentMode
-              : draft.contentMode,
-          labelOf: StoreBannerContentModes.label,
-          onSelected: (String value) {
-            onDraft(
-              draft.copyWith(
-                contentMode: value,
-                overlayMode: value == StoreBannerContentModes.templateOverlay
-                    ? StoreBannerAlignX.overlayModeFor(draft.resolvedTextAlignH)
-                    : StoreBannerOverlayModes.none,
-                textAlignH: draft.resolvedTextAlignH,
-                textAlignV: draft.resolvedTextAlignV,
-                fontScale: draft.resolvedFontScale,
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: <Widget>[
-            FilledButton.tonal(
-              onPressed: uploading ? null : onPickImage,
-              child: Text(draft.hasImage ? '更換圖片' : '上傳圖片'),
-            ),
-            if (draft.hasImage)
-              TextButton(
-                onPressed: uploading ? null : onRemoveImage,
-                child: const Text('移除圖片'),
-              ),
-          ],
-        ),
-        if (uploading)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: LinearProgressIndicator(),
+      ];
+    }
+    final bool showPosition =
+        !home ||
+        HomeBannerDisplay.showsImagePositionControls(
+          contentMode: mode,
+          imageScale: draft.imageScale,
+        );
+    return <Widget>[
+      const Text('圖片縮放', style: TextStyle(fontWeight: FontWeight.w700)),
+      const Text(
+        '1.0x 為完整放入。放大後才會裁切，並可調整露出的位置。',
+        style: TextStyle(fontSize: 12),
+      ),
+      Slider(
+        min: 1,
+        max: 2.5,
+        divisions: 15,
+        label: '${draft.imageScale.toStringAsFixed(1)}x',
+        value: draft.imageScale.clamp(1.0, 2.5),
+        onChanged: (double value) {
+          onDraft(draft.copyWith(imageScale: value));
+        },
+      ),
+      if (!showPosition)
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text(
+            '目前完整顯示，不需調整位置',
+            style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black54),
           ),
-        const SizedBox(height: 16),
-        if (scope == PetNestBannerScope.home) ...<Widget>[
-          Text(
-            '首頁所有海報的顯示大小請到「前台外觀設定」統一調整。',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-        ] else ...<Widget>[
-          const Text('海報尺寸', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          _ChipRow(
-            values: StoreBannerSizePresets.all,
-            selected: draft.sizePreset,
-            labelOf: StoreBannerSizePresets.label,
-            onSelected: (String value) {
-              onDraft(draft.copyWith(sizePreset: value));
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
-        const Text('圖片縮放', style: TextStyle(fontWeight: FontWeight.w700)),
-        const Text(
-          '1.0x 為原圖裁切。放大後可拖曳或用下方位置滑桿，決定框內露出的範圍。',
-          style: TextStyle(fontSize: 12),
-        ),
-        Slider(
-          min: 1,
-          max: 2.5,
-          divisions: 15,
-          label: '${draft.imageScale.toStringAsFixed(1)}x',
-          value: draft.imageScale.clamp(1.0, 2.5),
-          onChanged: (double value) {
-            onDraft(draft.copyWith(imageScale: value));
-          },
-        ),
+        )
+      else ...<Widget>[
         const SizedBox(height: 8),
         const Text('水平位置', style: TextStyle(fontWeight: FontWeight.w700)),
         const Text('愈左愈露出圖片左側，愈右愈露出右側。', style: TextStyle(fontSize: 12)),
@@ -1154,6 +1293,114 @@ class _ImagePanel extends StatelessWidget {
           ),
         ),
       ],
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      children: <Widget>[
+        FixedImageSpecHint(
+          spec: scope == PetNestBannerScope.home
+              ? FixedImageSpec.homeBanner
+              : FixedImageSpec.storeBanner,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          scope == PetNestBannerScope.home ? '海報製作方式' : '內容來源模式',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        _ChipRow(
+          values: StoreBannerContentModes.all,
+          selected: draft.contentMode.isEmpty
+              ? draft.resolvedContentMode
+              : draft.contentMode,
+          labelOf: scope == PetNestBannerScope.home
+              ? HomeBannerDisplay.homeContentModeLabel
+              : StoreBannerContentModes.label,
+          onSelected: (String value) {
+            onDraft(
+              draft.copyWith(
+                contentMode: value,
+                overlayMode: value == StoreBannerContentModes.templateOverlay
+                    ? (draft.overlayMode == StoreBannerOverlayModes.none
+                          ? StoreBannerOverlayModes.left
+                          : draft.overlayMode)
+                    : StoreBannerOverlayModes.none,
+                overlayColorMode:
+                    value == StoreBannerContentModes.templateOverlay
+                    ? StoreBannerOverlayColors.dark
+                    : draft.overlayColorMode,
+                textAlignH: draft.resolvedTextAlignH,
+                textAlignV: draft.resolvedTextAlignV,
+                fontScale: draft.resolvedFontScale,
+              ),
+            );
+          },
+        ),
+        if (scope == PetNestBannerScope.home) ...<Widget>[
+          const SizedBox(height: 8),
+          Text(
+            HomeBannerDisplay.homeContentModeHelp(
+              draft.contentMode.isEmpty
+                  ? draft.resolvedContentMode
+                  : draft.contentMode,
+            ),
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: Colors.black54,
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: <Widget>[
+            FilledButton.tonal(
+              onPressed: uploading ? null : onPickImage,
+              child: Text(draft.hasImage ? '更換圖片' : '上傳圖片'),
+            ),
+            if (draft.hasImage)
+              TextButton(
+                onPressed: uploading ? null : onRemoveImage,
+                child: const Text('移除圖片'),
+              ),
+          ],
+        ),
+        if (uploading)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: LinearProgressIndicator(),
+          ),
+        const SizedBox(height: 16),
+        if (scope == PetNestBannerScope.home) ...<Widget>[
+          Text(
+            '首頁所有海報的顯示大小請到「前台外觀設定」統一調整。',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ] else ...<Widget>[
+          const Text('海報尺寸', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _ChipRow(
+            values: StoreBannerSizePresets.all,
+            selected: draft.sizePreset,
+            labelOf: StoreBannerSizePresets.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(sizePreset: value));
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+        ..._imagePlacementControls(draft, scope, onDraft),
+      ],
     );
   }
 }
@@ -1174,62 +1421,214 @@ class _GradientPanel extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: <Widget>[
-        const Text('方向', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        _ChipRow(
-          values: StoreBannerOverlayModes.editorModes,
-          selected: draft.overlayMode == StoreBannerOverlayModes.custom
-              ? StoreBannerOverlayModes.left
-              : draft.overlayMode,
-          labelOf: StoreBannerOverlayModes.label,
-          onSelected: (String value) {
-            onDraft(draft.copyWith(overlayMode: value));
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('顯示漸層'),
+          subtitle: const Text('預設深色漸層，讓文字更容易閱讀'),
+          value: draft.overlayMode != StoreBannerOverlayModes.none,
+          onChanged: (bool value) {
+            onDraft(
+              draft.copyWith(
+                overlayMode: value
+                    ? StoreBannerOverlayModes.left
+                    : StoreBannerOverlayModes.none,
+                overlayColorMode: value
+                    ? StoreBannerOverlayColors.dark
+                    : draft.overlayColorMode,
+              ),
+            );
           },
         ),
-        const SizedBox(height: 16),
-        const Text('顏色', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        _ChipRow(
-          values: StoreBannerOverlayColors.editorModes,
-          selected: draft.overlayColorMode,
-          labelOf: StoreBannerOverlayColors.label,
-          onSelected: (String value) {
-            onDraft(draft.copyWith(overlayColorMode: value));
-          },
-        ),
-        if (draft.overlayColorMode ==
-            StoreBannerOverlayColors.custom) ...<Widget>[
-          const SizedBox(height: 12),
-          StoreBannerColorField(
-            label: '自訂漸層色',
-            argb: draft.overlayCustomColor,
-            brandColor: theme.primaryColor,
-            onChanged: (int value) {
-              onDraft(draft.copyWith(overlayCustomColor: value));
+        if (draft.overlayMode != StoreBannerOverlayModes.none) ...<Widget>[
+          const Text('方向', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _ChipRow(
+            values: StoreBannerOverlayModes.editorModes,
+            selected: draft.overlayMode == StoreBannerOverlayModes.custom
+                ? StoreBannerOverlayModes.left
+                : draft.overlayMode,
+            labelOf: StoreBannerOverlayModes.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(overlayMode: value));
+            },
+          ),
+          const SizedBox(height: 16),
+          const Text('顏色', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _ChipRow(
+            values: StoreBannerOverlayColors.editorModes,
+            selected: draft.overlayColorMode,
+            labelOf: StoreBannerOverlayColors.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(overlayColorMode: value));
+            },
+          ),
+          if (draft.overlayColorMode ==
+              StoreBannerOverlayColors.custom) ...<Widget>[
+            const SizedBox(height: 12),
+            StoreBannerColorField(
+              label: '自訂漸層色',
+              argb: draft.overlayCustomColor,
+              brandColor: theme.primaryColor,
+              onChanged: (int value) {
+                onDraft(draft.copyWith(overlayCustomColor: value));
+              },
+            ),
+          ],
+          const SizedBox(height: 16),
+          const Text('範圍', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _ChipRow(
+            values: StoreBannerOverlayExtents.all,
+            selected: draft.overlayExtent,
+            labelOf: StoreBannerOverlayExtents.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(overlayExtent: value));
+            },
+          ),
+          const SizedBox(height: 16),
+          const Text('透明度', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _ChipRow(
+            values: StoreBannerOverlayStrengths.all,
+            selected: draft.overlayStrength,
+            labelOf: StoreBannerOverlayStrengths.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(overlayStrength: value));
             },
           ),
         ],
-        const SizedBox(height: 16),
-        const Text('範圍', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        _ChipRow(
-          values: StoreBannerOverlayExtents.all,
-          selected: draft.overlayExtent,
-          labelOf: StoreBannerOverlayExtents.label,
-          onSelected: (String value) {
-            onDraft(draft.copyWith(overlayExtent: value));
-          },
+      ],
+    );
+  }
+}
+
+bool _copyTooLong(StoreBannerTextElement element) {
+  final int length = element.text.trim().length;
+  final bool title =
+      element.id.endsWith('_title') ||
+      element.fontSizePreset == StoreBannerFontSizes.title ||
+      element.fontSizePreset == StoreBannerFontSizes.display;
+  return length > (title ? 16 : 24);
+}
+
+StoreBannerModel _withHomeCaption(
+  StoreBannerModel draft, {
+  required String role,
+  required bool enabled,
+}) {
+  final String suffix = role == 'title' ? '_title' : '_sub';
+  final List<StoreBannerTextElement> items = List<StoreBannerTextElement>.from(
+    draft.textElements,
+  );
+  final int index = items.indexWhere(
+    (StoreBannerTextElement item) => item.id.endsWith(suffix),
+  );
+  if (!enabled) {
+    if (index >= 0) {
+      items.removeAt(index);
+    }
+    return draft.copyWith(textElements: items);
+  }
+  if (index >= 0) {
+    return draft;
+  }
+  final bool title = role == 'title';
+  items.add(
+    StoreBannerTextElement.create(
+      id: '${draft.id}$suffix',
+      text: title ? '標題' : '副標題',
+      positionX: 0.5,
+      positionY: title ? 0.36 : 0.56,
+      fontSizePreset: title
+          ? StoreBannerFontSizes.title
+          : StoreBannerFontSizes.body,
+      fontSize: title
+          ? StoreBannerFontSizes.designTitle
+          : StoreBannerFontSizes.designSubtitle,
+      fontWeightPreset: title
+          ? StoreBannerFontWeights.bold
+          : StoreBannerFontWeights.regular,
+      textColor: StoreBannerCommonColors.white,
+      textAlign: StoreBannerTextAligns.center,
+      sortOrder: items.length,
+    ),
+  );
+  return draft.copyWith(textElements: items);
+}
+
+class _PosterFontSizeField extends StatefulWidget {
+  const _PosterFontSizeField({required this.value, required this.onChanged});
+
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  @override
+  State<_PosterFontSizeField> createState() => _PosterFontSizeFieldState();
+}
+
+class _PosterFontSizeFieldState extends State<_PosterFontSizeField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value.round().toString(),
+  );
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void didUpdateWidget(covariant _PosterFontSizeField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focus.hasFocus && oldWidget.value.round() != widget.value.round()) {
+      _controller.text = widget.value.round().toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _commit(String raw) {
+    final int? parsed = int.tryParse(raw.trim());
+    if (parsed == null || parsed < 18 || parsed > 220) {
+      return;
+    }
+    if (parsed != widget.value.round()) {
+      widget.onChanged(parsed.toDouble());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double snapped = StoreBannerFontSizes.snapPosterPx(widget.value);
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Slider(
+            min: StoreBannerFontSizes.minPx,
+            max: StoreBannerFontSizes.maxPx,
+            label: '${snapped.round()} px',
+            value: snapped,
+            onChanged: (double value) {
+              widget.onChanged(StoreBannerFontSizes.snapPosterPx(value));
+            },
+          ),
         ),
-        const SizedBox(height: 16),
-        const Text('強度', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        _ChipRow(
-          values: StoreBannerOverlayStrengths.all,
-          selected: draft.overlayStrength,
-          labelOf: StoreBannerOverlayStrengths.label,
-          onSelected: (String value) {
-            onDraft(draft.copyWith(overlayStrength: value));
-          },
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 92,
+          child: TextField(
+            controller: _controller,
+            focusNode: _focus,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              isDense: true,
+              suffixText: 'px',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: _commit,
+            onSubmitted: _commit,
+          ),
         ),
       ],
     );
@@ -1266,12 +1665,16 @@ class _TextPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (draft.isImageOnly) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('此模式只顯示上傳圖片。請改為「後台套版渲染」才可設定標題、副標題與按鈕。'),
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          scope == PetNestBannerScope.home
+              ? '此模式只顯示上傳的完整海報。請改為「使用海報製作器」才可設定文字、漸層與按鈕。'
+              : '此模式只顯示上傳圖片。請改為「後台套版渲染」才可設定標題、副標題與按鈕。',
+        ),
       );
     }
-    if (draft.usesSafeTemplateOverlay) {
+    if (draft.usesSafeTemplateOverlay && scope != PetNestBannerScope.home) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: <Widget>[
@@ -1335,18 +1738,6 @@ class _TextPanel extends StatelessWidget {
     }
     final List<StoreBannerTextElement> items = draft.resolvedTextElements;
     final StoreBannerTextElement? current = selected;
-    final double canvasHeight = StoreBannerSizePresets.heightForWidth(
-      draft.sizePreset,
-      390,
-      scope: scope,
-    );
-    final double sliderMax = StoreBannerFontSizes.sliderMaxForBanner(
-      canvasHeight,
-    );
-    final int sliderDivisions = math.max(
-      1,
-      (sliderMax - StoreBannerFontSizes.minPx).round(),
-    );
     final bool contrastWarn =
         current != null &&
         StoreBannerContrast.mayBeLow(
@@ -1364,6 +1755,35 @@ class _TextPanel extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: <Widget>[
+        if (scope == PetNestBannerScope.home) ...<Widget>[
+          for (final String role in const <String>['title', 'sub'])
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(role == 'title' ? '標題' : '副標題'),
+              value: items.any(
+                (StoreBannerTextElement item) =>
+                    item.id.endsWith(role == 'title' ? '_title' : '_sub'),
+              ),
+              onChanged: (bool value) {
+                final StoreBannerModel next = _withHomeCaption(
+                  draft,
+                  role: role,
+                  enabled: value,
+                );
+                onDraft(next);
+                if (!value) {
+                  return;
+                }
+                final String suffix = role == 'title' ? '_title' : '_sub';
+                for (final StoreBannerTextElement item in next.textElements) {
+                  if (item.id.endsWith(suffix)) {
+                    onSelectText(item.id);
+                    break;
+                  }
+                }
+              },
+            ),
+        ],
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.tonalIcon(
@@ -1382,7 +1802,13 @@ class _TextPanel extends StatelessWidget {
           return ListTile(
             contentPadding: EdgeInsets.zero,
             selected: active,
-            title: Text('文字 ${entry.key + 1}'),
+            title: Text(
+              item.id.endsWith('_title')
+                  ? '標題'
+                  : item.id.endsWith('_sub')
+                  ? '副標題'
+                  : '文字 ${entry.key + 1}',
+            ),
             subtitle: Text(
               item.hasText ? item.text : '（空白）',
               maxLines: 1,
@@ -1396,55 +1822,51 @@ class _TextPanel extends StatelessWidget {
           TextField(
             controller: textController,
             maxLength: 48,
-            decoration: const InputDecoration(labelText: '文字內容'),
+            decoration: InputDecoration(
+              labelText: '文字內容',
+              helperText: _copyTooLong(current) ? '文案過長' : null,
+            ),
             onChanged: (String value) {
               onReplaceText(current.copyWith(text: value));
             },
           ),
           const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  '字體大小',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Text(
-                '${current.sliderFontSize.round()} px',
-                style: const TextStyle(color: Colors.black54),
-              ),
-            ],
+          const Text('水平位置', style: TextStyle(fontWeight: FontWeight.w700)),
+          Slider(
+            min: 0,
+            max: 1,
+            divisions: 20,
+            value: current.positionX.clamp(0.0, 1.0),
+            onChanged: (double value) {
+              onReplaceText(current.copyWith(positionX: value));
+            },
           ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
-            ),
-            child: Slider(
-              min: StoreBannerFontSizes.minPx,
-              max: sliderMax,
-              divisions: sliderDivisions,
-              padding: EdgeInsets.zero,
-              label: '${current.sliderFontSize.round()} px',
-              value: current.sliderFontSize.clamp(
-                StoreBannerFontSizes.minPx,
-                sliderMax,
-              ),
-              onChanged: (double value) {
-                final double px = StoreBannerFontSizes.clampForBanner(
-                  value.roundToDouble(),
-                  canvasHeight,
-                );
-                onReplaceText(
-                  current.copyWith(
-                    fontSize: px,
-                    fontSizePreset: StoreBannerFontSizes.nearestPreset(px),
-                  ),
-                );
-              },
-            ),
+          const Text('垂直位置', style: TextStyle(fontWeight: FontWeight.w700)),
+          Slider(
+            min: 0,
+            max: 1,
+            divisions: 20,
+            value: current.positionY.clamp(0.0, 1.0),
+            onChanged: (double value) {
+              onReplaceText(current.copyWith(positionY: value));
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '完成海報字級（1600 × 900）',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          _PosterFontSizeField(
+            value: current.sliderFontSize,
+            onChanged: (double px) {
+              onReplaceText(
+                current.copyWith(
+                  fontSize: px,
+                  fontSizePreset: StoreBannerFontSizes.nearestPreset(px),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 12),
           const Text('粗細', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -1701,6 +2123,27 @@ class _CtaPanel extends StatelessWidget {
               onDraft(draft.copyWith(ctaRadius: value));
             },
           ),
+          const SizedBox(height: 12),
+          const Text('水平位置', style: TextStyle(fontWeight: FontWeight.w700)),
+          Slider(
+            min: 0,
+            max: 1,
+            divisions: 20,
+            value: draft.ctaPositionX.clamp(0.0, 1.0),
+            onChanged: (double value) {
+              onDraft(draft.copyWith(ctaPositionX: value));
+            },
+          ),
+          const Text('垂直位置', style: TextStyle(fontWeight: FontWeight.w700)),
+          Slider(
+            min: 0,
+            max: 1,
+            divisions: 20,
+            value: draft.ctaPositionY.clamp(0.0, 1.0),
+            onChanged: (double value) {
+              onDraft(draft.copyWith(ctaPositionY: value));
+            },
+          ),
         ],
       ],
     );
@@ -1725,6 +2168,8 @@ class _LinkPanel extends StatelessWidget {
     final bool isHome = scope == PetNestBannerScope.home;
     final List<String> types = isHome
         ? HomeBannerActionTypes.editorTypes
+              .where((String type) => type != HomeBannerActionTypes.url)
+              .toList()
         : StoreBannerActionTypes.all;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -1746,22 +2191,6 @@ class _LinkPanel extends StatelessWidget {
             onDraft(draft.copyWith(actionType: value, actionTargetId: ''));
           },
         ),
-        if (isHome &&
-            draft.actionType == HomeBannerActionTypes.url) ...<Widget>[
-          const SizedBox(height: 8),
-          TextFormField(
-            key: ValueKey<String>('home_url_${draft.id}'),
-            initialValue: draft.actionTargetId,
-            decoration: const InputDecoration(
-              labelText: '外部網址',
-              hintText: 'https://',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (String value) {
-              onDraft(draft.copyWith(actionTargetId: value.trim()));
-            },
-          ),
-        ],
         if (draft.actionType == StoreBannerActionTypes.product ||
             (!isHome && draft.actionType != StoreBannerActionTypes.none))
           StoreBannerActionTargetPicker(
