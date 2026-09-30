@@ -6,6 +6,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/platform_permission_keys.dart';
 import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/models/platform_admin_model.dart';
@@ -279,9 +280,8 @@ List<_PlatformSection> _platformAdminSections({
       _PlatformEntry(
         icon: Icons.payments,
         title: '方案 / 付款管理',
-        subtitle: '之後管理月費方案、付款期限與功能開關',
-        // 既有入口尚未接上頁面，維持原本的空操作。
-        onTap: () {},
+        subtitle: '選擇店家，管理方案、付款期限與功能開關',
+        onTap: () => openPage(const PlatformShopManagePage()),
       ),
     if (hasPermission(PlatformPermissionKeys.manageActivationCodes))
       _PlatformEntry(
@@ -343,14 +343,6 @@ List<_PlatformSection> _platformAdminSections({
         title: '平台條款管理',
         subtitle: '管理平台會員條款與創店主條款版本',
         onTap: () => openPage(const PlatformPolicyManagePage()),
-      ),
-    if (hasPermission(PlatformPermissionKeys.viewPlatformLogs))
-      _PlatformEntry(
-        icon: Icons.history,
-        title: '平台操作紀錄',
-        subtitle: '之後查看誰修改店家、方案、停權狀態',
-        // 既有入口尚未接上頁面，維持原本的空操作。
-        onTap: () {},
       ),
   ];
 
@@ -731,9 +723,8 @@ class _DesktopEntryCardState extends State<_DesktopEntryCard> {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(
-              0xFF0F172A,
-            ).withValues(alpha: _hover ? 0.07 : 0.04),
+            color: const Color(0xFF0F172A)
+                .withValues(alpha: _hover ? 0.07 : 0.04),
             blurRadius: _hover ? 10 : 6,
             offset: Offset(0, _hover ? 3 : 1),
           ),

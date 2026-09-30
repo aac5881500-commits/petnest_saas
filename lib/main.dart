@@ -4,6 +4,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/theme/petnest_app_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
@@ -89,7 +90,7 @@ class PetNestApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
+      theme: PetNestAppTheme.build(),
 
       /// 🔥 一定要有這段
       routes: {

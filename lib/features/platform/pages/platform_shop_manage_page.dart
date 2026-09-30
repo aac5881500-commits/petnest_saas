@@ -7,9 +7,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/app_state_panel.dart';
+
 import '../../../core/constants/platform_permission_keys.dart';
 import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/services/platform_admin_service.dart';
+
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_send_shop_notification_page.dart';
 import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.dart';
@@ -177,12 +180,24 @@ class _ShopManageScreen extends StatefulWidget {
 }
 
 class _ShopManageScreenState extends State<_ShopManageScreen> {
+  final Set<String> _busyShops = {};
+  int _reload = 0;
+  final TextEditingController _search = TextEditingController();
+  String _statusFilter = 'all';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   String? _desktopSelectedId;
   String? _mobileOpenId;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
+      key: ValueKey(_reload),
       stream: FirebaseFirestore.instance
           .collection('shops')
           .orderBy('createdAt', descending: true)
@@ -196,6 +211,16 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
           );
         }
 
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('店家管理')),
+            body: AppStatePanel(
+              title: '店家資料暫時無法載入',
+              message: '請確認網路連線後重試。若持續失敗，請確認帳號的管理權限。',
+              onRetry: () => setState(() => _reload++),
+            ),
+          );
+        }
         final docs = snapshot.data?.docs ?? [];
         final totalShops = docs.length;
         final activeShops = docs.where((doc) {
@@ -216,11 +241,15 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
           return Scaffold(
             backgroundColor: _kPageBackground,
             appBar: AppBar(title: const Text('店家管理')),
-            body: const Center(child: Text('目前沒有店家')),
+            body: const AppStatePanel(
+              title: '目前沒有店家',
+              message: '建立店家後，會在這裡顯示店家狀態與管理功能。',
+              icon: Icons.storefront_outlined,
+            ),
           );
         }
 
-        final shops = [
+        final allShops = [
           for (final doc in docs)
             _readShop(
               context: context,
@@ -232,15 +261,28 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
               planLabel: widget.planLabel,
               statusLabel: widget.statusLabel,
               statusColor: widget.statusColor,
+              busy: _busyShops.contains(doc.id),
+              onWrite: _writeShop,
             ),
         ];
+
+        final query = _search.text.trim().toLowerCase();
+        final shops = allShops.where((shop) {
+          final matchesStatus =
+              _statusFilter == 'all' || shop.status == _statusFilter;
+          final searchable =
+              '${shop.name} ${shop.shopId} ${shop.location} ${shop.ownerUid}'
+                  .toLowerCase();
+          return matchesStatus && (query.isEmpty || searchable.contains(query));
+        }).toList();
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final desktop = constraints.maxWidth >= _kDesktopBreakpoint;
             final mobileShop = desktop ? null : _shopById(shops, _mobileOpenId);
             final desktopShop =
-                _shopById(shops, _desktopSelectedId) ?? shops.first;
+                _shopById(shops, _desktopSelectedId) ??
+                (shops.isEmpty ? null : shops.first);
 
             return PopScope(
               canPop: mobileShop == null,
@@ -260,42 +302,134 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
                           onPressed: () => setState(() => _mobileOpenId = null),
                         ),
                 ),
-                body: desktop
-                    ? _buildDesktopShopManager(
-                        shops: shops,
-                        selected: desktopShop,
-                        totalShops: totalShops,
-                        activeShops: activeShops,
-                        trialShops: trialShops,
-                        suspendedShops: suspendedShops,
-                        formatDate: widget.formatDate,
-                        onSelect: (shopId) {
-                          setState(() => _desktopSelectedId = shopId);
-                        },
-                      )
-                    : mobileShop == null
-                    ? _buildMobileShopList(
-                        shops: shops,
-                        totalShops: totalShops,
-                        activeShops: activeShops,
-                        trialShops: trialShops,
-                        suspendedShops: suspendedShops,
-                        onOpen: (shopId) {
-                          setState(() {
-                            _mobileOpenId = shopId;
-                            _desktopSelectedId = shopId;
-                          });
-                        },
-                      )
-                    : _PlatformShopDetailPage(
-                        shop: mobileShop,
-                        formatDate: widget.formatDate,
-                      ),
+                body: Column(
+                  children: [
+                    if (mobileShop == null) _buildSearchBar(),
+                    Expanded(
+                      child: shops.isEmpty
+                          ? const AppStatePanel(
+                              title: '找不到符合條件的店家',
+                              message: '試試其他店名、地區或店家編號，或切換狀態篩選。',
+                              icon: Icons.search_off_outlined,
+                            )
+                          : desktop
+                          ? _buildDesktopShopManager(
+                              shops: shops,
+                              selected: desktopShop!,
+                              totalShops: totalShops,
+                              activeShops: activeShops,
+                              trialShops: trialShops,
+                              suspendedShops: suspendedShops,
+                              formatDate: widget.formatDate,
+                              onSelect: (shopId) {
+                                setState(() => _desktopSelectedId = shopId);
+                              },
+                            )
+                          : mobileShop == null
+                          ? _buildMobileShopList(
+                              shops: shops,
+                              totalShops: totalShops,
+                              activeShops: activeShops,
+                              trialShops: trialShops,
+                              suspendedShops: suspendedShops,
+                              onOpen: (shopId) {
+                                setState(() {
+                                  _mobileOpenId = shopId;
+                                  _desktopSelectedId = shopId;
+                                });
+                              },
+                            )
+                          : _PlatformShopDetailPage(
+                              shop: mobileShop,
+                              formatDate: widget.formatDate,
+                            ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  Future<void> _writeShop(
+    String shopId,
+    Map<String, dynamic> changes,
+    String successMessage,
+  ) async {
+    if (_busyShops.contains(shopId) || !mounted) return;
+    setState(() => _busyShops.add(shopId));
+    try {
+      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+        ...changes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('儲存失敗，請確認網路連線與管理權限後再試。')));
+    } finally {
+      if (mounted) setState(() => _busyShops.remove(shopId));
+    }
+  }
+
+  Widget _buildSearchBar() {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Column(
+            children: [
+              TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: '搜尋店名、地區或店家編號',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: '清除搜尋',
+                          icon: const Icon(Icons.close),
+                          onPressed: () => setState(() => _search.clear()),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final option in const {
+                      'all': '全部',
+                      'active': '啟用中',
+                      'pending': '待審核',
+                      'suspended': '已停權',
+                    }.entries)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(option.value),
+                          selected: _statusFilter == option.key,
+                          onSelected: (_) =>
+                              setState(() => _statusFilter = option.key),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -322,6 +456,8 @@ _ShopVisual _readShop({
   required String Function(String value) planLabel,
   required String Function(String status) statusLabel,
   required Color Function(String status) statusColor,
+  required bool busy,
+  required Future<void> Function(String, Map<String, dynamic>, String) onWrite,
 }) {
   final name = data['name']?.toString() ?? '未命名店家';
   final city = data['city']?.toString() ?? '';
@@ -420,31 +556,21 @@ _ShopVisual _readShop({
             );
           }
         : null,
-    onPublicChanged: canManageShopStatus
+    onPublicChanged: canManageShopStatus && !busy
         ? (value) async {
-            await FirebaseFirestore.instance
-                .collection('shops')
-                .doc(shopId)
-                .update({
-                  'isPublic': value,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                });
+            await onWrite(shopId, {
+              'isPublic': value,
+            }, value ? '店家已公開' : '店家已隱藏');
           }
         : null,
     externalLinksEnabled: externalLinksEnabled,
-    onExternalChanged: canManageShopStatus
+    onExternalChanged: canManageShopStatus && !busy
         ? (value) async {
-            await FirebaseFirestore.instance
-                .collection('shops')
-                .doc(shopId)
-                .update({
-                  'externalLinksEnabled': value,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                });
+            await onWrite(shopId, {
+              'externalLinksEnabled': value,
+            }, value ? '外部連結已啟用' : '外部連結已關閉');
           }
         : null,
-    onManage: () {},
-    onModules: () {},
     onDevices: canManageShopStatus
         ? () {
             Navigator.push(
@@ -475,16 +601,30 @@ _ShopVisual _readShop({
         ),
       );
     },
-    onToggleSuspend: canManageShopStatus
+    onToggleSuspend: canManageShopStatus && !busy
         ? () async {
             final nextStatus = status == 'suspended' ? 'active' : 'suspended';
-            await FirebaseFirestore.instance
-                .collection('shops')
-                .doc(shopId)
-                .update({
-                  'status': nextStatus,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                });
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text(nextStatus == 'suspended' ? '確認停權店家？' : '確認恢復店家？'),
+                content: Text('店家：$name\n將變更店家的啟用狀態。'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('取消'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('確認'),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed != true || !context.mounted) return;
+            await onWrite(shopId, {
+              'status': nextStatus,
+            }, nextStatus == 'suspended' ? '店家已停權' : '店家已恢復');
           }
         : null,
   );
@@ -518,8 +658,6 @@ class _ShopVisual {
     required this.onPublicChanged,
     required this.externalLinksEnabled,
     required this.onExternalChanged,
-    required this.onManage,
-    required this.onModules,
     required this.onDevices,
     required this.onPreview,
     required this.onNotify,
@@ -552,8 +690,6 @@ class _ShopVisual {
   final ValueChanged<bool>? onPublicChanged;
   final bool externalLinksEnabled;
   final ValueChanged<bool>? onExternalChanged;
-  final VoidCallback onManage;
-  final VoidCallback onModules;
   final VoidCallback? onDevices;
   final VoidCallback onPreview;
   final VoidCallback onNotify;
@@ -594,7 +730,7 @@ Widget _buildDesktopShopManager({
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
-                  width: 360,
+                  width: 300,
                   child: _buildDesktopShopList(
                     shops: shops,
                     selectedId: selected.shopId,
@@ -809,10 +945,7 @@ Widget _buildMobileShopList({
 }
 
 class _PlatformShopDetailPage extends StatelessWidget {
-  const _PlatformShopDetailPage({
-    required this.shop,
-    required this.formatDate,
-  });
+  const _PlatformShopDetailPage({required this.shop, required this.formatDate});
 
   final _ShopVisual shop;
   final String Function(dynamic value) formatDate;
@@ -1751,16 +1884,6 @@ class _ShopActionGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final releasing = shop.status == 'suspended';
     final buttons = [
-      _ShopActionButton(
-        icon: Icons.edit_outlined,
-        label: '管理',
-        onPressed: shop.onManage,
-      ),
-      _ShopActionButton(
-        icon: Icons.dashboard_customize_outlined,
-        label: '模組設定',
-        onPressed: shop.onModules,
-      ),
       _ShopActionButton(
         icon: Icons.sensors,
         label: '設備管理',

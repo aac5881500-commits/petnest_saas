@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/app_state_panel.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
@@ -37,26 +38,39 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
   TabController? _tabController;
   Map<String, dynamic> _shop = <String, dynamic>{};
   bool _shopLoaded = false;
+  bool _shopFailed = false;
   bool _daycareOn = false;
   bool _appliedInitialKind = false;
 
   @override
   void initState() {
     super.initState();
-    _shopSub = ShopService.instance.streamShop(widget.shopId).listen((
-      Map<String, dynamic>? shop,
-    ) {
-      if (!mounted) {
-        return;
-      }
-      _shop = shop ?? <String, dynamic>{};
-      _shopLoaded = true;
-      _daycareOn = DaycareSettingsService.instance.isEnabledForShop(
-        shop: _shop,
-      );
-      _syncTabs();
-      setState(() {});
-    });
+    _listenShop();
+  }
+
+  void _listenShop() {
+    _shopSub?.cancel();
+    _shopSub = ShopService.instance
+        .streamShop(widget.shopId)
+        .listen(
+          (Map<String, dynamic>? shop) {
+            if (!mounted) {
+              return;
+            }
+            _shop = shop ?? <String, dynamic>{};
+            _shopLoaded = true;
+            _shopFailed = false;
+            _daycareOn = DaycareSettingsService.instance.isEnabledForShop(
+              shop: _shop,
+            );
+            _syncTabs();
+            setState(() {});
+          },
+          onError: (Object error, StackTrace stack) {
+            if (!mounted) return;
+            setState(() => _shopFailed = true);
+          },
+        );
   }
 
   void _syncTabs() {
@@ -94,6 +108,22 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_shopFailed) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('訂單管理')),
+        body: AppStatePanel(
+          title: '訂單管理暫時無法載入',
+          message: '請確認網路連線及店家權限後重試。',
+          onRetry: () {
+            setState(() {
+              _shopFailed = false;
+              _shopLoaded = false;
+            });
+            _listenShop();
+          },
+        ),
+      );
+    }
     if (!_shopLoaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

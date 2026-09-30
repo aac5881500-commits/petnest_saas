@@ -3,6 +3,7 @@
 // 🏠 HomePage（登入後首頁）
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/app_state_panel.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/auth_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -304,6 +305,13 @@ class _HomePageState extends State<HomePage> {
                         return const Center(child: CircularProgressIndicator());
                       }
 
+                      if (snapshot.hasError) {
+                        return AppStatePanel(
+                          title: '店家列表暫時無法載入',
+                          message: '請確認網路連線後，重新載入你的店家。',
+                          onRetry: _reloadShops,
+                        );
+                      }
                       final shops = snapshot.data ?? [];
 
                       if (shops.isEmpty) {
