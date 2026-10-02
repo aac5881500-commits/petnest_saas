@@ -7,32 +7,19 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/core/services/storefront_access.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
+import 'package:petnest_saas/features/shop/navigation/frontend_navigation_actions.dart';
+import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
-import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
-import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
-import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
 import 'package:petnest_saas/core/widgets/drawer_point_balance_card.dart';
-import 'package:petnest_saas/core/services/shop_chat_service.dart';
-import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
-import 'package:petnest_saas/features/shop/widgets/modern_home/shop_modern_logo.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_block.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
-import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
-import 'package:petnest_saas/features/shop/pages/storefront/my_store_orders_page.dart';
-import 'package:petnest_saas/features/shop/pages/storefront/store_home_page.dart';
 
 class ModernAppDrawer extends StatelessWidget {
   const ModernAppDrawer({
@@ -41,12 +28,26 @@ class ModernAppDrawer extends StatelessWidget {
     required this.shop,
     required this.theme,
     this.platformPreview = false,
+    this.navigation,
+    this.previewOnly = false,
+    this.isEmbeddedAdminPreview = false,
+    this.canOpenAdmin = false,
+    this.selectedItemId,
+    this.onPreviewSelect,
+    this.onScrollHomeToTop,
   });
 
   final String shopId;
   final Map<String, dynamic> shop;
   final HomeThemeModel theme;
   final bool platformPreview;
+  final FrontendNavigationConfig? navigation;
+  final bool previewOnly;
+  final bool isEmbeddedAdminPreview;
+  final bool canOpenAdmin;
+  final String? selectedItemId;
+  final ValueChanged<String>? onPreviewSelect;
+  final VoidCallback? onScrollHomeToTop;
 
   Color get _primaryColor => theme.primaryColor;
   Color get _textColor => theme.textColor;
@@ -133,375 +134,11 @@ class ModernAppDrawer extends StatelessWidget {
                         _divider(),
                       ],
 
-                      if (theme.drawerSetting.showMemberCenter) ...[
-                        _sectionTitle('會員區'),
-
-                        _menuItem(
-                          icon: Icons.person,
-                          title: '會員中心',
-                          onTap: () {
-                            Navigator.pop(context);
-                            if (user == null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      LoginPage(redirectShopId: shopId),
-                                ),
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder: (_) => MemberPage(
-                                    shopId: shopId,
-                                    shopName: (shop['name'] ?? '').toString(),
-                                    theme: theme,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-
-                        if (user != null && ShopChatService.isEnabled(shop))
-                          _menuItem(
-                            icon: Icons.chat_bubble_outline,
-                            title: '店家訊息',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder: (_) => ShopCustomerChatPage(
-                                    shopId: shopId,
-                                    shopName: (shop['name'] ?? '').toString(),
-                                    shopLogoUrl: (shop['logoUrl'] ?? '')
-                                        .toString(),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-
-                        _menuItem(
-                          icon: Icons.rate_review_outlined,
-                          title: '我的評價',
-                          onTap: () {
-                            Navigator.pop(context);
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MyReviewsPage(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        _menuItem(
-                          icon: Icons.receipt_long,
-                          title: '我的訂單',
-                          onTap: () {
-                            Navigator.pop(context);
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    MyBookingsPage(returnShopId: shopId),
-                              ),
-                            );
-                          },
-                        ),
-                        if (StorefrontAccess.isModuleEnabled(shop))
-                          _menuItem(
-                            icon: Icons.shopping_bag_outlined,
-                            title: '我的商城訂單',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder: (_) => MyStoreOrdersPage(
-                                    shopId: shopId,
-                                    theme: theme,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-
-                      if (user != null &&
-                          theme.drawerSetting.showLatestBooking) ...[
+                      ..._configuredMenu(context, user),
+                      if (theme.drawerSetting.showLatestBooking && user != null)
                         _latestBookingCard(context, user.uid),
-                      ],
-
                       _divider(),
-                      if (theme.drawerSetting.showShopMenus)
-                        StreamBuilder<DocumentSnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('shops')
-                              .doc(shopId)
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            final shop =
-                                snapshot.data?.data() as Map<String, dynamic>?;
-
-                            final plan = shop?['plan']?.toString() ?? 'free';
-                            final paidUntil = shop?['paidUntil'];
-
-                            bool isPaidActive = false;
-
-                            if (paidUntil is Timestamp) {
-                              isPaidActive = paidUntil.toDate().isAfter(
-                                DateTime.now(),
-                              );
-                            }
-
-                            final isFreeMode = plan == 'free' || !isPaidActive;
-
-                            if (isFreeMode) {
-                              return const SizedBox.shrink();
-                            }
-
-                            return ExpansionTile(
-                              initiallyExpanded: false,
-                              tilePadding: EdgeInsets.zero,
-                              childrenPadding: EdgeInsets.zero,
-                              iconColor: _primaryColor,
-                              collapsedIconColor: _textColor.withValues(
-                                alpha: 0.45,
-                              ),
-                              textColor: _textColor,
-                              collapsedTextColor: _textColor,
-                              backgroundColor: Colors.transparent,
-                              collapsedBackgroundColor: Colors.transparent,
-                              shape: Border(
-                                bottom: BorderSide(
-                                  color: _borderColor,
-                                  width: 0.8,
-                                ),
-                              ),
-                              collapsedShape: const Border(),
-                              leading: Icon(
-                                Icons.pets,
-                                color: _primaryColor,
-                                size: 14,
-                              ),
-                              title: Text(
-                                '店家功能',
-                                style: TextStyle(
-                                  color: _textColor,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              children: [
-                                _menuItem(
-                                  icon: Icons.calendar_month,
-                                  title: '我要預約',
-                                  onTap: () => _goBooking(context),
-                                ),
-                                if (StorefrontAccess.isModuleEnabled(
-                                  shop ?? this.shop,
-                                ))
-                                  _menuItem(
-                                    icon: Icons.storefront_outlined,
-                                    title: '寵物賣場',
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => StoreHomePage(
-                                            shopId: shopId,
-                                            shop: shop ?? this.shop,
-                                            theme: theme,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                _menuItem(
-                                  icon: Icons.home_outlined,
-                                  title: '環境介紹',
-                                  onTap: () {
-                                    Navigator.pop(context);
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ShopEnvironmentPage(
-                                          shopId: shopId,
-                                          theme: theme,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _menuItem(
-                                  icon: Icons.bed,
-                                  title: '房間介紹',
-                                  onTap: () {
-                                    Navigator.pop(context);
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ShopRoomIntroPage(
-                                          shopId: shopId,
-                                          theme: theme,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _menuItem(
-                                  icon: Icons.description,
-                                  title: '入住須知',
-                                  onTap: () {
-                                    Navigator.pop(context);
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ShopPolicyViewPage(
-                                          shopId: shopId,
-                                          theme: theme,
-                                          readOnly: true,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _menuItem(
-                                  icon: Icons.favorite,
-                                  title: '關於我們',
-                                  onTap: () {
-                                    Navigator.pop(context);
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ShopAboutPage(
-                                          shopId: shopId,
-                                          theme: theme,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                if (shop?['showAnnouncementSection'] != false)
-                                  _menuItem(
-                                    icon: Icons.campaign_outlined,
-                                    title: '最新公告',
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ShopAnnouncementPage(
-                                            shopId: shopId,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                if (shop?['showFaqSection'] != false)
-                                  _menuItem(
-                                    icon: Icons.help_outline,
-                                    title: '常見問題',
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              ShopFaqPage(shopId: shopId),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-
-                      _divider(),
-
-                      if (user != null)
-                        FutureBuilder<Map<String, dynamic>?>(
-                          future: ShopService.instance.getUserMemberInShop(
-                            shopId: shopId,
-                            uid: user.uid,
-                          ),
-                          builder: (context, snapshot) {
-                            final memberData = snapshot.data;
-
-                            if (memberData == null) {
-                              return const SizedBox();
-                            }
-
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (!ShopDashboardEmbeddedScope.isEmbeddedInShopDashboard(
-                                  context,
-                                )) ...<Widget>[
-                                  _sectionTitle('系統'),
-                                  _menuItem(
-                                    icon: Icons.home_work_outlined,
-                                    title: '回平台首頁',
-                                    onTap: () {
-                                      Navigator.pushNamedAndRemoveUntil(
-                                        context,
-                                        '/home',
-                                        (route) => false,
-                                      );
-                                    },
-                                  ),
-                                  _menuItem(
-                                    icon: Icons.desktop_windows,
-                                    title: '回後台',
-                                    onTap: () {
-                                      if (ShopDashboardEmbeddedScope.tryExitToDashboard(
-                                        context,
-                                      )) {
-                                        return;
-                                      }
-                                      Navigator.pushAndRemoveUntil(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              ShopDashboardPage(shopId: shopId),
-                                        ),
-                                        (route) => false,
-                                      );
-                                    },
-                                  ),
-                                  _divider(),
-                                ],
-                              ],
-                            );
-                          },
-                        ),
-
-                      if (user != null)
-                        _menuItem(
-                          icon: Icons.logout,
-                          title: '登出',
-                          iconColor: Colors.red,
-                          textColor: Colors.red,
-                          showArrow: false,
-                          onTap: () async {
-                            await FirebaseAuth.instance.signOut();
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                            }
-                          },
-                        ),
+                      ..._systemMenu(context, user),
                     ],
                   ),
                 ),
@@ -513,6 +150,86 @@ class ModernAppDrawer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  FrontendNavigationConfig get _navigation {
+    return navigation ?? FrontendNavigationConfig.defaults();
+  }
+
+  FrontendNavigationLaunch _launch(BuildContext context) {
+    final bool embedded =
+        isEmbeddedAdminPreview ||
+        ShopDashboardEmbeddedScope.isEmbeddedInShopDashboard(context);
+    return FrontendNavigationLaunch(
+      shopId: shopId,
+      shop: shop,
+      theme: theme,
+      previewOnly: previewOnly,
+      isEmbeddedAdminPreview: embedded,
+      onPreviewSelect: onPreviewSelect,
+      onScrollHomeToTop: onScrollHomeToTop,
+    );
+  }
+
+  List<Widget> _configuredMenu(BuildContext context, User? user) {
+    final FrontendNavShopState shopState = FrontendNavShopState.fromShop(
+      shop,
+      showMemberCenter: theme.drawerSetting.showMemberCenter,
+      showShopMenus: theme.drawerSetting.showShopMenus,
+      loggedIn: user != null,
+    );
+    final List<FrontendNavigationItem> items = _navigation.visibleDrawerItems(
+      shopState,
+    );
+    return <Widget>[
+      for (final FrontendNavigationItem item in items)
+        _menuItem(
+          icon: item.icon,
+          title: item.label,
+          iconColor: selectedItemId == item.id ? _primaryColor : null,
+          textColor: selectedItemId == item.id ? _primaryColor : null,
+          onTap: () {
+            _launch(context).open(context, item);
+          },
+        ),
+    ];
+  }
+
+  List<Widget> _systemMenu(BuildContext context, User? user) {
+    final bool embedded =
+        isEmbeddedAdminPreview ||
+        ShopDashboardEmbeddedScope.isEmbeddedInShopDashboard(context);
+    final FrontendNavigationItem platform = FrontendNavigationRegistry.find(
+      'platform',
+    )!;
+    final FrontendNavigationItem admin = FrontendNavigationRegistry.find(
+      'admin',
+    )!;
+    final FrontendNavigationItem logout = FrontendNavigationRegistry.find(
+      'logout',
+    )!;
+    return <Widget>[
+      _menuItem(
+        icon: platform.icon,
+        title: platform.label,
+        onTap: () => _launch(context).open(context, platform),
+      ),
+      if (canOpenAdmin && !embedded)
+        _menuItem(
+          icon: admin.icon,
+          title: admin.label,
+          onTap: () => _launch(context).open(context, admin),
+        ),
+      if (user != null)
+        _menuItem(
+          icon: logout.icon,
+          title: logout.label,
+          iconColor: Colors.red,
+          textColor: Colors.red,
+          showArrow: false,
+          onTap: () => _launch(context).open(context, logout),
+        ),
+    ];
   }
 
   Widget _buildHeader(BuildContext context, User? user) {
@@ -570,7 +287,7 @@ class ModernAppDrawer extends StatelessWidget {
                               '登入後可查看訂單與寵物資料',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: _textColor.withValues(alpha: 0.65),
+                                color: theme.secondaryTextColor,
                               ),
                             ),
                           ],
@@ -664,7 +381,7 @@ class ModernAppDrawer extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: _textColor.withValues(alpha: 0.65),
+                                  color: theme.secondaryTextColor,
                                 ),
                               ),
                             ],
@@ -785,7 +502,7 @@ class ModernAppDrawer extends StatelessWidget {
               '目前沒有最新訂單',
               style: TextStyle(
                 fontSize: 13,
-                color: _textColor.withValues(alpha: 0.65),
+                color: theme.secondaryTextColor,
               ),
             ),
           );
@@ -1231,10 +948,13 @@ class ModernAppDrawer extends StatelessWidget {
         ? Map<String, dynamic>.from(rawModernAppearance)
         : <String, dynamic>{};
 
+    final StoreBrandStyle brandStyle = StoreBrandStyle.fromMap(
+      modernAppearance,
+      logoUrl: logoUrl,
+    );
     final bool hasHeaderSubtitleSetting = modernAppearance.containsKey(
       'headerSubtitle',
     );
-
     final String headerSubtitle = hasHeaderSubtitleSetting
         ? (modernAppearance['headerSubtitle'] ?? '').toString().trim()
         : '讓每一隻貓咪都有溫暖的家';
@@ -1247,79 +967,22 @@ class ModernAppDrawer extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Divider(height: 1, thickness: 1, color: _borderColor),
-
           const SizedBox(height: 12),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ShopModernLogo(
-                imageUrl: logoUrl,
-                size: 50,
-                primaryColor: _primaryColor,
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      shopName.isNotEmpty ? shopName : 'PetNest 寵物旅社',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _textColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 17,
-                      ),
-                    ),
-
-                    if (headerSubtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        headerSubtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: _textColor.withValues(alpha: 0.62),
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+          StoreBrandBlock(
+            contextKind: StoreBrandDisplayContext.drawer,
+            style: brandStyle.copyWith(
+              nameFontSize: brandStyle.nameFontSize.clamp(16, 20).toDouble(),
+              subtitleFontSize: brandStyle.subtitleFontSize
+                  .clamp(10, 14)
+                  .toDouble(),
+              logoSize: 'small',
+            ),
+            shopName: shopName,
+            subtitle: headerSubtitle,
+            logoUrl: logoUrl,
+            theme: theme,
           ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _goBooking(BuildContext context) async {
-    Navigator.pop(context);
-
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage(redirectShopId: shopId)),
-      );
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopBookingEntryPage(
-          shopId: shopId,
-          theme: theme,
-          useModernDrawer: true,
-        ),
       ),
     );
   }

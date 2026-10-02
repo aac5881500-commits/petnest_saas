@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_modern_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 
 class ModernHomeEditorPreview extends StatelessWidget {
   const ModernHomeEditorPreview({
@@ -15,7 +16,13 @@ class ModernHomeEditorPreview extends StatelessWidget {
     this.draftLogoUrl,
     this.showCaption = true,
     this.showPhoneChrome = true,
+    this.layoutCanvas = false,
+    this.isEmbeddedAdminPreview = false,
+    this.canvasMode = 'canvas',
     this.frameWidth = 390,
+    this.selectedSectionId,
+    this.onSelectSection,
+    this.onBrandStyleChanged,
     this.draftHomeBanners,
     this.initialPreviewBannerId,
     this.onPreviewBannerChanged,
@@ -31,7 +38,17 @@ class ModernHomeEditorPreview extends StatelessWidget {
   final String? draftLogoUrl;
   final bool showCaption;
   final bool showPhoneChrome;
+
+  /// 前台外觀設定用的首頁編排畫布，不縮小完整前台。
+  final bool layoutCanvas;
+  final bool isEmbeddedAdminPreview;
+
+  /// 區分桌面、手機與對話框畫布，避免同一份 key 被掛兩次。
+  final String canvasMode;
   final double frameWidth;
+  final String? selectedSectionId;
+  final ValueChanged<String>? onSelectSection;
+  final ValueChanged<StoreBrandStyle>? onBrandStyleChanged;
   final List<StoreBannerModel>? draftHomeBanners;
   final String? initialPreviewBannerId;
   final ValueChanged<StoreBannerModel>? onPreviewBannerChanged;
@@ -47,13 +64,13 @@ class ModernHomeEditorPreview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         if (showCaption) ...<Widget>[
-          const Text(
-            '即時預覽',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          Text(
+            layoutCanvas ? '首頁編排畫布' : '即時預覽',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 2),
           Text(
-            '調整右側設定後立即查看新版首頁效果',
+            layoutCanvas ? '點選區塊後，在另一側調整該區塊設定' : '調整右側設定後立即查看新版首頁效果',
             style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
           ),
           const SizedBox(height: 12),
@@ -65,7 +82,11 @@ class ModernHomeEditorPreview extends StatelessWidget {
 
   Widget _page() {
     return ShopPublicModernPage(
-      key: ValueKey<String>('modern-home-preview-$shopId'),
+      key: ValueKey<String>(
+        layoutCanvas
+            ? 'home-canvas-$canvasMode-$shopId'
+            : 'modern-home-preview-$shopId',
+      ),
       shopId: shopId,
       isPreview: true,
       draftModernAppearance: draftModernAppearance,
@@ -78,10 +99,52 @@ class ModernHomeEditorPreview extends StatelessWidget {
       previewImageBytes: previewImageBytes,
       previewSelectedTextId: previewSelectedTextId,
       previewCtaSelected: previewCtaSelected,
+      layoutCanvas: layoutCanvas,
+      isEmbeddedAdminPreview: isEmbeddedAdminPreview,
+      canvasMode: canvasMode,
+      selectedSectionId: selectedSectionId,
+      onSelectSection: onSelectSection,
+      onBrandStyleChanged: onBrandStyleChanged,
     );
   }
 
   Widget _frame() {
+    if (layoutCanvas) {
+      return LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double height = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : 640;
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: frameWidth,
+              height: height,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD0D5DD)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      size: Size(frameWidth, height),
+                      padding: EdgeInsets.zero,
+                      viewPadding: EdgeInsets.zero,
+                      viewInsets: EdgeInsets.zero,
+                      textScaler: TextScaler.noScaling,
+                    ),
+                    child: _page(),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
     if (!showPhoneChrome) {
       return LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {

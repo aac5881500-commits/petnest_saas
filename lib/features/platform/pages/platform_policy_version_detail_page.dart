@@ -17,6 +17,7 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
 
   String _formatDate(dynamic value) {
     if (value == null) return '尚未記錄';
+    if (value is String && value.trim().isNotEmpty) return value;
 
     DateTime? date;
 
@@ -39,7 +40,7 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
     final version = data['version'] ?? 1;
     final title = data['title']?.toString() ?? titleText;
     final content = data['content']?.toString() ?? '';
-    final updatedAt = data['updatedAt'];
+    final updatedAt = data['publishedAt'] ?? data['updatedAt'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
@@ -74,7 +75,12 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '更新時間：${_formatDate(updatedAt)}',
+                  '發布日期：${_formatDate(updatedAt)}',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '已發布版本僅供查看',
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
               ],

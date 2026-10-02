@@ -28,6 +28,7 @@ class ModernHomeBannerCarousel extends StatefulWidget {
     this.composeImageBytes,
     this.composeSelectedTextId,
     this.composeCtaSelected = false,
+    this.scrollStorageKey = 'modern-home-banner-pageview',
   });
 
   final List<StoreBannerModel> banners;
@@ -45,6 +46,9 @@ class ModernHomeBannerCarousel extends StatefulWidget {
   final Uint8List? composeImageBytes;
   final String? composeSelectedTextId;
   final bool composeCtaSelected;
+
+  /// 同一店家若同時有顧客首頁與編排畫布，滾動儲存鍵必須分開。
+  final String scrollStorageKey;
 
   @override
   State<ModernHomeBannerCarousel> createState() =>
@@ -294,9 +298,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                           },
                         ),
                         child: PageView.builder(
-                          key: const PageStorageKey<String>(
-                            'modern-home-banner-pageview',
-                          ),
+                          key: PageStorageKey<String>(widget.scrollStorageKey),
                           controller: _pageController,
                           itemCount: banners.length,
                           physics: showPager

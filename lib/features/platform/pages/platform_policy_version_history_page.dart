@@ -49,6 +49,9 @@ class PlatformPolicyVersionHistoryPage extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: versionsRef.snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text('版本紀錄暫時無法讀取'));
+          }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -62,13 +65,13 @@ class PlatformPolicyVersionHistoryPage extends StatelessWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
 
               final version = data['version'] ?? 1;
               final title = data['title']?.toString() ?? titleText;
-              final updatedAt = data['updatedAt'];
+              final updatedAt = data['publishedAt'] ?? data['updatedAt'];
 
               return Card(
                 elevation: 0,
@@ -96,7 +99,7 @@ class PlatformPolicyVersionHistoryPage extends StatelessWidget {
                   ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text('更新時間：${_formatDate(updatedAt)}'),
+                    child: Text('發布日期：${_formatDate(updatedAt)}\n已發布，僅供查看'),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {

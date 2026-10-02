@@ -117,19 +117,45 @@ class _ColorDot extends StatelessWidget {
 Future<int?> showStoreBannerColorPicker(
   BuildContext context, {
   required Color initial,
+  bool compare = false,
+  bool allowAlpha = false,
 }) {
   return showDialog<int>(
     context: context,
     builder: (BuildContext context) {
-      return _StoreBannerColorPickerDialog(initial: initial);
+      return _StoreBannerColorPickerDialog(
+        initial: initial,
+        compare: compare,
+        allowAlpha: allowAlpha,
+      );
     },
   );
 }
 
+/// 首頁色彩沿用同一套 HSV 色盤。未按套用不會回傳新顏色。
+Future<int?> showHomeColorPicker(
+  BuildContext context, {
+  required Color initial,
+  bool allowAlpha = false,
+}) {
+  return showStoreBannerColorPicker(
+    context,
+    initial: initial,
+    compare: true,
+    allowAlpha: allowAlpha,
+  );
+}
+
 class _StoreBannerColorPickerDialog extends StatefulWidget {
-  const _StoreBannerColorPickerDialog({required this.initial});
+  const _StoreBannerColorPickerDialog({
+    required this.initial,
+    this.compare = false,
+    this.allowAlpha = false,
+  });
 
   final Color initial;
+  final bool compare;
+  final bool allowAlpha;
 
   @override
   State<_StoreBannerColorPickerDialog> createState() =>
@@ -140,6 +166,7 @@ class _StoreBannerColorPickerDialogState
     extends State<_StoreBannerColorPickerDialog> {
   late HSVColor _hsv;
   late final TextEditingController _hex;
+  String? _hexError;
 
   @override
   void initState() {
@@ -159,16 +186,51 @@ class _StoreBannerColorPickerDialogState
   Color get _color => _hsv.toColor();
 
   void _setHsv(HSVColor value) {
+    final HSVColor next = widget.allowAlpha ? value : value.withAlpha(1);
     setState(() {
-      _hsv = value;
-      _hex.text = StoreBannerColorCodec.hexOf(value.toColor().toARGB32());
+      _hsv = next;
+      _hexError = null;
+      final int argb = next.toColor().toARGB32();
+      _hex.text = widget.compare
+          ? _hexLabel(argb)
+          : StoreBannerColorCodec.hexOf(argb);
     });
+  }
+
+  String _hexLabel(int argb) {
+    if (widget.allowAlpha && ((argb >> 24) & 0xFF) != 0xFF) {
+      return '#${(argb & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0').toUpperCase()}';
+    }
+    return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  void _applyHex(String raw) {
+    final String text = raw.trim().replaceFirst('#', '');
+    final bool valid = widget.allowAlpha
+        ? (text.length == 6 || text.length == 8) &&
+              int.tryParse(text, radix: 16) != null
+        : text.length == 6 && int.tryParse(text, radix: 16) != null;
+    if (!valid) {
+      setState(() {
+        _hexError = widget.allowAlpha
+            ? '請輸入 #RRGGBB 或 #AARRGGBB'
+            : '請輸入 #RRGGBB';
+      });
+      return;
+    }
+    final String normalized = text.length == 6 ? 'FF$text' : text;
+    final int? parsed = int.tryParse(normalized, radix: 16);
+    if (parsed == null) {
+      setState(() => _hexError = '請輸入 #RRGGBB');
+      return;
+    }
+    _setHsv(HSVColor.fromColor(Color(parsed)));
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('選擇顏色'),
+      title: Text(widget.compare ? '自訂顏色' : '選擇顏色'),
       content: SizedBox(
         width: 320,
         child: Column(
@@ -247,26 +309,60 @@ class _StoreBannerColorPickerDialogState
               ),
             ),
             const SizedBox(height: 12),
+            if (widget.compare)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: <Widget>[
+                    _compareChip('目前顏色', widget.initial),
+                    const SizedBox(width: 12),
+                    _compareChip('新顏色', _color),
+                  ],
+                ),
+              ),
+            if (widget.allowAlpha) ...<Widget>[
+              Row(
+                children: <Widget>[
+                  const Text('透明度'),
+                  Expanded(
+                    child: Slider(
+                      value: _hsv.alpha,
+                      onChanged: (double value) {
+                        _setHsv(_hsv.withAlpha(value));
+                      },
+                    ),
+                  ),
+                  Text('${(_hsv.alpha * 100).round()}%'),
+                ],
+              ),
+            ],
             Row(
               children: <Widget>[
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: _color,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black26),
+                if (!widget.compare)
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _color,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.black26),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                if (!widget.compare) const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: _hex,
-                    decoration: const InputDecoration(
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
                       labelText: 'HEX',
                       isDense: true,
+                      errorText: widget.compare ? _hexError : null,
                     ),
                     onSubmitted: (String value) {
+                      if (widget.compare) {
+                        _applyHex(value);
+                        return;
+                      }
                       final int parsed = StoreBannerColorCodec.parse(
                         value,
                         _color.toARGB32(),
@@ -286,10 +382,41 @@ class _StoreBannerColorPickerDialogState
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, _color.toARGB32()),
-          child: const Text('確定'),
+          onPressed: () {
+            if (widget.compare && _hexError != null) {
+              return;
+            }
+            if (widget.compare) {
+              _applyHex(_hex.text);
+              if (_hexError != null) {
+                return;
+              }
+            }
+            Navigator.pop(context, _color.toARGB32());
+          },
+          child: Text(widget.compare ? '套用' : '確定'),
         ),
       ],
+    );
+  }
+
+  Widget _compareChip(String label, Color color) {
+    return Expanded(
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.black26),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(label),
+        ],
+      ),
     );
   }
 

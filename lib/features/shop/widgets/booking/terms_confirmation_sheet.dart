@@ -1,6 +1,7 @@
 // 檔案名稱：lib/features/shop/widgets/booking/terms_confirmation_sheet.dart
 // 功能說明：條款確認 Bottom Sheet（閱讀到底才可完成確認）
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -56,10 +57,13 @@ class _TermsConfirmationSheetBody extends StatefulWidget {
 class _TermsConfirmationSheetBodyState
     extends State<_TermsConfirmationSheetBody> {
   bool _loading = true;
+  bool _saving = false;
   bool _isChecked = false;
   bool _scrolledToBottom = false;
   int _step = 0;
   int _version = 1;
+  String _shopName = '';
+  String _publishedAt = '尚未記錄';
 
   Map<String, dynamic> _sections = <String, dynamic>{};
   Map<String, bool> _enabled = <String, bool>{};
@@ -113,19 +117,33 @@ class _TermsConfirmationSheetBodyState
         filtered['customPoliciesPage2'] ?? <String>[],
       );
       _version = (filtered['version'] as num?)?.toInt() ?? 1;
+      final dynamic publishedAt = policy['publishedAt'] ?? policy['updatedAt'];
+      _publishedAt = _formatDate(publishedAt);
+    }
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> shop =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .get();
+      final String name = (shop.data()?['name'] ?? '').toString().trim();
+      if (name.isNotEmpty) _shopName = name;
+    } catch (_) {
+      _shopName = '';
     }
     if (!mounted) {
       return;
     }
     setState(() => _loading = false);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) {
-        return;
-      }
-      if (_scrollController.position.maxScrollExtent <= 0) {
-        setState(() => _scrolledToBottom = true);
-      }
-    });
+  }
+
+  String _formatDate(dynamic value) {
+    DateTime? date;
+    if (value is Timestamp) date = value.toDate();
+    if (value is DateTime) date = value;
+    if (date == null) return '尚未記錄';
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${date.year}/${two(date.month)}/${two(date.day)}';
   }
 
   Future<void> _complete() async {
@@ -133,15 +151,18 @@ class _TermsConfirmationSheetBodyState
     if (user == null) {
       return;
     }
-    await ShopPolicyService.instance.acceptPolicy(
-      shopId: widget.shopId,
-      userId: user.uid,
-      serviceType: widget.serviceType,
-    );
-    if (!mounted) {
-      return;
+    setState(() => _saving = true);
+    try {
+      await ShopPolicyService.instance.acceptPolicy(
+        shopId: widget.shopId,
+        userId: user.uid,
+        serviceType: widget.serviceType,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    Navigator.of(context).pop(true);
   }
 
   Widget _sectionCard(String title, String content) {
@@ -303,9 +324,10 @@ class _TermsConfirmationSheetBodyState
                         ),
                       ),
                       Text(
-                        '條款版本 v$_version',
+                        '${_shopName.isEmpty ? '本店' : _shopName}　條款版本 v$_version\n發布日期 $_publishedAt',
                         style: TextStyle(
                           fontSize: 12,
+                          height: 1.4,
                           color: widget.theme.textColor.withValues(alpha: 0.62),
                         ),
                       ),
@@ -326,48 +348,57 @@ class _TermsConfirmationSheetBodyState
                       color: widget.theme.primaryColor,
                     ),
                   )
-                : Stack(
-                    children: <Widget>[
-                      SingleChildScrollView(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _step == 0 ? _pageOne() : _pageTwo(),
+                : NotificationListener<ScrollMetricsNotification>(
+                    onNotification: (ScrollMetricsNotification notice) {
+                      if (notice.metrics.maxScrollExtent <= 0 &&
+                          !_scrolledToBottom) {
+                        setState(() => _scrolledToBottom = true);
+                      }
+                      return false;
+                    },
+                    child: Stack(
+                      children: <Widget>[
+                        SingleChildScrollView(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: _step == 0 ? _pageOne() : _pageTwo(),
+                          ),
                         ),
-                      ),
-                      if (!_scrolledToBottom)
-                        Positioned(
-                          bottom: 8,
-                          left: 16,
-                          right: 16,
-                          child: Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: widget.theme.cardColor,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: widget.theme.primaryColor.withValues(
-                                    alpha: 0.45,
+                        if (!_scrolledToBottom)
+                          Positioned(
+                            bottom: 8,
+                            left: 16,
+                            right: 16,
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: widget.theme.cardColor,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: widget.theme.primaryColor.withValues(
+                                      alpha: 0.45,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              child: Text(
-                                '請滑到底閱讀完整條款',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: widget.theme.textColor,
+                                child: Text(
+                                  '請滑到底閱讀完整條款',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: widget.theme.textColor,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
           ),
           Container(
@@ -414,35 +445,32 @@ class _TermsConfirmationSheetBodyState
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: canProceed
-                        ? () {
+                    onPressed: !canProceed || _saving
+                        ? null
+                        : () {
                             if (_step == 0) {
                               setState(() {
                                 _step = 1;
                                 _isChecked = false;
                                 _scrolledToBottom = false;
                               });
-                              _scrollController.jumpTo(0);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!_scrollController.hasClients) {
-                                  return;
-                                }
-                                if (_scrollController
-                                        .position
-                                        .maxScrollExtent <=
-                                    0) {
-                                  setState(() => _scrolledToBottom = true);
-                                }
-                              });
+                              if (_scrollController.hasClients) {
+                                _scrollController.jumpTo(0);
+                              }
                               return;
                             }
                             _complete();
-                          }
-                        : null,
-                    child: Text(
-                      _step == 0 ? '下一步' : '完成確認',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                          },
+                    child: _saving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            _step == 0 ? '下一步' : '我已閱讀並同意',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                   ),
                 ),
               ],

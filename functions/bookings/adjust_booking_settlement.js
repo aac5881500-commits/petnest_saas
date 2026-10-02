@@ -9,9 +9,13 @@ const {
   isRootAdmin,
   normalizeString,
   toDate,
-  serviceDateKey,
+  taipeiDateKey,
   writeActionLog,
 } = require("../daycare/daycare_utils");
+const {
+  checkoutDayOnStayCheckout,
+  stayNightKeys,
+} = require("../daycare/daycare_occupancy");
 const {
   expectedTotal,
   settlementFields,
@@ -223,21 +227,10 @@ function selectBalanceProofForReview(proofs, proofId) {
 }
 
 function stayDateKeys(booking) {
-  const start = toDate((booking || {}).startDate);
-  const end = toDate((booking || {}).endDate);
-  if (!start || !end) {
-    return [];
-  }
-  const keys = [];
-  const endKey = serviceDateKey(end);
-  let cursor = new Date(start.getTime());
-  let guard = 0;
-  while (serviceDateKey(cursor) < endKey && guard < 400) {
-    keys.push(serviceDateKey(cursor));
-    cursor = new Date(cursor.getTime() + (24 * 60 * 60 * 1000));
-    guard += 1;
-  }
-  return keys;
+  return stayNightKeys(
+      (booking || {}).startDate,
+      (booking || {}).endDate,
+  );
 }
 
 function applyDirectionFields(bookingUpdate, fields, data, shop, booking) {
@@ -388,6 +381,8 @@ exports.adjustBookingSettlement = onCall(
         let paymentWrite = null;
         const relatedPaySnap = await transaction.get(relatedPaymentsQuery);
         const calendarDeletes = [];
+        let checkoutCalRef = null;
+        let payloadCheckoutCalendar = null;
         if (action === "checkOutStay") {
           const roomId = normalizeString(booking.roomId);
           if (roomId && booking.stayRoomReleased !== true) {
@@ -398,11 +393,19 @@ exports.adjustBookingSettlement = onCall(
                       .doc(`${roomId}_${dateKey}`),
               );
             });
+            const checkoutKey = taipeiDateKey(booking.endDate);
+            if (checkoutKey) {
+              checkoutCalRef = firestore.collection("shops").doc(shopId)
+                  .collection("room_calendar")
+                  .doc(`${roomId}_${checkoutKey}`);
+            }
           }
         }
         for (let i = 0; i < calendarDeletes.length; i += 1) {
           await transaction.get(calendarDeletes[i]);
         }
+        const checkoutCalSnap = checkoutCalRef ?
+          await transaction.get(checkoutCalRef) : null;
 
         if (action === "checkOutStay") {
           if (isDaycareBooking(booking)) {
@@ -482,6 +485,39 @@ exports.adjustBookingSettlement = onCall(
             calendarDeletes.forEach((ref) => {
               transaction.delete(ref);
             });
+            if (checkoutCalRef) {
+              const checkoutData = checkoutCalSnap && checkoutCalSnap.exists ?
+                (checkoutCalSnap.data() || {}) : {};
+              const decision = checkoutDayOnStayCheckout({
+                booking,
+                exists: Boolean(checkoutCalSnap && checkoutCalSnap.exists),
+                status: checkoutData.status,
+                ownerBookingId: checkoutData.bookingId,
+                bookingId,
+              });
+              if (decision.reason === "inconsistent") {
+                console.error(
+                    "退房日房曆與訂單快照不一致，完成退房未修改日曆",
+                    {
+                      shopId,
+                      bookingId,
+                      reason: decision.reason,
+                    },
+                );
+              }
+              if (decision.action === "convert") {
+                const checkoutKey = taipeiDateKey(booking.endDate);
+                transaction.set(checkoutCalRef, {
+                  roomId: normalizeString(booking.roomId),
+                  date: checkoutKey,
+                  status: "cleaning",
+                  bookingId,
+                  cleaningStartedAt: now,
+                  updatedAt: now,
+                }, {merge: true});
+              }
+              payloadCheckoutCalendar = decision;
+            }
             bookingUpdate.stayRoomReleased = true;
           }
           if (fields.remainingAmount <= 0 &&
@@ -517,6 +553,10 @@ exports.adjustBookingSettlement = onCall(
             locked: bookingUpdate.settlementLocked === true,
             stayRoomReleased: bookingUpdate.stayRoomReleased === true ||
               booking.stayRoomReleased === true,
+            checkoutCalendar: payloadCheckoutCalendar || {
+              action: "keep",
+              reason: "no-doc",
+            },
             actualCheckInAt: labelTime(booking.checkInAt),
             actualCheckOutAt: alreadyEnded ?
               labelTime(booking.checkOutAt || booking.checkedOutAt) :

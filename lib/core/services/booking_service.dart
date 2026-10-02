@@ -4,11 +4,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/housekeeping_setting_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_policy_history.dart';
@@ -631,6 +633,11 @@ class BookingService {
         bookingId: bookingId,
         action: 'release',
       );
+      await StayBookingFunctionService.instance.manage(
+        shopId: (data['shopId'] ?? '').toString(),
+        bookingId: bookingId,
+        action: 'releaseCalendar',
+      );
     } catch (error, stackTrace) {
       debugPrint('取消訂單釋放房型保留失敗：$error');
       debugPrintStack(stackTrace: stackTrace);
@@ -666,6 +673,7 @@ class BookingService {
         roomId: roomId,
         startDate: startDate.toDate(),
         endDate: endDate.toDate(),
+        bookingId: bookingId,
       );
     }
 
@@ -966,7 +974,46 @@ class BookingService {
     }
     if (cameraUrl != null) data['cameraUrl'] = cameraUrl;
 
+    if (startDate != null ||
+        endDate != null ||
+        (roomId != null && roomId.trim().isEmpty)) {
+      final DocumentSnapshot<Map<String, dynamic>> existing = await _bookings
+          .doc(bookingId)
+          .get();
+      final Map<String, dynamic> existingData = existing.data() ?? {};
+      if (!BookingKind.isDaycare(existingData)) {
+        final String shopId = (existingData['shopId'] ?? '').toString().trim();
+        if (shopId.isNotEmpty && (startDate != null || endDate != null)) {
+          await StayBookingFunctionService.instance.manage(
+            shopId: shopId,
+            bookingId: bookingId,
+            action: 'changeDates',
+            startDate: startDate ?? _instant(existingData['startDate']),
+            endDate: endDate ?? _instant(existingData['endDate']),
+          );
+          data.remove('startDate');
+          data.remove('endDate');
+          data.remove('nights');
+        }
+        if (roomId != null && roomId.trim().isEmpty && shopId.isNotEmpty) {
+          await StayBookingFunctionService.instance.manage(
+            shopId: shopId,
+            bookingId: bookingId,
+            action: 'unassign',
+          );
+          data.remove('roomId');
+          data.remove('roomName');
+        }
+      }
+    }
+
     await _bookings.doc(bookingId).update(data);
+  }
+
+  DateTime? _instant(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
   }
 
   DateTime? _timestampToDate(dynamic value) {
@@ -995,8 +1042,8 @@ class BookingService {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final start = _dateOnly(startDate);
-    final end = _dateOnly(endDate);
+    final DateTime start = DailyCareDateHelper.calendarDateInTaipei(startDate);
+    final DateTime end = DailyCareDateHelper.calendarDateInTaipei(endDate);
     final DocumentSnapshot<Map<String, dynamic>> roomSnap = await _firestore
         .collection('shops')
         .doc(shopId)
@@ -1018,8 +1065,15 @@ class BookingService {
     // ======================
 
     final stayDates = getStayDates(startDate: start, endDate: end);
+    final setting = await HousekeepingSettingService.instance.getSetting(
+      shopId,
+    );
+    final List<DateTime> calendarDates = List<DateTime>.from(stayDates);
+    if (setting.autoCleaningAfterCheckout) {
+      calendarDates.add(end);
+    }
 
-    for (final date in stayDates) {
+    for (final date in calendarDates) {
       final dateKey = ShopService.instance.formatDateKey(date);
 
       final calendarDoc = await _firestore
@@ -1032,14 +1086,7 @@ class BookingService {
       if (calendarDoc.exists) {
         final status = calendarDoc.data()?['status']?.toString() ?? '';
 
-        if (status == 'blocked' ||
-            status == 'maintenance' ||
-            status == 'closed' ||
-            status == 'cleaning' ||
-            status == 'unavailable' ||
-            status == 'booked' ||
-            status == 'checked_in' ||
-            status == 'occupied') {
+        if (DaycareOccupancyService.calendarBlocksRoom(status)) {
           return false;
         }
       }
@@ -1219,9 +1266,12 @@ class BookingService {
     return true;
   }
 
-  /// ===============================
-  /// 🔒 將房間寫入日曆（鎖房）
-  /// ===============================
+  /// 舊版 Flutter 直接寫住宿日曆。
+  ///
+  /// 正式住宿建立、分房、換房、改期已改由 Cloud Functions 的
+  /// stayCalendarPlan 寫入，目前沒有呼叫端。
+  /// 此方法只鎖住宿夜、不會處理退房清潔保留，請不要再接到新流程。
+  @Deprecated('正式住宿日曆改由 stayCalendarPlan 寫入，此方法沒有呼叫端')
   Future<void> blockRoomCalendar({
     required String shopId,
     required String roomId,
@@ -1260,24 +1310,67 @@ class BookingService {
     required String roomId,
     required DateTime startDate,
     required DateTime endDate,
+    String bookingId = '',
   }) async {
     final stayDates = getStayDates(startDate: startDate, endDate: endDate);
+    final DateTime checkout = DailyCareDateHelper.calendarDateInTaipei(endDate);
+    final String checkoutKey = ShopService.instance.formatDateKey(checkout);
+    final DocumentReference<Map<String, dynamic>> checkoutRef = _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_calendar')
+        .doc('${roomId}_$checkoutKey');
+    final DocumentSnapshot<Map<String, dynamic>> checkoutSnap =
+        await checkoutRef.get();
 
     final batch = _firestore.batch();
 
     for (final date in stayDates) {
       final dateKey = ShopService.instance.formatDateKey(date);
-
       final docRef = _firestore
           .collection('shops')
           .doc(shopId)
           .collection('room_calendar')
           .doc('${roomId}_$dateKey');
-
-      batch.delete(docRef); // 🔥 直接刪掉
+      final DocumentSnapshot<Map<String, dynamic>> snap = await docRef.get();
+      if (_canDeleteOwnedCalendar(snap.data(), bookingId)) {
+        batch.delete(docRef);
+      }
+    }
+    final Map<String, dynamic>? checkoutData = checkoutSnap.data();
+    if (checkoutData != null &&
+        (checkoutData['status'] ?? '').toString() == 'checkout_cleaning' &&
+        _canDeleteOwnedCalendar(checkoutData, bookingId)) {
+      batch.delete(checkoutRef);
     }
 
     await batch.commit();
+  }
+
+  bool _canDeleteOwnedCalendar(Map<String, dynamic>? data, String bookingId) {
+    if (data == null) {
+      return false;
+    }
+    final String status = (data['status'] ?? '').toString();
+    const Set<String> keep = <String>{
+      'closed',
+      'maintenance',
+      'blocked',
+      'unavailable',
+      'disabled',
+      'cleaning',
+    };
+    if (keep.contains(status)) {
+      return false;
+    }
+    final String owner = (data['bookingId'] ?? '').toString();
+    if (bookingId.isEmpty || owner != bookingId) {
+      return false;
+    }
+    return status == 'booked' ||
+        status == 'checked_in' ||
+        status == 'occupied' ||
+        status == 'checkout_cleaning';
   }
 
   /// ===============================
@@ -1287,17 +1380,13 @@ class BookingService {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final start = _dateOnly(startDate);
-    final end = _dateOnly(endDate);
-
+    DateTime cursor = DailyCareDateHelper.calendarDateInTaipei(startDate);
+    final DateTime end = DailyCareDateHelper.calendarDateInTaipei(endDate);
     final List<DateTime> result = [];
-
-    DateTime cursor = start;
     while (cursor.isBefore(end)) {
       result.add(cursor);
-      cursor = cursor.add(const Duration(days: 1));
+      cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
     }
-
     return result;
   }
 
@@ -1308,9 +1397,7 @@ class BookingService {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final start = _dateOnly(startDate);
-    final end = _dateOnly(endDate);
-    return end.difference(start).inDays;
+    return getStayDates(startDate: startDate, endDate: endDate).length;
   }
 
   /// ===============================

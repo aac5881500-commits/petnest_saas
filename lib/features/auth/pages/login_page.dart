@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/auth_service.dart';
 import 'package:petnest_saas/core/services/platform_policy_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_user_policy_page.dart';
+import 'package:petnest_saas/features/platform/widgets/platform_policy_gate.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'register_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_qr_scan_page.dart';
@@ -80,7 +81,9 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => ShopPublicPage(shopId: widget.redirectShopId!),
+          builder: (_) => PlatformPolicyGate(
+            child: ShopPublicPage(shopId: widget.redirectShopId!),
+          ),
         ),
         (route) => false,
       );

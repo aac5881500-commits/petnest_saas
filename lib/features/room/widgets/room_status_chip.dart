@@ -4,8 +4,50 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/presentation/room_day_status.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
+
+enum RoomOverviewGesture { roomCard, weekDot, calendarDay, viewOrderButton }
+
+class RoomOverviewGestureResult {
+  const RoomOverviewGestureResult({
+    required this.navigatesToOrder,
+    this.roomId,
+    this.date,
+    this.bookingId,
+  });
+
+  final bool navigatesToOrder;
+  final String? roomId;
+  final DateTime? date;
+  final String? bookingId;
+}
+
+/// 房間卡、日期圓點、月曆日期格都只選取。只有「查看訂單」才帶訂單。
+RoomOverviewGestureResult resolveRoomOverviewGesture({
+  required RoomOverviewGesture gesture,
+  required String roomId,
+  required DateTime date,
+  String? bookingId,
+}) {
+  final DateTime day = DateTime(date.year, date.month, date.day);
+  if (gesture == RoomOverviewGesture.viewOrderButton) {
+    final String id = (bookingId ?? '').trim();
+    return RoomOverviewGestureResult(
+      navigatesToOrder: id.isNotEmpty,
+      roomId: roomId,
+      date: day,
+      bookingId: id.isEmpty ? null : id,
+    );
+  }
+  return RoomOverviewGestureResult(
+    navigatesToOrder: false,
+    roomId: roomId,
+    date: day,
+  );
+}
 
 class RoomDayBookingChoice {
   const RoomDayBookingChoice({required this.id, required this.data});
@@ -41,6 +83,7 @@ List<RoomDayBookingChoice> activeBookingsOnRoomDay({
   required Iterable<RoomDayBookingChoice> bookings,
   required String roomId,
   required DateTime day,
+  Iterable<Map<String, dynamic>> occupancies = const <Map<String, dynamic>>[],
 }) {
   if (roomId.isEmpty) {
     return const <RoomDayBookingChoice>[];
@@ -48,6 +91,25 @@ List<RoomDayBookingChoice> activeBookingsOnRoomDay({
   return bookings.where((RoomDayBookingChoice choice) {
     if ((choice.data['roomId'] ?? '').toString() != roomId) {
       return false;
+    }
+    if (BookingKind.isDaycare(choice.data)) {
+      final String status = (choice.data['status'] ?? '').toString();
+      if (status != 'pending' &&
+          status != 'confirmed' &&
+          status != 'checked_in') {
+        return false;
+      }
+      if (!roomDayBookingCovers(booking: choice.data, date: day)) {
+        return false;
+      }
+      return occupancies.any(
+        (Map<String, dynamic> occupancy) => daycareOccupancyCoversRoomDay(
+          occupancy: occupancy,
+          roomId: roomId,
+          bookingId: choice.id,
+          day: day,
+        ),
+      );
     }
     if (!isActiveRoomDayBooking(choice.data)) {
       return false;
@@ -180,6 +242,22 @@ Future<RoomDayBookingChoice?> showRoomDayBookingPicker(
   );
 }
 
+String roomDayTaipeiDateText(Object? raw) {
+  DateTime? date;
+  if (raw is Timestamp) {
+    date = raw.toDate();
+  } else if (raw is DateTime) {
+    date = raw;
+  }
+  if (date == null) {
+    return '—';
+  }
+  final DateTime day = DailyCareDateHelper.calendarDateInTaipei(date);
+  final String month = day.month.toString().padLeft(2, '0');
+  final String dayText = day.day.toString().padLeft(2, '0');
+  return '${day.year}/$month/$dayText';
+}
+
 String roomDayBookingMenuTitle(Map<String, dynamic> data) {
   final String code = (data['bookingCode'] ?? '').toString().trim();
   final String customer = (data['customerName'] ?? '').toString().trim();
@@ -275,6 +353,159 @@ class RoomStatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class RoomDayOrderSummaries extends StatelessWidget {
+  const RoomDayOrderSummaries({
+    super.key,
+    required this.orders,
+    required this.onViewOrder,
+    this.heading = '訂單摘要',
+    this.sourceStay = false,
+  });
+
+  final List<RoomDayBookingChoice> orders;
+  final ValueChanged<RoomDayBookingChoice> onViewOrder;
+  final String heading;
+  final bool sourceStay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (orders.isEmpty) {
+      return const Text(
+        '此日期沒有有效訂單或安親訂單',
+        style: TextStyle(fontSize: 13, color: Colors.black54),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (final RoomDayBookingChoice order in orders)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  heading,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                if (!sourceStay)
+                  Text(
+                    '服務類型：${BookingKind.isDaycare(order.data) ? '安親' : '住宿'}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                if (BookingKind.isDaycare(order.data))
+                  ..._daycareTimeLines(order.data)
+                else
+                  ..._stayDateLines(order.data),
+                if (_customerName(order.data).isNotEmpty)
+                  Text(
+                    '客戶：${_customerName(order.data)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                if (_orderPetNames(order.data).isNotEmpty)
+                  Text(
+                    '寵物：${_orderPetNames(order.data)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                if (!sourceStay)
+                  Text(
+                    '訂單狀態：${RoomStatusPresentation.of(roomStatus: 'available', booking: order.data).label}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    onPressed: () => onViewOrder(order),
+                    child: const Text('查看訂單'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+String _customerName(Map<String, dynamic> booking) {
+  final String name = (booking['customerName'] ?? '').toString().trim();
+  if (name.isEmpty || name == 'null') {
+    return '';
+  }
+  return name;
+}
+
+List<Widget> _daycareTimeLines(Map<String, dynamic> booking) {
+  final String span = daycareServiceTimeLabel(booking);
+  if (span.isEmpty) {
+    return const <Widget>[];
+  }
+  return <Widget>[
+    Text('服務時間：$span', style: const TextStyle(fontSize: 13)),
+  ];
+}
+
+List<Widget> _stayDateLines(Map<String, dynamic> booking) {
+  final String checkIn = roomDayTaipeiDateText(booking['startDate']);
+  final String checkOut = roomDayTaipeiDateText(booking['endDate']);
+  return <Widget>[
+    if (checkIn != '—')
+      Text('入住日期：$checkIn', style: const TextStyle(fontSize: 13)),
+    if (checkOut != '—')
+      Text('退房日期：$checkOut', style: const TextStyle(fontSize: 13)),
+  ];
+}
+
+String _orderPetNames(Map<String, dynamic> booking) {
+  final Object? names = booking['petNames'] ?? booking['petName'];
+  if (names is List) {
+    final String text = names
+        .map((Object? value) => value.toString().trim())
+        .where((String value) => value.isNotEmpty)
+        .join('、');
+    if (text.isNotEmpty) {
+      return text;
+    }
+  } else if (names is String && names.trim().isNotEmpty) {
+    return names.trim();
+  }
+  final Object? pets = booking['pets'];
+  if (pets is List) {
+    final String text = pets
+        .map((Object? value) {
+          if (value is Map) {
+            return (value['name'] ?? '').toString().trim();
+          }
+          return value.toString().trim();
+        })
+        .where((String value) => value.isNotEmpty)
+        .join('、');
+    if (text.isNotEmpty) {
+      return text;
+    }
+  }
+  return '';
 }
 
 class RoomSelectedDateSummary extends StatelessWidget {

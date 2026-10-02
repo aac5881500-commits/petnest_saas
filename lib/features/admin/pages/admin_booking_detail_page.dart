@@ -24,8 +24,6 @@ import 'package:petnest_saas/core/services/internal_handover_note_service.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
-import 'package:petnest_saas/core/services/housekeeping_setting_service.dart';
-import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -650,38 +648,6 @@ class AdminBookingDetailPage extends StatelessWidget {
         );
       } catch (error, stackTrace) {
         debugPrint('優惠券核銷失敗：$error');
-        debugPrintStack(stackTrace: stackTrace);
-      }
-    }
-    final String roomId = (data['roomId'] ?? '').toString().trim();
-    final String roomName = (data['roomName'] ?? '').toString().trim();
-    if (shopId.isNotEmpty && roomId.isNotEmpty) {
-      try {
-        final setting = await HousekeepingSettingService.instance.getSetting(
-          shopId,
-        );
-        if (setting.autoCleaningAfterCheckout) {
-          final dynamic rawCheckoutDate = data['endDate'];
-          DateTime? checkoutDate;
-          if (rawCheckoutDate is Timestamp) {
-            checkoutDate = rawCheckoutDate.toDate();
-          } else if (rawCheckoutDate is DateTime) {
-            checkoutDate = rawCheckoutDate;
-          } else if (rawCheckoutDate is String) {
-            checkoutDate = DateTime.tryParse(rawCheckoutDate);
-          }
-          if (checkoutDate != null) {
-            await ShopRoomService.instance.startCleaningAfterCheckout(
-              shopId: shopId,
-              roomId: roomId,
-              roomName: roomName,
-              bookingId: bookingId,
-              checkoutDate: checkoutDate,
-            );
-          }
-        }
-      } catch (error, stackTrace) {
-        debugPrint('退房完成，但建立清潔中狀態失敗：$error');
         debugPrintStack(stackTrace: stackTrace);
       }
     }

@@ -2144,7 +2144,9 @@ class _RoomDashboardTileState extends State<_RoomDashboardTile> {
                     if (!widget.enabled) {
                       subtitle = '請先完成基本資料';
                     } else if (reportsOn) {
-                      subtitle = '房務待辦 $unassignedCount 項・每日回報待填 $pending 場';
+                      subtitle = '待分房 $unassignedCount 項・每日回報待填 $pending 場';
+                    } else if (unassignedCount > 0) {
+                      subtitle = '待分房 $unassignedCount 項・入住 $checkedInRooms 房';
                     } else {
                       subtitle = '入住 $checkedInRooms 房';
                     }

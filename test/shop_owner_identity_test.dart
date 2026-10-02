@@ -38,6 +38,64 @@ void main() {
     );
   });
 
+  test('A 轉給 B 再轉給 C 時，交出的人會被移出後台成員', () {
+    const List<Map<String, dynamic>> afterAtoB = <Map<String, dynamic>>[
+      <String, dynamic>{
+        'id': 'SHOP0001_uid-b',
+        'shopId': 'SHOP0001',
+        'uid': 'uid-b',
+        'role': 'owner',
+      },
+      <String, dynamic>{
+        'id': 'SHOP0001_uid-staff',
+        'shopId': 'SHOP0001',
+        'uid': 'uid-staff',
+        'role': 'staff',
+      },
+    ];
+    expect(
+      ShopOwnerIdentity.outgoingBackendMemberDocIds(
+        shopId: 'SHOP0001',
+        previousUid: 'uid-a',
+        nextUid: 'uid-b',
+        members: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'SHOP0001_uid-a',
+            'shopId': 'SHOP0001',
+            'uid': 'uid-a',
+            'role': 'owner',
+          },
+          <String, dynamic>{
+            'id': 'extra-a',
+            'shopId': 'SHOP0001',
+            'uid': 'uid-a',
+            'role': 'staff',
+          },
+          ...afterAtoB,
+        ],
+      ).toSet(),
+      <String>{'SHOP0001_uid-a', 'extra-a'},
+    );
+    expect(
+      ShopOwnerIdentity.outgoingBackendMemberDocIds(
+        shopId: 'SHOP0001',
+        previousUid: 'uid-b',
+        nextUid: 'uid-c',
+        members: afterAtoB,
+      ),
+      <String>['SHOP0001_uid-b'],
+    );
+    expect(
+      ShopOwnerIdentity.outgoingBackendMemberDocIds(
+        shopId: 'SHOP0001',
+        previousUid: '',
+        nextUid: 'uid-c',
+        members: afterAtoB,
+      ),
+      isEmpty,
+    );
+  });
+
   test('同一 uid 的非正規文件視為重複', () {
     expect(
       ShopOwnerIdentity.duplicateMemberDocIds(

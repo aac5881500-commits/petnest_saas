@@ -19,6 +19,10 @@ class AppNotificationModel {
     required this.isRead,
     required this.createdAt,
     required this.readAt,
+    this.source = '',
+    this.category = '',
+    this.isMandatory,
+    this.shopName = '',
   });
 
   final String id;
@@ -35,26 +39,72 @@ class AppNotificationModel {
   final DateTime? createdAt;
   final DateTime? readAt;
 
+  /// system、shop、platform。舊通知沒有此欄位時為空字串。
+  final String source;
+
+  /// transactional、shop_marketing、shop_notice、platform_important、platform_marketing。
+  final String category;
+
+  /// 舊通知沒有此欄位時為 null，由分類規則視為主要通知。
+  final bool? isMandatory;
+  final String shopName;
+
   factory AppNotificationModel.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
-    final Map<String, dynamic> data = document.data() ?? {};
+    final String id = _safeId(document);
+    try {
+      final Map<String, dynamic> data = document.data() ?? <String, dynamic>{};
+      final Map<String, dynamic> nested = _readMap(data['data']);
 
-    return AppNotificationModel(
-      id: document.id,
-      userId: (data['userId'] ?? '').toString(),
-      title: (data['title'] ?? '').toString(),
-      body: (data['body'] ?? '').toString(),
-      type: (data['type'] ?? '').toString(),
-      bookingId: (data['bookingId'] ?? '').toString(),
-      shopId: (data['shopId'] ?? '').toString(),
-      messageId: (data['messageId'] ?? '').toString(),
-      status: (data['status'] ?? 'active').toString(),
-      data: _readMap(data['data']),
-      isRead: data['isRead'] == true,
-      createdAt: _readDateTime(data['createdAt']),
-      readAt: _readDateTime(data['readAt']),
-    );
+      return AppNotificationModel(
+        id: id,
+        userId: (data['userId'] ?? '').toString(),
+        title: (data['title'] ?? '').toString(),
+        body: (data['body'] ?? '').toString(),
+        type: (data['type'] ?? '').toString(),
+        bookingId: (data['bookingId'] ?? '').toString(),
+        shopId: _firstText(data['shopId'], nested['shopId']),
+        messageId: (data['messageId'] ?? '').toString(),
+        status: (data['status'] ?? 'active').toString(),
+        data: nested,
+        isRead: data['isRead'] == true,
+        createdAt: _readDateTime(data['createdAt']),
+        readAt: _readDateTime(data['readAt']),
+        source: _firstText(data['source'], nested['source']),
+        category: _firstText(data['category'], nested['category']),
+        isMandatory: _readBool(
+          data.containsKey('isMandatory')
+              ? data['isMandatory']
+              : nested['isMandatory'],
+        ),
+        shopName: _firstText(data['shopName'], nested['shopName']),
+      );
+    } catch (_) {
+      return AppNotificationModel(
+        id: id,
+        userId: '',
+        title: '通知',
+        body: '',
+        type: '',
+        bookingId: '',
+        shopId: '',
+        messageId: '',
+        status: 'active',
+        data: const <String, dynamic>{},
+        isRead: false,
+        createdAt: null,
+        readAt: null,
+      );
+    }
+  }
+
+  static String _safeId(DocumentSnapshot<Map<String, dynamic>> document) {
+    try {
+      return document.id;
+    } catch (_) {
+      return '';
+    }
   }
 
   static Map<String, dynamic> _readMap(dynamic value) {
@@ -69,15 +119,32 @@ class AppNotificationModel {
     return <String, dynamic>{};
   }
 
+  static String _firstText(dynamic primary, dynamic fallback) {
+    final String first = (primary ?? '').toString().trim();
+    if (first.isNotEmpty) return first;
+    return (fallback ?? '').toString().trim();
+  }
+
+  static bool? _readBool(dynamic value) {
+    if (value == null || value == '') return null;
+    if (value is bool) return value;
+    final String text = value.toString().trim().toLowerCase();
+    if (text == 'true') return true;
+    if (text == 'false') return false;
+    return null;
+  }
+
   static DateTime? _readDateTime(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate();
+    try {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+      if (value is DateTime) {
+        return value;
+      }
+    } catch (_) {
+      return null;
     }
-
-    if (value is DateTime) {
-      return value;
-    }
-
     return null;
   }
 }

@@ -85,6 +85,33 @@ class ShopOwnerIdentity {
     return ids;
   }
 
+  /// 交出店主的人要刪除的後台成員文件。其他店員不受影響。
+  static List<String> outgoingBackendMemberDocIds({
+    required String shopId,
+    required String previousUid,
+    required String nextUid,
+    required Iterable<Map<String, dynamic>> members,
+  }) {
+    final String previous = previousUid.trim();
+    final String next = nextUid.trim();
+    final String shop = shopId.trim();
+    if (previous.isEmpty || previous == next || shop.isEmpty) {
+      return const <String>[];
+    }
+    final String canonical = memberDocId(shop, previous);
+    final Set<String> ids = <String>{canonical};
+    for (final Map<String, dynamic> member in members) {
+      final String memberUid = (member['uid'] ?? '').toString().trim();
+      final String memberShopId = (member['shopId'] ?? '').toString().trim();
+      final String id = (member['id'] ?? '').toString().trim();
+      if (id.isEmpty || memberUid != previous) continue;
+      if (memberShopId.isNotEmpty && memberShopId != shop) continue;
+      ids.add(id);
+    }
+    ids.remove(memberDocId(shop, next));
+    return ids.toList();
+  }
+
   static String debugText(ShopStaffIdentitySnapshot snapshot) {
     return <String>[
       'SHOP_IDENTITY currentUid=${snapshot.currentUid}',

@@ -611,9 +611,8 @@ exports.manageDaycareBooking = onCall(
                 await transaction.get(doc.ref);
               }
               const paySnap = await transaction.get(payQuery);
-              if (cleaningCalRef) {
-                await transaction.get(cleaningCalRef);
-              }
+              const cleaningCalSnap = cleaningCalRef ?
+                await transaction.get(cleaningCalRef) : null;
               releaseOccupancyDocs(transaction, occSnap.docs);
               applyHoldReleaseFromSnap(
                   transaction, holdRef, holdSnap, holdBooking,
@@ -631,7 +630,23 @@ exports.manageDaycareBooking = onCall(
                 }
                 supersedeStalePendingPayments(transaction, [doc]);
               });
-              if (cleaningCalRef) {
+              const existingCalendar = cleaningCalSnap &&
+                cleaningCalSnap.exists ? (cleaningCalSnap.data() || {}) : null;
+              const existingStatus = normalizeString(
+                  existingCalendar && existingCalendar.status,
+              );
+              const existingOwner = normalizeString(
+                  existingCalendar && existingCalendar.bookingId,
+              );
+              const manualCalendar = existingStatus === "closed" ||
+                existingStatus === "maintenance" ||
+                existingStatus === "blocked" ||
+                existingStatus === "unavailable" ||
+                existingStatus === "disabled" ||
+                existingStatus === "checkout_cleaning";
+              const otherCalendarOwner = existingOwner &&
+                existingOwner !== bookingId;
+              if (cleaningCalRef && !manualCalendar && !otherCalendarOwner) {
                 transaction.set(cleaningCalRef, {
                   ...calendarCleaningFields(
                       assignedRoomId, serviceDate, bookingId,

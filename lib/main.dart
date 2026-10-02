@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/theme/petnest_app_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
+import 'package:petnest_saas/features/platform/widgets/platform_policy_gate.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -98,7 +99,7 @@ class PetNestApp extends StatelessWidget {
           throw UnimplementedError('MemberPage 必須傳入 shopId，請由 Drawer 或首頁進入。');
         },
         '/login': (context) => const LoginPage(),
-        '/home': (context) => const HomePage(),
+        '/home': (context) => const PlatformPolicyGate(child: HomePage()),
 
         // 🖥️ 店家 Web 後台入口
         '/admin': (context) => const AppEntryPage(),
@@ -221,7 +222,7 @@ class AppEntryPage extends StatelessWidget {
     // 有店家身分：店主 / 員工照原本進 HomePage
     final myShops = await ShopService.instance.getMyShops();
     if (myShops.isNotEmpty) {
-      return const HomePage();
+      return const PlatformPolicyGate(child: HomePage());
     }
 
     // 一般客戶：回到最後掃過 / 逛過的店
@@ -229,11 +230,11 @@ class AppEntryPage extends StatelessWidget {
     final lastShopId = prefs.getString('last_customer_shop_id');
 
     if (lastShopId != null && lastShopId.isNotEmpty) {
-      return ShopPublicPage(shopId: lastShopId);
+      return PlatformPolicyGate(child: ShopPublicPage(shopId: lastShopId));
     }
 
     // 沒有最後店家，就照原本首頁
-    return const HomePage();
+    return const PlatformPolicyGate(child: HomePage());
   }
 
   @override

@@ -13,7 +13,6 @@ class StoreBannerTemplateMetrics {
   static const double subtitleLineHeight = 1.3;
   static const double textGap = 20;
   static const double ctaGap = 32;
-  static const double ctaFont = 32;
   static const double safeTop = 72;
   static const double safeBottom = 846;
 
@@ -27,16 +26,12 @@ class StoreBannerTemplateMetrics {
     return fontPx * lineHeight * lines.clamp(1, 2);
   }
 
-  static double ctaBlockHeight([double fontPx = ctaFont]) {
-    return fontPx * 1.2 + 20;
-  }
-
   static double stackHeight({
     required double titlePx,
     required double subtitlePx,
     required int titleLines,
     required int subtitleLines,
-    double ctaPx = ctaFont,
+    required double ctaHeight,
   }) {
     return blockHeight(
           fontPx: titlePx,
@@ -50,7 +45,7 @@ class StoreBannerTemplateMetrics {
           lines: subtitleLines,
         ) +
         ctaGap +
-        ctaBlockHeight(ctaPx);
+        ctaHeight;
   }
 
   static double y(double designTop) => designTop / designHeight;
@@ -62,7 +57,6 @@ class StoreBannerTemplateMetrics {
     required double subtitlePx,
     int titleLines = 2,
     int subtitleLines = 2,
-    double ctaPx = ctaFont,
   }) {
     final double title = topDesign;
     final double subtitle =
@@ -91,9 +85,9 @@ class StoreBannerTemplateMetrics {
     required double subtitlePx,
     int titleLines = 2,
     int subtitleLines = 2,
-    double ctaPx = ctaFont,
+    required double ctaHeight,
   }) {
-    final double ctaTop = bottomDesign - ctaBlockHeight(ctaPx);
+    final double ctaTop = bottomDesign - ctaHeight;
     final double subtitleTop =
         ctaTop -
         ctaGap -
@@ -228,6 +222,11 @@ class StoreBannerTemplates {
       );
     }
     final ({double title, double subtitle}) defaults = _defaultPx(template);
+    final String ctaSize = _defaultCtaSize(template);
+    final double ctaHeight = StoreBannerCtaSizes.box(
+      ctaSize,
+      scale: source.ctaScale,
+    ).occupiedHeight;
     final _FontFit fit = _fitFonts(
       title: title,
       subtitle: subtitle,
@@ -235,6 +234,7 @@ class StoreBannerTemplates {
       subtitlePx: defaults.subtitle,
       widthPx:
           _widthFraction(template) * StoreBannerTemplateMetrics.designWidth,
+      ctaHeight: ctaHeight,
     );
     final _TemplateSpec spec = _spec(
       template,
@@ -243,6 +243,9 @@ class StoreBannerTemplates {
       subtitlePx: fit.subtitlePx,
       titleLines: fit.titleLines,
       subtitleLines: fit.subtitleLines,
+      ctaSize: ctaSize,
+      ctaHeight: ctaHeight,
+      ctaScale: source.ctaScale,
     );
     return (
       banner: source.copyWith(
@@ -284,7 +287,7 @@ class StoreBannerTemplates {
         ctaShowArrow: true,
         ctaPositionX: spec.ctaX,
         ctaPositionY: spec.slots.cta,
-        ctaSize: StoreBannerCtaSizes.standard,
+        ctaSize: ctaSize,
         ctaRadius: StoreBannerCtaRadii.pill,
         ctaBackgroundColor: spec.ctaBackground,
         ctaTextColor: StoreBannerCommonColors.white,
@@ -349,6 +352,17 @@ class StoreBannerTemplates {
     }
   }
 
+  static String _defaultCtaSize(String template) {
+    switch (template) {
+      case centerCopy:
+      case bottomCard:
+      case promo:
+        return StoreBannerCtaSizes.large;
+      default:
+        return StoreBannerCtaSizes.standard;
+    }
+  }
+
   static ({double title, double subtitle}) _defaultPx(String template) {
     switch (template) {
       case centerCopy:
@@ -401,6 +415,7 @@ class StoreBannerTemplates {
     required double titlePx,
     required double subtitlePx,
     required double widthPx,
+    required double ctaHeight,
   }) {
     const double titleFloor = 72;
     const double subtitleFloor = 32;
@@ -416,6 +431,7 @@ class StoreBannerTemplates {
         subtitlePx: subtitleSize,
         titleLines: titleLines,
         subtitleLines: subtitleLines,
+        ctaHeight: ctaHeight,
       );
       final bool overflow =
           titleNeeded > 2 ||
@@ -462,6 +478,9 @@ class StoreBannerTemplates {
     required double subtitlePx,
     required int titleLines,
     required int subtitleLines,
+    required String ctaSize,
+    required double ctaHeight,
+    double ctaScale = 1,
   }) {
     final double sideWidth = StoreBannerTextWidthPresets.ratio(
       StoreBannerTextWidthPresets.narrow,
@@ -472,7 +491,11 @@ class StoreBannerTemplates {
     final double promoWidth = StoreBannerTextWidthPresets.ratio(
       StoreBannerTextWidthPresets.standard,
     );
-    final double ctaWidth = _ctaWidthFraction(ctaText);
+    final double ctaWidth = _ctaWidthFraction(
+      ctaText,
+      size: ctaSize,
+      scale: ctaScale,
+    );
     final ({double title, double subtitle, double cta}) upper =
         StoreBannerTemplateMetrics.fromTop(
           topDesign: StoreBannerTemplateMetrics.safeTop,
@@ -488,6 +511,7 @@ class StoreBannerTemplates {
           subtitlePx: subtitlePx,
           titleLines: titleLines,
           subtitleLines: subtitleLines,
+          ctaHeight: ctaHeight,
         );
     final ({double title, double subtitle, double cta}) topSlots =
         StoreBannerTemplateMetrics.fromTop(
@@ -612,6 +636,8 @@ class StoreBannerTemplates {
       return const <Rect>[];
     }
     final ({double title, double subtitle}) defaults = _defaultPx(template);
+    final String ctaSize = _defaultCtaSize(template);
+    final double ctaHeight = StoreBannerCtaSizes.box(ctaSize).occupiedHeight;
     final _TemplateSpec spec = _spec(
       template,
       ctaText,
@@ -619,6 +645,8 @@ class StoreBannerTemplates {
       subtitlePx: defaults.subtitle,
       titleLines: 2,
       subtitleLines: 2,
+      ctaSize: ctaSize,
+      ctaHeight: ctaHeight,
     );
     final double textLeft = spec.align == StoreBannerTextAligns.right
         ? (1 - StoreBannerPlacement.safeFraction - spec.widthFraction).clamp(
@@ -626,7 +654,10 @@ class StoreBannerTemplates {
             1.0,
           )
         : spec.x;
-    final double ctaWidth = _ctaWidthFraction(ctaText).clamp(0.12, 0.42);
+    final double ctaWidth = _ctaWidthFraction(
+      ctaText,
+      size: ctaSize,
+    ).clamp(0.12, 0.70);
     final double ctaLeft = spec.ctaX >= 0.99
         ? (1 - StoreBannerPlacement.safeFraction - ctaWidth).clamp(0.0, 1.0)
         : spec.ctaX;
@@ -655,14 +686,20 @@ class StoreBannerTemplates {
         x: ctaLeft,
         yFraction: spec.slots.cta,
         widthFraction: ctaWidth,
-        heightDesign: StoreBannerTemplateMetrics.ctaBlockHeight(),
+        heightDesign: ctaHeight,
       ),
     ];
   }
 
-  static double _ctaWidthFraction(String text) {
-    final int length = text.trim().isEmpty ? 4 : text.trim().length;
-    return (length * 28 + 96) / StoreBannerTemplateMetrics.designWidth;
+  static double _ctaWidthFraction(
+    String text, {
+    required String size,
+    double scale = 1,
+  }) {
+    final StoreBannerCtaBox box = StoreBannerCtaSizes.box(size, scale: scale);
+    final int length = text.trim().isEmpty ? 4 : text.trim().runes.length;
+    final double width = length * box.fontPx + box.paddingH * 2;
+    return (width / StoreBannerTemplateMetrics.designWidth).clamp(0.12, 0.70);
   }
 
   static StoreBannerTextElement _line({

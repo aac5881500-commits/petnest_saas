@@ -552,7 +552,7 @@ class ShopMemberPermissionService {
     }
   }
 
-  /// 平台根管理員轉移唯一店主：更新 ownerUid，並把其他 owner 降為 staff。
+  /// 平台根管理員完全交接店主：新店主成為唯一 owner，前任退出該店後台。
   Future<void> transferShopOwner({
     required String shopId,
     required String newOwnerUid,
@@ -561,66 +561,160 @@ class ShopMemberPermissionService {
     if (!PlatformRootAdmin.isRoot(operator?.uid)) {
       throw Exception('只有平台最高管理員可以轉移店主');
     }
+    final String trimmedShopId = shopId.trim();
     final String nextUid = newOwnerUid.trim();
-    if (shopId.trim().isEmpty || nextUid.isEmpty) {
+    if (trimmedShopId.isEmpty || nextUid.isEmpty) {
       throw Exception('店家與新店主 UID 不可為空');
     }
 
     final DocumentReference<Map<String, dynamic>> shopRef = _firestore
         .collection('shops')
-        .doc(shopId);
+        .doc(trimmedShopId);
     final DocumentSnapshot<Map<String, dynamic>> shopSnap = await shopRef.get();
     if (!shopSnap.exists) {
       throw Exception('找不到店家');
     }
     final Map<String, dynamic> shop = shopSnap.data() ?? <String, dynamic>{};
-    final String previousUid = (shop['ownerUid'] ?? '').toString();
+    final String previousUid = (shop['ownerUid'] ?? '').toString().trim();
 
     final DocumentSnapshot<Map<String, dynamic>> userSnap = await _firestore
         .collection('users')
         .doc(nextUid)
         .get();
+    if (!userSnap.exists) {
+      throw Exception('找不到新店主帳號，無法轉移店主');
+    }
     final String email = (userSnap.data()?['email'] ?? '').toString();
+    final String emailKey = normalizeEmail(email);
 
-    await ensureCanonicalOwnerMember(
-      shopId: shopId,
-      ownerUid: nextUid,
-      email: email,
+    final QuerySnapshot<Map<String, dynamic>> members = await _shopMembers
+        .where('shopId', isEqualTo: trimmedShopId)
+        .get();
+    final List<Map<String, dynamic>> memberRows = members.docs.map((
+      QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    ) {
+      return <String, dynamic>{'id': doc.id, ...doc.data()};
+    }).toList();
+
+    Map<String, dynamic> seed = <String, dynamic>{};
+    for (final Map<String, dynamic> member in memberRows) {
+      if ((member['uid'] ?? '').toString().trim() == nextUid) {
+        seed = member;
+        break;
+      }
+    }
+
+    final String canonicalId = ShopOwnerIdentity.memberDocId(
+      trimmedShopId,
+      nextUid,
     );
+    final Set<String> deleteIds = <String>{
+      ...ShopOwnerIdentity.outgoingBackendMemberDocIds(
+        shopId: trimmedShopId,
+        previousUid: previousUid,
+        nextUid: nextUid,
+        members: memberRows,
+      ),
+      ...ShopOwnerIdentity.duplicateMemberDocIds(
+        shopId: trimmedShopId,
+        uid: nextUid,
+        members: memberRows,
+      ),
+    }..remove(canonicalId);
 
-    await shopRef.set({
+    final WriteBatch batch = _firestore.batch();
+    final Map<String, dynamic> ownerWrite = <String, dynamic>{
+      'shopId': trimmedShopId,
+      'uid': nextUid,
+      'email': emailKey,
+      'emailKey': emailKey,
+      'role': ShopRoles.owner,
+      'permissions': ownerDefaultPermissions(),
+      'status': 'active',
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (seed['createdAt'] == null) {
+      ownerWrite['createdAt'] = FieldValue.serverTimestamp();
+    }
+    batch.set(
+      _shopMembers.doc(canonicalId),
+      ownerWrite,
+      SetOptions(merge: true),
+    );
+    for (final String id in deleteIds) {
+      batch.delete(_shopMembers.doc(id));
+    }
+    if (previousUid.isNotEmpty && previousUid != nextUid) {
+      await _deletePendingInvitesForOutgoingOwner(
+        batch: batch,
+        shopId: trimmedShopId,
+        previousUid: previousUid,
+        memberRows: memberRows,
+      );
+    }
+    batch.set(shopRef, {
       'ownerUid': nextUid,
-      'previousOwnerUid': previousUid == nextUid
+      'previousOwnerUid': previousUid.isEmpty || previousUid == nextUid
           ? (shop['previousOwnerUid'] ?? '')
           : previousUid,
       'ownerTransferredAt': FieldValue.serverTimestamp(),
       'ownerTransferredBy': operator!.uid,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-
-    final QuerySnapshot<Map<String, dynamic>> members = await _shopMembers
-        .where('shopId', isEqualTo: shopId)
-        .get();
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
-        in members.docs) {
-      final Map<String, dynamic> data = doc.data();
-      final String uid = (data['uid'] ?? '').toString();
-      final String role = (data['role'] ?? '').toString();
-      if (uid == nextUid || role != ShopRoles.owner) continue;
-      await doc.reference.update({
-        'role': ShopRoles.staff,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
+    await batch.commit();
 
     await ActionLogService.instance.logAction(
-      shopId: shopId,
+      shopId: trimmedShopId,
       targetType: 'shop',
-      targetId: shopId,
+      targetId: trimmedShopId,
       action: 'transfer_shop_owner',
       operatorUid: operator.uid,
       operatorRole: 'root',
-      payload: {'previousOwnerUid': previousUid, 'newOwnerUid': nextUid},
+      payload: <String, dynamic>{
+        'previousOwnerUid': previousUid,
+        'newOwnerUid': nextUid,
+        'newOwnerEmail': email,
+        'removedPreviousBackendAccess':
+            previousUid.isNotEmpty && previousUid != nextUid,
+      },
     );
+  }
+
+  Future<void> _deletePendingInvitesForOutgoingOwner({
+    required WriteBatch batch,
+    required String shopId,
+    required String previousUid,
+    required List<Map<String, dynamic>> memberRows,
+  }) async {
+    final Set<String> emailKeys = <String>{};
+    for (final Map<String, dynamic> member in memberRows) {
+      if ((member['uid'] ?? '').toString().trim() != previousUid) continue;
+      final String emailKey = normalizeEmail(
+        (member['emailKey'] ?? member['email'] ?? '').toString(),
+      );
+      if (emailKey.isNotEmpty) emailKeys.add(emailKey);
+    }
+    final DocumentSnapshot<Map<String, dynamic>> previousUser = await _firestore
+        .collection('users')
+        .doc(previousUid)
+        .get();
+    final String userEmail = normalizeEmail(
+      (previousUser.data()?['email'] ?? '').toString(),
+    );
+    if (userEmail.isNotEmpty) emailKeys.add(userEmail);
+    for (final String emailKey in emailKeys) {
+      final QuerySnapshot<Map<String, dynamic>> invites =
+          await _shopMemberInvites
+              .where('emailKey', isEqualTo: emailKey)
+              .where('status', isEqualTo: 'pending')
+              .get();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> invite
+          in invites.docs) {
+        if ((invite.data()['shopId'] ?? '').toString().trim() != shopId) {
+          continue;
+        }
+        batch.delete(invite.reference);
+      }
+    }
   }
 }

@@ -78,7 +78,7 @@ class AuthService {
       final user = userCredential.user;
 
       if (user != null) {
-        await _ensureUserBaseData(user);
+        await ensureCurrentUserBaseData(user);
 
         // 🔥 同步店家邀請
         await ShopService.instance.syncPendingInvitesForCurrentUser();
@@ -95,7 +95,10 @@ class AuthService {
   // =========================================
   // 🧩 確保會員資料存在（🔥核心）
   // =========================================
-  Future<void> _ensureUserBaseData(User user) async {
+  Future<void> ensureCurrentUserBaseData([User? targetUser]) async {
+    final user = targetUser ?? _auth.currentUser;
+    if (user == null) return;
+
     final userRef = _firestore.collection('users').doc(user.uid);
     final profileRef = _firestore.collection('user_profiles').doc(user.uid);
 
@@ -180,7 +183,7 @@ class AuthService {
       await user.updateDisplayName(displayName.trim());
     }
 
-    await _ensureUserBaseData(user);
+    await ensureCurrentUserBaseData(user);
 
     // 🔥 同步店家邀請與店主成員文件
     await ShopService.instance.syncPendingInvitesForCurrentUser();
@@ -204,7 +207,7 @@ class AuthService {
     final user = credential.user;
 
     if (user != null) {
-      await _ensureUserBaseData(user);
+      await ensureCurrentUserBaseData(user);
     }
 
     // 🔥 同步店家邀請與店主成員文件

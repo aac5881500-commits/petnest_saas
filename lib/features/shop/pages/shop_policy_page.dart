@@ -8,6 +8,9 @@ import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_history_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 
@@ -71,9 +74,12 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
   bool _refundEnabled = true;
   bool _loading = true;
   bool _dirty = false;
+  bool _saving = false;
   int _stayVersion = 0;
   int _daycareVersion = 0;
   int _refundVersion = 0;
+  Map<String, dynamic>? _policy;
+  DateTime? _policyUpdatedAt;
   final Set<String> _expanded = <String>{};
 
   int get _refundIndex => _daycareOn ? 2 : 1;
@@ -234,6 +240,13 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
             key: enabled[key] != false,
         };
       }
+      _policy = data;
+      final dynamic updatedAt = data['updatedAt'];
+      _policyUpdatedAt = updatedAt is Timestamp
+          ? updatedAt.toDate()
+          : updatedAt is DateTime
+          ? updatedAt
+          : null;
       _stayVersion = ShopPolicyService.servicePolicyVersion(
         policy: data,
         serviceType: PolicyApplicableService.accommodation,
@@ -286,33 +299,61 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
       await _loadPolicy();
       return;
     }
-    _storeCurrentDraft();
-    final Map<String, dynamic> sections = <String, dynamic>{
-      for (final MapEntry<String, TextEditingController> e
-          in _controllers.entries)
-        e.key: e.value.text.trim(),
-    };
-    await ShopPolicyService.instance.updateServicePolicy(
-      shopId: widget.shopId,
-      serviceType: _activeService,
-      sections: sections,
-      enabled: _enabled,
-      customPoliciesPage1: const <String>[],
-      customPoliciesPage2: const <String>[],
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('發布新版條款？'),
+          content: const Text('發布後，尚未確認此版本的顧客，需在下次使用本店預約相關功能前確認新版條款。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('確認發布'),
+            ),
+          ],
+        );
+      },
     );
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _activeService == PolicyApplicableService.daycare
-              ? '已更新安親條款（住宿條款版本不變）'
-              : '已更新住宿條款（安親條款版本不變）',
+    if (confirm != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      _storeCurrentDraft();
+      final Map<String, dynamic> sections = <String, dynamic>{
+        for (final MapEntry<String, TextEditingController> e
+            in _controllers.entries)
+          e.key: e.value.text.trim(),
+      };
+      await ShopPolicyService.instance.updateServicePolicy(
+        shopId: widget.shopId,
+        serviceType: _activeService,
+        sections: sections,
+        enabled: _enabled,
+        customPoliciesPage1: const <String>[],
+        customPoliciesPage2: const <String>[],
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _activeService == PolicyApplicableService.daycare
+                ? '已更新安親條款（住宿條款版本不變）'
+                : '已更新住宿條款（安親條款版本不變）',
+          ),
         ),
-      ),
-    );
-    await _loadPolicy();
+      );
+      await _loadPolicy();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('發布失敗：$error')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -394,12 +435,20 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
                                     width: double.infinity,
                                     height: 48,
                                     child: FilledButton(
-                                      onPressed: _save,
-                                      child: Text(
-                                        _tabs!.index == _refundIndex
-                                            ? '儲存退款條款'
-                                            : '儲存此分頁條款',
-                                      ),
+                                      onPressed: _saving ? null : _save,
+                                      child: _saving
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : Text(
+                                              _tabs!.index == _refundIndex
+                                                  ? '儲存退款條款'
+                                                  : '發布此分頁條款',
+                                            ),
                                     ),
                                   ),
                                 ),
@@ -449,16 +498,70 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
       <String>['extraNotice', '額外注意事項'],
       <String>['cancelPolicy', '取消政策'],
     ];
+    final String publishedAt = _policyUpdatedAt == null
+        ? '尚未記錄'
+        : DateFormat('yyyy/MM/dd HH:mm').format(_policyUpdatedAt!);
+    final String serviceTitle = isDaycare ? '安親須知' : '入住須知';
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        Text(
-          isDaycare
-              ? '目前安親條款版本：v$version。修改不會要求住宿客人重新勾選。'
-              : (_daycareOn
-                    ? '目前住宿條款版本：v$version。修改不會要求安親客人重新勾選。'
-                    : '目前住宿條款版本：v$version。'),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F7FB),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                '目前已發布版本',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(serviceTitle),
+              const SizedBox(height: 4),
+              Text(
+                version > 0 ? '版本 v$version　發布日期 $publishedAt　生效中' : '尚未發布',
+                style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isDaycare
+                    ? '以下為草稿。發布新版本不會要求住宿客人重新勾選。已發布內容不可直接修改。'
+                    : '以下為草稿。發布後才會成為最新版本，已發布內容不可直接修改。',
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              if (version > 0 && _policy != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => PolicyVersionDetailPage(
+                            data: _policy!,
+                            serviceType: isDaycare
+                                ? PolicyApplicableService.daycare
+                                : PolicyApplicableService.accommodation,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('查看目前版本'),
+                  ),
+                ),
+            ],
+          ),
         ),
+        const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           children: <Widget>[
@@ -473,7 +576,7 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
                 );
               },
               icon: const Icon(Icons.history),
-              label: const Text('查看歷史版本'),
+              label: const Text('版本紀錄'),
             ),
             if (_daycareOn || isDaycare)
               TextButton(

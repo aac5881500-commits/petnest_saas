@@ -230,9 +230,14 @@ exports.assignDaycareRoom = onCall(
           );
           if (calSnap.exists &&
               calendarBlocksRoom((calSnap.data() || {}).status)) {
+            const calendarStatus = normalizeString(
+                (calSnap.data() || {}).status,
+            );
             throw new HttpsError(
                 "failed-precondition",
-                "此房間已被住宿訂單占用",
+                calendarStatus === "checkout_cleaning" ?
+                  "此房間退房後待清潔，該日不可安排" :
+                  "此房間已被住宿訂單占用",
             );
           }
           const occupancies = occSnap.docs.map((doc) => doc.data() || {});

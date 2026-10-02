@@ -96,6 +96,8 @@ class StayBookingFunctionService {
     String roomId = '',
     String roomName = '',
     String reason = '',
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
     return _call('manageStayInventory', <String, dynamic>{
       'shopId': shopId,
@@ -104,6 +106,8 @@ class StayBookingFunctionService {
       'roomId': roomId,
       'roomName': roomName,
       'reason': reason,
+      if (startDate != null) 'startDate': startDate.toIso8601String(),
+      if (endDate != null) 'endDate': endDate.toIso8601String(),
     }).then((_) {});
   }
 }

@@ -117,6 +117,53 @@ function serviceDateKey(date) {
 }
 
 /**
+ * 台灣日曆日 yyyy-MM-dd。
+ * 純日期字串直接採用；其餘時間一律換算 Asia/Taipei。
+ * @param {*} value 日期字串、Date 或 Timestamp。
+ * @return {string}
+ */
+function taipeiDateKey(value) {
+  if (value == null || value === "") {
+    return "";
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  const date = value instanceof Date ? value : toDate(value);
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return serviceDateKey(date);
+}
+
+/**
+ * 以 UTC 日曆欄位加減天數，不使用執行環境本地時區。
+ * @param {string} dateKey yyyy-MM-dd。
+ * @param {number} days 加減天數。
+ * @return {string}
+ */
+function addCalendarDays(dateKey, days) {
+  const key = taipeiDateKey(dateKey);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!match) {
+    return "";
+  }
+  const utc = new Date(Date.UTC(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3]),
+  ));
+  utc.setUTCDate(utc.getUTCDate() + Number(days || 0));
+  const y = utc.getUTCFullYear();
+  const m = String(utc.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(utc.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * @param {string} hhmm
  * @return {number}
  */
@@ -761,6 +808,8 @@ module.exports = {
   toDate,
   taiwanDate,
   serviceDateKey,
+  taipeiDateKey,
+  addCalendarDays,
   minutesOf,
   weekdayTaiwan,
   overrideDocId,

@@ -66,8 +66,13 @@ class ShopFrontendTheme {
     final Color background = home.backgroundColor;
     final Color card = home.cardColor;
     final Color title = home.textColor;
-    final Color onPrimary = contrastOn(primary);
-    final Color subtitle = _readableMix(title, background, 0.42);
+    final Color button = home.buttonBackgroundColor;
+    final Color onPrimary = home.buttonTextMode == 'auto'
+        ? contrastOn(button)
+        : home.buttonForegroundColor;
+    final Color subtitle = home.secondaryTextColorValue == null
+        ? _readableMix(title, background, 0.42)
+        : home.secondaryTextColor;
     final Color border = _ensureBorder(home.cardBorderColor, card, title);
     final Color secondary = Color.lerp(primary, title, 0.28) ?? title;
     return ShopFrontendTheme(
@@ -80,7 +85,7 @@ class ShopFrontendTheme {
       bodyTextColor: title,
       subtitleColor: subtitle,
       borderColor: border,
-      buttonColor: primary,
+      buttonColor: button,
       onPrimaryColor: onPrimary,
       primarySoft: primary.withValues(alpha: 0.14),
       disabledColor:
@@ -167,6 +172,9 @@ class ShopFrontendThemeInherited extends InheritedWidget {
         oldWidget.theme.pageBackgroundColor != theme.pageBackgroundColor ||
         oldWidget.theme.cardColor != theme.cardColor ||
         oldWidget.theme.titleColor != theme.titleColor ||
+        oldWidget.theme.subtitleColor != theme.subtitleColor ||
+        oldWidget.theme.buttonColor != theme.buttonColor ||
+        oldWidget.theme.onPrimaryColor != theme.onPrimaryColor ||
         oldWidget.theme.borderColor != theme.borderColor;
   }
 }

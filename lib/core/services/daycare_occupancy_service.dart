@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
@@ -74,6 +75,7 @@ class DaycareOccupancyService {
   static const String vacantLabel = '空房';
   static const String disabledLabel = '未啟用';
   static const String cleaningLabel = '清潔中';
+  static const String checkoutHoldLabel = '待清潔';
   static const String maintenanceLabel = '維修中';
   static const String closedLabel = '今日關閉';
 
@@ -157,6 +159,9 @@ class DaycareOccupancyService {
     }
     if (cal == 'blocked' || cal == 'maintenance' || cal == 'unavailable') {
       return maintenanceLabel;
+    }
+    if (cal == 'checkout_cleaning') {
+      return checkoutHoldLabel;
     }
     if (cal == 'cleaning') {
       return cleaningLabel;
@@ -387,7 +392,9 @@ class DaycareOccupancyService {
         .collection('room_occupancies')
         .where('status', isEqualTo: 'active')
         .get();
-    final String dateKey = _dateKey(startAt);
+    final String dateKey = _dateKey(
+      DailyCareDateHelper.calendarDateInTaipei(startAt),
+    );
     final List<Map<String, dynamic>> rooms = roomSnap.docs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
@@ -449,6 +456,7 @@ class DaycareOccupancyService {
     return status == 'booked' ||
         status == 'checked_in' ||
         status == 'occupied' ||
+        status == 'checkout_cleaning' ||
         status == 'blocked' ||
         status == 'cleaning' ||
         status == 'maintenance' ||
@@ -526,7 +534,9 @@ class DaycareOccupancyService {
         .collection('room_occupancies')
         .where('status', isEqualTo: 'active')
         .get();
-    final String dateKey = _dateKey(startAt);
+    final String dateKey = _dateKey(
+      DailyCareDateHelper.calendarDateInTaipei(startAt),
+    );
     final List<DaycareAssignableRoom> result = <DaycareAssignableRoom>[];
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
         in roomSnap.docs) {
@@ -541,8 +551,9 @@ class DaycareOccupancyService {
               .collection('room_calendar')
               .doc('${doc.id}_$dateKey')
               .get();
-      if (calSnap.exists &&
-          calendarBlocksRoom((calSnap.data()?['status'] ?? '').toString())) {
+      final String calendarStatus = (calSnap.data()?['status'] ?? '')
+          .toString();
+      if (calSnap.exists && calendarBlocksRoom(calendarStatus)) {
         result.add(
           DaycareAssignableRoom(
             roomId: doc.id,
@@ -567,7 +578,9 @@ class DaycareOccupancyService {
                       0),
             status: (room['status'] ?? '').toString(),
             available: false,
-            blockedReason: '此房間已被住宿訂單占用',
+            blockedReason: calendarStatus == 'checkout_cleaning'
+                ? '此房間退房後待清潔'
+                : '此房間已被住宿訂單占用',
           ),
         );
         continue;
@@ -765,7 +778,7 @@ class DaycareOccupancyService {
     }
     final String resolvedDateKey = dateKey.isNotEmpty
         ? dateKey
-        : _dateKey(startAt);
+        : _dateKey(DailyCareDateHelper.calendarDateInTaipei(startAt));
     final List<Map<String, dynamic>> typeRooms = rooms.where((
       Map<String, dynamic> room,
     ) {
@@ -1013,13 +1026,9 @@ class DaycareOccupancyService {
     DateTime stayEnd,
     DateTime slot,
   ) {
-    final DateTime start = DateTime(
-      stayStart.year,
-      stayStart.month,
-      stayStart.day,
-    );
-    final DateTime end = DateTime(stayEnd.year, stayEnd.month, stayEnd.day);
-    final DateTime day = DateTime(slot.year, slot.month, slot.day);
+    final DateTime start = DailyCareDateHelper.calendarDateInTaipei(stayStart);
+    final DateTime end = DailyCareDateHelper.calendarDateInTaipei(stayEnd);
+    final DateTime day = DailyCareDateHelper.calendarDateInTaipei(slot);
     return !day.isBefore(start) && day.isBefore(end);
   }
 }

@@ -6,13 +6,17 @@ const {
   ACTIVE_STATUSES,
   BOOKING_KIND_ACCOMMODATION,
   BOOKING_KIND_DAYCARE,
+  addCalendarDays,
   overlaps,
   resolveBookingKind,
   serviceDateKey,
+  taipeiDateKey,
   toDate,
   toInt,
   normalizeString,
 } = require("./daycare_utils");
+
+const CHECKOUT_CLEANING_STATUS = "checkout_cleaning";
 
 /**
  * 取消／結算／過期未付不占用庫存。
@@ -55,18 +59,22 @@ function occupiesInventory(data) {
  * @return {boolean}
  */
 function stayConflictsSlot(stayStart, stayEnd, slotStart, slotEnd) {
-  const stayStartDay = new Date(Date.UTC(
-      stayStart.getFullYear(), stayStart.getMonth(), stayStart.getDate(),
-  ));
-  const stayEndDay = new Date(Date.UTC(
-      stayEnd.getFullYear(), stayEnd.getMonth(), stayEnd.getDate(),
-  ));
-  const slotDay = new Date(Date.UTC(
-      slotStart.getFullYear(), slotStart.getMonth(), slotStart.getDate(),
-  ));
-  return slotDay.getTime() >= stayStartDay.getTime() &&
-    slotDay.getTime() < stayEndDay.getTime() &&
-    overlaps(slotStart, slotEnd, stayStart, stayEnd || slotEnd);
+  const start = stayStart instanceof Date ? stayStart : toDate(stayStart);
+  const end = stayEnd instanceof Date ? stayEnd : toDate(stayEnd);
+  const slotS = slotStart instanceof Date ? slotStart : toDate(slotStart);
+  const slotE = slotEnd instanceof Date ? slotEnd : toDate(slotEnd);
+  if (!start || !end || !slotS) {
+    return false;
+  }
+  const startKey = taipeiDateKey(start);
+  const endKey = taipeiDateKey(end);
+  const slotKey = taipeiDateKey(slotS);
+  if (!startKey || !endKey || !slotKey) {
+    return false;
+  }
+  return slotKey >= startKey &&
+    slotKey < endKey &&
+    overlaps(slotS, slotE || slotS, start, end);
 }
 
 /**
@@ -190,6 +198,10 @@ async function assertAvailable(firestore, params) {
         .collection("room_calendar")
         .doc(`${roomId}_${serviceDate}`).get();
     if (calSnap.exists && calendarBlocksRoom((calSnap.data() || {}).status)) {
+      const status = normalizeString((calSnap.data() || {}).status);
+      if (status === CHECKOUT_CLEANING_STATUS) {
+        return {ok: false, reason: "此房間退房後待清潔，該日不可安排"};
+      }
       return {ok: false, reason: "此房間已被住宿訂單占用"};
     }
   }
@@ -213,11 +225,183 @@ function calendarBlocksRoom(status) {
   return value === "booked" ||
     value === "checked_in" ||
     value === "occupied" ||
+    value === CHECKOUT_CLEANING_STATUS ||
     value === "blocked" ||
     value === "cleaning" ||
     value === "maintenance" ||
     value === "closed" ||
     value === "unavailable";
+}
+
+/**
+ * 店家未設定時預設開啟，與前台 HousekeepingSettingModel 一致。
+ * @param {Object} shop
+ * @return {boolean}
+ */
+function autoCleaningAfterCheckout(shop) {
+  const setting = shop && shop.housekeepingSetting;
+  if (!setting || typeof setting !== "object") {
+    return true;
+  }
+  if (setting.autoCleaningAfterCheckout === false) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @param {string} status
+ * @return {boolean}
+ */
+function isManualCalendarStatus(status) {
+  const value = normalizeString(status);
+  return value === "closed" ||
+    value === "maintenance" ||
+    value === "blocked" ||
+    value === "unavailable" ||
+    value === "disabled";
+}
+
+/**
+ * 只釋放這筆訂單自己的住宿或退房清潔保留，不刪手動房態與正式清潔中。
+ * @param {Object} data
+ * @param {string} bookingId
+ * @return {boolean}
+ */
+function canReleaseOwnedCalendar(data, bookingId) {
+  const owner = normalizeString(data && data.bookingId);
+  const status = normalizeString(data && data.status);
+  if (!owner || owner !== normalizeString(bookingId)) {
+    return false;
+  }
+  if (isManualCalendarStatus(status) || status === "cleaning") {
+    return false;
+  }
+  return status === "booked" ||
+    status === "checked_in" ||
+    status === "occupied" ||
+    status === CHECKOUT_CLEANING_STATUS;
+}
+
+/**
+ * 訂單自己的布林快照。沒有這個欄位就回傳 null，不回看店家現況。
+ * @param {Object} booking
+ * @return {boolean|null}
+ */
+function readBookingAutoCleaning(booking) {
+  if (!booking || typeof booking !== "object") {
+    return null;
+  }
+  if (booking.autoCleaningAfterCheckout === true) {
+    return true;
+  }
+  if (booking.autoCleaningAfterCheckout === false) {
+    return false;
+  }
+  return null;
+}
+
+/**
+ * 建單當下要寫進 booking 的快照，與當時房型保留使用同一值。
+ * @param {Object} shop
+ * @return {boolean}
+ */
+function newStayAutoCleaningSnapshot(shop) {
+  return autoCleaningAfterCheckout(shop);
+}
+
+/**
+ * 分房、換房、改期使用的開關。有快照就只用快照。
+ * 沒快照時，只有這筆訂單自己已有退房日鎖房才沿用，否則不新建。
+ * @param {Object} booking
+ * @param {Array<Object>=} calendarReads
+ * @return {boolean}
+ */
+function stayAutoCleaningForRebuild(booking, calendarReads) {
+  const flag = readBookingAutoCleaning(booking);
+  if (flag === true || flag === false) {
+    return flag;
+  }
+  const bookingId = normalizeString(
+      booking && (booking.id || booking.bookingId),
+  );
+  const checkoutKey = taipeiDateKey(booking && booking.endDate);
+  const reads = Array.isArray(calendarReads) ? calendarReads : [];
+  if (!bookingId || !checkoutKey) {
+    return false;
+  }
+  return reads.some((item) => {
+    const snap = item && item.snap;
+    const data = snap && snap.exists ?
+      (snap.data() || {}) :
+      (item && item.status ? item : null);
+    if (!data) {
+      return false;
+    }
+    const date = normalizeString((item && item.dateKey) || data.date);
+    return date === checkoutKey &&
+      normalizeString(data.bookingId) === bookingId &&
+      normalizeString(data.status) === CHECKOUT_CLEANING_STATUS;
+  });
+}
+
+/**
+ * 完成退房時，退房日只能在歸屬正確時從待清潔鎖房轉成清潔中。
+ * @param {Object} params
+ * @return {{action: string, reason: string}}
+ */
+function checkoutDayOnStayCheckout(params) {
+  const source = params || {};
+  const snapshot = readBookingAutoCleaning(source.booking);
+  const status = normalizeString(source.status);
+  const owner = normalizeString(source.ownerBookingId);
+  const bookingId = normalizeString(source.bookingId);
+  const exists = source.exists === true;
+  if (snapshot !== true && snapshot !== false) {
+    return {action: "keep", reason: "no-snapshot"};
+  }
+  if (!exists) {
+    return {
+      action: "keep",
+      reason: snapshot === true ? "missing-hold" : "no-doc",
+    };
+  }
+  if (isManualCalendarStatus(status) || status === "cleaning") {
+    return {action: "keep", reason: "manual-or-cleaning"};
+  }
+  if (!owner || owner !== bookingId) {
+    return {action: "keep", reason: "other-owner"};
+  }
+  if (snapshot === true && status === CHECKOUT_CLEANING_STATUS) {
+    return {action: "convert", reason: "owned-hold"};
+  }
+  if (snapshot === false && status === CHECKOUT_CLEANING_STATUS) {
+    return {action: "keep", reason: "inconsistent"};
+  }
+  return {action: "keep", reason: "not-hold"};
+}
+
+/**
+ * 房務直接改狀態。退房日待清潔鎖房不能在這裡被清掉或當成清潔完成。
+ * @param {Object} params
+ * @return {{ok: boolean, reason: string}}
+ */
+function canApplyRoomCalendarStatus(params) {
+  const source = params || {};
+  const from = normalizeString(source.fromStatus);
+  const to = normalizeString(source.toStatus);
+  if (from === CHECKOUT_CLEANING_STATUS) {
+    return {ok: false, reason: "checkout-hold"};
+  }
+  if (source.cleaningCompleted === true) {
+    if (from !== "cleaning") {
+      return {ok: false, reason: "not-cleaning"};
+    }
+    if (to !== "available" && to !== "closed") {
+      return {ok: false, reason: "bad-target"};
+    }
+  }
+  return {ok: true, reason: ""};
 }
 
 /**
@@ -234,6 +418,11 @@ function calendarCleaningFields(roomId, dateKey, bookingId) {
     bookingId: normalizeString(bookingId),
   };
 }
+
+/**
+ * @param {Object} room
+ * @return {string}
+ */
 function roomPermanentStatus(room) {
   const data = room || {};
   const permanent = normalizeString(data.permanentStatus);
@@ -512,6 +701,10 @@ function remainingRoomsFromData(params) {
       return;
     }
     const calendarHit = calendarEntries.some((item) => {
+      if (excludeBookingId &&
+          normalizeString(item.bookingId) === excludeBookingId) {
+        return false;
+      }
       return normalizeString(item.roomId) === roomId &&
         normalizeString(item.date) === dateKey &&
         calendarBlocksRoom(item.status);
@@ -811,31 +1004,68 @@ function commitRoomTypeHold(transaction, state) {
  * @return {Array<string>}
  */
 function stayNightKeys(startDate, endDate) {
-  const keys = [];
-  if (!startDate || !endDate) {
-    return keys;
+  const startKey = taipeiDateKey(startDate);
+  const endKey = taipeiDateKey(endDate);
+  if (!startKey || !endKey || startKey >= endKey) {
+    return [];
   }
-  let cursor = new Date(
-      startDate.getFullYear(), startDate.getMonth(), startDate.getDate(),
-  );
-  const end = new Date(
-      endDate.getFullYear(), endDate.getMonth(), endDate.getDate(),
-  );
-  while (cursor.getTime() < end.getTime()) {
-    keys.push(serviceDateKey(cursor));
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth(),
-        cursor.getDate() + 1);
+  const keys = [];
+  let cursor = startKey;
+  let guard = 0;
+  while (cursor < endKey && guard < 400) {
+    keys.push(cursor);
+    cursor = addCalendarDays(cursor, 1);
+    guard += 1;
   }
   return keys;
 }
 
 /**
+ * 住宿夜晚不含退房日。自動清潔開啟時，blockedKeys 才另外含退房日。
+ * @param {*} startDate
+ * @param {*} endDate
+ * @param {boolean} autoCleaning
+ * @return {{nights: Array<string>, checkoutKey: string,
+ *   blockedKeys: Array<string>}}
+ */
+function stayCalendarPlan(startDate, endDate, autoCleaning) {
+  const nights = stayNightKeys(startDate, endDate);
+  const endKey = taipeiDateKey(endDate);
+  const checkoutKey = autoCleaning === true && endKey &&
+    nights.indexOf(endKey) < 0 ? endKey : "";
+  const blockedKeys = nights.slice();
+  if (checkoutKey) {
+    blockedKeys.push(checkoutKey);
+  }
+  return {nights, checkoutKey, blockedKeys};
+}
+
+/**
+ * 釋放時一律含退房日，避免先前的清潔保留留下假鎖房。
+ * @param {*} startDate
+ * @param {*} endDate
+ * @return {Array<string>}
+ */
+function stayReleaseDateKeys(startDate, endDate) {
+  const nights = stayNightKeys(startDate, endDate);
+  const endKey = taipeiDateKey(endDate);
+  if (endKey && nights.indexOf(endKey) < 0) {
+    return nights.concat([endKey]);
+  }
+  return nights;
+}
+
+/**
+ * 台灣日曆日 00:00 的絕對時間。
  * @param {string} dateKey
  * @return {Date}
  */
 function dateFromKey(dateKey) {
-  const parts = normalizeString(dateKey).split("-").map((item) => Number(item));
-  return new Date(parts[0] || 1970, (parts[1] || 1) - 1, parts[2] || 1);
+  const key = taipeiDateKey(dateKey);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+    return new Date(NaN);
+  }
+  return new Date(`${key}T00:00:00+08:00`);
 }
 
 /**
@@ -849,8 +1079,13 @@ async function loadStayRoomTypeHoldStates(transaction, firestore, params) {
   const shopId = normalizeString(params.shopId);
   const roomTypeId = normalizeString(params.roomTypeId);
   const bookingId = normalizeString(params.bookingId);
-  const nights = stayNightKeys(params.startDate, params.endDate);
-  if (!shopId || !roomTypeId || !bookingId || nights.length === 0) {
+  const plan = stayCalendarPlan(
+      params.startDate,
+      params.endDate,
+      params.autoCleaning !== false,
+  );
+  const dateKeys = plan.blockedKeys;
+  if (!shopId || !roomTypeId || !bookingId || plan.nights.length === 0) {
     throw new Error("缺少住宿房型保留資料");
   }
   const roomsRef = firestore.collection("shops").doc(shopId)
@@ -872,7 +1107,7 @@ async function loadStayRoomTypeHoldStates(transaction, firestore, params) {
   });
   const occupancies = occSnap.docs.map((doc) => doc.data() || {});
   const states = [];
-  for (const dateKey of nights) {
+  for (const dateKey of dateKeys) {
     const holdRef = holdDocRef(firestore, shopId, roomTypeId, dateKey);
     const holdSnap = await transaction.get(holdRef);
     const calendarEntries = [];
@@ -885,9 +1120,7 @@ async function loadStayRoomTypeHoldStates(transaction, firestore, params) {
       }
     }
     const startAt = dateFromKey(dateKey);
-    const endAt = new Date(
-        startAt.getFullYear(), startAt.getMonth(), startAt.getDate() + 1,
-    );
+    const endAt = dateFromKey(addCalendarDays(dateKey, 1));
     const computed = remainingRoomsFromData({
       rooms,
       bookings,
@@ -935,17 +1168,17 @@ async function releaseStayRoomTypeHoldsInTransaction(
   const bookingId = normalizeString(
       (booking && (booking.id || booking.bookingId)) || "",
   );
-  const nights = stayNightKeys(
-      toDate(booking && booking.startDate),
-      toDate(booking && booking.endDate),
+  const dateKeys = stayReleaseDateKeys(
+      booking && booking.startDate,
+      booking && booking.endDate,
   );
-  if (!shopId || !roomTypeId || !bookingId || nights.length === 0) {
+  if (!shopId || !roomTypeId || !bookingId || dateKeys.length === 0) {
     return;
   }
 
   // 第一段：所有 Firestore 讀取先全部完成
   const holdStates = [];
-  for (const dateKey of nights) {
+  for (const dateKey of dateKeys) {
     const holdRef = holdDocRef(firestore, shopId, roomTypeId, dateKey);
     const holdSnap = await transaction.get(holdRef);
 
@@ -1168,8 +1401,20 @@ async function releaseOccupancies(firestore, transaction, shopId, bookingId) {
 }
 
 module.exports = {
+  CHECKOUT_CLEANING_STATUS,
   occupiesInventory,
   stayConflictsSlot,
+  autoCleaningAfterCheckout,
+  isManualCalendarStatus,
+  canReleaseOwnedCalendar,
+  readBookingAutoCleaning,
+  newStayAutoCleaningSnapshot,
+  stayAutoCleaningForRebuild,
+  checkoutDayOnStayCheckout,
+  canApplyRoomCalendarStatus,
+  stayCalendarPlan,
+  stayReleaseDateKeys,
+  taipeiDateKey,
   assertAvailable,
   assertRoomTypeCapacity,
   remainingRoomsFromData,

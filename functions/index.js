@@ -16,6 +16,109 @@ setGlobalOptions({
   maxInstances: 10,
 });
 
+const CUSTOMER_TRANSACTIONAL_TYPES = {
+  booking_status: true,
+  booking_message: true,
+  check_in: true,
+  review: true,
+  shop_chat: true,
+};
+
+/**
+ * 客戶通知分類。舊的訂單、聊天、入住、評價維持必要通知。
+ * shop_notifications 不在這條路徑，那是平台發給店家的文件。
+ * @param {Object} data 通知附加資料
+ * @return {{source: string, category: string, isMandatory: boolean}}
+ */
+function classifyCustomerNotification(data) {
+  const payload = data || {};
+  const type = (payload.type || "").toString();
+  let source = (payload.source || "").toString();
+  let category = (payload.category || "").toString();
+  const explicitFalse = payload.isMandatory === false ||
+    payload.isMandatory === "false";
+  const explicitTrue = payload.isMandatory === true ||
+    payload.isMandatory === "true";
+
+  if (CUSTOMER_TRANSACTIONAL_TYPES[type]) {
+    return {
+      source: source || "system",
+      category: "transactional",
+      isMandatory: true,
+    };
+  }
+
+  if (
+    source === "shop" ||
+    category === "shop_marketing" ||
+    category === "shop_notice"
+  ) {
+    if (category !== "shop_notice") {
+      category = "shop_marketing";
+    }
+    return {
+      source: "shop",
+      category,
+      isMandatory: explicitTrue,
+    };
+  }
+
+  if (
+    source === "platform" ||
+    category === "platform_important" ||
+    category === "platform_marketing"
+  ) {
+    const marketing = category === "platform_marketing";
+    return {
+      source: "platform",
+      category: marketing ? "platform_marketing" : "platform_important",
+      isMandatory: marketing ? explicitTrue : !explicitFalse,
+    };
+  }
+
+  return {
+    source: source || "system",
+    category: category || "transactional",
+    isMandatory: explicitFalse ? false : true,
+  };
+}
+
+/**
+ * 必要通知不受推廣開關影響。選用分類缺少欄位時預設仍發送。
+ * @param {{isMandatory: boolean, category: string}} classified 分類結果
+ * @param {Object} settings 使用者通知設定
+ * @return {boolean}
+ */
+function customerPushAllowed(classified, settings) {
+  const setting = settings || {};
+  if (
+    classified.isMandatory ||
+    classified.category === "transactional" ||
+    classified.category === "platform_important"
+  ) {
+    return true;
+  }
+  if (setting.enabled === false) {
+    return false;
+  }
+  if (
+    classified.category === "shop_marketing" &&
+    setting.shopMarketing === false
+  ) {
+    return false;
+  }
+  if (classified.category === "shop_notice" && setting.shopNotice === false) {
+    return false;
+  }
+  if (
+    classified.category === "platform_marketing" &&
+    setting.platformMarketing === false
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * 🗂️ 儲存通知中心資料
  *
@@ -58,6 +161,7 @@ async function saveNotification({
     }
 
     const notificationData = data || {};
+    const classified = classifyCustomerNotification(notificationData);
 
     transaction.create(notificationRef, {
       userId,
@@ -66,7 +170,11 @@ async function saveNotification({
       type: (notificationData.type || "").toString(),
       bookingId: (notificationData.bookingId || "").toString(),
       shopId: (notificationData.shopId || "").toString(),
+      shopName: (notificationData.shopName || "").toString(),
       messageId: (notificationData.messageId || "").toString(),
+      source: classified.source,
+      category: classified.category,
+      isMandatory: classified.isMandatory,
       status: "active",
       data: notificationData,
       isRead: false,
@@ -106,13 +214,20 @@ async function sendNotificationToUser({
     return;
   }
 
+  const classified = classifyCustomerNotification(data);
+  const storedData = Object.assign({}, data || {}, {
+    source: classified.source,
+    category: classified.category,
+    isMandatory: classified.isMandatory ? "true" : "false",
+  });
+
   if (notificationId) {
     await saveNotification({
       notificationId,
       userId,
       title,
       body,
-      data,
+      data: storedData,
     });
   } else {
     console.warn(
@@ -128,34 +243,10 @@ async function sendNotificationToUser({
       .get();
 
   const notificationSetting = settingSnapshot.data() || {};
-  const notificationEnabled = notificationSetting.enabled !== false;
 
-  if (!notificationEnabled) {
+  if (!customerPushAllowed(classified, notificationSetting)) {
     console.log(
-        `使用者 ${userId} 已關閉全部推播通知，略過 FCM 發送`,
-    );
-    return;
-  }
-
-  const notificationType = (data && data.type ?
-    data.type :
-    "").toString();
-
-  const settingKeyByType = {
-    booking_status: "bookingStatus",
-    booking_message: "bookingMessage",
-    review: "reviewReminder",
-    check_in: "checkInReminder",
-  };
-
-  const settingKey = settingKeyByType[notificationType];
-
-  if (
-    settingKey &&
-    notificationSetting[settingKey] === false
-  ) {
-    console.log(
-        `使用者 ${userId} 已關閉 ${settingKey} 推播，略過 FCM 發送`,
+        `使用者 ${userId} 的 ${classified.category} 推播已關閉，略過 FCM 發送`,
     );
     return;
   }
@@ -187,6 +278,14 @@ async function sendNotificationToUser({
   }
 
   const tokens = tokenDocuments.map((document) => document.id);
+  const fcmData = {};
+  Object.keys(storedData).forEach((key) => {
+    const value = storedData[key];
+    if (value === undefined || value === null) {
+      return;
+    }
+    fcmData[key] = typeof value === "string" ? value : String(value);
+  });
 
   const response = await admin.messaging().sendEachForMulticast({
     tokens,
@@ -194,7 +293,7 @@ async function sendNotificationToUser({
       title,
       body,
     },
-    data,
+    data: fcmData,
     android: {
       priority: "high",
       notification: {
@@ -833,6 +932,8 @@ exports.createStayBooking =
   require("./bookings/create_stay_booking").createStayBooking;
 exports.manageStayInventory =
   require("./bookings/create_stay_booking").manageStayInventory;
+exports.reconcileStayRoomCalendar =
+  require("./bookings/reconcile_stay_calendar").reconcileStayRoomCalendar;
 
 /**
  * 🐾 建立臨托訂單

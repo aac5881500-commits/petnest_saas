@@ -42,7 +42,7 @@ class PlatformPolicyManagePage extends StatelessWidget {
                 icon: Icons.person_outline,
                 title: '平台會員條款',
                 subtitle: '一般會員登入後需同意的平台使用條款',
-                versionText: '目前版本：v${userPolicy['version'] ?? 1}',
+                versionText: _publishedLabel(userPolicy),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -60,7 +60,7 @@ class PlatformPolicyManagePage extends StatelessWidget {
                 icon: Icons.storefront_outlined,
                 title: '創店主條款',
                 subtitle: '店家建立店家前需同意的平台創店條款',
-                versionText: '目前版本：v${ownerPolicy['version'] ?? 1}',
+                versionText: _publishedLabel(ownerPolicy),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -79,6 +79,16 @@ class PlatformPolicyManagePage extends StatelessWidget {
       ),
     );
   }
+}
+
+String _publishedLabel(Map<String, dynamic> data) {
+  final dynamic raw = data['version'];
+  final int version = raw is int ? raw : (raw is num ? raw.toInt() : 0);
+  final String status = (data['status'] ?? '').toString().trim();
+  if (version > 0 && status != 'draft') {
+    return '目前已發布：v$version';
+  }
+  return '尚未發布';
 }
 
 class _PolicyManageCard extends StatelessWidget {

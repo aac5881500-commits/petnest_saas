@@ -1042,36 +1042,63 @@ class _BannerCtaButton extends StatelessWidget {
             bannerHeight,
           )
         : StoreBannerCtaRadii.radius(banner.ctaRadius);
-    final double scale = designScale ? bannerHeight / 900 : 1;
-    final EdgeInsets padding = switch (banner.ctaSize) {
-      StoreBannerCtaSizes.small => EdgeInsets.symmetric(
-        horizontal: 22 * scale,
-        vertical: 8 * scale,
-      ),
-      StoreBannerCtaSizes.large => EdgeInsets.symmetric(
-        horizontal: 32 * scale,
-        vertical: 12 * scale,
-      ),
-      _ => EdgeInsets.symmetric(horizontal: 26 * scale, vertical: 10 * scale),
-    };
+    final StoreBannerCtaBox posterBox = StoreBannerCtaSizes.box(
+      banner.ctaSize,
+      scale: banner.ctaScale,
+    );
     final double fontSize = designScale
-        ? StoreBannerFontSizes.scaleDesign(switch (banner.ctaSize) {
-            StoreBannerCtaSizes.small => 26,
-            StoreBannerCtaSizes.large => 32,
-            _ => StoreBannerFontSizes.designCta,
-          }, bannerHeight)
+        ? StoreBannerFontSizes.scaleDesign(posterBox.fontPx, bannerHeight)
         : switch (banner.ctaSize) {
             StoreBannerCtaSizes.small => 11,
             StoreBannerCtaSizes.large => 15,
+            StoreBannerCtaSizes.extraLarge => 15,
             _ => 13,
           };
+    final EdgeInsets padding = designScale
+        ? EdgeInsets.symmetric(
+            horizontal: StoreBannerFontSizes.scaleDesign(
+              posterBox.paddingH,
+              bannerHeight,
+            ),
+            vertical: StoreBannerFontSizes.scaleDesign(
+              posterBox.paddingV,
+              bannerHeight,
+            ),
+          )
+        : switch (banner.ctaSize) {
+            StoreBannerCtaSizes.small => const EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 8,
+            ),
+            StoreBannerCtaSizes.large || StoreBannerCtaSizes.extraLarge =>
+              const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            _ => const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
+          };
+    final double minHeight = designScale
+        ? StoreBannerFontSizes.scaleDesign(posterBox.minHeight, bannerHeight)
+        : 0;
+    final double safeWidth =
+        bannerWidth * (1 - StoreBannerPlacement.safeFraction * 2);
+    final double posterMaxWidth = bannerWidth * 0.70;
+    final double maxWidth = designScale
+        ? (posterMaxWidth < safeWidth ? posterMaxWidth : safeWidth)
+        : 220;
     final String label = banner.ctaShowArrow
         ? '${banner.ctaText.trim()} →'
         : banner.ctaText.trim();
-    Widget button = ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: designScale ? bannerWidth * 0.42 : 220,
+    final Widget caption = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: fontSize,
+        height: designScale ? 1 : null,
+        fontWeight: FontWeight.w700,
+        color: foreground,
       ),
+    );
+    Widget button = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth, minHeight: minHeight),
       child: Material(
         color: background,
         borderRadius: BorderRadius.circular(radius),
@@ -1080,16 +1107,14 @@ class _BannerCtaButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(radius),
           child: Padding(
             padding: padding,
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w700,
-                color: foreground,
-              ),
-            ),
+            child: designScale
+                ? Align(
+                    alignment: Alignment.center,
+                    widthFactor: 1,
+                    heightFactor: 1,
+                    child: caption,
+                  )
+                : caption,
           ),
         ),
       ),

@@ -241,10 +241,21 @@ match /fcm_tokens/{tokenId} {
   allow delete: if isSelf(uid) || isRootAdmin();
 }
 
-      // 📜 個人條款同意紀錄
+      // 📜 個人條款同意紀錄（店家條款，文件 ID 為 shopId）
 match /policy_acceptances/{shopId} {
   allow read: if isSelf(uid) || isRootAdmin() || isShopMember(shopId);
   allow create, update: if isSelf(uid) || isRootAdmin();
+  allow delete: if false;
+}
+
+      // 📜 平台條款同意紀錄。只允許本人寫自己的文件，與店家同意紀錄分開。
+match /platform_policy_acceptances/{policyId} {
+  allow read: if isSelf(uid) || isRootAdmin();
+  allow create, update: if isSelf(uid)
+    && request.resource.data.uid == uid
+    && request.resource.data.policyId == policyId
+    && request.resource.data.acceptedVersion is int
+    && request.resource.data.acceptedVersion > 0;
   allow delete: if false;
 }
 

@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
 
@@ -362,6 +363,18 @@ class ShopRoomService {
 
     final oldDoc = await roomCalendarRef(shopId).doc(docId).get();
     final oldStatus = oldDoc.data()?['status'] ?? 'available';
+    final String previous = oldStatus.toString();
+    if (previous == 'checkout_cleaning') {
+      throw StateError('住宿尚未完成退房，不能直接變更退房日待清潔');
+    }
+    if (cleaningCompleted) {
+      if (previous != 'cleaning') {
+        throw StateError('只有清潔中可以完成清潔');
+      }
+      if (status != 'available' && status != 'closed') {
+        throw StateError('完成清潔只能恢復可售或維持關閉');
+      }
+    }
 
     await roomCalendarRef(shopId).doc(docId).set({
       'roomId': roomId,
@@ -439,7 +452,9 @@ class ShopRoomService {
       throw ArgumentError('缺少訂單 ID');
     }
 
-    final String dateKey = formatDateKey(checkoutDate);
+    final String dateKey = formatDateKey(
+      DailyCareDateHelper.calendarDateInTaipei(checkoutDate),
+    );
     final String calendarDocId = '${normalizedRoomId}_$dateKey';
 
     final DocumentReference<Map<String, dynamic>> calendarDoc = roomCalendarRef(
@@ -449,39 +464,63 @@ class ShopRoomService {
     final DocumentReference<Map<String, dynamic>> actionLogDoc = _firestore
         .collection('action_logs')
         .doc();
+    final DocumentReference<Map<String, dynamic>> bookingDoc = _firestore
+        .collection('bookings')
+        .doc(normalizedBookingId);
 
-    final WriteBatch batch = _firestore.batch();
-
-    batch.set(calendarDoc, <String, dynamic>{
-      'roomId': normalizedRoomId,
-      'roomName': roomName.trim(),
-      'date': dateKey,
-      'status': 'cleaning',
-      'bookingId': normalizedBookingId,
-      'cleaningStartedAt': FieldValue.serverTimestamp(),
-      'cleaningStartedByUid': _currentUser?.uid,
-      'cleaningStartedByName': _currentUser?.displayName,
-      'cleaningStartedByEmail': _currentUser?.email,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    batch.set(actionLogDoc, <String, dynamic>{
-      'type': 'room_cleaning_started',
-      'shopId': normalizedShopId,
-      'roomId': normalizedRoomId,
-      'roomName': roomName.trim(),
-      'bookingId': normalizedBookingId,
-      'date': dateKey,
-      'fromStatus': 'checked_in',
-      'toStatus': 'cleaning',
-      'operatorUid': _currentUser?.uid,
-      'operatorName': _currentUser?.displayName,
-      'operatorEmail': _currentUser?.email,
-      'operatorRole': 'staff',
-      'createdAt': FieldValue.serverTimestamp(),
+    await _firestore.runTransaction((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> bookingSnap =
+          await transaction.get(bookingDoc);
+      final DocumentSnapshot<Map<String, dynamic>> calendarSnap =
+          await transaction.get(calendarDoc);
+      final Map<String, dynamic> bookingData =
+          bookingSnap.data() ?? <String, dynamic>{};
+      final Map<String, dynamic> calendarData =
+          calendarSnap.data() ?? <String, dynamic>{};
+      final bool checkedOut =
+          bookingData['checkOutAt'] != null ||
+          bookingData['checkedOutAt'] != null ||
+          bookingData['stayRoomReleased'] == true ||
+          bookingData['status'] == 'checked_out' ||
+          bookingData['status'] == 'completed';
+      final bool snapshotOn = bookingData['autoCleaningAfterCheckout'] == true;
+      final String owner = (calendarData['bookingId'] ?? '').toString();
+      final String current = (calendarData['status'] ?? '').toString();
+      if (!snapshotOn ||
+          !checkedOut ||
+          !calendarSnap.exists ||
+          current != 'checkout_cleaning' ||
+          owner != normalizedBookingId) {
+        throw StateError('住宿尚未完成退房，或退房日不是這筆訂單的待清潔鎖房');
+      }
+      transaction.set(calendarDoc, <String, dynamic>{
+        'roomId': normalizedRoomId,
+        'roomName': roomName.trim(),
+        'date': dateKey,
+        'status': 'cleaning',
+        'bookingId': normalizedBookingId,
+        'cleaningStartedAt': FieldValue.serverTimestamp(),
+        'cleaningStartedByUid': _currentUser?.uid,
+        'cleaningStartedByName': _currentUser?.displayName,
+        'cleaningStartedByEmail': _currentUser?.email,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      transaction.set(actionLogDoc, <String, dynamic>{
+        'type': 'room_cleaning_started',
+        'shopId': normalizedShopId,
+        'roomId': normalizedRoomId,
+        'roomName': roomName.trim(),
+        'bookingId': normalizedBookingId,
+        'date': dateKey,
+        'fromStatus': 'checkout_cleaning',
+        'toStatus': 'cleaning',
+        'operatorUid': _currentUser?.uid,
+        'operatorName': _currentUser?.displayName,
+        'operatorEmail': _currentUser?.email,
+        'operatorRole': 'staff',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     });
-
-    await batch.commit();
   }
 
   Future<void> completeCleaning({
@@ -550,10 +589,11 @@ class ShopRoomService {
         .toList();
 
     final stayDates = <String>[];
-    DateTime cursor = DateTime(startDate.year, startDate.month, startDate.day);
-    while (cursor.isBefore(endDate)) {
+    DateTime cursor = DailyCareDateHelper.calendarDateInTaipei(startDate);
+    final DateTime stayEnd = DailyCareDateHelper.calendarDateInTaipei(endDate);
+    while (cursor.isBefore(stayEnd)) {
       stayDates.add(formatDateKey(cursor));
-      cursor = cursor.add(const Duration(days: 1));
+      cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
     }
     final bookingSnapshot = await _firestore
         .collection('bookings')
@@ -641,10 +681,11 @@ class ShopRoomService {
     final List priceRules = room['priceRules'] ?? [];
     final List discountRules = room['discountRules'] ?? [];
 
-    DateTime cursor = startDate;
+    DateTime cursor = DailyCareDateHelper.calendarDateInTaipei(startDate);
+    final DateTime priceEnd = DailyCareDateHelper.calendarDateInTaipei(endDate);
     int days = 0;
 
-    while (cursor.isBefore(endDate)) {
+    while (cursor.isBefore(priceEnd)) {
       int price = basePrice;
       final dateKey = formatDateKey(cursor);
 
@@ -661,7 +702,7 @@ class ShopRoomService {
 
       total += price;
       days++;
-      cursor = cursor.add(const Duration(days: 1));
+      cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
     }
 
     double discount = 1.0;

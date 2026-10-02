@@ -33,6 +33,9 @@ class PolicyVersionHistoryPage extends StatelessWidget {
             .orderBy('version', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text('版本紀錄暫時無法讀取'));
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -50,7 +53,9 @@ class PolicyVersionHistoryPage extends StatelessWidget {
               final data = docs[index].data() as Map<String, dynamic>;
 
               final version = data['version'] ?? '-';
-              final updatedAt = _formatTime(data['updatedAt']);
+              final updatedAt = _formatTime(
+                data['publishedAt'] ?? data['updatedAt'],
+              );
               final updatedByEmail = data['updatedByEmail']?.toString() ?? '-';
 
               return Card(
@@ -61,7 +66,9 @@ class PolicyVersionHistoryPage extends StatelessWidget {
                     'v$version',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text('更新時間：$updatedAt\n更新者：$updatedByEmail'),
+                  subtitle: Text(
+                    '發布日期：$updatedAt\n已發布，僅供查看\n更新者：$updatedByEmail',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     final String docId = docs[index].id;

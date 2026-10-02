@@ -11,6 +11,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/floating_action_bounds.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class FloatingContactButton extends StatefulWidget {
@@ -19,6 +20,11 @@ class FloatingContactButton extends StatefulWidget {
     required this.shop,
     required this.shopId,
     this.isPreview = false,
+    this.bottomReserve = 0,
+    this.bottomBarHeight,
+    this.headerHeight = 0,
+    this.peerRect,
+    this.ownRect,
   });
 
   /// 店家資料
@@ -29,6 +35,17 @@ class FloatingContactButton extends StatefulWidget {
 
   /// 外觀預覽只提示，不開啟電話或放大按鈕。
   final bool isPreview;
+
+  /// 底部導覽與店家選單佔用的高度，按鈕會停在這段空間上方。
+  /// 新版前台改走 [bottomBarHeight]；此欄位只留給經典版。
+  final double bottomReserve;
+
+  /// 傳入時改用共用浮動安全範圍。null 表示經典版沿用原本計算。
+  final double? bottomBarHeight;
+
+  final double headerHeight;
+  final ValueNotifier<Rect?>? peerRect;
+  final ValueNotifier<Rect?>? ownRect;
 
   static const Key buttonKey = ValueKey<String>('floating-contact-button');
 
@@ -52,6 +69,16 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
 
   /// 本次手勢是否真的有移動按鈕
   bool _didDrag = false;
+
+  final GlobalKey _layerKey = GlobalKey(debugLabel: 'contact-layer');
+  double? _nx;
+  double? _ny;
+  double? _dragX;
+  double? _dragY;
+  Offset _grab = Offset.zero;
+  double _travel = 0;
+  bool _dragging = false;
+  Rect? _published;
 
   /// 取得店家的浮動聯絡按鈕設定
   Map<String, dynamic> get _setting {
@@ -93,6 +120,16 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
     );
     final double iconSize = isPhone ? 22 : buttonStyle.iconSize;
 
+    if (widget.bottomBarHeight != null) {
+      return _buildShared(
+        buttonSize: buttonSize,
+        iconSize: iconSize,
+        tooltip: tooltip,
+        isChat: isChat,
+        contact: contact,
+      );
+    }
+
     final mediaQuery = MediaQuery.of(context);
     final screenSize = mediaQuery.size;
 
@@ -101,23 +138,27 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         .clamp(_screenPadding, double.infinity)
         .toDouble();
 
+    final double reservedBottom = widget.bottomReserve > 0
+        ? widget.bottomReserve
+        : mediaQuery.padding.bottom;
+
     /// 按鈕最下方可移動位置。
     final maxTop =
         (screenSize.height -
                 mediaQuery.padding.top -
-                mediaQuery.padding.bottom -
                 buttonSize -
-                _screenPadding)
+                _screenPadding -
+                reservedBottom)
             .clamp(_screenPadding, double.infinity)
             .toDouble();
 
     /// 每次重新進入頁面時，預設靠右。
     final defaultLeft = maxLeft;
 
-    /// 每次重新進入頁面時，預設位於畫面約 68% 高度。
-    final defaultTop = (screenSize.height * 0.68)
-        .clamp(_screenPadding, maxTop)
-        .toDouble();
+    /// 有底部導覽時貼在導覽列上方，否則維持原本約 68% 高度。
+    final defaultTop = reservedBottom > 0
+        ? maxTop
+        : (screenSize.height * 0.68).clamp(_screenPadding, maxTop).toDouble();
 
     /// 確保按鈕不會超出目前畫面範圍。
     final safeLeft = (_left ?? defaultLeft)
@@ -152,6 +193,87 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
     );
   }
 
+  Widget _buildShared({
+    required double buttonSize,
+    required double iconSize,
+    required String tooltip,
+    required bool isChat,
+    required _FloatingContactData? contact,
+  }) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double bar = widget.bottomBarHeight ?? 0;
+        final FloatingActionBounds bounds = FloatingActionBounds.resolve(
+          size: Size(constraints.maxWidth, constraints.maxHeight),
+          padding: MediaQuery.paddingOf(context),
+          headerHeight: widget.headerHeight,
+          showBottomBar: bar > 0,
+          bottomBarHeight: bar,
+          buttonSize: Size.square(buttonSize),
+        );
+        final Offset pos = _sharedPosition(bounds, bar > 0);
+        _publishContact(Rect.fromLTWH(pos.dx, pos.dy, buttonSize, buttonSize));
+        return Stack(
+          key: _layerKey,
+          fit: StackFit.expand,
+          children: <Widget>[
+            Positioned(
+              left: pos.dx,
+              top: pos.dy,
+              width: buttonSize,
+              height: buttonSize,
+              child: _buildFace(
+                buttonSize: buttonSize,
+                iconSize: iconSize,
+                tooltip: tooltip,
+                isChat: isChat,
+                contact: contact,
+                safeLeft: pos.dx,
+                safeTop: pos.dy,
+                maxLeft: bounds.maxX,
+                maxTop: bounds.maxY,
+                screenWidth: constraints.maxWidth,
+                bounds: bounds,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Offset _sharedPosition(FloatingActionBounds bounds, bool barShown) {
+    if (_dragging && _dragX != null && _dragY != null) {
+      return Offset(_dragX!, _dragY!);
+    }
+    if (_nx == null || _ny == null) {
+      final double y = barShown
+          ? bounds.maxY
+          : (bounds.minY + (bounds.maxY - bounds.minY) * 0.68)
+                .clamp(bounds.minY, bounds.maxY)
+                .toDouble();
+      return Offset(bounds.maxX, y);
+    }
+    return Offset(bounds.denormX(_nx!), bounds.denormY(_ny!));
+  }
+
+  void _publishContact(Rect? rect) {
+    if (_published == rect) {
+      return;
+    }
+    _published = rect;
+    final ValueNotifier<Rect?>? own = widget.ownRect;
+    if (own == null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || own.value == rect) {
+        return;
+      }
+      own.value = rect;
+    });
+  }
+
   /// 設定值再大也維持小型圓鈕，避免被父層撐成全螢幕。
   double _visualButtonSize(double requested, {required bool phone}) {
     if (phone) {
@@ -174,19 +296,71 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
     required double maxLeft,
     required double maxTop,
     required double screenWidth,
+    FloatingActionBounds? bounds,
   }) {
-    return GestureDetector(
+    return Listener(
+      onPointerDown: (PointerDownEvent event) {
+        if (bounds == null) {
+          return;
+        }
+        final RenderBox? layer =
+            _layerKey.currentContext?.findRenderObject() as RenderBox?;
+        if (layer == null) {
+          return;
+        }
+        final Offset local = layer.globalToLocal(event.position);
+        _grab = local - Offset(safeLeft, safeTop);
+        _travel = 0;
+        _dragging = true;
+        _didDrag = false;
+        _dragX = safeLeft;
+        _dragY = safeTop;
+      },
+      onPointerMove: (PointerMoveEvent event) {
+        if (bounds == null) {
+          return;
+        }
+        final RenderBox? layer =
+            _layerKey.currentContext?.findRenderObject() as RenderBox?;
+        if (layer == null) {
+          return;
+        }
+        _travel += event.delta.distance;
+        if (_travel < FloatingActionBounds.dragSlop) {
+          return;
+        }
+        final Offset local = layer.globalToLocal(event.position);
+        final Offset next = bounds.clampPoint(local - _grab);
+        setState(() {
+          _didDrag = true;
+          _dragX = next.dx;
+          _dragY = next.dy;
+        });
+      },
+      onPointerUp: (_) {
+        if (bounds == null) {
+          return;
+        }
+        _finishContactDrag(bounds, safeLeft, safeTop, buttonSize);
+      },
+      child: GestureDetector(
       behavior: HitTestBehavior.opaque,
 
       /// 開始拖曳時關閉吸附動畫。
-      onPanStart: (_) {
+      onPanStart: (DragStartDetails details) {
+        if (bounds != null) {
+          return;
+        }
         setState(() {
           _didDrag = false;
         });
       },
 
       /// 拖曳時持續更新按鈕位置。
-      onPanUpdate: (details) {
+      onPanUpdate: (DragUpdateDetails details) {
+        if (bounds != null) {
+          return;
+        }
         setState(() {
           if (details.delta.distance > 0) {
             _didDrag = true;
@@ -202,8 +376,11 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         });
       },
 
-      /// 放開後平滑吸附到左側或右側。
+      /// 放開後吸附到左側或右側。
       onPanEnd: (_) {
+        if (bounds != null) {
+          return;
+        }
         final currentLeft = _left ?? safeLeft;
         final currentTop = _top ?? safeTop;
 
@@ -273,7 +450,36 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
           ),
         ),
       ),
+      ),
     );
+  }
+
+  void _finishContactDrag(
+    FloatingActionBounds bounds,
+    double originX,
+    double originY,
+    double buttonSize,
+  ) {
+    final bool dragged = _travel >= FloatingActionBounds.dragSlop;
+    final Offset current = Offset(_dragX ?? originX, _dragY ?? originY);
+    final Offset placed = dragged
+        ? bounds.placeOnRelease(
+            current,
+            Size.square(buttonSize),
+            peer: widget.peerRect?.value,
+            preferLeft: false,
+          )
+        : Offset(originX, originY);
+    setState(() {
+      _dragging = false;
+      _dragX = null;
+      _dragY = null;
+      _didDrag = dragged;
+      if (dragged) {
+        _nx = bounds.normX(placed.dx);
+        _ny = bounds.normY(placed.dy);
+      }
+    });
   }
 
   void _showPreviewMessage(BuildContext context, String message) {

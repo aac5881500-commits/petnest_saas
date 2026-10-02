@@ -55,8 +55,15 @@ class ShopPolicyService {
     return serviceType == PolicyApplicableService.daycare ? '安親須知' : '入住須知';
   }
 
-  String consentRecordPath({required String userId, required String shopId}) {
+  static String acceptanceRecordPath({
+    required String userId,
+    required String shopId,
+  }) {
     return 'users/$userId/policy_acceptances/$shopId';
+  }
+
+  String consentRecordPath({required String userId, required String shopId}) {
+    return acceptanceRecordPath(userId: userId, shopId: shopId);
   }
 
   Future<TermsStatus> getTermsStatus({
@@ -200,7 +207,7 @@ class ShopPolicyService {
       newVersion = oldVersion + 1;
     }
 
-    List<Map<String, dynamic>> _packCustom(
+    List<Map<String, dynamic>> packCustom(
       List<String> texts,
       List<List<String>> services,
     ) {
@@ -230,11 +237,11 @@ class ShopPolicyService {
         (String key, List<String> value) =>
             MapEntry(key, PolicyApplicableService.parse(value)),
       ),
-      'customPoliciesPage1': _packCustom(
+      'customPoliciesPage1': packCustom(
         customPoliciesPage1,
         customPolicyServicesPage1,
       ),
-      'customPoliciesPage2': _packCustom(
+      'customPoliciesPage2': packCustom(
         customPoliciesPage2,
         customPolicyServicesPage2,
       ),
@@ -245,12 +252,20 @@ class ShopPolicyService {
 
     await docRef.set(policyData);
 
-    await _firestore
+    final DocumentReference<Map<String, dynamic>> historyRef = _firestore
         .collection('shops')
         .doc(shopId)
         .collection('policy_versions')
-        .doc('v$newVersion')
-        .set(policyData);
+        .doc('v$newVersion');
+    final DocumentSnapshot<Map<String, dynamic>> history = await historyRef
+        .get();
+    if (!history.exists) {
+      await historyRef.set(<String, dynamic>{
+        ...policyData,
+        'status': 'published',
+        'publishedAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   Map<String, dynamic> filterPolicyForService({
@@ -1042,12 +1057,21 @@ class ShopPolicyService {
       final String historyId = serviceType == PolicyApplicableService.daycare
           ? 'daycare_v$daycareVersion'
           : 'v$accommodationVersion';
-      await _firestore
+      final DocumentReference<Map<String, dynamic>> historyRef = _firestore
           .collection('shops')
           .doc(shopId)
           .collection('policy_versions')
-          .doc(historyId)
-          .set(<String, dynamic>{...policyData, 'serviceType': serviceType});
+          .doc(historyId);
+      final DocumentSnapshot<Map<String, dynamic>> history = await historyRef
+          .get();
+      if (!history.exists) {
+        await historyRef.set(<String, dynamic>{
+          ...policyData,
+          'serviceType': serviceType,
+          'status': 'published',
+          'publishedAt': FieldValue.serverTimestamp(),
+        });
+      }
     }
   }
 

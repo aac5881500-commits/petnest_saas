@@ -476,11 +476,44 @@ class StoreBannerCtaStyles {
   }
 }
 
+class StoreBannerCtaBox {
+  const StoreBannerCtaBox({
+    required this.fontPx,
+    required this.paddingH,
+    required this.paddingV,
+    required this.minHeight,
+  });
+
+  final double fontPx;
+  final double paddingH;
+  final double paddingV;
+  final double minHeight;
+
+  /// 完成海報上按鈕實際佔用的高度，含內距。
+  double get occupiedHeight {
+    final double content = fontPx + paddingV * 2;
+    return content > minHeight ? content : minHeight;
+  }
+
+  StoreBannerCtaBox scaled(double scale) {
+    return StoreBannerCtaBox(
+      fontPx: fontPx * scale,
+      paddingH: paddingH * scale,
+      paddingV: paddingV * scale,
+      minHeight: minHeight * scale,
+    );
+  }
+}
+
 class StoreBannerCtaSizes {
   static const String small = 'small';
   static const String standard = 'standard';
   static const String large = 'large';
-  static const List<String> all = <String>[small, standard, large];
+  static const String extraLarge = 'extraLarge';
+  static const List<String> all = <String>[small, standard, large, extraLarge];
+
+  static const double minScale = 0.7;
+  static const double maxScale = 1.6;
 
   static String label(String value) {
     switch (value) {
@@ -488,9 +521,64 @@ class StoreBannerCtaSizes {
         return '小';
       case large:
         return '大';
+      case extraLarge:
+        return '特大';
       default:
         return '標準';
     }
+  }
+
+  /// 1600×900 完成海報上的基礎尺寸。縮放另外乘上 [scale]。
+  static StoreBannerCtaBox metrics(String value) {
+    switch (value) {
+      case small:
+        return const StoreBannerCtaBox(
+          fontPx: 40,
+          paddingH: 38,
+          paddingV: 16,
+          minHeight: 72,
+        );
+      case large:
+        return const StoreBannerCtaBox(
+          fontPx: 62,
+          paddingH: 68,
+          paddingV: 28,
+          minHeight: 116,
+        );
+      case extraLarge:
+        return const StoreBannerCtaBox(
+          fontPx: 76,
+          paddingH: 86,
+          paddingV: 34,
+          minHeight: 142,
+        );
+      default:
+        return const StoreBannerCtaBox(
+          fontPx: 50,
+          paddingH: 52,
+          paddingV: 22,
+          minHeight: 92,
+        );
+    }
+  }
+
+  static double clampScale(double value) {
+    if (value.isNaN) {
+      return 1;
+    }
+    return value.clamp(minScale, maxScale);
+  }
+
+  /// 舊資料沒有縮放欄位時維持 100%，不改 CTA 開關。
+  static double readScale(dynamic raw) {
+    if (raw is! num) {
+      return 1;
+    }
+    return clampScale(raw.toDouble());
+  }
+
+  static StoreBannerCtaBox box(String size, {double scale = 1}) {
+    return metrics(size).scaled(clampScale(scale));
   }
 }
 
@@ -600,6 +688,7 @@ class StoreBannerModel {
     this.ctaPositionY = 0.78,
     this.ctaShowArrow = false,
     this.ctaSize = StoreBannerCtaSizes.standard,
+    this.ctaScale = 1,
     this.ctaRadius = StoreBannerCtaRadii.pill,
     this.ctaBackgroundColor,
     this.ctaTextColor,
@@ -650,6 +739,7 @@ class StoreBannerModel {
   final double ctaPositionY;
   final bool ctaShowArrow;
   final String ctaSize;
+  final double ctaScale;
   final String ctaRadius;
   final int? ctaBackgroundColor;
   final int? ctaTextColor;
@@ -985,6 +1075,7 @@ class StoreBannerModel {
         data['ctaSize'],
         StoreBannerCtaSizes.standard,
       ),
+      ctaScale: StoreBannerCtaSizes.readScale(data['ctaScale']),
       ctaRadius: pick(
         StoreBannerCtaRadii.all,
         data['ctaRadius'],
@@ -1072,6 +1163,7 @@ class StoreBannerModel {
       'ctaPositionY': ctaPositionY.clamp(0.0, 1.0),
       'ctaShowArrow': ctaShowArrow,
       'ctaSize': ctaSize,
+      'ctaScale': StoreBannerCtaSizes.clampScale(ctaScale),
       'ctaRadius': ctaRadius,
       'ctaBackgroundColor': ctaBackgroundColor,
       'ctaTextColor': ctaTextColor,
@@ -1123,6 +1215,7 @@ class StoreBannerModel {
     double? ctaPositionY,
     bool? ctaShowArrow,
     String? ctaSize,
+    double? ctaScale,
     String? ctaRadius,
     int? ctaBackgroundColor,
     int? ctaTextColor,
@@ -1176,6 +1269,7 @@ class StoreBannerModel {
       ctaPositionY: ctaPositionY ?? this.ctaPositionY,
       ctaShowArrow: ctaShowArrow ?? this.ctaShowArrow,
       ctaSize: ctaSize ?? this.ctaSize,
+      ctaScale: ctaScale ?? this.ctaScale,
       ctaRadius: ctaRadius ?? this.ctaRadius,
       ctaBackgroundColor: clearCtaBackgroundColor
           ? null

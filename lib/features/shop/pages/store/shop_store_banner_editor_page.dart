@@ -2113,6 +2113,30 @@ class _CtaPanel extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  '按鈕縮放',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text('${(draft.ctaScale * 100).round()}%'),
+            ],
+          ),
+          Slider(
+            min: StoreBannerCtaSizes.minScale,
+            max: StoreBannerCtaSizes.maxScale,
+            divisions: 90,
+            label: '${(draft.ctaScale * 100).round()}%',
+            value: StoreBannerCtaSizes.clampScale(draft.ctaScale),
+            onChanged: (double value) {
+              onDraft(
+                draft.copyWith(ctaScale: StoreBannerCtaSizes.clampScale(value)),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
           const Text('圓角', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           _ChipRow(

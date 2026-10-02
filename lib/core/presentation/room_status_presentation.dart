@@ -23,11 +23,12 @@ class RoomStatusPresentation {
   final IconData icon;
 
   static const Color availableColor = Color(0xFF2E7D32);
-  static const Color stayColor = Color(0xFFE64A19);
+  static const Color stayColor = Color(0xFFC62828);
   static const Color daycareColor = Color(0xFF5E35B1);
   static const Color checkedInColor = Color(0xFF1565C0);
-  static const Color completedColor = Color(0xFF7E57C2);
+  static const Color completedColor = Color(0xFF00695C);
   static const Color cleaningColor = Color(0xFFEF6C00);
+  static const Color checkoutHoldColor = Color(0xFF827717);
   static const Color closedColor = Color(0xFF6D4C41);
   static const Color maintenanceColor = Color(0xFF424242);
   static const Color disabledColor = Color(0xFF607D8B);
@@ -71,6 +72,15 @@ class RoomStatusPresentation {
     );
   }
 
+  static RoomStatusPresentation checkoutHold() {
+    return _item(
+      'checkout_cleaning',
+      '退房日・待清潔',
+      checkoutHoldColor,
+      Icons.hourglass_empty_outlined,
+    );
+  }
+
   static RoomStatusPresentation cleaning() {
     return _item(
       'cleaning',
@@ -102,6 +112,9 @@ class RoomStatusPresentation {
     Map<String, dynamic>? booking,
   }) {
     final String status = roomStatus.trim().toLowerCase();
+    if (status == 'checkout_cleaning') {
+      return checkoutHold();
+    }
     if (status == 'cleaning') {
       return cleaning();
     }
@@ -141,6 +154,8 @@ class RoomStatusPresentation {
     switch (label.trim()) {
       case DaycareOccupancyService.disabledLabel:
         return disabled();
+      case DaycareOccupancyService.checkoutHoldLabel:
+        return checkoutHold();
       case DaycareOccupancyService.cleaningLabel:
         return cleaning();
       case DaycareOccupancyService.maintenanceLabel:
@@ -163,7 +178,25 @@ class RoomStatusPresentation {
   }
 
   static bool isInUseLabel(String label) {
-    return label.trim() == '已訂' || label.trim() == '入住中';
+    final String value = label.trim();
+    return value == '已訂' ||
+        value == '入住中' ||
+        value == stayBooked().label ||
+        value == daycareBooked().label ||
+        value == daycareCheckedIn().label;
+  }
+
+  /// 實體房間需要現場房務處理。使用中的住宿／安親不算。
+  static bool countsAsHousekeepingTodo(RoomStatusPresentation presentation) {
+    switch (presentation.value) {
+      case 'checkout_cleaning':
+      case 'cleaning':
+      case 'maintenance':
+      case 'closed':
+        return true;
+      default:
+        return false;
+    }
   }
 
   static RoomStatusPresentation calendarDot(String calendarStatus) {
@@ -181,6 +214,8 @@ class RoomStatusPresentation {
         return daycareCheckedIn();
       case 'completed':
         return completed();
+      case 'checkout_cleaning':
+        return checkoutHold();
       case 'cleaning':
         return cleaning();
       case 'closed':
@@ -204,6 +239,12 @@ class RoomStatusPresentation {
       _item('daycare', '安親', daycareColor, Icons.pets_outlined),
       stayCheckedIn(),
       completed(),
+      _item(
+        'checkout_cleaning',
+        '待清潔',
+        checkoutHoldColor,
+        Icons.hourglass_empty_outlined,
+      ),
       cleaning(),
       closed(),
       maintenance(),

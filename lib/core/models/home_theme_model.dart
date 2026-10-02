@@ -66,14 +66,30 @@ class HomeThemeModel {
     required this.cardBorderColorValue,
     required this.primaryColorValue,
     required this.textColorValue,
+    this.secondaryTextColorValue,
+    this.buttonBackgroundColorValue,
+    this.buttonTextMode = 'auto',
+    this.buttonTextColorValue,
     this.drawerSetting = const ModernDrawerSettingModel(),
   });
+
+  static const Object _keep = Object();
 
   final int backgroundColorValue;
   final int cardColorValue;
   final int cardBorderColorValue;
   final int primaryColorValue;
   final int textColorValue;
+
+  /// 未設定時由主要文字色推算，不寫回舊資料。
+  final int? secondaryTextColorValue;
+
+  /// 未設定時按鈕背景跟隨主題重點色。
+  final int? buttonBackgroundColorValue;
+
+  /// auto、light、dark、custom。
+  final String buttonTextMode;
+  final int? buttonTextColorValue;
   final ModernDrawerSettingModel drawerSetting;
 
   Color get backgroundColor => Color(backgroundColorValue);
@@ -86,6 +102,40 @@ class HomeThemeModel {
 
   Color get textColor => Color(textColorValue);
 
+  Color get secondaryTextColor {
+    final int? value = secondaryTextColorValue;
+    if (value == null) {
+      return textColor.withValues(alpha: 0.65);
+    }
+    return Color(value);
+  }
+
+  bool get buttonFollowsPrimary => buttonBackgroundColorValue == null;
+
+  Color get buttonBackgroundColor {
+    final int? value = buttonBackgroundColorValue;
+    if (value == null) {
+      return primaryColor;
+    }
+    return Color(value);
+  }
+
+  Color get buttonForegroundColor {
+    switch (buttonTextMode) {
+      case 'light':
+        return const Color(0xFFFFFFFF);
+      case 'dark':
+        return const Color(0xFF3A2A20);
+      case 'custom':
+        return Color(buttonTextColorValue ?? 0xFFFFFFFF);
+      default:
+        return ThemeData.estimateBrightnessForColor(buttonBackgroundColor) ==
+                Brightness.dark
+            ? const Color(0xFFFFFFFF)
+            : const Color(0xFF3A2A20);
+    }
+  }
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'backgroundColor': backgroundColorValue,
@@ -93,6 +143,13 @@ class HomeThemeModel {
       'cardBorderColor': cardBorderColorValue,
       'primaryColor': primaryColorValue,
       'textColor': textColorValue,
+      if (secondaryTextColorValue != null)
+        'secondaryTextColor': secondaryTextColorValue,
+      if (buttonBackgroundColorValue != null)
+        'buttonBackgroundColor': buttonBackgroundColorValue,
+      if (buttonTextMode != 'auto') 'buttonTextMode': buttonTextMode,
+      if (buttonTextMode == 'custom' && buttonTextColorValue != null)
+        'buttonTextColor': buttonTextColorValue,
       'drawerSetting': drawerSetting.toMap(),
     };
   }
@@ -128,6 +185,22 @@ class HomeThemeModel {
         map['textColor'],
         fallback.textColorValue,
       ),
+      secondaryTextColorValue: map.containsKey('secondaryTextColor')
+          ? _readColorValue(
+              map['secondaryTextColor'],
+              fallback.textColorValue,
+            )
+          : null,
+      buttonBackgroundColorValue: map.containsKey('buttonBackgroundColor')
+          ? _readColorValue(
+              map['buttonBackgroundColor'],
+              fallback.primaryColorValue,
+            )
+          : null,
+      buttonTextMode: _readButtonTextMode(map['buttonTextMode']),
+      buttonTextColorValue: map.containsKey('buttonTextColor')
+          ? _readColorValue(map['buttonTextColor'], 0xFFFFFFFF)
+          : null,
       drawerSetting: ModernDrawerSettingModel.fromMap(
         map['drawerSetting'] is Map
             ? Map<String, dynamic>.from(map['drawerSetting'])
@@ -142,6 +215,10 @@ class HomeThemeModel {
     int? cardBorderColorValue,
     int? primaryColorValue,
     int? textColorValue,
+    Object? secondaryTextColorValue = _keep,
+    Object? buttonBackgroundColorValue = _keep,
+    String? buttonTextMode,
+    Object? buttonTextColorValue = _keep,
     ModernDrawerSettingModel? drawerSetting,
   }) {
     return HomeThemeModel(
@@ -150,8 +227,31 @@ class HomeThemeModel {
       cardBorderColorValue: cardBorderColorValue ?? this.cardBorderColorValue,
       primaryColorValue: primaryColorValue ?? this.primaryColorValue,
       textColorValue: textColorValue ?? this.textColorValue,
+      secondaryTextColorValue: identical(secondaryTextColorValue, _keep)
+          ? this.secondaryTextColorValue
+          : secondaryTextColorValue as int?,
+      buttonBackgroundColorValue: identical(buttonBackgroundColorValue, _keep)
+          ? this.buttonBackgroundColorValue
+          : buttonBackgroundColorValue as int?,
+      buttonTextMode: buttonTextMode ?? this.buttonTextMode,
+      buttonTextColorValue: identical(buttonTextColorValue, _keep)
+          ? this.buttonTextColorValue
+          : buttonTextColorValue as int?,
       drawerSetting: drawerSetting ?? this.drawerSetting,
     );
+  }
+
+  static String _readButtonTextMode(dynamic value) {
+    final String mode = (value ?? 'auto').toString();
+    switch (mode) {
+      case 'light':
+      case 'dark':
+      case 'custom':
+      case 'auto':
+        return mode;
+      default:
+        return 'auto';
+    }
   }
 
   static int _readColorValue(dynamic value, int fallback) {

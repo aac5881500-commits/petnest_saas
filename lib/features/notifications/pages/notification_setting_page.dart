@@ -5,6 +5,23 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/notification_setting_service.dart';
 
+class _SettingHeading extends StatelessWidget {
+  const _SettingHeading(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
 class NotificationSettingPage extends StatefulWidget {
   const NotificationSettingPage({super.key});
 
@@ -139,61 +156,79 @@ class _NotificationSettingPageState extends State<NotificationSettingPage> {
                     }
 
                     final Map<String, bool> settings = snapshot.data!;
-                    final bool allEnabled = settings['enabled'] ?? true;
 
-                    return ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: <Widget>[
-                        _buildSwitchTile(
-                          settingKey: 'enabled',
-                          title: '全部通知',
-                          subtitle: '關閉後將停止接收所有 App 推播通知',
-                          icon: Icons.notifications_active_outlined,
-                          value: allEnabled,
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4, bottom: 12),
-                          child: Text(
-                            '通知類型',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                    return Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: <Widget>[
+                            const _SettingHeading('必要通知'),
+                            _buildSwitchTile(
+                              settingKey: 'primary',
+                              title: '主要通知',
+                              subtitle: '訂單、付款、入住與其他重要服務狀態。',
+                              icon: Icons.receipt_long_outlined,
+                              value: true,
+                              enabled: false,
                             ),
-                          ),
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 16),
+                              child: Text(
+                                '此類通知無法在 App 內關閉，避免錯過重要服務資訊。',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+                            const _SettingHeading('店家通知'),
+                            _buildSwitchTile(
+                              settingKey: 'shopMarketing',
+                              title: '店家活動與優惠',
+                              subtitle: '所屬店家的活動、優惠與優惠券',
+                              icon: Icons.local_offer_outlined,
+                              value: settings['shopMarketing'] ?? true,
+                            ),
+                            _buildSwitchTile(
+                              settingKey: 'shopNotice',
+                              title: '店家公告與服務異動',
+                              subtitle: '店家公告與服務異動，卡片會標示來源店家',
+                              icon: Icons.storefront_outlined,
+                              value: settings['shopNotice'] ?? true,
+                            ),
+                            const _SettingHeading('平台通知'),
+                            _buildSwitchTile(
+                              settingKey: 'platformImportant',
+                              title: '平台重要通知',
+                              subtitle: '條款更新、安全提醒與重大服務公告',
+                              icon: Icons.campaign_outlined,
+                              value: true,
+                              enabled: false,
+                            ),
+                            _buildSwitchTile(
+                              settingKey: 'platformMarketing',
+                              title: '平台推廣與優惠',
+                              subtitle: 'PetNest 平台活動與新功能推薦',
+                              icon: Icons.card_giftcard_outlined,
+                              value: settings['platformMarketing'] ?? true,
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Text(
+                                '手機系統通知仍可由手機設定關閉；網頁版目前不支援手機推播。',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        _buildSwitchTile(
-                          settingKey: 'bookingStatus',
-                          title: '訂單狀態通知',
-                          subtitle: '訂單確認、入住、完成或取消時通知',
-                          icon: Icons.receipt_long_outlined,
-                          value: settings['bookingStatus'] ?? true,
-                          enabled: allEnabled,
-                        ),
-                        _buildSwitchTile(
-                          settingKey: 'bookingMessage',
-                          title: '訂單聊天室通知',
-                          subtitle: '店家在訂單聊天室傳送新訊息時通知',
-                          icon: Icons.chat_bubble_outline,
-                          value: settings['bookingMessage'] ?? true,
-                          enabled: allEnabled,
-                        ),
-                        _buildSwitchTile(
-                          settingKey: 'reviewReminder',
-                          title: '評價提醒',
-                          subtitle: '住宿完成後提醒你留下評價',
-                          icon: Icons.star_outline,
-                          value: settings['reviewReminder'] ?? true,
-                          enabled: allEnabled,
-                        ),
-                        _buildSwitchTile(
-                          settingKey: 'checkInReminder',
-                          title: '入住提醒',
-                          subtitle: '入住日前提醒預約時間與相關資訊',
-                          icon: Icons.event_available_outlined,
-                          value: settings['checkInReminder'] ?? true,
-                          enabled: allEnabled,
-                        ),
-                      ],
+                      ),
                     );
                   },
             ),

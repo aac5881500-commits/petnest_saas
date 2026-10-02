@@ -20,6 +20,18 @@ class NotificationSettingService {
     'bookingMessage': true,
     'reviewReminder': true,
     'checkInReminder': true,
+    'shopMarketing': true,
+    'shopNotice': true,
+    'platformMarketing': true,
+  };
+
+  /// 之後若要做每間店開關，可放在同一份 global 文件的 shopOverrides。本輪只使用全域鍵。
+  static const String shopOverridesField = 'shopOverrides';
+
+  static const Set<String> customerToggleKeys = <String>{
+    'shopMarketing',
+    'shopNotice',
+    'platformMarketing',
   };
 
   DocumentReference<Map<String, dynamic>>? get _settingDocument {
@@ -50,11 +62,8 @@ class NotificationSettingService {
       final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
 
       return <String, bool>{
-        'enabled': data['enabled'] as bool? ?? true,
-        'bookingStatus': data['bookingStatus'] as bool? ?? true,
-        'bookingMessage': data['bookingMessage'] as bool? ?? true,
-        'reviewReminder': data['reviewReminder'] as bool? ?? true,
-        'checkInReminder': data['checkInReminder'] as bool? ?? true,
+        for (final String key in defaultSettings.keys)
+          key: data[key] as bool? ?? true,
       };
     });
   }
@@ -67,12 +76,11 @@ class NotificationSettingService {
       throw StateError('使用者尚未登入');
     }
 
-    if (!defaultSettings.containsKey(key)) {
+    if (!customerToggleKeys.contains(key)) {
       throw ArgumentError('不支援的通知設定：$key');
     }
 
     await document.set(<String, dynamic>{
-      ...defaultSettings,
       key: value,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));

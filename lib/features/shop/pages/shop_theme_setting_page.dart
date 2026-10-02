@@ -19,7 +19,12 @@ import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
+import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/frontend_navigation_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_editor_preview.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_settings_card.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_store_card.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
@@ -79,10 +84,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   String _selectedCardStyle = 'standard';
   String _selectedIconStyle = 'circle';
   String _selectedDensity = 'comfortable';
-  bool _showModernLeftHeaderIcon = true;
-  bool _showModernRightHeaderIcon = true;
-  String _modernLeftHeaderIcon = 'paw';
-  String _modernRightHeaderIcon = 'paw';
+  StoreBrandStyle _brandStyle = const StoreBrandStyle();
   HomeTextStyleModel _modernBannerTitleStyle = const HomeTextStyleModel(
     fontSize: 22,
     colorValue: 0xFFFFFFFF,
@@ -132,8 +134,22 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   bool _isSaving = false;
   bool _isLoading = true;
-  final ValueNotifier<int> _previewTick = ValueNotifier<int>(0);
+  bool _appearanceDirty = false;
+  Map<String, dynamic> _loadedShop = <String, dynamic>{};
+  FrontendNavigationConfig _navigationConfig =
+      FrontendNavigationConfig.defaults();
+  FrontendNavigationConfig _savedNavigation =
+      FrontendNavigationConfig.defaults();
   final ScrollController _appearanceScroll = ScrollController();
+  final ScrollController _colorScroll = ScrollController();
+  final ScrollController _navigationScroll = ScrollController();
+  HomeThemeModel _colorEntryTheme = HomeThemeModel.modernDefault;
+  String? _selectedHomeSection;
+  int _homeCanvasPane = 0;
+  final GlobalKey _headerSettingsKey = GlobalKey();
+  final GlobalKey _bannerSettingsKey = GlobalKey();
+  final GlobalKey _storeSettingsKey = GlobalKey();
+  final GlobalKey _pendingSettingsKey = GlobalKey();
   final ScrollController _featureScroll = ScrollController();
   // ========================
   // 快速聯絡按鈕
@@ -153,7 +169,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
     _bindModernDraftListeners();
     _loadSettings();
@@ -185,6 +201,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     if (!mounted || _isLoading || _selectedLayout != 'modern') {
       return;
     }
+    _appearanceDirty = true;
     setState(() {});
   }
 
@@ -214,18 +231,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _storeBannerButtonTextController.dispose();
     _floatingButtonLabelController.dispose();
     _appearanceScroll.dispose();
+    _colorScroll.dispose();
+    _navigationScroll.dispose();
     _featureScroll.dispose();
-    _previewTick.dispose();
     _discardPendingStoreCardImage();
     super.dispose();
-  }
-
-  @override
-  void setState(VoidCallback fn) {
-    super.setState(fn);
-    if (_previewTick.value < 1000000) {
-      _previewTick.value++;
-    }
   }
 
   Map<String, dynamic> get _draftModernAppearance {
@@ -241,18 +251,16 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       'bannerButtonTextColor': _modernBannerButtonTextColorValue,
       ..._modernBannerFrame.toMap(),
       'themeColors': _modernTheme.toMap(),
-      'showLeftHeaderIcon': _showModernLeftHeaderIcon,
-      'showRightHeaderIcon': _showModernRightHeaderIcon,
-      'leftHeaderIcon': _modernLeftHeaderIcon,
-      'rightHeaderIcon': _modernRightHeaderIcon,
+      ..._brandStyle.toMap(),
       ..._draftStoreHomeSetting.toMap(),
+      ..._navigationConfig.toMap(),
     };
   }
 
   String get _bannerStatusText {
     final String size = switch (_modernBannerFrame.displaySize) {
-      HomeBannerDisplaySize.small => '小',
-      HomeBannerDisplaySize.large => '大',
+      HomeBannerDisplaySize.small => '精簡',
+      HomeBannerDisplaySize.large => '寬版',
       HomeBannerDisplaySize.standard => '標準',
     };
     return '已啟用・$_enabledHomeBannerCount 張海報・$size';
@@ -493,14 +501,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             : <String, dynamic>{};
         _modernTheme = HomeThemeModel.fromMap(
           modernAppearance['themeColors'],
-          fallback: const HomeThemeModel(
-            backgroundColorValue: 0xFFFFFBF7,
-            cardColorValue: 0xFFFFFFFF,
-            cardBorderColorValue: 0xFFFFD9B3,
-            primaryColorValue: 0xFFFF8A00,
-            textColorValue: 0xFF3A2A20,
-          ),
+          fallback: HomeThemeModel.modernDefault,
         );
+        _colorEntryTheme = _modernTheme;
 
         _modernHeaderSubtitleController.text =
             (modernAppearance['headerSubtitle'] ?? '讓每一隻貓咪都有溫暖的家').toString();
@@ -546,16 +549,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             : 0xFFFFFFFF;
         _modernBannerFrame = ModernBannerFrameSetting.fromMap(modernAppearance);
         _modernBannerPreviewImageUrl = _firstActiveBannerUrl(shopData);
-        _showModernLeftHeaderIcon =
-            modernAppearance['showLeftHeaderIcon'] != false;
-
-        _showModernRightHeaderIcon =
-            modernAppearance['showRightHeaderIcon'] != false;
-        _modernLeftHeaderIcon = (modernAppearance['leftHeaderIcon'] ?? 'paw')
-            .toString();
-
-        _modernRightHeaderIcon = (modernAppearance['rightHeaderIcon'] ?? 'paw')
-            .toString();
+        _brandStyle = StoreBrandStyle.fromMap(
+          modernAppearance,
+          logoUrl: _modernLogoUrl,
+        );
 
         final storeHomeSetting = ModernStoreHomeSetting.fromMap(
           modernAppearance,
@@ -586,6 +583,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _pendingStoreCardImageUrl = '';
         _pendingStoreCardImagePath = '';
         _removeStoreCardImage = false;
+        _loadedShop = shopData == null
+            ? <String, dynamic>{}
+            : Map<String, dynamic>.from(shopData);
+        _navigationConfig = FrontendNavigationConfig.fromMap(modernAppearance);
+        _savedNavigation = _navigationConfig;
+        _appearanceDirty = false;
       }
     } catch (error) {
       if (!mounted) return;
@@ -746,14 +749,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
                 'themeColors': _modernTheme.toMap(),
 
-                'showLeftHeaderIcon': _showModernLeftHeaderIcon,
-                'showRightHeaderIcon': _showModernRightHeaderIcon,
-
-                'leftHeaderIcon': _modernLeftHeaderIcon,
-
-                'rightHeaderIcon': _modernRightHeaderIcon,
+                ..._brandStyle.toMap(),
 
                 ..._draftStoreHomeSetting.toMap(),
+                ..._navigationConfig.toMap(),
               },
             },
             'floatingContactButton': {
@@ -787,6 +786,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       _pendingStoreCardImageUrl = '';
       _pendingStoreCardImagePath = '';
       _removeStoreCardImage = false;
+      _savedNavigation = _navigationConfig;
+      _appearanceDirty = false;
 
       if (!mounted) return;
 
@@ -830,8 +831,17 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final bool desktopModern =
         MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
-    final bool pinSaveOnEditor = desktopModern && _tabController.index == 0;
-    return Scaffold(
+    final bool pinSaveOnEditor =
+        desktopModern && _tabController.index != 3;
+    return PopScope(
+      canPop: !_hasUnsaved,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop || !_hasUnsaved) {
+          return;
+        }
+        _confirmLeave();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFFFFCF7),
       appBar: AppBar(
         title: const Text('前台外觀設定'),
@@ -839,8 +849,14 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         surfaceTintColor: Colors.transparent,
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: MediaQuery.sizeOf(context).width < 760,
+          tabAlignment: MediaQuery.sizeOf(context).width < 760
+              ? TabAlignment.start
+              : TabAlignment.fill,
           tabs: const [
             Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
+            Tab(icon: Icon(Icons.color_lens_outlined), text: '首頁色彩'),
+            Tab(icon: Icon(Icons.menu_rounded), text: '導覽設定'),
             Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
           ],
         ),
@@ -850,6 +866,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         physics: const NeverScrollableScrollPhysics(),
         children: [
           _buildAppearancePane(desktopModern),
+          _buildColorPane(desktopModern),
+          _buildNavigationPane(desktopModern),
 
           Scrollbar(
             controller: _featureScroll,
@@ -989,6 +1007,260 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         ],
       ),
       bottomNavigationBar: pinSaveOnEditor ? null : _saveBar(),
+      ),
+    );
+  }
+
+  bool get _hasUnsaved {
+    return _appearanceDirty || _navigationConfig != _savedNavigation;
+  }
+
+  Future<void> _confirmLeave() async {
+    final bool? leave = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('尚未儲存'),
+          content: const Text('導覽與外觀的修改尚未儲存，要放棄這些變更嗎？'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('繼續編輯'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('放棄變更'),
+            ),
+          ],
+        );
+      },
+    );
+    if (leave == true && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  FrontendNavShopState get _navShopState {
+    return FrontendNavShopState.fromShop(
+      _loadedShop,
+      showMemberCenter: _modernTheme.drawerSetting.showMemberCenter,
+      showShopMenus: _modernTheme.drawerSetting.showShopMenus,
+      loggedIn: true,
+    );
+  }
+
+  void _replaceModernTheme(HomeThemeModel value) {
+    setState(() {
+      _modernTheme = value;
+      _appearanceDirty = true;
+    });
+  }
+
+  Widget _buildColorPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: const <Widget>[
+          Text(
+            '首頁色彩的細項設定套用在新版前台。請先在外觀設定改用新版首頁。經典版的主題與背景仍留在外觀設定。',
+            style: TextStyle(height: 1.4),
+          ),
+        ],
+      );
+    }
+    final Widget settings = Scrollbar(
+      controller: _colorScroll,
+      thumbVisibility: true,
+      child: ListView(
+        controller: _colorScroll,
+        primary: false,
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 24),
+        children: <Widget>[
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: HomeColorSettingsPanel(
+                theme: _modernTheme,
+                entryTheme: _colorEntryTheme,
+                onChanged: _replaceModernTheme,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: 'desktop',
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: SegmentedButton<int>(
+            segments: const <ButtonSegment<int>>[
+              ButtonSegment<int>(
+                value: 0,
+                label: Text('預覽'),
+                icon: Icon(Icons.smartphone_outlined),
+              ),
+              ButtonSegment<int>(
+                value: 1,
+                label: Text('設定'),
+                icon: Icon(Icons.tune),
+              ),
+            ],
+            selected: <int>{_homeCanvasPane},
+            onSelectionChanged: (Set<int> value) {
+              setState(() => _homeCanvasPane = value.first);
+            },
+          ),
+        ),
+        Expanded(
+          child: _homeCanvasPane == 0
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: _homeCanvasPreview(
+                    showCaption: false,
+                    canvasMode: 'mobile',
+                  ),
+                )
+              : settings,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNavigationPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: const <Widget>[
+          Text(
+            '導覽設定只套用在新版前台。請先在外觀設定改用新版首頁。',
+            style: TextStyle(height: 1.4),
+          ),
+        ],
+      );
+    }
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: 'desktop',
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: _navigationSettingsScroll()),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: SegmentedButton<int>(
+            segments: const <ButtonSegment<int>>[
+              ButtonSegment<int>(
+                value: 0,
+                label: Text('預覽'),
+                icon: Icon(Icons.smartphone_outlined),
+              ),
+              ButtonSegment<int>(
+                value: 1,
+                label: Text('設定'),
+                icon: Icon(Icons.tune),
+              ),
+            ],
+            selected: <int>{_homeCanvasPane},
+            onSelectionChanged: (Set<int> value) {
+              setState(() => _homeCanvasPane = value.first);
+            },
+          ),
+        ),
+        Expanded(
+          child: _homeCanvasPane == 0
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: _homeCanvasPreview(
+                    showCaption: false,
+                    canvasMode: 'mobile',
+                  ),
+                )
+              : _navigationSettingsScroll(),
+        ),
+      ],
+    );
+  }
+
+  Widget _navigationSettingsScroll() {
+    return Scrollbar(
+      controller: _navigationScroll,
+      thumbVisibility: true,
+      child: ListView(
+        controller: _navigationScroll,
+        primary: false,
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 24),
+        children: <Widget>[
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: FrontendNavigationPanel(
+                config: _navigationConfig,
+                shopState: _navShopState,
+                onChanged: (FrontendNavigationConfig value) {
+                  setState(() {
+                    _navigationConfig = value;
+                    _appearanceDirty = true;
+                  });
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -999,7 +1271,110 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     if (desktopModern) {
       return _modernDesktopWorkspace();
     }
-    return _modernSettingsScroll(includePreviewButton: true);
+    return _modernMobileWorkspace();
+  }
+
+  bool get _desktopModernLayout =>
+      MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
+
+  void _selectHomeSection(String sectionId) {
+    setState(() {
+      _selectedHomeSection = sectionId;
+      if (!_desktopModernLayout) {
+        _homeCanvasPane = 1;
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final BuildContext? target = _settingsKeyFor(sectionId).currentContext;
+      if (target == null) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOut,
+        alignment: 0.05,
+      );
+    });
+  }
+
+  GlobalKey _settingsKeyFor(String sectionId) {
+    switch (sectionId) {
+      case 'header':
+        return _headerSettingsKey;
+      case 'banners':
+        return _bannerSettingsKey;
+      case 'featured':
+      case 'storeEntrance':
+        return _storeSettingsKey;
+      default:
+        return _pendingSettingsKey;
+    }
+  }
+
+  String _pendingSectionLabel(String? sectionId) {
+    switch (sectionId) {
+      case 'facilities':
+        return '設備特色';
+      case 'announcements':
+        return '最新公告';
+      case 'dailyCare':
+        return '住宿日誌';
+      case 'rooms':
+        return '熱門房型';
+      case 'services':
+        return '住宿服務';
+      case 'reviews':
+        return '顧客評價';
+      case 'footer':
+        return '店家資訊';
+      default:
+        return '此區塊';
+    }
+  }
+
+  bool get _pendingSectionSelected {
+    switch (_selectedHomeSection) {
+      case 'facilities':
+      case 'announcements':
+      case 'dailyCare':
+      case 'rooms':
+      case 'services':
+      case 'reviews':
+      case 'footer':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Widget _homeCanvasPreview({
+    required bool showCaption,
+    required String canvasMode,
+    bool embeddedAdminPreview = true,
+  }) {
+    return ModernHomeEditorPreview(
+      shopId: widget.shopId,
+      draftModernAppearance: _draftModernAppearance,
+      draftLogoUrl: _modernLogoUrl,
+      showCaption: showCaption,
+      showPhoneChrome: false,
+      layoutCanvas: true,
+      isEmbeddedAdminPreview: embeddedAdminPreview,
+      canvasMode: canvasMode,
+      frameWidth: 390,
+      selectedSectionId: _selectedHomeSection,
+      onSelectSection: _selectHomeSection,
+      onBrandStyleChanged: (StoreBrandStyle style) {
+        setState(() {
+          _brandStyle = style;
+          _appearanceDirty = true;
+        });
+      },
+    );
   }
 
   Widget _classicAppearanceList() {
@@ -1047,16 +1422,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           SizedBox(
-            width: 440,
-            child: ValueListenableBuilder<int>(
-              valueListenable: _previewTick,
-              builder: (BuildContext context, int tick, Widget? child) {
-                return ModernHomeEditorPreview(
-                  shopId: widget.shopId,
-                  draftModernAppearance: _draftModernAppearance,
-                  draftLogoUrl: _modernLogoUrl,
-                );
-              },
+            width: 452,
+            child: _homeCanvasPreview(
+              showCaption: true,
+              canvasMode: 'desktop',
             ),
           ),
           const SizedBox(width: 16),
@@ -1114,6 +1483,45 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
+  Widget _modernMobileWorkspace() {
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: SegmentedButton<int>(
+            segments: const <ButtonSegment<int>>[
+              ButtonSegment<int>(
+                value: 0,
+                label: Text('預覽'),
+                icon: Icon(Icons.smartphone_outlined),
+              ),
+              ButtonSegment<int>(
+                value: 1,
+                label: Text('設定'),
+                icon: Icon(Icons.tune),
+              ),
+            ],
+            selected: <int>{_homeCanvasPane},
+            onSelectionChanged: (Set<int> value) {
+              setState(() => _homeCanvasPane = value.first);
+            },
+          ),
+        ),
+        Expanded(
+          child: _homeCanvasPane == 0
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: _homeCanvasPreview(
+                    showCaption: false,
+                    canvasMode: 'mobile',
+                  ),
+                )
+              : _modernSettingsScroll(includePreviewButton: false),
+        ),
+      ],
+    );
+  }
+
   void _openModernPreview() {
     showDialog<void>(
       context: context,
@@ -1124,16 +1532,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
               title: const Text('預覽新版首頁'),
               leading: const CloseButton(),
             ),
-            body: ValueListenableBuilder<int>(
-              valueListenable: _previewTick,
-              builder: (BuildContext context, int tick, Widget? child) {
-                return ModernHomeEditorPreview(
-                  shopId: widget.shopId,
-                  draftModernAppearance: _draftModernAppearance,
-                  draftLogoUrl: _modernLogoUrl,
-                  showCaption: false,
-                );
-              },
+            body: _homeCanvasPreview(
+              showCaption: false,
+              canvasMode: 'dialog',
+              embeddedAdminPreview: false,
             ),
           ),
         );
@@ -1155,34 +1557,65 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           style: TextStyle(fontSize: 13, height: 1.4),
         ),
       ),
-      _editorCard(
-        title: '店家識別',
-        subtitle: '影響首頁頂部店名、副標、左右圖示，以及底部店家 Logo',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _buildModernLogoSettings(),
-            const SizedBox(height: 16),
-            _buildModernHeaderTextSettings(),
-          ],
+      KeyedSubtree(
+        key: _headerSettingsKey,
+        child: _editorCard(
+          title: '店家識別',
+          subtitle: '固定在海報上方。可在左側預覽左右拖曳。',
+          trailing: const Text(
+            '固定顯示',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          child: StoreBrandSettingsCard(
+            style: _brandStyle,
+            theme: _modernTheme,
+            subtitleController: _modernHeaderSubtitleController,
+            logoSection: _buildModernLogoSettings(),
+            hasLogo:
+                _modernLogoUrl.trim().isNotEmpty ||
+                _modernLogoPreviewBytes != null,
+            onChanged: (StoreBrandStyle style) {
+              setState(() {
+                _brandStyle = style;
+                _appearanceDirty = true;
+              });
+            },
+          ),
         ),
       ),
-      _editorCard(
-        title: '首頁活動海報',
-        subtitle: '影響首頁上方活動海報的顯示大小。圖片與按鈕仍到活動海報管理編輯。',
-        summary: _bannerStatusText,
-        child: _buildHomeBannerDisplaySettings(),
+      KeyedSubtree(
+        key: _bannerSettingsKey,
+        child: _editorCard(
+          title: '首頁活動海報',
+          subtitle: '影響首頁上方活動海報的顯示大小。圖片與按鈕仍到活動海報管理編輯。',
+          summary: _bannerStatusText,
+          child: _buildHomeBannerDisplaySettings(),
+        ),
       ),
-      _editorCard(
-        title: '首頁賣場入口',
-        subtitle: '影響首頁精選商品與寵物賣場入口卡片，不改商城頁面',
-        child: _buildModernStoreHomeSettings(),
+      KeyedSubtree(
+        key: _storeSettingsKey,
+        child: _editorCard(
+          title: '首頁賣場入口',
+          subtitle: '影響首頁精選商品與寵物賣場入口卡片，不改商城頁面',
+          child: _buildModernStoreHomeSettings(),
+        ),
       ),
-      _editorCard(
-        title: '首頁色彩',
-        subtitle: '影響新版首頁背景、卡片、外框、圖示與文字',
-        child: _buildModernThemeColorSettings(),
-      ),
+      if (_pendingSectionSelected)
+        KeyedSubtree(
+          key: _pendingSettingsKey,
+          child: _editorCard(
+            title: _pendingSectionLabel(_selectedHomeSection),
+            subtitle: '此區塊設定後續開放',
+            child: const Text(
+              '此區塊設定後續開放',
+              style: TextStyle(fontSize: 13, height: 1.4),
+            ),
+          ),
+        ),
       _editorCard(
         title: '側邊選單',
         subtitle: '影響新版首頁左上角選單要顯示的內容',
@@ -1708,98 +2141,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  Widget _buildModernHeaderTextSettings() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _modernHeaderSubtitleController,
-            maxLength: 40,
-            decoration: const InputDecoration(
-              labelText: '店名下方副標',
-              helperText: '留空並儲存後，新版首頁不顯示副標',
-              border: OutlineInputBorder(),
-            ),
-          ),
-
-          const SizedBox(height: 6),
-          const Divider(),
-          const SizedBox(height: 6),
-
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('顯示左側圖示'),
-            subtitle: const Text('控制店家名稱左側的小圖示'),
-            value: _showModernLeftHeaderIcon,
-            onChanged: (value) {
-              setState(() {
-                _showModernLeftHeaderIcon = value;
-              });
-            },
-          ),
-
-          if (_showModernLeftHeaderIcon) ...[
-            const SizedBox(height: 4),
-            DropdownButtonFormField<String>(
-              value: _modernLeftHeaderIcon,
-              decoration: const InputDecoration(
-                labelText: '左側圖示樣式',
-                border: OutlineInputBorder(),
-              ),
-              items: _buildHeaderIconDropdownItems(),
-              onChanged: (value) {
-                if (value == null) return;
-
-                setState(() {
-                  _modernLeftHeaderIcon = value;
-                });
-              },
-            ),
-          ],
-
-          const SizedBox(height: 10),
-
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('顯示右側圖示'),
-            subtitle: const Text('控制店家名稱右側的小圖示'),
-            value: _showModernRightHeaderIcon,
-            onChanged: (value) {
-              setState(() {
-                _showModernRightHeaderIcon = value;
-              });
-            },
-          ),
-
-          if (_showModernRightHeaderIcon) ...[
-            const SizedBox(height: 4),
-            DropdownButtonFormField<String>(
-              value: _modernRightHeaderIcon,
-              decoration: const InputDecoration(
-                labelText: '右側圖示樣式',
-                border: OutlineInputBorder(),
-              ),
-              items: _buildHeaderIconDropdownItems(),
-              onChanged: (value) {
-                if (value == null) return;
-
-                setState(() {
-                  _modernRightHeaderIcon = value;
-                });
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
   Widget _buildFrameChoiceChip({
     required String label,
@@ -1889,7 +2230,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             runSpacing: 8,
             children: <Widget>[
               _buildFrameChoiceChip(
-                label: '小',
+                label: '精簡',
                 selected:
                     _modernBannerFrame.displaySize ==
                     HomeBannerDisplaySize.small,
@@ -1915,7 +2256,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 },
               ),
               _buildFrameChoiceChip(
-                label: '大',
+                label: '寬版',
                 selected:
                     _modernBannerFrame.displaySize ==
                     HomeBannerDisplaySize.large,
@@ -2208,189 +2549,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  Widget _buildBannerColorOption({
-    required int colorValue,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final color = Color(colorValue);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        width: 38,
-        height: 38,
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected ? Colors.orange.shade700 : Colors.grey.shade300,
-            width: isSelected ? 3 : 1,
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: color.computeLuminance() > 0.85
-                  ? Colors.grey.shade400
-                  : Colors.transparent,
-            ),
-          ),
-          child: isSelected
-              ? Icon(
-                  Icons.check_rounded,
-                  size: 20,
-                  color: color.computeLuminance() > 0.55
-                      ? Colors.black
-                      : Colors.white,
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernThemeColorSettings() {
-    const backgroundColors = <int>[
-      0xFFFFFBF7,
-      0xFFFFF5E8,
-      0xFFFFF4F5,
-      0xFFF5F5F5,
-      0xFFF3F7F4,
-      0xFFFFFFFF,
-    ];
-
-    const cardColors = <int>[
-      0xFFFFFFFF,
-      0xFFFFFAF4,
-      0xFFFFF4F5,
-      0xFFF8F8F8,
-      0xFFF3F8F5,
-      0xFFFFF7E8,
-    ];
-
-    const borderColors = <int>[
-      0xFFFFD9B3,
-      0xFFE5D1BC,
-      0xFFF1C6CC,
-      0xFFD9D9D9,
-      0xFFC9DED0,
-      0xFFFFC980,
-    ];
-
-    const primaryColors = <int>[
-      0xFFFF8A00,
-      0xFF9B7653,
-      0xFFD77887,
-      0xFF4F7D61,
-      0xFF5C6BC0,
-      0xFFE85D5D,
-    ];
-
-    const textColors = <int>[
-      0xFF3A2A20,
-      0xFF212121,
-      0xFF5D4037,
-      0xFF37474F,
-      0xFF355E45,
-      0xFF6D4C41,
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildModernThemeColorRow(
-            title: '頁面背景色',
-            description: '新版首頁最底層的整體背景',
-            selectedColorValue: _modernTheme.backgroundColorValue,
-            colorValues: backgroundColors,
-            onChanged: (colorValue) {
-              setState(() {
-                _modernTheme = _modernTheme.copyWith(
-                  backgroundColorValue: colorValue,
-                );
-              });
-            },
-          ),
-
-          const Divider(height: 30),
-
-          _buildModernThemeColorRow(
-            title: '卡片背景色',
-            description: '房型、服務、公告等卡片的底色',
-            selectedColorValue: _modernTheme.cardColorValue,
-            colorValues: cardColors,
-            onChanged: (colorValue) {
-              setState(() {
-                _modernTheme = _modernTheme.copyWith(
-                  cardColorValue: colorValue,
-                );
-              });
-            },
-          ),
-
-          const Divider(height: 30),
-
-          _buildModernThemeColorRow(
-            title: '卡片外框色',
-            description: '卡片邊框與部分分隔線的顏色',
-            selectedColorValue: _modernTheme.cardBorderColorValue,
-            colorValues: borderColors,
-            onChanged: (colorValue) {
-              setState(() {
-                _modernTheme = _modernTheme.copyWith(
-                  cardBorderColorValue: colorValue,
-                );
-              });
-            },
-          ),
-
-          const Divider(height: 30),
-
-          _buildModernThemeColorRow(
-            title: '主題重點色',
-            description: '圖示、按鈕與重點標題使用的顏色',
-            selectedColorValue: _modernTheme.primaryColorValue,
-            colorValues: primaryColors,
-            onChanged: (colorValue) {
-              setState(() {
-                _modernTheme = _modernTheme.copyWith(
-                  primaryColorValue: colorValue,
-                );
-              });
-            },
-          ),
-
-          const Divider(height: 30),
-
-          _buildModernThemeColorRow(
-            title: '一般文字色',
-            description: '新版首頁主要標題與一般文字的顏色',
-            selectedColorValue: _modernTheme.textColorValue,
-            colorValues: textColors,
-            onChanged: (colorValue) {
-              setState(() {
-                _modernTheme = _modernTheme.copyWith(
-                  textColorValue: colorValue,
-                );
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildModernDrawerSettings() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -2496,77 +2654,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  Widget _buildModernThemeColorRow({
-    required String title,
-    required String description,
-    required int selectedColorValue,
-    required List<int> colorValues,
-    required ValueChanged<int> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        ),
-
-        const SizedBox(height: 3),
-
-        Text(
-          description,
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
-        ),
-
-        const SizedBox(height: 12),
-
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: colorValues.map((colorValue) {
-            return _buildBannerColorOption(
-              colorValue: colorValue,
-              isSelected: selectedColorValue == colorValue,
-              onTap: () {
-                onChanged(colorValue);
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  List<DropdownMenuItem<String>> _buildHeaderIconDropdownItems() {
-    const options = <Map<String, dynamic>>[
-      {'value': 'paw', 'label': '腳印', 'icon': Icons.pets_rounded},
-      {'value': 'heart', 'label': '愛心', 'icon': Icons.favorite_rounded},
-      {'value': 'star', 'label': '星星', 'icon': Icons.star_rounded},
-      {'value': 'home', 'label': '房屋', 'icon': Icons.home_rounded},
-      {
-        'value': 'crown',
-        'label': '皇冠',
-        'icon': Icons.workspace_premium_rounded,
-      },
-    ];
-
-    return options.map((option) {
-      return DropdownMenuItem<String>(
-        value: option['value'] as String,
-        child: Row(
-          children: [
-            Icon(
-              option['icon'] as IconData,
-              size: 20,
-              color: Colors.orange.shade800,
-            ),
-            const SizedBox(width: 10),
-            Text(option['label'] as String),
-          ],
-        ),
-      );
-    }).toList();
-  }
 
   Widget _buildThemeSelector() {
     const themes = [

@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
-import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/presentation/room_day_status.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
@@ -52,9 +51,7 @@ class _DashRoom {
   }
 
   bool get needsHousekeeping {
-    return label == DaycareOccupancyService.cleaningLabel ||
-        label == DaycareOccupancyService.maintenanceLabel ||
-        label == DaycareOccupancyService.closedLabel;
+    return RoomStatusPresentation.countsAsHousekeepingTodo(presentation);
   }
 
   bool needsAction({required bool reportsOn}) {
@@ -238,6 +235,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                     'pending',
                                     'confirmed',
                                     'checked_in',
+                                    'checked_out',
                                     'completed',
                                   ],
                                 )
@@ -280,13 +278,64 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                   CircularProgressIndicator(),
                                             );
                                           }
-                                          return _workspace(
-                                            desktop: desktop,
-                                            rooms: rooms,
-                                            bookings: bookingSnap.data!.docs,
-                                            calendarDocs:
-                                                calendarSnap.data!.docs,
-                                            report: _lastReport,
+                                          return StreamBuilder<
+                                            QuerySnapshot<Map<String, dynamic>>
+                                          >(
+                                            stream: FirebaseFirestore.instance
+                                                .collection('shops')
+                                                .doc(widget.shopId)
+                                                .collection('room_occupancies')
+                                                .where(
+                                                  'status',
+                                                  isEqualTo: 'active',
+                                                )
+                                                .snapshots(),
+                                            builder:
+                                                (
+                                                  BuildContext context,
+                                                  AsyncSnapshot<
+                                                    QuerySnapshot<
+                                                      Map<String, dynamic>
+                                                    >
+                                                  >
+                                                  occupancySnap,
+                                                ) {
+                                                  if (occupancySnap.hasError) {
+                                                    return _errorPane(
+                                                      '房間占用讀取失敗',
+                                                      occupancySnap.error,
+                                                    );
+                                                  }
+                                                  if (!occupancySnap.hasData) {
+                                                    return const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    );
+                                                  }
+                                                  return _workspace(
+                                                    desktop: desktop,
+                                                    rooms: rooms,
+                                                    bookings: bookingSnap
+                                                        .data!
+                                                        .docs,
+                                                    calendarDocs: calendarSnap
+                                                        .data!
+                                                        .docs,
+                                                    occupancies: occupancySnap
+                                                        .data!
+                                                        .docs
+                                                        .map(
+                                                          (
+                                                            QueryDocumentSnapshot<
+                                                              Map<String, dynamic>
+                                                            >
+                                                            doc,
+                                                          ) => doc.data(),
+                                                        )
+                                                        .toList(),
+                                                    report: _lastReport,
+                                                  );
+                                                },
                                           );
                                         },
                                   );
@@ -359,6 +408,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<Map<String, dynamic>> rooms,
     required List<QueryDocumentSnapshot> bookings,
     required List<QueryDocumentSnapshot> calendarDocs,
+    required List<Map<String, dynamic>> occupancies,
     required DailyCareReportCenterSnapshot? report,
   }) {
     final bool reportsOn = report?.settingEnabled == true;
@@ -381,6 +431,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           (Map<String, dynamic> room) => _buildRow(
             room: room,
             bookings: bookings,
+            occupancies: occupancies,
             calendarStatus: calendarStatus,
             report: report,
           ),
@@ -417,18 +468,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           return row.label == DaycareOccupancyService.vacantLabel;
       }
     }).toList();
-    final List<QueryDocumentSnapshot> unassigned = bookings.where((
-      QueryDocumentSnapshot doc,
-    ) {
-      final Object? raw = doc.data();
-      if (raw is! Map) {
-        return false;
-      }
-      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
-      return data['assignStatus'] == 'unassigned' &&
-          data['status'] != 'cancelled' &&
-          data['status'] != 'completed';
-    }).toList();
     final int emptyCount = _count(allRows, DaycareOccupancyService.vacantLabel);
     final int disabledCount = _count(
       allRows,
@@ -454,8 +493,12 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       allRows,
       DaycareOccupancyService.maintenanceLabel,
     );
-    final int pendingHousekeeping =
-        unassigned.length + cleaningCount + closedCount + blockedCount;
+    final int pendingHousekeeping = allRows
+        .where(
+          (_DashRoom row) =>
+              RoomStatusPresentation.countsAsHousekeepingTodo(row.presentation),
+        )
+        .length;
     final int pendingReports = reportsOn ? (report?.pendingCount ?? 0) : 0;
 
     if (!reportsOn) {
@@ -465,6 +508,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         filtered: filtered,
         allRows: allRows,
         bookings: bookings,
+        occupancies: occupancies,
         calendarStatus: calendarStatus,
         typeNames: typeNames,
         typeFilter: typeFilter,
@@ -513,6 +557,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
             filtered: filtered,
             allRows: allRows,
             bookings: bookings,
+            occupancies: occupancies,
             calendarStatus: calendarStatus,
             typeNames: typeNames,
             typeFilter: typeFilter,
@@ -536,6 +581,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<_DashRoom> filtered,
     required List<_DashRoom> allRows,
     required List<QueryDocumentSnapshot> bookings,
+    required List<Map<String, dynamic>> occupancies,
     required Map<String, String> calendarStatus,
     required List<String> typeNames,
     required String typeFilter,
@@ -577,10 +623,12 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                     filtered: filtered,
                     allRows: allRows,
                     bookings: bookings,
+                    occupancies: occupancies,
                     calendarStatus: calendarStatus,
                     dense: true,
                     splitSelect: false,
                     reportsOn: reportsOn,
+                    selectedRoomId: _selectedRoomId,
                   ),
           ),
         ],
@@ -609,6 +657,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                           filtered: filtered,
                           allRows: allRows,
                           bookings: bookings,
+                          occupancies: occupancies,
                           calendarStatus: calendarStatus,
                           dense: true,
                           splitSelect: false,
@@ -772,7 +821,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       ),
       _OpsStat(
         icon: Icons.assignment_outlined,
-        label: '待處理房務',
+        label: '房務待辦',
         count: pendingHousekeeping,
         color: const Color(0xFF6A1B9A),
         onTap: onPendingHousekeeping,
@@ -1182,6 +1231,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<_DashRoom> filtered,
     required List<_DashRoom> allRows,
     required List<QueryDocumentSnapshot> bookings,
+    required List<Map<String, dynamic>> occupancies,
     required Map<String, String> calendarStatus,
     required bool dense,
     required bool splitSelect,
@@ -1251,6 +1301,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                 (_DashRoom row) => _roomTile(
                   row: row,
                   bookings: bookings,
+                  occupancies: occupancies,
                   calendarStatus: calendarStatus,
                   dense: dense,
                   splitSelect: splitSelect,
@@ -1269,6 +1320,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   Widget _roomTile({
     required _DashRoom row,
     required List<QueryDocumentSnapshot> bookings,
+    required List<Map<String, dynamic>> occupancies,
     required Map<String, String> calendarStatus,
     required bool dense,
     required bool splitSelect,
@@ -1279,9 +1331,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   }) {
     final bool busy = _busyKeys.contains(_actionKey(row.id));
     final bool vacant = row.label == DaycareOccupancyService.vacantLabel;
-    final bool selected = workbench
-        ? selectedRoomId == row.id
-        : splitSelect && _selectedRoomId == row.id;
+    final bool selected = selectedRoomId == row.id;
     final DateTime today = DateTime.now();
     final List<Color> dots = weekDays.map((DateTime day) {
       final RoomDayStatus dayStatus = resolveRoomDayStatus(
@@ -1292,17 +1342,17 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
             (calendarStatus['${row.id}|${DateFormat('yyyy-MM-dd').format(day)}'] ??
                     '')
                 .toString(),
-        booking: _bookingOnDate(bookings: bookings, roomId: row.id, day: day),
+        booking: _bookingOnDate(
+          bookings: bookings,
+          occupancies: occupancies,
+          roomId: row.id,
+          day: day,
+        ),
       );
       return dayStatus.color;
     }).toList();
     if (workbench) {
-      return _workbenchRoomTile(
-        row: row,
-        selected: selected,
-        dots: dots,
-        bookings: bookings,
-      );
+      return _workbenchRoomTile(row: row, selected: selected, dots: dots);
     }
     final Widget actions = _rowActions(
       row: row,
@@ -1443,13 +1493,13 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                           ),
                         ),
                       const SizedBox(height: 6),
-                      RoomWeekDots(
-                        colors: dots,
-                        onDotTap: (int index) => _onWeekDotTap(
-                          row: row,
-                          bookings: bookings,
-                          index: index,
-                          desktop: false,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {},
+                        child: RoomWeekDots(
+                          colors: dots,
+                          onDotTap: (int index) =>
+                              _onWeekDotTap(row: row, index: index),
                         ),
                       ),
                       if (reportsOn &&
@@ -1462,46 +1512,39 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    RoomStatusChip(
-                      presentation: row.presentation,
-                      compact: dense,
-                    ),
-                    const SizedBox(height: 6),
-                    actions,
-                  ],
-                ),
+                RoomStatusChip(presentation: row.presentation, compact: dense),
               ],
             ),
     );
     return Material(
       color: selected ? const Color(0xFFF3F8FF) : Colors.white,
-      child: InkWell(
-        onTap: () {
-          if (splitSelect) {
-            setState(() {
-              _selectedRoomId = row.id;
-            });
-            return;
-          }
-          _onRoomSurfaceTap(row, desktop: false);
-        },
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: selected ? const Color(0xFFF3F8FF) : null,
-            border: Border.all(
-              color: selected
-                  ? _accent
-                  : (row.needsAction(reportsOn: reportsOn)
-                        ? row.presentation.border
-                        : Colors.grey.shade200),
-            ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected ? const Color(0xFFF3F8FF) : null,
+          border: Border.all(
+            color: selected
+                ? _accent
+                : (row.needsAction(reportsOn: reportsOn)
+                      ? row.presentation.border
+                      : Colors.grey.shade200),
           ),
-          child: body,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: InkWell(
+                onTap: () => _onRoomCardTap(row, openRecord: !splitSelect),
+                child: body,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 8, right: 4),
+              child: actions,
+            ),
+          ],
         ),
       ),
     );
@@ -1511,7 +1554,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required _DashRoom row,
     required bool selected,
     required List<Color> dots,
-    required List<QueryDocumentSnapshot> bookings,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -1520,7 +1562,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () => _onRoomSurfaceTap(row, desktop: true),
+          onTap: () => _onRoomSurfaceTap(row),
           child: Container(
             constraints: const BoxConstraints(minHeight: 84),
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
@@ -1564,12 +1606,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                 const SizedBox(height: 2),
                 RoomWeekDots(
                   colors: dots,
-                  onDotTap: (int index) => _onWeekDotTap(
-                    row: row,
-                    bookings: bookings,
-                    index: index,
-                    desktop: true,
-                  ),
+                  onDotTap: (int index) =>
+                      _onWeekDotTap(row: row, index: index),
                 ),
               ],
             ),
@@ -1644,19 +1682,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         ),
       );
     }
-    if (row.dayBookings.isNotEmpty) {
-      actions.add(
-        button(
-          label: '查看訂單',
-          onPressed: () => _openDayBookings(row.dayBookings),
-        ),
-      );
-    } else if (row.label != DaycareOccupancyService.cleaningLabel &&
-        row.label != DaycareOccupancyService.disabledLabel) {
-      actions.add(
-        button(label: '查看房間', onPressed: () => _openCalendar(row.room)),
-      );
-    }
     if (reportsOn && row.label == '入住中' && row.pendingSessions > 0) {
       actions.add(
         button(
@@ -1722,6 +1747,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   _DashRoom _buildRow({
     required Map<String, dynamic> room,
     required List<QueryDocumentSnapshot> bookings,
+    required List<Map<String, dynamic>> occupancies,
     required Map<String, String> calendarStatus,
     required DailyCareReportCenterSnapshot? report,
   }) {
@@ -1730,17 +1756,21 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       bookings: _bookingChoices(bookings),
       roomId: roomId,
       day: selectedDate,
+      occupancies: occupancies,
     );
     final RoomDayBookingChoice? display = preferredRoomDayBooking(dayBookings);
     final _BookingHit hit = _BookingHit(
       id: display?.id ?? '',
       data: display?.data,
     );
-    final String label = DaycareOccupancyService.housekeepingLabel(
+    final RoomDayStatus selectedDay = resolveRoomDayStatus(
+      date: selectedDate,
+      today: DateTime.now(),
       room: Map<String, dynamic>.from(room),
       calendarStatus: (calendarStatus['$roomId|$dateStr'] ?? '').toString(),
-      stayBooking: hit.data,
+      booking: hit.data,
     );
+    final String label = selectedDay.presentation.label;
     int pending = 0;
     if (report != null && report.settingEnabled && hit.id.isNotEmpty) {
       pending = report.items
@@ -1753,10 +1783,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     return _DashRoom(
       room: room,
       label: label,
-      presentation: RoomStatusPresentation.fromHousekeepingLabel(
-        label,
-        booking: hit.data,
-      ),
+      presentation: selectedDay.presentation,
       booking: hit.data,
       bookingId: hit.id,
       dayBookings: dayBookings,
@@ -1819,68 +1846,44 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     return choices;
   }
 
-  Future<void> _onRoomSurfaceTap(_DashRoom row, {required bool desktop}) async {
-    if (row.dayBookings.isNotEmpty) {
-      await _openDayBookings(row.dayBookings);
+  void _onRoomCardTap(_DashRoom row, {required bool openRecord}) {
+    if (!openRecord) {
+      _onRoomSurfaceTap(row);
       return;
     }
-    if (desktop) {
-      setState(() {
-        _selectedRoomId = row.id;
-      });
-      return;
-    }
-    await _openCalendar(row.room);
+    _openCalendar(row.room);
   }
 
-  void _onWeekDotTap({
-    required _DashRoom row,
-    required List<QueryDocumentSnapshot> bookings,
-    required int index,
-    required bool desktop,
-  }) {
+  void _onRoomSurfaceTap(_DashRoom row) {
+    final RoomOverviewGestureResult result = resolveRoomOverviewGesture(
+      gesture: RoomOverviewGesture.roomCard,
+      roomId: row.id,
+      date: selectedDate,
+    );
+    if (result.navigatesToOrder) {
+      return;
+    }
+    setState(() {
+      _selectedRoomId = result.roomId ?? row.id;
+    });
+  }
+
+  void _onWeekDotTap({required _DashRoom row, required int index}) {
     if (index < 0 || index >= weekDays.length) {
       return;
     }
-    final DateTime day = weekDays[index];
-    final DateTime picked = DateTime(day.year, day.month, day.day);
-    setState(() {
-      selectedDate = picked;
-      if (desktop) {
-        _selectedRoomId = row.id;
-      }
-    });
-    final List<RoomDayBookingChoice> matches = activeBookingsOnRoomDay(
-      bookings: _bookingChoices(bookings),
+    final RoomOverviewGestureResult result = resolveRoomOverviewGesture(
+      gesture: RoomOverviewGesture.weekDot,
       roomId: row.id,
-      day: picked,
+      date: weekDays[index],
     );
-    if (matches.isNotEmpty) {
-      _openDayBookings(matches);
+    if (result.navigatesToOrder || result.date == null) {
       return;
     }
-    if (!desktop) {
-      _openCalendar(row.room);
-    }
-  }
-
-  Future<void> _openDayBookings(List<RoomDayBookingChoice> matches) async {
-    final RoomOverviewOpenPlan plan = planRoomOverviewOpen(matches);
-    RoomDayBookingChoice? chosen = plan.booking;
-    if (plan.kind == RoomOverviewOpenKind.bookingPicker) {
-      chosen = await showRoomDayBookingPicker(context, matches);
-    }
-    if (!mounted ||
-        chosen == null ||
-        plan.kind == RoomOverviewOpenKind.roomRecord) {
-      return;
-    }
-    AdminBookingRoute.open(
-      context,
-      bookingId: chosen.id,
-      data: chosen.data,
-      canEdit: true,
-    );
+    setState(() {
+      selectedDate = result.date!;
+      _selectedRoomId = result.roomId ?? row.id;
+    });
   }
 
   Future<void> _completeCleaning(_DashRoom row) async {
@@ -1963,51 +1966,18 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
   Map<String, dynamic>? _bookingOnDate({
     required List<QueryDocumentSnapshot> bookings,
+    required List<Map<String, dynamic>> occupancies,
     required String roomId,
     required DateTime day,
   }) {
-    return _bookingHit(bookings: bookings, roomId: roomId, day: day).data;
-  }
-
-  _BookingHit _bookingHit({
-    required List<QueryDocumentSnapshot> bookings,
-    required String roomId,
-    required DateTime day,
-  }) {
-    _BookingHit best = const _BookingHit();
-    int bestPriority = -1;
-    for (final QueryDocumentSnapshot doc in bookings) {
-      final Object? raw = doc.data();
-      if (raw is! Map) {
-        continue;
-      }
-      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
-      if ((data['roomId'] ?? '').toString() != roomId) {
-        continue;
-      }
-      if (!isActiveRoomDayBooking(data) || !_occupiesDate(data, day)) {
-        continue;
-      }
-      // 同一天有多筆時依固定順序取用，右側月曆才會選到同一筆。
-      final int priority = roomDayBookingPriority(data);
-      if (priority > bestPriority) {
-        bestPriority = priority;
-        best = _BookingHit(id: doc.id, data: data);
-      }
-    }
-    return best;
-  }
-
-  bool _occupiesDate(Map<String, dynamic> booking, DateTime day) {
-    final DateTime? start = _asDate(booking['startDate']);
-    final DateTime? end = _asDate(booking['endDate']);
-    if (start == null || end == null) {
-      return false;
-    }
-    final DateTime dayOnly = DateTime(day.year, day.month, day.day);
-    final DateTime startOnly = DateTime(start.year, start.month, start.day);
-    final DateTime endOnly = DateTime(end.year, end.month, end.day);
-    return !dayOnly.isBefore(startOnly) && dayOnly.isBefore(endOnly);
+    return preferredRoomDayBooking(
+      activeBookingsOnRoomDay(
+        bookings: _bookingChoices(bookings),
+        roomId: roomId,
+        day: day,
+        occupancies: occupancies,
+      ),
+    )?.data;
   }
 
   DateTime? _asDate(Object? raw) {

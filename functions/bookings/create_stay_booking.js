@@ -17,13 +17,20 @@ const {
 const {bookingSearchFields} = require("../search/normalize_fields");
 const {stampSubmittedAt} = require("../daycare/custom_form_answers");
 const {
+  CHECKOUT_CLEANING_STATUS,
+  newStayAutoCleaningSnapshot,
+  stayAutoCleaningForRebuild,
   calendarBlocksRoom,
+  canReleaseOwnedCalendar,
   commitRoomTypeHold,
+  isManualCalendarStatus,
   loadStayRoomTypeHoldStates,
   remainingRoomsFromData,
   releaseStayRoomTypeHoldsInTransaction,
   roomPermanentlyUnsellable,
+  stayCalendarPlan,
   stayNightKeys,
+  stayReleaseDateKeys,
   ROOM_TYPE_SOLD_OUT,
 } = require("../daycare/daycare_occupancy");
 const {
@@ -93,7 +100,8 @@ async function assertPhysicalRoomFree(transaction, firestore, params) {
   const shopId = normalizeString(params.shopId);
   const roomId = normalizeString(params.roomId);
   const excludeBookingId = normalizeString(params.excludeBookingId);
-  const nights = stayNightKeys(params.startDate, params.endDate);
+  const nights = Array.isArray(params.dateKeys) && params.dateKeys.length > 0 ?
+    params.dateKeys : stayNightKeys(params.startDate, params.endDate);
   const roomRef = firestore.collection("shops").doc(shopId)
       .collection("rooms").doc(roomId);
   const roomSnap = await transaction.get(roomRef);
@@ -108,9 +116,26 @@ async function assertPhysicalRoomFree(transaction, firestore, params) {
     const calRef = firestore.collection("shops").doc(shopId)
         .collection("room_calendar").doc(`${roomId}_${dateKey}`);
     const calSnap = await transaction.get(calRef);
-    if (calSnap.exists &&
-        calendarBlocksRoom((calSnap.data() || {}).status)) {
-      throw new HttpsError("failed-precondition", "此房間在該日期區間已被預約");
+    if (!calSnap.exists) {
+      continue;
+    }
+    const calendar = calSnap.data() || {};
+    const status = normalizeString(calendar.status);
+    const owner = normalizeString(calendar.bookingId);
+    if (isManualCalendarStatus(status)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "此房間在該日期已被手動關閉或維修",
+      );
+    }
+    if (owner && owner === excludeBookingId) {
+      continue;
+    }
+    if (calendarBlocksRoom(status)) {
+      const message = status === CHECKOUT_CLEANING_STATUS ?
+        "此房間退房後待清潔，該日不可安排" :
+        "此房間在該日期區間已被預約";
+      throw new HttpsError("failed-precondition", message);
     }
   }
   const bookingsSnap = await transaction.get(
@@ -171,19 +196,52 @@ function writeStayCalendar(
 }
 
 /**
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {string} shopId
+ * @param {string} roomId
+ * @param {string} dateKey
+ * @return {FirebaseFirestore.DocumentReference}
+ */
+function calendarDocRef(firestore, shopId, roomId, dateKey) {
+  return firestore.collection("shops").doc(shopId)
+      .collection("room_calendar").doc(`${roomId}_${dateKey}`);
+}
+
+/**
  * @param {FirebaseFirestore.Transaction} transaction
  * @param {FirebaseFirestore.Firestore} firestore
  * @param {string} shopId
  * @param {string} roomId
- * @param {Array<string>} nights
+ * @param {Array<string>} dateKeys
+ * @return {Promise<Array<Object>>}
+ */
+async function readCalendarDocs(
+    transaction, firestore, shopId, roomId, dateKeys,
+) {
+  const reads = [];
+  for (let i = 0; i < dateKeys.length; i += 1) {
+    const dateKey = dateKeys[i];
+    const ref = calendarDocRef(firestore, shopId, roomId, dateKey);
+    const snap = await transaction.get(ref);
+    reads.push({ref, snap, dateKey});
+  }
+  return reads;
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {Array<Object>} reads
+ * @param {string} bookingId
  * @return {void}
  */
-function deleteStayCalendar(transaction, firestore, shopId, roomId, nights) {
-  nights.forEach((dateKey) => {
-    transaction.delete(
-        firestore.collection("shops").doc(shopId)
-            .collection("room_calendar").doc(`${roomId}_${dateKey}`),
-    );
+function deleteOwnedCalendarDocs(transaction, reads, bookingId) {
+  reads.forEach((item) => {
+    if (!item.snap.exists) {
+      return;
+    }
+    if (canReleaseOwnedCalendar(item.snap.data() || {}, bookingId)) {
+      transaction.delete(item.ref);
+    }
   });
 }
 
@@ -268,6 +326,12 @@ exports.createStayBooking = onCall(
           if (again.exists) {
             return;
           }
+          const shopInTx = await transaction.get(
+              firestore.collection("shops").doc(shopId),
+          );
+          const stayAutoCleaning = newStayAutoCleaningSnapshot(
+              shopInTx.data() || {},
+          );
           const states = await loadStayRoomTypeHoldStates(
               transaction, firestore, {
                 shopId,
@@ -275,6 +339,7 @@ exports.createStayBooking = onCall(
                 startDate,
                 endDate,
                 bookingId: bookingRef.id,
+                autoCleaning: stayAutoCleaning,
               },
           );
           const payableAfterCoupon = stayPayableAfterCoupon;
@@ -317,6 +382,7 @@ exports.createStayBooking = onCall(
           }, {isAppMember: memberState.isAppMember, preview: true});
           transaction.set(bookingRef, {
             ...booking,
+            autoCleaningAfterCheckout: stayAutoCleaning,
             requestId: requestId || bookingRef.id,
             bookingId: bookingRef.id,
             bookingCode,
@@ -434,6 +500,25 @@ exports.manageStayInventory = onCall(
           });
           return {ok: true, action};
         }
+        if (action === "releaseCalendar") {
+          await firestore.runTransaction(async (transaction) => {
+            const live = await transaction.get(bookingRef);
+            const liveData = live.data() || {};
+            const assignedRoomId = normalizeString(liveData.roomId);
+            if (!assignedRoomId) {
+              return;
+            }
+            const reads = await readCalendarDocs(
+                transaction,
+                firestore,
+                shopId,
+                assignedRoomId,
+                stayReleaseDateKeys(liveData.startDate, liveData.endDate),
+            );
+            deleteOwnedCalendarDocs(transaction, reads, bookingId);
+          });
+          return {ok: true, action};
+        }
         if (!isStaff) {
           throw new HttpsError("permission-denied", "沒有權限分房");
         }
@@ -461,45 +546,62 @@ exports.manageStayInventory = onCall(
           await firestore.runTransaction(async (transaction) => {
             const live = await transaction.get(bookingRef);
             const liveData = live.data() || {};
+            const oldRoomId = normalizeString(liveData.roomId);
+            const oldReads = oldRoomId ?
+              await readCalendarDocs(
+                  transaction,
+                  firestore,
+                  shopId,
+                  oldRoomId,
+                  stayReleaseDateKeys(startDate, endDate),
+              ) : [];
+            const autoCleaning = stayAutoCleaningForRebuild(
+                {...liveData, id: bookingId},
+                oldReads,
+            );
+            const plan = stayCalendarPlan(startDate, endDate, autoCleaning);
             await assertPhysicalRoomFree(transaction, firestore, {
               shopId,
               roomId,
               startDate,
               endDate,
               excludeBookingId: bookingId,
+              dateKeys: plan.blockedKeys,
             });
-            const nights = stayNightKeys(startDate, endDate);
-const oldRoomId = normalizeString(liveData.roomId);
-
-// 重要：Firestore transaction 的所有讀取都要在任何寫入前完成。
-// releaseStayRoomTypeHoldsInTransaction 內部會讀取保留資料，
-// 所以必須放在刪除舊日曆、寫入新日曆之前。
-await releaseStayRoomTypeHoldsInTransaction(
-    transaction,
-    firestore,
-    {
-      ...liveData,
-      id: bookingId,
-      shopId,
-    },
-);
-
-if ((action === "change" || oldRoomId) &&
-    oldRoomId && oldRoomId !== roomId) {
-  deleteStayCalendar(
-      transaction, firestore, shopId, oldRoomId, nights,
-  );
-}
-
-writeStayCalendar(
-    transaction,
-    firestore,
-    shopId,
-    roomId,
-    nights,
-    bookingId,
-    "booked",
-);
+            // 所有讀取先完成。房型保留的讀寫包在釋放函式內，
+            // 必須放在刪除舊日曆、寫入新日曆之前。
+            await releaseStayRoomTypeHoldsInTransaction(
+                transaction,
+                firestore,
+                {
+                  ...liveData,
+                  id: bookingId,
+                  shopId,
+                },
+            );
+            if (oldRoomId) {
+              deleteOwnedCalendarDocs(transaction, oldReads, bookingId);
+            }
+            writeStayCalendar(
+                transaction,
+                firestore,
+                shopId,
+                roomId,
+                plan.nights,
+                bookingId,
+                "booked",
+            );
+            if (plan.checkoutKey) {
+              writeStayCalendar(
+                  transaction,
+                  firestore,
+                  shopId,
+                  roomId,
+                  [plan.checkoutKey],
+                  bookingId,
+                  CHECKOUT_CLEANING_STATUS,
+              );
+            }
             const roomTypeName = normalizeString(liveData.roomTypeName) ||
               normalizeString(liveData.roomTypeNameSnapshot);
             transaction.update(bookingRef, {
@@ -540,6 +642,107 @@ writeStayCalendar(
             }, operator);
           });
           return {ok: true, action};
+        }
+        if (action === "changeDates" || action === "unassign") {
+          const nextStart = action === "changeDates" ?
+            (toDate(data.startDate) || startDate) : startDate;
+          const nextEnd = action === "changeDates" ?
+            (toDate(data.endDate) || endDate) : endDate;
+          if (!nextStart || !nextEnd ||
+              stayNightKeys(nextStart, nextEnd).length === 0) {
+            throw new HttpsError("invalid-argument", "住宿日期不正確");
+          }
+          await firestore.runTransaction(async (transaction) => {
+            const live = await transaction.get(bookingRef);
+            const liveData = live.data() || {};
+            const assignedRoomId = normalizeString(liveData.roomId);
+            const oldReads = assignedRoomId ? await readCalendarDocs(
+                transaction,
+                firestore,
+                shopId,
+                assignedRoomId,
+                stayReleaseDateKeys(liveData.startDate, liveData.endDate),
+            ) : [];
+            const autoCleaning = stayAutoCleaningForRebuild(
+                {...liveData, id: bookingId},
+                oldReads,
+            );
+            const nextPlan = stayCalendarPlan(
+                nextStart, nextEnd, autoCleaning,
+            );
+            let holdStates = [];
+            if (action === "unassign" || !assignedRoomId) {
+              holdStates = await loadStayRoomTypeHoldStates(
+                  transaction, firestore, {
+                    shopId,
+                    roomTypeId: normalizeString(
+                        liveData.requestedRoomTypeId || liveData.roomTypeId,
+                    ),
+                    startDate: nextStart,
+                    endDate: nextEnd,
+                    bookingId,
+                    autoCleaning,
+                  },
+              );
+            } else {
+              await assertPhysicalRoomFree(transaction, firestore, {
+                shopId,
+                roomId: assignedRoomId,
+                startDate: nextStart,
+                endDate: nextEnd,
+                excludeBookingId: bookingId,
+                dateKeys: nextPlan.blockedKeys,
+              });
+            }
+            await releaseStayRoomTypeHoldsInTransaction(
+                transaction, firestore, {
+                  ...liveData,
+                  id: bookingId,
+                  shopId,
+                },
+            );
+            if (assignedRoomId) {
+              deleteOwnedCalendarDocs(transaction, oldReads, bookingId);
+            }
+            if (action === "unassign" || !assignedRoomId) {
+              holdStates.forEach((state) => {
+                commitRoomTypeHold(transaction, state);
+              });
+            } else {
+              writeStayCalendar(
+                  transaction, firestore, shopId, assignedRoomId,
+                  nextPlan.nights, bookingId, "booked",
+              );
+              if (nextPlan.checkoutKey) {
+                writeStayCalendar(
+                    transaction, firestore, shopId, assignedRoomId,
+                    [nextPlan.checkoutKey], bookingId,
+                    CHECKOUT_CLEANING_STATUS,
+                );
+              }
+            }
+            const bookingUpdate = {
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            if (action === "changeDates") {
+              bookingUpdate.startDate =
+                admin.firestore.Timestamp.fromDate(nextStart);
+              bookingUpdate.endDate =
+                admin.firestore.Timestamp.fromDate(nextEnd);
+              bookingUpdate.nights = nextPlan.nights.length;
+            }
+            if (action === "unassign") {
+              bookingUpdate.roomId = null;
+              bookingUpdate.roomName = null;
+              bookingUpdate.assignStatus = "unassigned";
+            }
+            transaction.update(bookingRef, bookingUpdate);
+          });
+          return {
+            ok: true,
+            action,
+            nights: stayNightKeys(nextStart, nextEnd).length,
+          };
         }
         throw new HttpsError("invalid-argument", "不支援的住宿庫存操作");
       } catch (error) {

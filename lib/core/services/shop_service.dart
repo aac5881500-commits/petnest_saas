@@ -152,6 +152,47 @@ class ShopService {
     });
   }
 
+  bool _userFieldMissing(Map<String, dynamic>? data, String key) {
+    if (data == null || !data.containsKey(key) || data[key] == null) {
+      return true;
+    }
+    final Object? value = data[key];
+    return value is String && value.trim().isEmpty;
+  }
+
+  /// 創店時補齊店主的 users/{uid}。已有欄位不覆蓋，缺的才補預設值。
+  Map<String, dynamic> _ownerPlatformUserSeed({
+    required User user,
+    required DocumentSnapshot<Map<String, dynamic>> snapshot,
+  }) {
+    final Map<String, dynamic>? data = snapshot.data();
+    final bool exists = snapshot.exists;
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'uid': user.uid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (!exists || _userFieldMissing(data, 'email')) {
+      payload['email'] = user.email ?? '';
+    }
+    if (!exists || _userFieldMissing(data, 'displayName')) {
+      payload['displayName'] = user.displayName ?? '';
+    }
+    if (!exists || _userFieldMissing(data, 'role')) {
+      payload['role'] = 'user';
+    }
+    if (!exists || _userFieldMissing(data, 'status')) {
+      payload['status'] = 'active';
+    }
+    if (!exists) {
+      payload['createdAt'] = FieldValue.serverTimestamp();
+    }
+    if (!exists || _userFieldMissing(data, 'lastLoginAt')) {
+      payload['lastLoginAt'] = FieldValue.serverTimestamp();
+    }
+    return payload;
+  }
+
   /// 建立店家
   Future<String> createShop({
     required String name,
@@ -216,6 +257,8 @@ class ShopService {
         .doc(activationCodeId);
 
     final batch = _firestore.batch();
+    final userRef = _firestore.collection('users').doc(user.uid);
+    final userSnap = await userRef.get();
 
     final policyAcceptanceRef = shopRef
         .collection('policy_acceptances')
@@ -312,6 +355,12 @@ class ShopService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    batch.set(
+      userRef,
+      _ownerPlatformUserSeed(user: user, snapshot: userSnap),
+      SetOptions(merge: true),
+    );
 
     batch.set(policyAcceptanceRef, {
       'type': 'shop_owner_policy',
