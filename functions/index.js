@@ -1007,3 +1007,18 @@ exports.backfillBookingSearchFields =
   require("./reports/shop_report_summary").backfillBookingSearchFields;
 exports.backfillMemberSearchFields =
   require("./reports/shop_report_summary").backfillMemberSearchFields;
+
+const cameraAccessCallables = require("./cameras/camera_access_callables");
+const cameraAccessSync = require("./cameras/camera_access_sync");
+exports.getCustomerRoomCamera = cameraAccessCallables.getCustomerRoomCamera;
+exports.submitCameraAccessRequest =
+  cameraAccessCallables.submitCameraAccessRequest;
+exports.confirmCustomerCameraWatching =
+  cameraAccessCallables.confirmCustomerCameraWatching;
+exports.updateCameraAccessRequest =
+  cameraAccessCallables.updateCameraAccessRequest;
+exports.syncCameraAccessOnBooking = cameraAccessSync.syncCameraAccessOnBooking;
+exports.syncCameraAccessOnDevice = cameraAccessSync.syncCameraAccessOnDevice;
+exports.syncCameraAccessOnDeviceDeleted =
+  cameraAccessSync.syncCameraAccessOnDeviceDeleted;
+exports.syncCameraAccessOnShop = cameraAccessSync.syncCameraAccessOnShop;

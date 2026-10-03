@@ -16,12 +16,14 @@ import 'package:petnest_saas/features/admin/widgets/booking_search_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 
+const double bookingListMaxWidth = 1400;
+
 class AdminPagedBookingList extends StatefulWidget {
   const AdminPagedBookingList({
     super.key,
     required this.shopId,
     required this.kind,
-    this.initialFilter = 'pending',
+    this.initialFilter = 'active',
     this.showCreateButton = false,
   });
 
@@ -62,9 +64,10 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _filter = widget.initialFilter == 'all' || widget.initialFilter.isEmpty
-        ? 'pending'
-        : widget.initialFilter;
+    final String requested = widget.initialFilter;
+    _filter = requested.isEmpty || requested == 'all'
+        ? 'active'
+        : (requested == 'history' ? 'settled' : requested);
     _reload();
   }
 
@@ -282,69 +285,77 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Column(
-      children: <Widget>[
-        if (widget.showCreateButton)
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        AdminCreateDaycareBookingPage(shopId: widget.shopId),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: bookingListMaxWidth),
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool wide = constraints.maxWidth >= 900;
+            return Column(
+              children: <Widget>[
+                if (widget.showCreateButton)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => AdminCreateDaycareBookingPage(
+                              shopId: widget.shopId,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('新增安親訂單'),
+                    ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('新增安親訂單'),
-            ),
-          ),
-        BookingSearchBar(controller: _searchController, onChanged: _onSearch),
-        if (!_isDaycare)
-          BookingAdvancedFilterButton(
-            onTap: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('此功能將於後續版本提供')));
-            },
-          ),
-        Expanded(
-          child: RefreshIndicator(onRefresh: _reload, child: _buildBody()),
+                if (wide) _controlBar(wide: true),
+                if (!wide)
+                  BookingSearchBar(
+                    controller: _searchController,
+                    onChanged: _onSearch,
+                  ),
+                _filterBar(),
+                if (!wide) _controlBar(wide: false),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _reload,
+                    child: _buildBody(),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildBody() {
-    if (_loading) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: <Widget>[
-          _filterBar(),
-          _countErrorBanner(),
-          const SizedBox(height: 80),
-          const Center(child: CircularProgressIndicator()),
-        ],
-      );
-    }
-    if (_error != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: <Widget>[_filterBar(), _countErrorBanner(), _listErrorCard()],
-      );
-    }
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
+  Widget _controlBar({required bool wide}) {
+    final Widget search = BookingSearchBar(
+      controller: _searchController,
+      onChanged: _onSearch,
+      margin: const EdgeInsets.only(right: 8),
+    );
+    final Widget tools = Row(
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _filterBar(),
-        _countErrorBanner(),
+        BookingAdvancedFilterButton(
+          onTap: () {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('此功能將於後續版本提供')));
+          },
+        ),
         BookingSortBar(
           totalCount: _docs.length,
           sortType: _sortType,
           isGridMode: false,
           daycareLabels: _isDaycare,
+          showCount: false,
           onSortChanged: (String value) {
             setState(() => _sortType = value);
           },
@@ -354,14 +365,65 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
             ).showSnackBar(const SnackBar(content: Text('格子檢視之後再開放')));
           },
         ),
+      ],
+    );
+    if (!wide) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        child: Align(alignment: Alignment.centerLeft, child: tools),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: <Widget>[
+          Expanded(child: search),
+          tools,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: <Widget>[
+          _countErrorBanner(),
+          const SizedBox(height: 80),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      );
+    }
+    if (_error != null) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: <Widget>[_countErrorBanner(), _listErrorCard()],
+      );
+    }
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: <Widget>[
+        _countErrorBanner(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '目前載入 ${_docs.length} 筆',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ),
         if (_docs.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 80),
             child: Center(
               child: Text(
-                _isDaycare
-                    ? '沒有符合的安親訂單'
-                    : (_filter == 'history' ? '尚無歷史訂單' : '尚無符合條件的訂單'),
+                _emptyLabel(),
                 style: const TextStyle(
                   color: Colors.grey,
                   fontWeight: FontWeight.bold,
@@ -512,6 +574,16 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
         ),
       ),
     );
+  }
+
+  String _emptyLabel() {
+    if (_filter == 'settled') {
+      return '尚無結清訂單';
+    }
+    if (_filter == 'cancelled') {
+      return '尚無已取消訂單';
+    }
+    return _isDaycare ? '沒有符合的安親訂單' : '尚無符合條件的訂單';
   }
 
   Widget _filterBar() {

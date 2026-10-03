@@ -1,10 +1,13 @@
 // 檔案名稱：test/booking_list_filter_counts_test.dart
 // 功能說明：住宿／安親篩選膠囊條件與 chip key 必須對齊。
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/booking_list_query_service.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_paged_booking_list.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 
 void main() {
@@ -29,6 +32,35 @@ void main() {
       ),
       isTrue,
     );
+    expect(BookingStatusFilter.stayItems.first.label, '全部');
+    expect(BookingStatusFilter.stayItems.last.label, '已取消');
+    expect(
+      BookingStatusFilter.stayItems.map((BookingFilterChipSpec e) => e.label),
+      containsAll(<String>['結清', '今日入住', '今日退房', '未來入住']),
+    );
+    expect(
+      BookingStatusFilter.daycareItems.map(
+        (BookingFilterChipSpec e) => e.label,
+      ),
+      containsAll(<String>['全部', '今日安親', '今日結束', '未來安親', '結清', '已取消']),
+    );
+    expect(
+      BookingStatusFilter.stayItems.any(
+        (BookingFilterChipSpec e) => e.label == '歷史訂單',
+      ),
+      isFalse,
+    );
+    expect(BookingListQueryService.pageSize, 20);
+    expect(bookingListMaxWidth, 1400);
+    expect(
+      BookingListQueryService.activeStatuses,
+      isNot(contains('completed')),
+    );
+    expect(
+      BookingListQueryService.activeStatuses,
+      isNot(contains('cancelled')),
+    );
+    expect(BookingListQueryService.activeStatuses, contains('checked_out'));
   });
 
   test('住宿 checked_in 9/22～9/24 計入入住中，不進歷史', () {
@@ -156,6 +188,66 @@ void main() {
     expect(
       DaycareStatusLabels.matchesFilter(checkedOut, 'checked_in'),
       isFalse,
+    );
+  });
+
+  testWidgets('快速分類維持橫向一列，可滑到結清', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: BookingStatusFilter(
+              selectedType: 'active',
+              counts: const <String, int>{},
+              onChanged: (_) {},
+              items: BookingStatusFilter.stayItems,
+            ),
+          ),
+        ),
+      ),
+    );
+    final ListView list = tester.widget<ListView>(find.byType(ListView));
+    expect(list.scrollDirection, Axis.horizontal);
+    expect(find.text('全部'), findsOneWidget);
+    expect(find.text('歷史訂單'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('已取消'),
+      120,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text('結清'), findsOneWidget);
+    expect(find.text('已取消'), findsOneWidget);
+  });
+
+  test('搜尋範圍跟目前分類走，全部不包含結清與取消', () {
+    final List<String> active = BookingListQueryService.searchStatusesFor(
+      kind: BookingKind.accommodation,
+      filter: 'active',
+    );
+    expect(active, isNot(contains('completed')));
+    expect(active, isNot(contains('cancelled')));
+    expect(active, isNot(contains('no_show')));
+    expect(
+      BookingListQueryService.searchStatusesFor(
+        kind: BookingKind.accommodation,
+        filter: 'settled',
+      ),
+      <String>['completed'],
+    );
+    expect(
+      BookingListQueryService.searchStatusesFor(
+        kind: BookingKind.daycare,
+        filter: 'cancelled',
+      ),
+      <String>['cancelled', 'no_show'],
+    );
+    expect(
+      BookingListQueryService.searchStatusesFor(
+        kind: BookingKind.daycare,
+        filter: 'active',
+      ),
+      isNot(contains('completed')),
     );
   });
 

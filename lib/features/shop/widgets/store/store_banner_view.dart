@@ -29,6 +29,8 @@ class StoreBannerView extends StatelessWidget {
     this.scope = PetNestBannerScope.store,
     this.sizePresetOverride,
     this.composeLive,
+    this.homeFrameAspectRatio,
+    this.completePosterFit,
   });
 
   final StoreBannerModel banner;
@@ -45,6 +47,8 @@ class StoreBannerView extends StatelessWidget {
   final PetNestBannerScope scope;
   final String? sizePresetOverride;
   final bool? composeLive;
+  final double? homeFrameAspectRatio;
+  final BoxFit? completePosterFit;
 
   @override
   Widget build(BuildContext context) {
@@ -60,8 +64,10 @@ class StoreBannerView extends StatelessWidget {
               scope == PetNestBannerScope.home &&
               banner.hasPublishedPoster &&
               !live;
+          final double homeAspect =
+              homeFrameAspectRatio ?? HomeBannerDisplay.aspectRatio;
           final double rawHeight = scope == PetNestBannerScope.home
-              ? (width <= 0 ? 0 : width / HomeBannerDisplay.aspectRatio)
+              ? (width <= 0 ? 0 : width / homeAspect)
               : StoreBannerSizePresets.heightForWidth(
                   sizePresetOverride ?? banner.sizePreset,
                   width,
@@ -95,6 +101,7 @@ class StoreBannerView extends StatelessWidget {
                     live && scope == PetNestBannerScope.home && !publishedHome,
                 completePoster: publishedHome,
                 composeLive: live,
+                completePosterFit: completePosterFit,
               ),
             ),
           );
@@ -121,6 +128,7 @@ class _BannerStage extends StatelessWidget {
     required this.homeFreeCompose,
     required this.composeLive,
     required this.completePoster,
+    this.completePosterFit,
   });
 
   final StoreBannerModel banner;
@@ -138,6 +146,7 @@ class _BannerStage extends StatelessWidget {
   final bool homeFreeCompose;
   final bool composeLive;
   final bool completePoster;
+  final BoxFit? completePosterFit;
 
   bool get _editing => interactMode != StoreBannerInteractMode.none;
 
@@ -148,7 +157,8 @@ class _BannerStage extends StatelessWidget {
       banner: banner,
       theme: theme,
       useRendered: completePoster || (!composeLive && banner.hasRenderedImage),
-      contain: completePoster,
+      contain: completePoster && completePosterFit != BoxFit.cover,
+      frameFit: completePoster ? (completePosterFit ?? BoxFit.contain) : null,
       composeSource: composeLive && !completePoster,
       previewBytes: previewImageBytes,
     );
@@ -503,6 +513,7 @@ class _BannerImage extends StatelessWidget {
     required this.theme,
     this.useRendered = false,
     this.contain = false,
+    this.frameFit,
     this.composeSource = false,
     this.previewBytes,
   });
@@ -511,13 +522,24 @@ class _BannerImage extends StatelessWidget {
   final HomeThemeModel theme;
   final bool useRendered;
   final bool contain;
+  final BoxFit? frameFit;
   final bool composeSource;
   final Uint8List? previewBytes;
 
   @override
   Widget build(BuildContext context) {
     final bool fullFrame = contain || (composeSource && banner.isImageOnly);
-    final Uint8List? bytes = composeSource ? previewBytes : null;
+    final BoxFit resolvedFit =
+        frameFit ?? (fullFrame ? BoxFit.contain : BoxFit.cover);
+    final Alignment resolvedAlignment =
+        frameFit != null || useRendered || fullFrame
+        ? Alignment.center
+        : banner.imageAlignment;
+    final bool showPreview =
+        previewBytes != null &&
+        previewBytes!.isNotEmpty &&
+        (composeSource || frameFit != null);
+    final Uint8List? bytes = showPreview ? previewBytes : null;
     if ((bytes == null || bytes.isEmpty) && !banner.hasImage) {
       return ColoredBox(
         color: theme.cardColor,
@@ -529,12 +551,14 @@ class _BannerImage extends StatelessWidget {
         color: theme.cardColor,
         child: ClipRect(
           child: Transform.scale(
-            scale: fullFrame ? 1 : banner.imageScale.clamp(1.0, 2.5),
-            alignment: fullFrame ? Alignment.center : banner.imageAlignment,
+            scale: fullFrame || frameFit != null
+                ? 1
+                : banner.imageScale.clamp(1.0, 2.5),
+            alignment: resolvedAlignment,
             child: Image.memory(
               bytes,
-              fit: fullFrame ? BoxFit.contain : BoxFit.cover,
-              alignment: fullFrame ? Alignment.center : banner.imageAlignment,
+              fit: resolvedFit,
+              alignment: resolvedAlignment,
               width: double.infinity,
               height: double.infinity,
               gaplessPlayback: true,
@@ -550,16 +574,14 @@ class _BannerImage extends StatelessWidget {
       color: theme.cardColor,
       child: ClipRect(
         child: Transform.scale(
-          scale: useRendered || fullFrame
+          scale: useRendered || fullFrame || frameFit != null
               ? 1
               : banner.imageScale.clamp(1.0, 2.5),
-          alignment: useRendered || fullFrame
-              ? Alignment.center
-              : banner.imageAlignment,
+          alignment: resolvedAlignment,
           child: Image.network(
             url,
-            fit: fullFrame ? BoxFit.contain : BoxFit.cover,
-            alignment: fullFrame ? Alignment.center : banner.imageAlignment,
+            fit: resolvedFit,
+            alignment: resolvedAlignment,
             width: double.infinity,
             height: double.infinity,
             gaplessPlayback: true,

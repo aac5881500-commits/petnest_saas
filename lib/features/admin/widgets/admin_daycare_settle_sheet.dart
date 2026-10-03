@@ -1,6 +1,8 @@
 // 檔案名稱：lib/features/admin/widgets/admin_daycare_settle_sheet.dart
 // 功能說明：安親結算 bottom sheet：完整日期時間、晚接回明細、手動調整與收款選項
 
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +49,27 @@ Future<AdminDaycareSettleResult?> showAdminDaycareSettleSheet({
   required String bookingId,
   required Map<String, dynamic> booking,
 }) {
+  final bool asDialog = MediaQuery.sizeOf(context).width >= 1024;
+  if (asDialog) {
+    return showDialog<AdminDaycareSettleResult>(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          backgroundColor: Colors.transparent,
+          child: AdminDaycareSettleSheet(
+            shopId: shopId,
+            bookingId: bookingId,
+            booking: booking,
+            asDialog: true,
+          ),
+        );
+      },
+    );
+  }
   return showModalBottomSheet<AdminDaycareSettleResult>(
     context: context,
     isScrollControlled: true,
@@ -67,11 +90,13 @@ class AdminDaycareSettleSheet extends StatefulWidget {
     required this.shopId,
     required this.bookingId,
     required this.booking,
+    this.asDialog = false,
   });
 
   final String shopId;
   final String bookingId;
   final Map<String, dynamic> booking;
+  final bool asDialog;
 
   @override
   State<AdminDaycareSettleSheet> createState() =>
@@ -409,388 +434,404 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   @override
   Widget build(BuildContext context) {
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
-    final double bottom = MediaQuery.of(context).viewInsets.bottom;
-    final double maxHeight = MediaQuery.of(context).size.height * 0.92;
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Padding(
-          padding: EdgeInsets.only(bottom: bottom),
-          child: Material(
-            color: theme.cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: SizedBox(
-              height: maxHeight,
+    final MediaQueryData media = MediaQuery.of(context);
+    final double available =
+        media.size.height - media.viewInsets.bottom - media.padding.top - 16;
+    final double maxHeight = math.min(
+      media.size.height * (widget.asDialog ? 0.86 : 0.92),
+      math.max(240, available),
+    );
+    final Widget sheet = Material(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.vertical(
+        top: const Radius.circular(20),
+        bottom: Radius.circular(widget.asDialog ? 20 : 0),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: maxHeight,
+        child: Column(
+          children: <Widget>[
+            if (!widget.asDialog) ...<Widget>[
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.borderColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ] else
+              const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.borderColor,
-                      borderRadius: BorderRadius.circular(999),
+                  Text(
+                    '結算安親',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: theme.titleColor,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 4),
+                  Text(
+                    '依實際接回時間計算晚接回費用，確認後完成此筆安親。',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.subtitleColor,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _sheetScroll,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    _timeCard(
+                      theme,
+                      title: '預約時間',
+                      rows: <List<String>>[
+                        <String>[
+                          '預約送達',
+                          DaycareTimeHelper.formatDateTimeOrUnrecorded(
+                            _scheduledStart,
+                          ),
+                        ],
+                        <String>[
+                          '預約接回',
+                          DaycareTimeHelper.formatDateTimeOrUnrecorded(
+                            _scheduledEnd,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _timeCard(
+                      theme,
+                      title: '實際時間',
+                      rows: <List<String>>[
+                        <String>[
+                          '實際送達',
+                          DaycareTimeHelper.formatDateTimeOrUnrecorded(
+                            _actualStart,
+                          ),
+                        ],
+                        <String>[
+                          '實際接回',
+                          DaycareTimeHelper.formatDateTime(_actualEnd),
+                        ],
+                      ],
+                      trailing: _freezeActualEnd
+                          ? const Text('以首次結算時間為準')
+                          : TextButton(
+                              onPressed: _pickActualEnd,
+                              child: const Text('調整接回時間'),
+                            ),
+                    ),
+                    const SizedBox(height: 14),
+                    if (_loadingPreview)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_previewError != null)
+                      Text(
+                        _previewError!,
+                        style: TextStyle(color: theme.primaryColor),
+                      )
+                    else
+                      _feeSection(theme),
+                    const SizedBox(height: 14),
+                    Text(
+                      '手動調整金額',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: theme.titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: <Widget>[
-                        Text(
-                          '結算安親',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: theme.titleColor,
-                          ),
+                        ChoiceChip(
+                          label: const Text('＋ 加收'),
+                          selected:
+                              _adjustKind == DaycareManualAdjustKind.surcharge,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              _adjustKind = selected
+                                  ? DaycareManualAdjustKind.surcharge
+                                  : DaycareManualAdjustKind.none;
+                              if (_adjustKind == DaycareManualAdjustKind.none) {
+                                _unsignedAdjust.clear();
+                                _reasonError = false;
+                              }
+                            });
+                          },
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '依實際接回時間計算晚接回費用，確認後完成此筆安親。',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: theme.subtitleColor,
-                            height: 1.4,
-                          ),
+                        ChoiceChip(
+                          label: const Text('－ 減免'),
+                          selected:
+                              _adjustKind == DaycareManualAdjustKind.discount,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              _adjustKind = selected
+                                  ? DaycareManualAdjustKind.discount
+                                  : DaycareManualAdjustKind.none;
+                              if (_adjustKind == DaycareManualAdjustKind.none) {
+                                _unsignedAdjust.clear();
+                                _reasonError = false;
+                              }
+                            });
+                          },
                         ),
                       ],
                     ),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: _sheetScroll,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    if (_adjustKind !=
+                        DaycareManualAdjustKind.none) ...<Widget>[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _unsignedAdjust,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
+                          labelText:
+                              _adjustKind == DaycareManualAdjustKind.surcharge
+                              ? '加收金額'
+                              : '減免金額',
+                          hintText: '請輸入 0 以上整數',
+                          border: const OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setState(() {
+                          if (_manual == 0) {
+                            _reasonError = false;
+                          }
+                        }),
+                      ),
+                    ],
+                    if (_manual != 0) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        key: _reasonFieldKey,
+                        '⚠ 調整原因（必填）',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _manualReason,
+                        focusNode: _reasonFocus,
+                        decoration: InputDecoration(
+                          hintText: '請說明本次加收或減免原因',
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.red.shade400,
+                              width: 1.6,
+                            ),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.red,
+                              width: 1.8,
+                            ),
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                        onChanged: (_) {
+                          setState(() {
+                            if (_manualReason.text.trim().isNotEmpty) {
+                              _reasonError = false;
+                            }
+                          });
+                        },
+                      ),
+                      if (_showReasonError)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 6),
+                          child: Text(
+                            '未填寫原因不可確認結算',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text(
+                          '此說明會顯示給客戶，請清楚填寫加收或減免原因。',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    if (_showTopUp) ...<Widget>[
+                      Text(
+                        '補款方式',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: theme.titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('shops')
+                            .doc(widget.shopId)
+                            .snapshots(),
+                        builder:
+                            (
+                              BuildContext context,
+                              AsyncSnapshot<
+                                DocumentSnapshot<Map<String, dynamic>>
+                              >
+                              snapshot,
+                            ) {
+                              final ShopPaymentCatalog catalog =
+                                  ShopPaymentMethods.settlementTopUpCatalog(
+                                    shopData:
+                                        snapshot.data?.data() ??
+                                        const <String, dynamic>{},
+                                    serviceType:
+                                        PolicyApplicableService.daycare,
+                                  );
+                              if (catalog.methods.isEmpty) {
+                                return const Text(
+                                  '目前沒有可用補款方式，請先至店家付款設定開啟。待補款不可標成已結清。',
+                                );
+                              }
+                              return Column(
+                                children: catalog.methods.map((
+                                  ShopPaymentMethodOption item,
+                                ) {
+                                  return RadioListTile<String>(
+                                    value: item.id,
+                                    groupValue: _topUpMethod,
+                                    title: Text(item.title),
+                                    subtitle: Text(item.subtitle),
+                                    onChanged: (String? value) {
+                                      setState(
+                                        () => _topUpMethod = value ?? '',
+                                      );
+                                    },
+                                  );
+                                }).toList(),
+                              );
+                            },
+                      ),
+                    ] else if (_showRefund) ...<Widget>[
+                      Text(
+                        '退款方式',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: theme.titleColor,
+                        ),
+                      ),
+                      SettlementRefundMethodPicker(
+                        value: _refundMethod,
+                        noteController: _refundNote,
+                        onChanged: (String value) {
+                          setState(() => _refundMethod = value);
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.primarySoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          _timeCard(
-                            theme,
-                            title: '預約時間',
-                            rows: <List<String>>[
-                              <String>[
-                                '預約送達',
-                                DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                                  _scheduledStart,
-                                ),
-                              ],
-                              <String>[
-                                '預約接回',
-                                DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                                  _scheduledEnd,
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          _timeCard(
-                            theme,
-                            title: '實際時間',
-                            rows: <List<String>>[
-                              <String>[
-                                '實際送達',
-                                DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                                  _actualStart,
-                                ),
-                              ],
-                              <String>[
-                                '實際接回',
-                                DaycareTimeHelper.formatDateTime(_actualEnd),
-                              ],
-                            ],
-                            trailing: _freezeActualEnd
-                                ? const Text('以首次結算時間為準')
-                                : TextButton(
-                                    onPressed: _pickActualEnd,
-                                    child: const Text('調整接回時間'),
-                                  ),
-                          ),
-                          const SizedBox(height: 14),
-                          if (_loadingPreview)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          else if (_previewError != null)
-                            Text(
-                              _previewError!,
-                              style: TextStyle(color: theme.primaryColor),
-                            )
-                          else
-                            _feeSection(theme),
-                          const SizedBox(height: 14),
                           Text(
-                            '手動調整金額',
+                            '結算確認摘要',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: theme.titleColor,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: <Widget>[
-                              ChoiceChip(
-                                label: const Text('＋ 加收'),
-                                selected:
-                                    _adjustKind ==
-                                    DaycareManualAdjustKind.surcharge,
-                                onSelected: (bool selected) {
-                                  setState(() {
-                                    _adjustKind = selected
-                                        ? DaycareManualAdjustKind.surcharge
-                                        : DaycareManualAdjustKind.none;
-                                    if (_adjustKind ==
-                                        DaycareManualAdjustKind.none) {
-                                      _unsignedAdjust.clear();
-                                      _reasonError = false;
-                                    }
-                                  });
-                                },
-                              ),
-                              ChoiceChip(
-                                label: const Text('－ 減免'),
-                                selected:
-                                    _adjustKind ==
-                                    DaycareManualAdjustKind.discount,
-                                onSelected: (bool selected) {
-                                  setState(() {
-                                    _adjustKind = selected
-                                        ? DaycareManualAdjustKind.discount
-                                        : DaycareManualAdjustKind.none;
-                                    if (_adjustKind ==
-                                        DaycareManualAdjustKind.none) {
-                                      _unsignedAdjust.clear();
-                                      _reasonError = false;
-                                    }
-                                  });
-                                },
-                              ),
-                            ],
+                          const SizedBox(height: 6),
+                          Text('原應收 NT\$$_quoted'),
+                          Text(
+                            _manual == 0
+                                ? '加收／減免 未調整'
+                                : SettlementAdjustDisplay.shopAmountLine(
+                                    _manual,
+                                  ),
                           ),
-                          if (_adjustKind !=
-                              DaycareManualAdjustKind.none) ...<Widget>[
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _unsignedAdjust,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: <TextInputFormatter>[
-                                FilteringTextInputFormatter.digitsOnly,
-                              ],
-                              decoration: InputDecoration(
-                                labelText:
-                                    _adjustKind ==
-                                        DaycareManualAdjustKind.surcharge
-                                    ? '加收金額'
-                                    : '減免金額',
-                                hintText: '請輸入 0 以上整數',
-                                border: const OutlineInputBorder(),
-                              ),
-                              onChanged: (_) => setState(() {
-                                if (_manual == 0) {
-                                  _reasonError = false;
-                                }
-                              }),
-                            ),
-                          ],
-                          if (_manual != 0) ...<Widget>[
-                            const SizedBox(height: 8),
-                            Text(
-                              key: _reasonFieldKey,
-                              '⚠ 調整原因（必填）',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Colors.red,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _manualReason,
-                              focusNode: _reasonFocus,
-                              decoration: InputDecoration(
-                                hintText: '請說明本次加收或減免原因',
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: Colors.red.shade400,
-                                    width: 1.6,
-                                  ),
-                                ),
-                                focusedBorder: const OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: Colors.red,
-                                    width: 1.8,
-                                  ),
-                                ),
-                                border: const OutlineInputBorder(),
-                              ),
-                              onChanged: (_) {
-                                setState(() {
-                                  if (_manualReason.text.trim().isNotEmpty) {
-                                    _reasonError = false;
-                                  }
-                                });
-                              },
-                            ),
-                            if (_showReasonError)
-                              const Padding(
-                                padding: EdgeInsets.only(top: 6),
-                                child: Text(
-                                  '未填寫原因不可確認結算',
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            const Padding(
-                              padding: EdgeInsets.only(top: 6),
-                              child: Text(
-                                '此說明會顯示給客戶，請清楚填寫加收或減免原因。',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 14),
-                          if (_showTopUp) ...<Widget>[
-                            Text(
-                              '補款方式',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: theme.titleColor,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            StreamBuilder<
-                              DocumentSnapshot<Map<String, dynamic>>
-                            >(
-                              stream: FirebaseFirestore.instance
-                                  .collection('shops')
-                                  .doc(widget.shopId)
-                                  .snapshots(),
-                              builder:
-                                  (
-                                    BuildContext context,
-                                    AsyncSnapshot<
-                                      DocumentSnapshot<Map<String, dynamic>>
-                                    >
-                                    snapshot,
-                                  ) {
-                                    final ShopPaymentCatalog catalog =
-                                        ShopPaymentMethods.settlementTopUpCatalog(
-                                          shopData:
-                                              snapshot.data?.data() ??
-                                              const <String, dynamic>{},
-                                          serviceType:
-                                              PolicyApplicableService.daycare,
-                                        );
-                                    if (catalog.methods.isEmpty) {
-                                      return const Text(
-                                        '目前沒有可用補款方式，請先至店家付款設定開啟。待補款不可標成已結清。',
-                                      );
-                                    }
-                                    return Column(
-                                      children: catalog.methods.map((
-                                        ShopPaymentMethodOption item,
-                                      ) {
-                                        return RadioListTile<String>(
-                                          value: item.id,
-                                          groupValue: _topUpMethod,
-                                          title: Text(item.title),
-                                          subtitle: Text(item.subtitle),
-                                          onChanged: (String? value) {
-                                            setState(
-                                              () => _topUpMethod = value ?? '',
-                                            );
-                                          },
-                                        );
-                                      }).toList(),
-                                    );
-                                  },
-                            ),
-                          ] else if (_showRefund) ...<Widget>[
-                            Text(
-                              '退款方式',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: theme.titleColor,
-                              ),
-                            ),
-                            SettlementRefundMethodPicker(
-                              value: _refundMethod,
-                              noteController: _refundNote,
-                              onChanged: (String value) {
-                                setState(() => _refundMethod = value);
-                              },
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: theme.primarySoft,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  '結算確認摘要',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: theme.titleColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text('原應收 NT\$$_quoted'),
-                                Text(
-                                  _manual == 0
-                                      ? '加收／減免 未調整'
-                                      : SettlementAdjustDisplay.shopAmountLine(
-                                          _manual,
-                                        ),
-                                ),
-                                if (_manual != 0 &&
-                                    _manualReason.text.trim().isNotEmpty)
-                                  Text('調整原因：${_manualReason.text.trim()}'),
-                                Text(
-                                  '最終應收 NT\$$_finalReceivable',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                Text('已收款 NT\$$_paid'),
-                                if (_showTopUp) Text('待補款 NT\$$_remaining'),
-                                if (_showRefund) Text('待退款 NT\$$_refundDue'),
-                                if (!_showTopUp && !_showRefund)
-                                  const Text('待補款／待退款 NT\$0'),
-                                if (_showTopUp && _topUpMethod.isNotEmpty)
-                                  Text(
-                                    '補款方式：${BookingPaymentLabels.method(_topUpMethod)}　付款狀態：${BookingPaymentLabels.status(widget.booking['settlementTopUpStatus'] ?? 'selected')}',
-                                  ),
-                                if (_showRefund)
-                                  Text(
-                                    '退款方式 ${SettlementAdjustDisplay.refundMethodLabel(_refundMethod.isEmpty ? SettlementAdjustDisplay.inStoreRefundMethod : _refundMethod)}',
-                                  ),
-                              ],
-                            ),
+                          if (_manual != 0 &&
+                              _manualReason.text.trim().isNotEmpty)
+                            Text('調整原因：${_manualReason.text.trim()}'),
+                          Text(
+                            '最終應收 NT\$$_finalReceivable',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
+                          Text('已收款 NT\$$_paid'),
+                          if (_showTopUp) Text('待補款 NT\$$_remaining'),
+                          if (_showRefund) Text('待退款 NT\$$_refundDue'),
+                          if (!_showTopUp && !_showRefund)
+                            const Text('待補款／待退款 NT\$0'),
+                          if (_showTopUp && _topUpMethod.isNotEmpty)
+                            Text(
+                              '補款方式：${BookingPaymentLabels.method(_topUpMethod)}　付款狀態：${BookingPaymentLabels.status(widget.booking['settlementTopUpStatus'] ?? 'selected')}',
+                            ),
+                          if (_showRefund)
+                            Text(
+                              '退款方式 ${SettlementAdjustDisplay.refundMethodLabel(_refundMethod.isEmpty ? SettlementAdjustDisplay.inStoreRefundMethod : _refundMethod)}',
+                            ),
                         ],
                       ),
                     ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                      child: SizedBox(
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: widget.asDialog
+                    ? Row(
+                        children: <Widget>[
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('取消'),
+                          ),
+                          const Spacer(),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: theme.buttonColor,
+                              foregroundColor: theme.onPrimaryColor,
+                              minimumSize: const Size(48, 48),
+                            ),
+                            onPressed: _loadingPreview ? null : _confirm,
+                            child: const Text('確認結算'),
+                          ),
+                        ],
+                      )
+                    : SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: FilledButton(
@@ -802,13 +843,20 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                           child: const Text('確認結算'),
                         ),
                       ),
-                    ),
-                  ),
-                ],
               ),
             ),
-          ),
+          ],
         ),
+      ),
+    );
+    if (widget.asDialog) {
+      return SizedBox(width: 640, child: sheet);
+    }
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: sheet,
       ),
     );
   }

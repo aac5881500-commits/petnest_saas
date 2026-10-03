@@ -1,6 +1,6 @@
 // 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_banner_carousel.dart
 // 功能說明：新版 Beta 首頁活動海報輪播。
-// 外框尺寸由前台外觀的 homeBannerDisplaySize 統一決定，內容由每張 Banner 自己 render。
+// 外框寬度與高度由前台外觀分開決定，內容由每張 Banner 自己 render。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -18,7 +18,6 @@ class ModernHomeBannerCarousel extends StatefulWidget {
     required this.banners,
     required this.theme,
     required this.frameSetting,
-    required this.reviewBadge,
     this.onBannerTap,
     this.liveComposeBannerId,
     this.initialBannerId,
@@ -34,7 +33,6 @@ class ModernHomeBannerCarousel extends StatefulWidget {
   final List<StoreBannerModel> banners;
   final HomeThemeModel theme;
   final ModernBannerFrameSetting frameSetting;
-  final Widget reviewBadge;
   final ValueChanged<StoreBannerModel>? onBannerTap;
 
   /// 後台預覽：這張用草稿即時合成，顧客前台不傳。
@@ -162,9 +160,9 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
 
   Widget _bannerCanvas({required Widget child}) {
     return Padding(
-      padding: HomeBannerDisplay.outerPadding(widget.frameSetting.displaySize),
+      padding: HomeBannerDisplay.outerPadding(widget.frameSetting.widthPreset),
       child: AspectRatio(
-        aspectRatio: HomeBannerDisplay.aspectRatio,
+        aspectRatio: widget.frameSetting.frameAspectRatio,
         child: child,
       ),
     );
@@ -180,6 +178,8 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
         theme: widget.theme,
         scope: PetNestBannerScope.home,
         borderRadius: 0,
+        homeFrameAspectRatio: widget.frameSetting.frameAspectRatio,
+        completePosterFit: widget.frameSetting.completePosterFit,
         composeLive: widget.liveComposeBannerId == banner.id ? true : null,
         interactMode:
             widget.liveComposeBannerId == banner.id &&
@@ -235,7 +235,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
     final List<StoreBannerModel> banners = _banners;
     final HomeThemeModel theme = widget.theme;
     final bool compact =
-        widget.frameSetting.displaySize == HomeBannerDisplaySize.small;
+        widget.frameSetting.widthPreset == HomeBannerWidthPreset.narrow;
     final bool showPager = banners.length > 1;
     final bool showNavArrows =
         showPager &&
@@ -320,11 +320,6 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                       ),
                     ],
                   ),
-                ),
-                Positioned(
-                  left: compact ? 8 : 13,
-                  top: compact ? 4 : 8,
-                  child: IgnorePointer(child: widget.reviewBadge),
                 ),
                 if (showNavArrows) ...[
                   Align(

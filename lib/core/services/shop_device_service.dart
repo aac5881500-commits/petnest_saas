@@ -82,6 +82,10 @@ class ShopDeviceService {
       'platformLocked': false,
       'lockedReason': '',
       'note': '',
+      'viewMode': 'web_url',
+      'provider': '',
+      'externalDeviceName': '',
+      'customerShareNote': '',
       'autoCreated': true,
       'createdAt': now,
       'updatedAt': now,
@@ -129,6 +133,10 @@ class ShopDeviceService {
     required bool enabled,
     required bool persistSettings,
     required List<String> siblingDeviceIds,
+    String viewMode = 'web_url',
+    String provider = '',
+    String externalDeviceName = '',
+    String customerShareNote = '',
   }) async {
     final WriteBatch batch = _firestore.batch();
     final String existingId = (primaryDeviceId ?? '').trim();
@@ -144,8 +152,14 @@ class ShopDeviceService {
         roomId: roomId,
         roomName: roomName,
       );
-      payload['url'] = url.trim();
+      payload['url'] = viewMode == 'external_app' ? '' : url.trim();
       payload['note'] = note.trim();
+      payload['viewMode'] = viewMode == 'external_app'
+          ? 'external_app'
+          : 'web_url';
+      payload['provider'] = viewMode == 'external_app' ? provider.trim() : '';
+      payload['externalDeviceName'] = externalDeviceName.trim();
+      payload['customerShareNote'] = customerShareNote.trim();
       payload['enabled'] = false;
       payload['platformLocked'] = false;
       batch.set(primaryRef, payload);
@@ -155,8 +169,12 @@ class ShopDeviceService {
       });
     } else if (persistSettings) {
       batch.update(primaryRef, <String, dynamic>{
-        'url': url.trim(),
+        'url': viewMode == 'external_app' ? '' : url.trim(),
         'note': note.trim(),
+        'viewMode': viewMode == 'external_app' ? 'external_app' : 'web_url',
+        'provider': viewMode == 'external_app' ? provider.trim() : '',
+        'externalDeviceName': externalDeviceName.trim(),
+        'customerShareNote': customerShareNote.trim(),
         'roomName': roomName,
         'enabled': false,
         'updatedAt': FieldValue.serverTimestamp(),

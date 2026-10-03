@@ -4,7 +4,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
+import 'package:petnest_saas/features/admin/models/settlement_next_action.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_settlement_panel.dart';
+import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/booking_inventory_function_service.dart';
@@ -274,83 +276,149 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     final DaycareHourlyDisplayInfo hourlyDisplay = DaycarePricingService
         .instance
         .hourlyDisplayFromBooking(data, startAt: start, endAt: end);
-    final Widget actionBar = Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        if (!locked &&
-            (status == 'pending' || status == 'pending_confirmation') &&
-            DaycarePaymentDisplay.toInt(data['depositAmount']) > 0 &&
-            !BookingPaymentStatus.isDepositConfirmed(data))
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
-            onPressed: _busy
-                ? null
-                : () => _run('confirmDeposit', confirm: '確認已收到訂金？'),
-            child: const Text('確認訂金'),
-          ),
-        if (!locked &&
-            (status == 'pending' || status == 'pending_confirmation') &&
-            (DaycarePaymentDisplay.toInt(data['depositAmount']) <= 0 ||
-                BookingPaymentStatus.isDepositConfirmed(data)))
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
-            onPressed: _busy ? null : () => _run('confirm'),
-            child: const Text('確認'),
-          ),
-        if (!locked &&
-            status == 'confirmed' &&
-            (data['assignStatus'] ?? 'unassigned') != 'assigned')
-          FilledButton.icon(
-            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
-            onPressed: _busy ? null : _assignRoom,
-            icon: const Icon(Icons.meeting_room),
-            label: const Text('分配房間'),
-          ),
-        if (!locked &&
-            status == 'confirmed' &&
-            (data['assignStatus'] ?? '') == 'assigned')
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
-            onPressed: _busy ? null : () => _run('start'),
-            child: const Text('入住'),
-          ),
-        if (!locked &&
-            (data['assignStatus'] ?? '') == 'assigned' &&
-            (status == 'confirmed' || status == 'checked_in'))
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44)),
+    final ButtonStyle daycareTap = FilledButton.styleFrom(
+      minimumSize: const Size(48, 48),
+    );
+    Widget? primaryAction() {
+      if (!locked &&
+          (status == 'pending' || status == 'pending_confirmation') &&
+          DaycarePaymentDisplay.toInt(data['depositAmount']) > 0 &&
+          !BookingPaymentStatus.isDepositConfirmed(data)) {
+        return FilledButton(
+          style: daycareTap,
+          onPressed: _busy
+              ? null
+              : () => _run('confirmDeposit', confirm: '確認已收到訂金？'),
+          child: const Text('確認訂金'),
+        );
+      }
+      if (!locked &&
+          (status == 'pending' || status == 'pending_confirmation') &&
+          (DaycarePaymentDisplay.toInt(data['depositAmount']) <= 0 ||
+              BookingPaymentStatus.isDepositConfirmed(data))) {
+        return FilledButton(
+          style: daycareTap,
+          onPressed: _busy ? null : () => _run('confirm'),
+          child: const Text('確認'),
+        );
+      }
+      if (!locked &&
+          status == 'confirmed' &&
+          (data['assignStatus'] ?? 'unassigned') != 'assigned') {
+        return FilledButton.icon(
+          style: daycareTap,
+          onPressed: _busy ? null : _assignRoom,
+          icon: const Icon(Icons.meeting_room),
+          label: const Text('分配房間'),
+        );
+      }
+      if (!locked &&
+          status == 'confirmed' &&
+          (data['assignStatus'] ?? '') == 'assigned') {
+        return FilledButton(
+          style: daycareTap,
+          onPressed: _busy ? null : () => _run('start'),
+          child: const Text('入住'),
+        );
+      }
+      if (!settlementLocked && status == 'checked_in') {
+        return FilledButton(
+          style: daycareTap,
+          onPressed: _busy ? null : _openSettlement,
+          child: const Text('結算安親／退房'),
+        );
+      }
+      return null;
+    }
+
+    Widget? companionAction({bool iconOnly = false}) {
+      if (!locked &&
+          (data['assignStatus'] ?? '') == 'assigned' &&
+          (status == 'confirmed' || status == 'checked_in')) {
+        if (iconOnly) {
+          return IconButton(
+            tooltip: '換房',
             onPressed: _busy ? null : _assignRoom,
             icon: const Icon(Icons.swap_horiz),
-            label: const Text('換房'),
+          );
+        }
+        return OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44)),
+          onPressed: _busy ? null : _assignRoom,
+          icon: const Icon(Icons.swap_horiz),
+          label: const Text('換房'),
+        );
+      }
+      return null;
+    }
+
+    Widget? dangerAction() {
+      if (!cancelled && !settlementLocked && status != 'completed') {
+        return OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 44),
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.red),
           ),
-        if (!settlementLocked && status == 'checked_in')
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
-            onPressed: _busy ? null : _openSettlement,
-            child: const Text('結算安親／退房'),
+          onPressed: _busy ? null : () => _run('cancel', confirm: '確定取消此安親訂單？'),
+          child: const Text('取消訂單'),
+        );
+      }
+      return null;
+    }
+
+    final SettlementNextAction daycareNext = resolveSettlementNextAction(data);
+    final bool wideAside =
+        MediaQuery.sizeOf(context).width >=
+        AdminBookingDetailMetrics.twoColumnMin;
+    final bool hideDaycareCheckout =
+        wideAside &&
+        daycareNext.kind == SettlementNextActionKind.checkoutOrSettle;
+    Widget daycareNextView({required bool bar}) {
+      return SettlementNextActionView(
+        key: bar ? null : SettlementNextActionView.slotKey,
+        action: daycareNext,
+        shopId: widget.shopId,
+        bookingId: widget.bookingId,
+        data: data,
+        bar: bar,
+        onCheckout: _openSettlement,
+        onAdjust:
+            settlementLocked ||
+                !BookingSettlementMath.isSettlementConfirmed(data)
+            ? null
+            : _openSettlement,
+      );
+    }
+
+    final Widget? daycarePrimary = primaryAction();
+    final Widget? daycareCompanion = companionAction();
+    final Widget? daycareDanger = dangerAction();
+    final Widget daycareSticky = Material(
+      elevation: 8,
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool iconOnly = constraints.maxWidth < 420;
+              final Widget? companion = iconOnly
+                  ? companionAction(iconOnly: true)
+                  : daycareCompanion;
+              return Row(
+                children: <Widget>[
+                  ?companion,
+                  if (companion != null && daycarePrimary != null)
+                    const SizedBox(width: 8),
+                  if (daycarePrimary != null) Expanded(child: daycarePrimary),
+                ],
+              );
+            },
           ),
-        if (!settlementLocked &&
-            status == 'completed' &&
-            BookingSettlementMath.isSettlementConfirmed(data))
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44)),
-            onPressed: _busy ? null : _openSettlement,
-            child: const Text('重新調整'),
-          ),
-        if (!cancelled && !settlementLocked && status != 'completed')
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(48, 44),
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
-            ),
-            onPressed: _busy
-                ? null
-                : () => _run('cancel', confirm: '確定取消此安親訂單？'),
-            child: const Text('取消訂單'),
-          ),
-      ],
+        ),
+      ),
     );
 
     return ShopFrontendThemeScope(
@@ -362,8 +430,22 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
           bookingShopId: (data['shopId'] ?? widget.shopId).toString(),
           settlementLocked: settlementLocked,
         );
+        final Widget? wrapPrimary = hideDaycareCheckout
+            ? null
+            : primaryAction();
+        final Widget? wrapCompanion = companionAction();
+        final Widget? wrapDanger = dangerAction();
+        final bool daycareSettlementSticky =
+            widget.canEdit &&
+            daycareNext.visible &&
+            !(daycareNext.kind == SettlementNextActionKind.checkoutOrSettle &&
+                status == 'checked_in');
+        final bool hasDaycareSticky =
+            daycarePrimary != null || daycareCompanion != null;
         return AdminBookingDetailScaffold(
           title: '訂單詳細',
+          operationsShopId: widget.shopId,
+          splitPhoneActions: true,
           bookingCode: (data['bookingCode'] ?? '').toString(),
           banners: const <Widget>[],
           handover: AdminInternalHandoverCard(
@@ -375,9 +457,35 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             data: data,
             bookingId: widget.bookingId,
           ),
-          actions: widget.canEdit
-              ? AdminBookingDetailCard(child: actionBar)
+          actions:
+              widget.canEdit &&
+                  (wrapPrimary != null ||
+                      wrapCompanion != null ||
+                      wrapDanger != null)
+              ? AdminBookingDetailCard(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      ?wrapPrimary,
+                      ?wrapCompanion,
+                      ?wrapDanger,
+                    ],
+                  ),
+                )
               : null,
+          phoneInlineActions: widget.canEdit && daycareDanger != null
+              ? AdminBookingDetailCard(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[daycareDanger],
+                  ),
+                )
+              : null,
+          phoneStickyActions: daycareSettlementSticky
+              ? daycareNextView(bar: true)
+              : (widget.canEdit && hasDaycareSticky ? daycareSticky : null),
           left: <Widget>[
             if (status == 'pending' || status == 'pending_confirmation')
               const Text('請先確認訂單，確認後才能分配房間'),
@@ -565,6 +673,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             ),
           ],
           right: <Widget>[
+            if (daycareNext.visible) daycareNextView(bar: false),
             AdminBookingSettlementPanel(
               shopId: widget.shopId,
               bookingId: widget.bookingId,

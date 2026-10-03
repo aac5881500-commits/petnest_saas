@@ -691,6 +691,22 @@ match /devices/{deviceId} {
   allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
 }
 
+// 米家分享申請。顧客只能讀自己的，店家管理只能讀；寫入一律走後端。
+match /camera_access_requests/{requestId} {
+  allow read: if signedIn() && (
+    isRootAdmin()
+    || isShopOwner(shopId)
+    || isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_devices')
+    || resource.data.userId == request.auth.uid
+  );
+  allow create, update, delete: if false;
+}
+
+// 防止重複申請的內部鎖，只允許後端 Admin SDK 讀寫。
+match /camera_access_slots/{slotId} {
+  allow read, write: if false;
+}
 
 // 📅 房務日曆
 match /room_calendar/{calendarId} {

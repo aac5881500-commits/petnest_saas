@@ -2,6 +2,7 @@
 // 功能說明：安親訂單狀態中文顯示（資料庫原始值不改）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 
@@ -159,13 +160,20 @@ class DaycareStatusLabels {
             stayEnd != null &&
             DailyCareDateHelper.isOnTaipeiToday(stayEnd);
       case 'futureCheckIn':
+        final DateTime? futureStart = BookingKind.isDaycare(data)
+            ? dropOff
+            : stayStart;
         return !isHistory(data) &&
-            stayStart != null &&
-            DailyCareDateHelper.isAfterTaipeiToday(stayStart);
-      case 'history':
-        return isHistory(data);
-      case 'completed':
+            futureStart != null &&
+            DailyCareDateHelper.isAfterTaipeiToday(futureStart);
+      case 'active':
+        return !isHistory(data);
+      case 'settled':
+        return status == 'completed' && isHistory(data) && !isNoShow(data);
       case 'cancelled':
+        return status == 'cancelled' || status == 'no_show' || isNoShow(data);
+      case 'history':
+      case 'completed':
       case 'no_show':
         return isHistory(data);
       default:

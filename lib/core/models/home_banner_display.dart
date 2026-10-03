@@ -1,5 +1,5 @@
 // 檔案名稱：lib/core/models/home_banner_display.dart
-// 功能說明：首頁活動海報的新舊顯示判斷。完整海報固定 16:9，不跟尺寸改比例。
+// 功能說明：首頁活動海報的新舊顯示判斷。標準高度是 16:9，寬高由外框設定分開決定。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
@@ -29,15 +29,15 @@ class HomeBannerDisplay {
     return aspectRatio;
   }
 
-  /// 顯示大小只改外距，不改 16:9。
-  static EdgeInsets outerPadding(HomeBannerDisplaySize size) {
-    switch (size) {
-      case HomeBannerDisplaySize.small:
-        return const EdgeInsets.symmetric(horizontal: 16);
-      case HomeBannerDisplaySize.large:
+  /// 海報區塊額外左右外距。不含首頁 ListView 既有 padding。
+  static EdgeInsets outerPadding(HomeBannerWidthPreset width) {
+    switch (width) {
+      case HomeBannerWidthPreset.narrow:
+        return const EdgeInsets.symmetric(horizontal: 24);
+      case HomeBannerWidthPreset.standard:
+        return const EdgeInsets.symmetric(horizontal: 12);
+      case HomeBannerWidthPreset.full:
         return EdgeInsets.zero;
-      case HomeBannerDisplaySize.standard:
-        return const EdgeInsets.symmetric(horizontal: 8);
     }
   }
 

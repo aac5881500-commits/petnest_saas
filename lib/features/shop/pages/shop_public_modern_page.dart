@@ -16,6 +16,7 @@ import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/editable_home_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_editor_overlay.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
@@ -53,6 +54,7 @@ class ShopPublicModernPage extends StatefulWidget {
     this.selectedSectionId,
     this.onSelectSection,
     this.onBrandStyleChanged,
+    this.onHomeSectionOrderChanged,
     this.draftModernAppearance,
     this.draftLogoUrl,
     this.draftHomeBanners,
@@ -80,6 +82,7 @@ class ShopPublicModernPage extends StatefulWidget {
   final String? selectedSectionId;
   final ValueChanged<String>? onSelectSection;
   final ValueChanged<StoreBrandStyle>? onBrandStyleChanged;
+  final ValueChanged<List<String>>? onHomeSectionOrderChanged;
 
   /// 尚未儲存的新版外觀。正式前台不傳，仍讀 Firestore。
   final Map<String, dynamic>? draftModernAppearance;
@@ -108,7 +111,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
 
   late final Stream<Map<String, dynamic>?> _shopStream;
   late final Stream<List<Map<String, dynamic>>> _roomTypesStream;
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _reviewsStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _announcementsStream;
   final ScrollController _homeScroll = ScrollController();
   final ValueNotifier<Rect?> _menuRect = ValueNotifier<Rect?>(null);
@@ -121,11 +123,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     super.initState();
     _shopStream = ShopService.instance.streamShop(widget.shopId);
     _roomTypesStream = ShopService.instance.streamRoomTypes(widget.shopId);
-    _reviewsStream = FirebaseFirestore.instance
-        .collection('reviews')
-        .where('shopId', isEqualTo: widget.shopId)
-        .where('status', isEqualTo: 'visible')
-        .snapshots();
     _announcementsStream = FirebaseFirestore.instance
         .collection('shops')
         .doc(widget.shopId)
@@ -463,9 +460,17 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final bool useBottomBar = navigation.usesBottomBar(
           MediaQuery.sizeOf(context).width,
         );
-
-        if (widget.layoutCanvas) {
-          return _buildLayoutCanvas(
+        final List<String> sectionOrder = HomeSectionOrder.normalize(
+          modernAppearance['homeSectionOrder'],
+        );
+        final bool showAnnouncements = shop['showAnnouncementSection'] != false;
+        final List<String> visibleSections = HomeSectionOrder.visible(
+          sectionOrder,
+          showAnnouncements: showAnnouncements,
+        );
+        Widget sectionBody(String sectionId) {
+          return _homeSection(
+            sectionId: sectionId,
             shop: shop,
             shopName: shopName,
             headerSubtitle: headerSubtitle,
@@ -476,10 +481,22 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             banners: banners,
             storeHomeSetting: storeHomeSetting,
             frameSetting: bannerFrameSetting,
+            useBottomBar: useBottomBar,
+          );
+        }
+
+        if (widget.layoutCanvas) {
+          return _buildLayoutCanvas(
+            shop: shop,
+            shopName: shopName,
+            theme: modernTheme,
             navigation: navigation,
             navShop: navShop,
             embeddedPreview: embeddedPreview,
             useBottomBar: useBottomBar,
+            sectionOrder: sectionOrder,
+            visibleSectionIds: visibleSections,
+            buildSection: sectionBody,
           );
         }
 
@@ -504,175 +521,32 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   embeddedPreview: embeddedPreview,
                 )
               : SafeArea(
-            top: false,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                ModernShopFooter(
-                  shopId: widget.shopId,
-                  shop: shop,
-                  shopName: shopName,
-                  primaryColor: modernTheme.primaryColor,
-                  darkTextColor: modernTheme.textColor,
-                  secondaryTextColor: modernTheme.textColor.withValues(
-                    alpha: 0.65,
-                  ),
-                  cardColor: modernTheme.cardColor,
-                  borderColor: modernTheme.cardBorderColor,
-                  isPreview: widget.isPreview,
-                ).showShopInfoSheet(context);
-              },
-              onVerticalDragEnd: (details) {
-                final velocity = details.primaryVelocity ?? 0;
-
-                if (velocity < -100) {
-                  ModernShopFooter(
-                    shopId: widget.shopId,
-                    shop: shop,
-                    shopName: shopName,
-                    primaryColor: modernTheme.primaryColor,
-                    darkTextColor: modernTheme.textColor,
-                    secondaryTextColor: modernTheme.textColor.withValues(
-                      alpha: 0.65,
-                    ),
-                    cardColor: modernTheme.cardColor,
-                    borderColor: modernTheme.cardBorderColor,
-                    isPreview: widget.isPreview,
-                  ).showShopInfoSheet(context);
-                }
-              },
-              child: Container(
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: modernTheme.backgroundColor,
-                  border: Border(
-                    top: BorderSide(
-                      color: modernTheme.cardBorderColor.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.keyboard_arrow_up_rounded,
-                      size: 15,
-                      color: modernTheme.primaryColor,
-                    ),
-                    SizedBox(width: 3),
-                    Text(
-                      '店家資訊',
-                      style: TextStyle(
-                        fontSize: 9,
-                        height: 1,
-                        fontWeight: FontWeight.w700,
-                        color: modernTheme.textColor.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          body: SafeArea(
-            bottom: false,
-            child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: Column(
-                  children: <Widget>[
-                    StoreBrandTopBar(
-                      style: brandStyle,
-                      shopName: shopName,
-                      subtitle: headerSubtitle,
-                      logoUrl: logoUrl,
-                      theme: modernTheme,
-                      backgroundColor: modernTheme.backgroundColor,
-                      leading: _brandLeading(
-                        hideMenu: useBottomBar,
-                        textColor: modernTheme.textColor,
-                      ),
-                    ),
-                    Expanded(
-                      child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final screenHeight = constraints.maxHeight;
-
-                    // 含精選商品與賣場 Banner 後的首頁估算高度
-                    const estimatedContentHeight = 1120.0;
-
-                    final canScroll = estimatedContentHeight > screenHeight;
-
-                    return ListView(
-                      controller: _homeScroll,
-                      primary: false,
-                      physics: canScroll || useBottomBar
-                          ? const BouncingScrollPhysics()
-                          : const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        12,
-                        5,
-                        12,
-                        useBottomBar
-                            ? ModernBottomNavigation.contentClearance(
-                                navigation.bottomAppearance,
-                                MediaQuery.paddingOf(context).bottom,
-                              )
-                            : 12,
-                      ),
-                      children: [
-                        _buildBannerSection(
-                          shop: shop,
-                          banners: banners,
-                          theme: modernTheme,
-                          frameSetting: bannerFrameSetting,
+                  top: false,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      ModernShopFooter(
+                        shopId: widget.shopId,
+                        shop: shop,
+                        shopName: shopName,
+                        primaryColor: modernTheme.primaryColor,
+                        darkTextColor: modernTheme.textColor,
+                        secondaryTextColor: modernTheme.textColor.withValues(
+                          alpha: 0.65,
                         ),
-                        const SizedBox(height: 10),
+                        cardColor: modernTheme.cardColor,
+                        borderColor: modernTheme.cardBorderColor,
+                        isPreview: widget.isPreview,
+                      ).showShopInfoSheet(context);
+                    },
+                    onVerticalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
 
-                        _buildEnvironmentFeatureSection(
-                          facilityKeys: facilityKeys,
-                          theme: modernTheme,
-                        ),
-                        const SizedBox(height: 12),
-
-                        if (shop['showAnnouncementSection'] != false) ...[
-                          _buildLatestAnnouncementSection(theme: modernTheme),
-                          const SizedBox(height: 16),
-                        ],
-
-                        ModernStayingDailyCareSection(
-                          shopId: widget.shopId,
-                          theme: modernTheme,
-                          platformPreview: widget.platformPreview,
-                        ),
-
-                        _buildPopularRoomSection(theme: modernTheme),
-
-                        const SizedBox(height: 18),
-
-                        FeaturedStoreProductsSection(
+                      if (velocity < -100) {
+                        ModernShopFooter(
                           shopId: widget.shopId,
                           shop: shop,
-                          theme: modernTheme,
-                          setting: storeHomeSetting,
-                        ),
-
-                        StoreEntranceBanner(
-                          shopId: widget.shopId,
-                          shop: shop,
-                          theme: modernTheme,
-                          setting: storeHomeSetting,
-                        ),
-
-                        _buildStayServiceSection(shop, theme: modernTheme),
-
-                        const SizedBox(height: 18),
-
-                        ModernReviewSection(
-                          shopId: widget.shopId,
+                          shopName: shopName,
                           primaryColor: modernTheme.primaryColor,
                           darkTextColor: modernTheme.textColor,
                           secondaryTextColor: modernTheme.textColor.withValues(
@@ -680,47 +554,147 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           ),
                           cardColor: modernTheme.cardColor,
                           borderColor: modernTheme.cardBorderColor,
-                          theme: modernTheme,
+                          isPreview: widget.isPreview,
+                        ).showShopInfoSheet(context);
+                      }
+                    },
+                    child: Container(
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: modernTheme.backgroundColor,
+                        border: Border(
+                          top: BorderSide(
+                            color: modernTheme.cardBorderColor.withValues(
+                              alpha: 0.7,
+                            ),
+                          ),
                         ),
-                        if (useBottomBar) ...<Widget>[
-                          const SizedBox(height: 18),
-                          _shopInfoPanel(
-                            shop: shop,
-                            shopName: shopName,
-                            theme: modernTheme,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            size: 15,
+                            color: modernTheme.primaryColor,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            '店家資訊',
+                            style: TextStyle(
+                              fontSize: 9,
+                              height: 1,
+                              fontWeight: FontWeight.w700,
+                              color: modernTheme.textColor.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
                           ),
                         ],
-                      ],
-                    );
-                  },
-                ),
+                      ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
 
-              FloatingContactButton(
-                shop: shop,
-                shopId: widget.shopId,
-                isPreview: widget.isPreview || widget.layoutCanvas,
-                bottomBarHeight: useBottomBar
-                    ? ModernBottomNavigation.slotHeight(
-                        navigation.bottomAppearance,
-                        MediaQuery.paddingOf(context).bottom,
-                      )
-                    : 0,
-                peerRect: _menuRect,
-                ownRect: _contactRect,
-              ),
-              if (useBottomBar)
-                _shopMenuButton(
-                  shop: shop,
-                  shopName: shopName,
-                  theme: modernTheme,
-                  navigation: navigation,
-                  embeddedPreview: embeddedPreview,
+          body: SafeArea(
+            bottom: false,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: Column(
+                    children: <Widget>[
+                      StoreBrandTopBar(
+                        style: brandStyle,
+                        shopName: shopName,
+                        subtitle: headerSubtitle,
+                        logoUrl: logoUrl,
+                        theme: modernTheme,
+                        backgroundColor: modernTheme.backgroundColor,
+                        leading: _brandLeading(
+                          hideMenu: useBottomBar,
+                          textColor: modernTheme.textColor,
+                        ),
+                      ),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final screenHeight = constraints.maxHeight;
+
+                            // 含精選商品與賣場 Banner 後的首頁估算高度
+                            const estimatedContentHeight = 1120.0;
+
+                            final canScroll =
+                                estimatedContentHeight > screenHeight;
+
+                            return ListView(
+                              controller: _homeScroll,
+                              primary: false,
+                              physics: canScroll || useBottomBar
+                                  ? const BouncingScrollPhysics()
+                                  : const NeverScrollableScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                12,
+                                5,
+                                12,
+                                useBottomBar
+                                    ? ModernBottomNavigation.contentClearance(
+                                        navigation.bottomAppearance,
+                                        MediaQuery.paddingOf(context).bottom,
+                                      )
+                                    : 12,
+                              ),
+                              children: <Widget>[
+                                for (final String sectionId
+                                    in visibleSections) ...<Widget>[
+                                  sectionBody(sectionId),
+                                  if (HomeSectionOrder.gapAfter(sectionId) > 0)
+                                    SizedBox(
+                                      height: HomeSectionOrder.gapAfter(
+                                        sectionId,
+                                      ),
+                                    ),
+                                ],
+                                if (useBottomBar) ...<Widget>[
+                                  const SizedBox(height: 18),
+                                  sectionBody('shopInfo'),
+                                ],
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
+
+                FloatingContactButton(
+                  shop: shop,
+                  shopId: widget.shopId,
+                  isPreview: widget.isPreview || widget.layoutCanvas,
+                  bottomBarHeight: useBottomBar
+                      ? ModernBottomNavigation.slotHeight(
+                          navigation.bottomAppearance,
+                          MediaQuery.paddingOf(context).bottom,
+                        )
+                      : 0,
+                  peerRect: _menuRect,
+                  ownRect: _contactRect,
+                ),
+                if (useBottomBar &&
+                    showHomeShopMenu(
+                      layoutCanvas: widget.layoutCanvas,
+                      isPreview: widget.isPreview,
+                    ))
+                  _shopMenuButton(
+                    shop: shop,
+                    shopName: shopName,
+                    theme: modernTheme,
+                    navigation: navigation,
+                    embeddedPreview: embeddedPreview,
+                  ),
+              ],
             ),
           ),
         );
@@ -1151,85 +1125,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     );
   }
 
-
-  Widget _buildBannerReviewBadge({
-    required HomeThemeModel theme,
-    required bool compact,
-  }) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _reviewsStream,
-      builder: (context, snapshot) {
-        final docs = snapshot.data?.docs ?? [];
-
-        double averageRating = 0;
-
-        if (docs.isNotEmpty) {
-          var totalRating = 0;
-
-          for (final doc in docs) {
-            final rawRating = doc.data()['rating'];
-
-            if (rawRating is num) {
-              totalRating += rawRating.toInt();
-            }
-          }
-
-          averageRating = totalRating / docs.length;
-        }
-
-        return Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 5 : 7,
-            vertical: compact ? 2 : 3,
-          ),
-          decoration: BoxDecoration(
-            color: theme.cardColor.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 5,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.star_rounded,
-                size: compact ? 10 : 12,
-                color: const Color(0xFFFFB300),
-              ),
-              SizedBox(width: compact ? 2 : 3),
-              Text(
-                docs.isEmpty ? '尚無評價' : averageRating.toStringAsFixed(1),
-                style: TextStyle(
-                  fontSize: compact ? 9 : 10,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                  color: theme.textColor,
-                ),
-              ),
-              if (docs.isNotEmpty && !compact) ...[
-                const SizedBox(width: 3),
-                Text(
-                  '${docs.length} 則評價',
-                  style: TextStyle(
-                    fontSize: 8,
-                    height: 1,
-                    color: theme.textColor.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLayoutCanvas({
+  Widget _homeSection({
+    required String sectionId,
     required Map<String, dynamic> shop,
     required String shopName,
     required String headerSubtitle,
@@ -1240,23 +1137,93 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required List<StoreBannerModel> banners,
     required ModernStoreHomeSetting storeHomeSetting,
     required ModernBannerFrameSetting frameSetting,
+    required bool useBottomBar,
+  }) {
+    switch (sectionId) {
+      case 'header':
+        return StoreBrandTopBar(
+          style: brandStyle,
+          shopName: shopName,
+          subtitle: headerSubtitle,
+          logoUrl: logoUrl,
+          theme: theme,
+          backgroundColor: theme.backgroundColor,
+          editable: widget.layoutCanvas,
+          onChanged: widget.onBrandStyleChanged,
+          leading: _brandLeading(
+            hideMenu: useBottomBar,
+            textColor: theme.textColor,
+          ),
+        );
+      case 'footer':
+        return _canvasFooter(theme: theme);
+      case 'banners':
+        return _buildBannerSection(
+          shop: shop,
+          banners: banners,
+          theme: theme,
+          frameSetting: frameSetting,
+        );
+      case 'facilities':
+        return _buildEnvironmentFeatureSection(
+          facilityKeys: facilityKeys,
+          theme: theme,
+        );
+      case 'announcements':
+        return _buildLatestAnnouncementSection(theme: theme);
+      case 'dailyCare':
+        return ModernStayingDailyCareSection(
+          shopId: widget.shopId,
+          theme: theme,
+          platformPreview: widget.platformPreview,
+        );
+      case 'rooms':
+        return _buildPopularRoomSection(theme: theme);
+      case 'featured':
+        return FeaturedStoreProductsSection(
+          shopId: widget.shopId,
+          shop: shop,
+          theme: theme,
+          setting: storeHomeSetting,
+        );
+      case 'storeEntrance':
+        return StoreEntranceBanner(
+          shopId: widget.shopId,
+          shop: shop,
+          theme: theme,
+          setting: storeHomeSetting,
+        );
+      case 'services':
+        return _buildStayServiceSection(shop, theme: theme);
+      case 'reviews':
+        return ModernReviewSection(
+          shopId: widget.shopId,
+          primaryColor: theme.primaryColor,
+          darkTextColor: theme.textColor,
+          secondaryTextColor: theme.secondaryTextColor,
+          cardColor: theme.cardColor,
+          borderColor: theme.cardBorderColor,
+          theme: theme,
+        );
+      case 'shopInfo':
+        return _shopInfoPanel(shop: shop, shopName: shopName, theme: theme);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildLayoutCanvas({
+    required Map<String, dynamic> shop,
+    required String shopName,
+    required HomeThemeModel theme,
     required FrontendNavigationConfig navigation,
     required FrontendNavShopState navShop,
     required bool embeddedPreview,
     required bool useBottomBar,
+    required List<String> sectionOrder,
+    required List<String> visibleSectionIds,
+    required Widget Function(String sectionId) buildSection,
   }) {
-    final List<String> sectionIds = <String>[
-      'banners',
-      'facilities',
-      if (shop['showAnnouncementSection'] != false) 'announcements',
-      'dailyCare',
-      'rooms',
-      'featured',
-      'storeEntrance',
-      'services',
-      'reviews',
-      if (useBottomBar) 'shopInfo',
-    ];
     return Scaffold(
       extendBody: useBottomBar,
       backgroundColor: theme.backgroundColor,
@@ -1281,109 +1248,22 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         fit: StackFit.expand,
         children: <Widget>[
           _HomeLayoutCanvas(
-      canvasMode: widget.canvasMode,
-      background: theme.backgroundColor,
-      sectionIds: sectionIds,
-      pinFooter: !useBottomBar,
-      bottomInset: useBottomBar
-          ? ModernBottomNavigation.contentClearance(
-              navigation.bottomAppearance,
-              MediaQuery.paddingOf(context).bottom,
-            )
-          : 12,
-      selectedSectionId: widget.selectedSectionId,
-      onSelectSection: widget.onSelectSection,
-      buildSection: (String sectionId) {
-        switch (sectionId) {
-          case 'header':
-            return StoreBrandTopBar(
-              style: brandStyle,
-              shopName: shopName,
-              subtitle: headerSubtitle,
-              logoUrl: logoUrl,
-              theme: theme,
-              backgroundColor: theme.backgroundColor,
-              editable: true,
-              onChanged: widget.onBrandStyleChanged,
-              leading: useBottomBar
-                  ? null
-                  : Builder(
-                      builder: (BuildContext drawerContext) {
-                        return IconButton(
-                          tooltip: '選單',
-                          icon: Icon(
-                            Icons.menu_rounded,
-                            size: 22,
-                            color: theme.textColor,
-                          ),
-                          onPressed: () {
-                            Scaffold.of(drawerContext).openDrawer();
-                          },
-                        );
-                      },
-                    ),
-            );
-          case 'footer':
-            return _canvasFooter(theme: theme);
-          case 'banners':
-            return _buildBannerSection(
-              shop: shop,
-              banners: banners,
-              theme: theme,
-              frameSetting: frameSetting,
-            );
-          case 'facilities':
-            return _buildEnvironmentFeatureSection(
-              facilityKeys: facilityKeys,
-              theme: theme,
-            );
-          case 'announcements':
-            return _buildLatestAnnouncementSection(theme: theme);
-          case 'dailyCare':
-            return ModernStayingDailyCareSection(
-              shopId: widget.shopId,
-              theme: theme,
-              platformPreview: widget.platformPreview,
-            );
-          case 'rooms':
-            return _buildPopularRoomSection(theme: theme);
-          case 'featured':
-            return FeaturedStoreProductsSection(
-              shopId: widget.shopId,
-              shop: shop,
-              theme: theme,
-              setting: storeHomeSetting,
-            );
-          case 'storeEntrance':
-            return StoreEntranceBanner(
-              shopId: widget.shopId,
-              shop: shop,
-              theme: theme,
-              setting: storeHomeSetting,
-            );
-          case 'services':
-            return _buildStayServiceSection(shop, theme: theme);
-          case 'reviews':
-            return ModernReviewSection(
-              shopId: widget.shopId,
-              primaryColor: theme.primaryColor,
-              darkTextColor: theme.textColor,
-              secondaryTextColor: theme.secondaryTextColor,
-              cardColor: theme.cardColor,
-              borderColor: theme.cardBorderColor,
-              theme: theme,
-            );
-          case 'shopInfo':
-            return _shopInfoPanel(
-              shop: shop,
-              shopName: shopName,
-              theme: theme,
-            );
-          default:
-            return const SizedBox.shrink();
-        }
-      },
-    ),
+            background: theme.backgroundColor,
+            sectionIds: visibleSectionIds,
+            sectionOrder: sectionOrder,
+            pinFooter: !useBottomBar,
+            shopInfo: useBottomBar ? buildSection('shopInfo') : null,
+            bottomInset: useBottomBar
+                ? ModernBottomNavigation.contentClearance(
+                    navigation.bottomAppearance,
+                    MediaQuery.paddingOf(context).bottom,
+                  )
+                : 12,
+            selectedSectionId: widget.selectedSectionId,
+            onSelectSection: widget.onSelectSection,
+            onSectionOrderChanged: widget.onHomeSectionOrderChanged,
+            buildSection: buildSection,
+          ),
           FloatingContactButton(
             shop: shop,
             shopId: widget.shopId,
@@ -1397,23 +1277,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             peerRect: _menuRect,
             ownRect: _contactRect,
           ),
-          if (useBottomBar)
-            _shopMenuButton(
-              shop: shop,
-              shopName: shopName,
-              theme: theme,
-              navigation: navigation,
-              embeddedPreview: embeddedPreview,
-            ),
         ],
       ),
     );
   }
 
-  Widget? _brandLeading({
-    required bool hideMenu,
-    required Color textColor,
-  }) {
+  Widget? _brandLeading({required bool hideMenu, required Color textColor}) {
     if (widget.platformPreview) {
       return IconButton(
         tooltip: '返回',
@@ -1482,9 +1351,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   }) {
     if (widget.layoutCanvas && banners.isEmpty) {
       return Padding(
-        padding: HomeBannerDisplay.outerPadding(frameSetting.displaySize),
+        padding: HomeBannerDisplay.outerPadding(frameSetting.widthPreset),
         child: AspectRatio(
-          aspectRatio: HomeBannerDisplay.aspectRatio,
+          aspectRatio: frameSetting.frameAspectRatio,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: theme.cardColor,
@@ -1534,10 +1403,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 useModernDrawer: true,
               );
             },
-      reviewBadge: _buildBannerReviewBadge(
-        theme: theme,
-        compact: frameSetting.isUltraCompact,
-      ),
     );
   }
 
@@ -1824,23 +1689,27 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
 
 class _HomeLayoutCanvas extends StatefulWidget {
   const _HomeLayoutCanvas({
-    required this.canvasMode,
     required this.background,
     required this.sectionIds,
+    required this.sectionOrder,
     required this.pinFooter,
+    required this.shopInfo,
     required this.bottomInset,
     required this.selectedSectionId,
     required this.onSelectSection,
+    required this.onSectionOrderChanged,
     required this.buildSection,
   });
 
-  final String canvasMode;
   final Color background;
   final List<String> sectionIds;
+  final List<String> sectionOrder;
   final bool pinFooter;
+  final Widget? shopInfo;
   final double bottomInset;
   final String? selectedSectionId;
   final ValueChanged<String>? onSelectSection;
+  final ValueChanged<List<String>>? onSectionOrderChanged;
   final Widget Function(String sectionId) buildSection;
 
   @override
@@ -1856,34 +1725,82 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
     super.dispose();
   }
 
-  double _gapAfter(String sectionId) {
-    switch (sectionId) {
-      case 'banners':
-        return 10;
-      case 'facilities':
-        return 12;
-      case 'announcements':
-        return 16;
-      case 'rooms':
-      case 'services':
-        return 18;
-      default:
-        return 0;
-    }
-  }
-
-  Widget _section(String sectionId) {
-    final double gap = _gapAfter(sectionId);
+  Widget _fixedSection(String sectionId) {
     return EditableHomeSection(
-      key: ValueKey<String>('${widget.canvasMode}_$sectionId'),
+      key: ValueKey<String>(sectionId),
       sectionId: sectionId,
       selected: widget.selectedSectionId == sectionId,
       onSelect: () => widget.onSelectSection?.call(sectionId),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: gap),
-        child: widget.buildSection(sectionId),
+      child: widget.buildSection(sectionId),
+    );
+  }
+
+  Widget _orderedSection(String sectionId, int index) {
+    final double gap = HomeSectionOrder.gapAfter(sectionId);
+    return EditableHomeSection(
+      key: ValueKey<String>(sectionId),
+      sectionId: sectionId,
+      selected: widget.selectedSectionId == sectionId,
+      onSelect: () => widget.onSelectSection?.call(sectionId),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Padding(
+            padding: EdgeInsets.only(bottom: gap),
+            child: widget.buildSection(sectionId),
+          ),
+          if (sectionId == 'banners')
+            Positioned(
+              top: 4,
+              right: 4,
+              child: ReorderableDragStartListener(
+                index: index,
+                child: Tooltip(
+                  message: '拖曳整個海報區塊',
+                  child: Material(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    elevation: 2,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.drag_indicator_rounded,
+                        size: 20,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  void _onReorder(int oldIndex, int newIndex) {
+    final List<String> next = HomeSectionOrder.reorderVisible(
+      saved: widget.sectionOrder,
+      visible: widget.sectionIds,
+      oldIndex: oldIndex,
+      newIndex: newIndex,
+    );
+    if (_sameOrder(next, widget.sectionOrder)) {
+      return;
+    }
+    widget.onSectionOrderChanged?.call(next);
+  }
+
+  bool _sameOrder(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (int index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
@@ -1892,20 +1809,50 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
       color: widget.background,
       child: Column(
         children: <Widget>[
-          _section('header'),
+          _fixedSection('header'),
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
+            child: ReorderableListView.builder(
+              scrollController: _scrollController,
               primary: false,
+              buildDefaultDragHandles: false,
               physics: const ClampingScrollPhysics(),
               padding: EdgeInsets.fromLTRB(12, 5, 12, widget.bottomInset),
               itemCount: widget.sectionIds.length,
+              onReorder: _onReorder,
+              onReorderEnd: (_) {
+                widget.onSelectSection?.call('banners');
+              },
+              proxyDecorator:
+                  (Widget child, int index, Animation<double> animation) {
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (BuildContext context, Widget? lifted) {
+                        final double elevation = Tween<double>(
+                          begin: 0,
+                          end: 8,
+                        ).evaluate(animation);
+                        return Material(
+                          elevation: elevation,
+                          color: Colors.transparent,
+                          shadowColor: Colors.black26,
+                          child: lifted,
+                        );
+                      },
+                      child: child,
+                    );
+                  },
+              footer: widget.shopInfo == null
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 18),
+                      child: widget.shopInfo,
+                    ),
               itemBuilder: (BuildContext context, int index) {
-                return _section(widget.sectionIds[index]);
+                return _orderedSection(widget.sectionIds[index], index);
               },
             ),
           ),
-          if (widget.pinFooter) _section('footer'),
+          if (widget.pinFooter) _fixedSection('footer'),
         ],
       ),
     );

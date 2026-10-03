@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/theme/home_color_palette.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settings_panel.dart';
@@ -37,10 +38,17 @@ class StoreBrandSettingsCard extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: subtitleController,
-                maxLength: 40,
+                maxLength: StoreBrandTextPolicy.subtitleMaxCharacters,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                inputFormatters: <TextInputFormatter>[
+                  LengthLimitingTextInputFormatter(
+                    StoreBrandTextPolicy.subtitleMaxCharacters,
+                  ),
+                ],
                 decoration: const InputDecoration(
                   labelText: '店名下方副標',
-                  helperText: '留空並儲存後，新版首頁不顯示副標',
+                  helperText: '留空並儲存後，新版首頁不顯示副標\n建議 16 字內；首頁最多顯示兩行，過長會以 … 省略',
+                  helperMaxLines: 3,
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -60,7 +68,8 @@ class StoreBrandSettingsCard extends StatelessWidget {
                   _choice(
                     label: '使用店家 Logo',
                     selected: style.markType == 'logo',
-                    onSelected: () => onChanged(style.copyWith(markType: 'logo')),
+                    onSelected: () =>
+                        onChanged(style.copyWith(markType: 'logo')),
                   ),
                   _choice(
                     label: '使用內建小圖示',
@@ -71,7 +80,8 @@ class StoreBrandSettingsCard extends StatelessWidget {
                   _choice(
                     label: '不顯示圖示',
                     selected: style.markType == 'none',
-                    onSelected: () => onChanged(style.copyWith(markType: 'none')),
+                    onSelected: () =>
+                        onChanged(style.copyWith(markType: 'none')),
                   ),
                 ],
               ),
@@ -88,7 +98,10 @@ class StoreBrandSettingsCard extends StatelessWidget {
               ],
               if (style.markType == 'builtinIcon') ...<Widget>[
                 const SizedBox(height: 12),
-                const Text('內建圖示', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  '內建圖示',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -110,7 +123,10 @@ class StoreBrandSettingsCard extends StatelessWidget {
               ],
               if (style.showsMark) ...<Widget>[
                 const SizedBox(height: 12),
-                const Text('圖示位置', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  '圖示位置',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -130,7 +146,10 @@ class StoreBrandSettingsCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text('圖示大小', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  '圖示大小',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -138,7 +157,8 @@ class StoreBrandSettingsCard extends StatelessWidget {
                     _choice(
                       label: '小',
                       selected: style.logoSize == 'small',
-                      onSelected: () => onChanged(style.copyWith(logoSize: 'small')),
+                      onSelected: () =>
+                          onChanged(style.copyWith(logoSize: 'small')),
                     ),
                     _choice(
                       label: '中',
@@ -149,7 +169,8 @@ class StoreBrandSettingsCard extends StatelessWidget {
                     _choice(
                       label: '大',
                       selected: style.logoSize == 'large',
-                      onSelected: () => onChanged(style.copyWith(logoSize: 'large')),
+                      onSelected: () =>
+                          onChanged(style.copyWith(logoSize: 'large')),
                     ),
                   ],
                 ),
@@ -171,17 +192,20 @@ class StoreBrandSettingsCard extends StatelessWidget {
                   _choice(
                     label: '靠左',
                     selected: style.textAlign == 'left',
-                    onSelected: () => onChanged(style.copyWith(textAlign: 'left')),
+                    onSelected: () =>
+                        onChanged(style.copyWith(textAlign: 'left')),
                   ),
                   _choice(
                     label: '置中',
                     selected: style.textAlign == 'center',
-                    onSelected: () => onChanged(style.copyWith(textAlign: 'center')),
+                    onSelected: () =>
+                        onChanged(style.copyWith(textAlign: 'center')),
                   ),
                   _choice(
                     label: '靠右',
                     selected: style.textAlign == 'right',
-                    onSelected: () => onChanged(style.copyWith(textAlign: 'right')),
+                    onSelected: () =>
+                        onChanged(style.copyWith(textAlign: 'right')),
                   ),
                 ],
               ),
@@ -276,13 +300,18 @@ class StoreBrandSettingsCard extends StatelessWidget {
               const SizedBox(height: 8),
               const Text(
                 '也可以在左側預覽直接左右拖曳',
-                style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black54),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Colors.black54,
+                ),
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton(
-                  onPressed: () => onChanged(StoreBrandStyle.resetPlacement(style)),
+                  onPressed: () =>
+                      onChanged(StoreBrandStyle.resetPlacement(style)),
                   child: const Text('重設位置'),
                 ),
               ),

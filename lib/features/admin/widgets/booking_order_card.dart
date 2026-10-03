@@ -37,8 +37,12 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
   Widget build(BuildContext context) {
     final data = widget.data;
 
-    final start = _toDate(data['startDate']);
-    final end = _toDate(data['endDate']);
+    final DateTime? stayStart = DaycareStatusLabels.asDate(data['startDate']);
+    final DateTime? stayEnd = DaycareStatusLabels.asDate(data['endDate']);
+    final DateTime? serviceStart =
+        DaycareStatusLabels.asDate(data['scheduledStartAt']) ?? stayStart;
+    final DateTime? serviceEnd =
+        DaycareStatusLabels.asDate(data['scheduledEndAt']) ?? stayEnd;
 
     final status = (data['status'] ?? 'pending').toString();
     final statusInfo = _statusInfo(status);
@@ -54,8 +58,21 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     final customerName = (data['customerName'] ?? '未填姓名').toString();
     final customerPhone = (data['customerPhone'] ?? '-').toString();
 
-    final nights = data['nights'] ?? _calcNights(start, end);
     final bool daycare = BookingKind.isDaycare(data);
+    final int? nights = daycare
+        ? null
+        : (data['nights'] is num
+              ? (data['nights'] as num).toInt()
+              : (stayStart != null && stayEnd != null
+                    ? _calcNights(stayStart, stayEnd)
+                    : null));
+    final String dateLine = daycare
+        ? _daycareWhen(serviceStart, serviceEnd)
+        : _stayWhen(stayStart, stayEnd);
+    final int idCut = widget.bookingId.length < 8 ? widget.bookingId.length : 8;
+    final String codeText =
+        (data['bookingCode'] ?? '#${widget.bookingId.substring(0, idCut)}')
+            .toString();
 
     final pets = (data['pets'] as List?) ?? [];
     final petNames = pets
@@ -102,8 +119,8 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.055),
-            blurRadius: 14,
+            color: Colors.black.withValues(alpha: isHistory ? 0.03 : 0.055),
+            blurRadius: isHistory ? 8 : 14,
             offset: const Offset(0, 5),
           ),
         ],
@@ -115,370 +132,534 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
             _expanded = !_expanded;
           });
         },
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
-              child: Column(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _roomBox(isUnassigned ? '待分' : roomName),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool wideCard = constraints.maxWidth >= 980;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
+                  child: wideCard
+                      ? _wideSummary(
+                          roomLabel: isUnassigned ? '待分' : roomName,
+                          roomTypeName: roomTypeName,
+                          daycare: daycare,
+                          dateLine: dateLine,
+                          nights: nights,
+                          codeText: codeText,
+                          customerName: customerName,
+                          customerPhone: customerPhone,
+                          petNames: petNames,
+                          statusInfo: statusInfo,
+                          hasDiscount: hasDiscount,
+                          discountAmount: discountAmount,
+                          discountMinNights: discountMinNights,
+                        )
+                      : Column(
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                _roomBox(isUnassigned ? '待分' : roomName),
+
+                                const SizedBox(width: 12),
+
                                 Expanded(
-                                  child: Text(
-                                    roomTypeName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        (data['bookingKind'] ?? '') == 'daycare'
-                                        ? Colors.orange.shade50
-                                        : Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    (data['bookingKind'] ?? '') == 'daycare'
-                                        ? '安親'
-                                        : '住宿',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                _statusChip(statusInfo),
-                              ],
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    daycare
-                                        ? '${_formatDate(start)}  ${DaycareTimeHelper.formatHm(start)} → ${DaycareTimeHelper.formatHm(end)}'
-                                        : '${_formatDate(start)} → ${_formatDate(end)}',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade700,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    daycare ? '安親' : '$nights 晚',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 5),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
+                                  child: Column(
                                     crossAxisAlignment:
-                                        WrapCrossAlignment.center,
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blueGrey.shade50,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              roomTypeName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                        child: Text(
-                                          data['bookingCode'] ??
-                                              '#${widget.bookingId.substring(0, 8)}',
-                                          style: TextStyle(
-                                            color: Colors.blueGrey.shade800,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w900,
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  (data['bookingKind'] ?? '') ==
+                                                      'daycare'
+                                                  ? Colors.orange.shade50
+                                                  : Colors.blue.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              (data['bookingKind'] ?? '') ==
+                                                      'daycare'
+                                                  ? '安親'
+                                                  : '住宿',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                              ),
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(width: 6),
+                                          _statusChip(statusInfo),
+                                        ],
                                       ),
 
-                                      if (data['source'] == 'admin')
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '手動新增',
-                                            style: TextStyle(
-                                              color: Colors.blue.shade800,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ),
+                                      const SizedBox(height: 6),
 
-                                      if (isDepositReview)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              dateLine,
+                                              style: TextStyle(
+                                                color: Colors.grey.shade700,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
-                                          child: Text(
-                                            '已回傳付款',
-                                            style: TextStyle(
-                                              color: Colors.red.shade700,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
+                                          if (!daycare && nights != null)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey.shade100,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                '$nights 晚',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ),
+                                        ],
+                                      ),
 
-                                      if (hasUnreadMessage)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '💬 新留言 $shopUnreadMessageCount',
-                                            style: TextStyle(
-                                              color: Colors.green.shade800,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ),
+                                      const SizedBox(height: 5),
 
-                                      if (isUnassigned)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                Text(
+                                                  codeText,
+                                                  style: TextStyle(
+                                                    color: Colors
+                                                        .blueGrey
+                                                        .shade700,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+
+                                                if (data['source'] == 'admin')
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 5,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.blue.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      '手動新增',
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .blue
+                                                            .shade800,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                      ),
+                                                    ),
+                                                  ),
+
+                                                if (isDepositReview)
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 5,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.red.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      '已回傳付款',
+                                                      style: TextStyle(
+                                                        color:
+                                                            Colors.red.shade700,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                      ),
+                                                    ),
+                                                  ),
+
+                                                if (hasUnreadMessage)
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 5,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.green.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      '💬 新留言 $shopUnreadMessageCount',
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .green
+                                                            .shade800,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                      ),
+                                                    ),
+                                                  ),
+
+                                                if (isUnassigned)
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 5,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.orange.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      '待分房',
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .orange
+                                                            .shade800,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (hasDiscount)
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 5,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.green.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      '🏷 滿${discountMinNights.toInt()}晚優惠 -NT\$ ${discountAmount.toInt()}',
+                                                      style: TextStyle(
+                                                        color: Colors
+                                                            .green
+                                                            .shade800,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           ),
-                                          child: Text(
-                                            '待分房',
-                                            style: TextStyle(
-                                              color: Colors.orange.shade800,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                            ),
+
+                                          Icon(
+                                            _expanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.keyboard_arrow_down,
+                                            color: Colors.grey.shade700,
                                           ),
-                                        ),
-                                      if (hasDiscount)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '🏷 滿${discountMinNights.toInt()}晚優惠 -NT\$ ${discountAmount.toInt()}',
-                                            style: TextStyle(
-                                              color: Colors.green.shade800,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
-
-                                Icon(
-                                  _expanded
-                                      ? Icons.keyboard_arrow_up
-                                      : Icons.keyboard_arrow_down,
-                                  color: Colors.grey.shade700,
-                                ),
                               ],
+                            ),
+
+                            const SizedBox(height: 12),
+                            Divider(color: Colors.grey.shade200, height: 1),
+                            const SizedBox(height: 10),
+
+                            _compactInfoRow(
+                              customerName: customerName,
+                              customerPhone: customerPhone,
+                              petNames: petNames,
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-                  Divider(color: Colors.grey.shade200, height: 1),
-                  const SizedBox(height: 10),
-
-                  _compactInfoRow(
-                    customerName: customerName,
-                    customerPhone: customerPhone,
-                    petNames: petNames,
-                  ),
-                ],
-              ),
-            ),
-
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 180),
-              crossFadeState: _expanded
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
-              firstChild: const SizedBox(width: double.infinity),
-              secondChild: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 4),
-
-                    _compactExpandBox(
-                      customerName: customerName,
-                      customerPhone: customerPhone,
-                      petNames: petNames,
-                      paymentMethod: paymentMethod,
-                      depositExpireText: depositExpireText,
-                      depositAmount: depositAmount,
-                      paymentTitle: paymentTitle,
-                      expireTitle: payAmountType == 'full' ? '付款期限' : '訂金期限',
-                      depositText: depositAmount <= 0
-                          ? '無需訂金'
-                          : depositPaid
-                          ? '已確認'
-                          : '尚未確認',
-                      depositColor: depositAmount <= 0
-                          ? Colors.grey
-                          : depositPaid
-                          ? Colors.green
-                          : Colors.orange,
-                    ),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _amountBox(
-                            title: '總金額',
-                            value: 'NT\$ $totalPrice',
-                            color: Colors.red,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _amountBox(
-                            title: paymentTitle,
-                            value: paymentAmount > 0
-                                ? 'NT\$ $paymentAmount'
-                                : '無需訂金',
-                            color: depositAmount > 0
-                                ? depositPaid
-                                      ? Colors.green
-                                      : Colors.orange
-                                : Colors.grey,
-                            subText: paymentAmount > 0
-                                ? depositPaid
-                                      ? '已確認'
-                                      : '尚未確認'
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    if (!isHistory && BookingPaymentProof.shouldShow(data))
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: BookingPaymentProofButton(data: data),
-                      ),
-
-                    if (!isHistory && BookingPaymentProof.shouldShow(data))
-                      const SizedBox(height: 10),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '下訂時間：$createdAtText',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: widget.onTap,
-                          icon: const Icon(Icons.open_in_new, size: 16),
-                          label: const Text('查看詳細'),
-                        ),
-                      ],
-                    ),
-                  ],
                 ),
-              ),
-            ),
-          ],
+
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 180),
+                  crossFadeState: _expanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: const SizedBox(width: double.infinity),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 4),
+
+                        _compactExpandBox(
+                          customerName: customerName,
+                          customerPhone: customerPhone,
+                          petNames: petNames,
+                          paymentMethod: paymentMethod,
+                          depositExpireText: depositExpireText,
+                          depositAmount: depositAmount,
+                          paymentTitle: paymentTitle,
+                          expireTitle: payAmountType == 'full'
+                              ? '付款期限'
+                              : '訂金期限',
+                          depositText: depositAmount <= 0
+                              ? '無需訂金'
+                              : depositPaid
+                              ? '已確認'
+                              : '尚未確認',
+                          depositColor: depositAmount <= 0
+                              ? Colors.grey
+                              : depositPaid
+                              ? Colors.green
+                              : Colors.orange,
+                        ),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _amountBox(
+                                title: '總金額',
+                                value: 'NT\$ $totalPrice',
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _amountBox(
+                                title: paymentTitle,
+                                value: paymentAmount > 0
+                                    ? 'NT\$ $paymentAmount'
+                                    : '無需訂金',
+                                color: depositAmount > 0
+                                    ? depositPaid
+                                          ? Colors.green
+                                          : Colors.orange
+                                    : Colors.grey,
+                                subText: paymentAmount > 0
+                                    ? depositPaid
+                                          ? '已確認'
+                                          : '尚未確認'
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        if (!isHistory && BookingPaymentProof.shouldShow(data))
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: BookingPaymentProofButton(data: data),
+                          ),
+
+                        if (!isHistory && BookingPaymentProof.shouldShow(data))
+                          const SizedBox(height: 10),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '下訂時間：$createdAtText',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: widget.onTap,
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('查看詳細'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _wideSummary({
+    required String roomLabel,
+    required String roomTypeName,
+    required bool daycare,
+    required String dateLine,
+    required int? nights,
+    required String codeText,
+    required String customerName,
+    required String customerPhone,
+    required String petNames,
+    required _StatusInfo statusInfo,
+    required bool hasDiscount,
+    required num discountAmount,
+    required num discountMinNights,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        _roomBox(roomLabel),
+        const SizedBox(width: 14),
+        Expanded(
+          flex: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                roomTypeName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                dateLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                codeText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.blueGrey.shade700,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                customerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                customerPhone,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                petNames.isEmpty ? '無寵物資料' : '🐾 $petNames',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade800, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            _statusChip(statusInfo),
+            if (!daycare && nights != null) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                '$nights 晚',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ],
+            if (hasDiscount) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                daycare
+                    ? '優惠 -NT\$ ${discountAmount.toInt()}'
+                    : '滿${discountMinNights.toInt()}晚 -NT\$ ${discountAmount.toInt()}',
+                style: TextStyle(
+                  color: Colors.green.shade800,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 
@@ -760,21 +941,40 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     );
   }
 
-  DateTime _toDate(dynamic value) {
-    if (value is Timestamp) return value.toDate();
-    return DateTime.now();
-  }
-
   int _calcNights(DateTime start, DateTime end) {
     final diff = end.difference(start).inDays;
     return diff <= 0 ? 1 : diff;
   }
 
-  String _formatDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
+  String _formatMd(DateTime date) {
+    final String m = date.month.toString().padLeft(2, '0');
+    final String d = date.day.toString().padLeft(2, '0');
+    return '$m/$d';
+  }
+
+  String _stayWhen(DateTime? start, DateTime? end) {
+    if (start == null && end == null) {
+      return '日期未填';
+    }
+    if (start == null) {
+      return '→ ${_formatMd(end!)}';
+    }
+    if (end == null) {
+      return _formatMd(start);
+    }
+    return '${_formatMd(start)} → ${_formatMd(end)}';
+  }
+
+  String _daycareWhen(DateTime? start, DateTime? end) {
+    if (start == null) {
+      return '日期未填';
+    }
+    final String day = _formatMd(start);
+    final String begin = DaycareTimeHelper.formatHm(start);
+    if (end == null) {
+      return '$day $begin';
+    }
+    return '$day $begin–${DaycareTimeHelper.formatHm(end)}';
   }
 
   String _formatDateTime(dynamic value) {
@@ -813,9 +1013,9 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         case '安親中':
           return _StatusInfo(text, Colors.green);
         case '已完成':
-          return _StatusInfo(text, Colors.grey);
+          return _StatusInfo(text, const Color(0xFF00695C));
         case '已取消':
-          return _StatusInfo(text, Colors.red);
+          return _StatusInfo(text, const Color(0xFFE57373));
         default:
           return _StatusInfo(text, Colors.orange);
       }
@@ -825,10 +1025,13 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         return _StatusInfo('已確認', Colors.blue);
       case 'checked_in':
         return _StatusInfo('入住中', Colors.green);
+      case 'checked_out':
+        return _StatusInfo('已退房／待結清', Colors.orange);
       case 'completed':
-        return _StatusInfo('已完成', Colors.grey);
+        return _StatusInfo('已完成', const Color(0xFF00695C));
       case 'cancelled':
-        return _StatusInfo('已取消', Colors.red);
+      case 'no_show':
+        return _StatusInfo('已取消', const Color(0xFFE57373));
       case 'unpaid':
         return _StatusInfo('尚未付款', Colors.red);
       default:

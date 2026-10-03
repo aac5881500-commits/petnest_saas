@@ -18,7 +18,7 @@ import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/services/operator_display.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
-import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
+import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/features/shop/widgets/unsaved_booking_settings_dialog.dart';
 
 class ShopBookingSettingsLeaveGuard {
@@ -539,11 +539,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => RoomDashboardPage(shopId: widget.shopId),
-                    ),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(shopOperationsWorkbenchRoute(widget.shopId));
                 },
                 child: const Text('前往房務管理'),
               ),

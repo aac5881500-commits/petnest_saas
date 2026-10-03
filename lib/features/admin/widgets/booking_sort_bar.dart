@@ -16,6 +16,7 @@ class BookingSortBar extends StatelessWidget {
     required this.isGridMode,
     required this.onToggleViewMode,
     this.daycareLabels = false,
+    this.showCount = true,
   });
 
   final int totalCount;
@@ -24,22 +25,26 @@ class BookingSortBar extends StatelessWidget {
   final bool isGridMode;
   final VoidCallback onToggleViewMode;
   final bool daycareLabels;
+  final bool showCount;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      padding: showCount
+          ? const EdgeInsets.fromLTRB(16, 6, 16, 8)
+          : const EdgeInsets.only(left: 8),
       child: Row(
+        mainAxisSize: showCount ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Text(
-            '目前載入 $totalCount 筆',
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              color: Colors.black87,
+          if (showCount)
+            Text(
+              '目前載入 $totalCount 筆',
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Colors.black87,
+              ),
             ),
-          ),
-
-          const Spacer(),
+          if (showCount) const Spacer(),
 
           PopupMenuButton<String>(
             onSelected: onSortChanged,

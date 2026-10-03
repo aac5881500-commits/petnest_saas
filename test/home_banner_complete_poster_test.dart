@@ -2,6 +2,7 @@
 // 功能說明：首頁海報保留製作工具，發布後前台只顯示固定成品圖。
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/core/services/store_banner_render_service.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_banner_carousel.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_banner_view.dart';
 
 void main() {
@@ -156,8 +158,8 @@ void main() {
       HomeBannerDisplay.aspectRatio,
     );
     expect(
-      HomeBannerDisplay.outerPadding(HomeBannerDisplaySize.small).left,
-      16,
+      HomeBannerDisplay.outerPadding(HomeBannerWidthPreset.narrow).left,
+      24,
     );
   });
 
@@ -485,5 +487,181 @@ void main() {
         );
       }
     }
+  });
+
+  test('舊尺寸遷移成寬度，高度維持標準', () {
+    final ModernBannerFrameSetting small = ModernBannerFrameSetting.fromMap(
+      const <String, dynamic>{
+        'homeBannerDisplaySize': 'small',
+        'bannerHeightPreset': 'large',
+      },
+    );
+    expect(small.widthPreset, HomeBannerWidthPreset.narrow);
+    expect(small.heightPreset, HomeBannerHeightPreset.standard);
+
+    final ModernBannerFrameSetting standard = ModernBannerFrameSetting.fromMap(
+      const <String, dynamic>{'homeBannerDisplaySize': 'standard'},
+    );
+    expect(standard.widthPreset, HomeBannerWidthPreset.standard);
+    expect(standard.heightPreset, HomeBannerHeightPreset.standard);
+
+    final ModernBannerFrameSetting large = ModernBannerFrameSetting.fromMap(
+      const <String, dynamic>{'homeBannerDisplaySize': 'large'},
+    );
+    expect(large.widthPreset, HomeBannerWidthPreset.full);
+    expect(large.heightPreset, HomeBannerHeightPreset.standard);
+  });
+
+  test('寬度外距與高度比例可獨立 round-trip', () {
+    expect(
+      HomeBannerDisplay.outerPadding(HomeBannerWidthPreset.narrow).left,
+      24,
+    );
+    expect(
+      HomeBannerDisplay.outerPadding(HomeBannerWidthPreset.standard).left,
+      12,
+    );
+    expect(HomeBannerDisplay.outerPadding(HomeBannerWidthPreset.full).left, 0);
+
+    const ModernBannerFrameSetting frame = ModernBannerFrameSetting(
+      widthPreset: HomeBannerWidthPreset.full,
+      heightPreset: HomeBannerHeightPreset.tall,
+    );
+    expect(frame.frameAspectRatio, 3 / 2);
+    expect(
+      const ModernBannerFrameSetting(
+        heightPreset: HomeBannerHeightPreset.short,
+      ).frameAspectRatio,
+      2.20,
+    );
+    expect(
+      const ModernBannerFrameSetting().frameAspectRatio,
+      HomeBannerDisplay.aspectRatio,
+    );
+    const double width = 360;
+    final double shortHeight = const ModernBannerFrameSetting(
+      heightPreset: HomeBannerHeightPreset.short,
+    ).heightForWidth(width);
+    final double standardHeight = const ModernBannerFrameSetting()
+        .heightForWidth(width);
+    final double tallHeight = const ModernBannerFrameSetting(
+      heightPreset: HomeBannerHeightPreset.tall,
+    ).heightForWidth(width);
+    expect(shortHeight, lessThan(standardHeight));
+    expect(tallHeight, greaterThan(standardHeight));
+
+    final ModernBannerFrameSetting restored = ModernBannerFrameSetting.fromMap(
+      frame.toMap(),
+    );
+    expect(restored.widthPreset, HomeBannerWidthPreset.full);
+    expect(restored.heightPreset, HomeBannerHeightPreset.tall);
+    expect(restored, frame);
+    expect(frame.toMap()['homeBannerWidthPreset'], 'full');
+    expect(frame.toMap()['homeBannerHeightPreset'], 'tall');
+    expect(frame.completePosterFit, BoxFit.cover);
+    expect(const ModernBannerFrameSetting().completePosterFit, BoxFit.contain);
+  });
+
+  testWidgets('標準高度成品用 contain，矮版與高版用 cover', (WidgetTester tester) async {
+    final StoreBannerModel banner = StoreBannerModel(
+      id: 'poster',
+      renderedImageUrl: 'https://example.com/final.jpg',
+      title: '不該出現',
+      ctaText: '按鈕',
+      ctaEnabled: true,
+      overlayMode: StoreBannerOverlayModes.left,
+    );
+
+    final Uint8List poster = Uint8List.fromList(
+      img.encodePng(img.Image(width: 16, height: 9)),
+    );
+
+    Future<void> pump(ModernBannerFrameSetting frame) {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: 360,
+                child: StoreBannerView(
+                  banner: banner,
+                  theme: HomeThemeModel.modernDefault,
+                  scope: PetNestBannerScope.home,
+                  previewImageBytes: poster,
+                  homeFrameAspectRatio: frame.frameAspectRatio,
+                  completePosterFit: frame.completePosterFit,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pump(const ModernBannerFrameSetting());
+    await tester.pump();
+    expect(
+      tester.getSize(find.byType(StoreBannerView)).height,
+      closeTo(360 / (16 / 9), 0.5),
+    );
+    expect(tester.widget<Image>(find.byType(Image)).fit, BoxFit.contain);
+    expect(find.text('不該出現'), findsNothing);
+    expect(find.text('按鈕'), findsNothing);
+
+    await pump(
+      const ModernBannerFrameSetting(
+        heightPreset: HomeBannerHeightPreset.short,
+      ),
+    );
+    await tester.pump();
+    expect(
+      tester.getSize(find.byType(StoreBannerView)).height,
+      closeTo(360 / 2.20, 0.5),
+    );
+    expect(tester.widget<Image>(find.byType(Image)).fit, BoxFit.cover);
+
+    await pump(
+      const ModernBannerFrameSetting(heightPreset: HomeBannerHeightPreset.tall),
+    );
+    await tester.pump();
+    expect(
+      tester.getSize(find.byType(StoreBannerView)).height,
+      closeTo(360 / (3 / 2), 0.5),
+    );
+    expect(tester.widget<Image>(find.byType(Image)).fit, BoxFit.cover);
+    expect(find.text('不該出現'), findsNothing);
+  });
+
+  testWidgets('輪播切換時海報框高度不變', (WidgetTester tester) async {
+    const ModernBannerFrameSetting frame = ModernBannerFrameSetting(
+      widthPreset: HomeBannerWidthPreset.full,
+      heightPreset: HomeBannerHeightPreset.tall,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: ModernHomeBannerCarousel(
+              banners: const <StoreBannerModel>[
+                StoreBannerModel(id: 'one'),
+                StoreBannerModel(id: 'two'),
+              ],
+              theme: HomeThemeModel.modernDefault,
+              frameSetting: frame,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final double before = tester.getSize(find.byType(PageView)).height;
+    expect(before, closeTo(360 / frame.frameAspectRatio, 0.5));
+    expect(find.text('1/2'), findsOneWidget);
+    await tester.drag(find.byType(PageView), const Offset(-280, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('2/2'), findsOneWidget);
+    expect(tester.getSize(find.byType(PageView)).height, closeTo(before, 0.5));
   });
 }

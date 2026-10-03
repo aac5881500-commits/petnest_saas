@@ -14,15 +14,17 @@ class BookingSearchBar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onChanged,
+    this.margin = const EdgeInsets.fromLTRB(16, 12, 16, 10),
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final EdgeInsets margin;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      margin: margin,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: Colors.white,

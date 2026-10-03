@@ -1,14 +1,16 @@
 // 檔案名稱：lib/features/shop/pages/shop_contact_platform_page.dart
-// 功能說明：店主從後台送出問題，寫入 Firestore 給平台後台處理，可附最多 3 張照片
-// 📮 店主聯絡平台頁
+// 功能說明：店主查看自己的聯絡平台案件，並建立新案件後進入聊天室。
+
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+
 import 'package:petnest_saas/features/shop/pages/shop_contact_request_detail_page.dart';
+import 'package:petnest_saas/features/support/contact_case_labels.dart';
 
 class ShopContactPlatformPage extends StatefulWidget {
   const ShopContactPlatformPage({super.key, required this.shopId});
@@ -21,267 +23,513 @@ class ShopContactPlatformPage extends StatefulWidget {
 }
 
 class _ShopContactPlatformPageState extends State<ShopContactPlatformPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _contentController = TextEditingController();
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _requests;
 
+  @override
+  void initState() {
+    super.initState();
+    _listen();
+  }
+
+  void _listen() {
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) {
+      _requests = null;
+      return;
+    }
+    _requests = FirebaseFirestore.instance
+        .collection('platform_contact_requests')
+        .where('userId', isEqualTo: uid)
+        .snapshots();
+  }
+
+  void _openCreate() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ShopContactRequestCreatePage(shopId: widget.shopId),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      appBar: AppBar(
+        title: const Text('聯絡平台'),
+        actions: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.tonal(
+              onPressed: _openCreate,
+              child: const Text('建立案件'),
+            ),
+          ),
+        ],
+      ),
+      body: _requests == null
+          ? const _EmptyPane(title: '請先登入', message: '登入後才能查看你的案件。')
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _requests,
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+                  ) {
+                    if (snapshot.hasError) {
+                      return _EmptyPane(
+                        title: '案件讀取失敗',
+                        message: '請確認網路與權限後再試。',
+                        action: '重試',
+                        onPressed: () => setState(_listen),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                    docs = snapshot.data!.docs.where((
+                      QueryDocumentSnapshot<Map<String, dynamic>> doc,
+                    ) {
+                      final Map<String, dynamic> data = doc.data();
+                      return (data['source'] ?? '').toString() ==
+                              'shop_owner' &&
+                          (data['shopId'] ?? '').toString() == widget.shopId;
+                    }).toList()..sort(_newestFirst);
+                    if (docs.isEmpty) {
+                      return _EmptyPane(
+                        title: '還沒有案件',
+                        message: '每個問題建立一筆案件，之後可在同一案件繼續補充。',
+                        action: '建立案件',
+                        onPressed: _openCreate,
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      itemCount: docs.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (BuildContext context, int index) {
+                        final QueryDocumentSnapshot<Map<String, dynamic>> doc =
+                            docs[index];
+                        return _CaseTile(requestId: doc.id, data: doc.data());
+                      },
+                    );
+                  },
+            ),
+    );
+  }
+}
+
+class ShopContactRequestCreatePage extends StatefulWidget {
+  const ShopContactRequestCreatePage({super.key, required this.shopId});
+
+  final String shopId;
+
+  @override
+  State<ShopContactRequestCreatePage> createState() =>
+      _ShopContactRequestCreatePageState();
+}
+
+class _PendingImage {
+  const _PendingImage({required this.name, required this.bytes});
+
+  final String name;
+  final Uint8List bytes;
+}
+
+class _ShopContactRequestCreatePageState
+    extends State<ShopContactRequestCreatePage> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _title = TextEditingController();
+  final TextEditingController _content = TextEditingController();
   final ImagePicker _picker = ImagePicker();
-  final List<XFile> _images = [];
+  final List<_PendingImage> _images = <_PendingImage>[];
 
   static const int _maxImageCount = 3;
-  static const int _maxImageBytes = 5 * 1024 * 1024; // 5MB
+  static const int _maxImageBytes = 5 * 1024 * 1024;
 
-  String _category = '功能問題';
-  bool _isSubmitting = false;
-
-  final List<String> _categories = const [
-    '功能問題',
-    '帳號 / 權限',
-    '店家資料',
-    '訂單 / 預約',
-    '付款 / 訂金',
-    '建議回饋',
-    '其他',
-  ];
+  String _category = contactCaseCategories.first;
+  bool _submitting = false;
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _contentController.dispose();
+    _title.dispose();
+    _content.dispose();
     super.dispose();
   }
 
   Future<void> _pickImages() async {
-    if (_isSubmitting) return;
-
-    final remainCount = _maxImageCount - _images.length;
-
-    if (remainCount <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('最多只能上傳 3 張照片')));
+    if (_submitting) {
       return;
     }
-
-    final pickedImages = await _picker.pickMultiImage(
+    final int remain = _maxImageCount - _images.length;
+    if (remain <= 0) {
+      _toast('最多只能上傳 3 張照片');
+      return;
+    }
+    final List<XFile> picked = await _picker.pickMultiImage(
       imageQuality: 85,
-      limit: remainCount,
+      limit: remain,
     );
-
-    if (pickedImages.isEmpty) return;
-
-    final validImages = <XFile>[];
-
-    for (final image in pickedImages) {
-      final bytes = await image.length();
-
-      if (bytes > _maxImageBytes) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${image.name} 超過 5MB，已略過')));
+    if (picked.isEmpty || !mounted) {
+      return;
+    }
+    final List<_PendingImage> accepted = <_PendingImage>[];
+    for (final XFile image in picked) {
+      final Uint8List bytes = await image.readAsBytes();
+      if (bytes.length > _maxImageBytes) {
+        if (mounted) {
+          _toast('${image.name} 超過 5MB，已略過');
+        }
         continue;
       }
-
-      validImages.add(image);
+      accepted.add(_PendingImage(name: image.name, bytes: bytes));
     }
-
-    if (!mounted) return;
-
+    if (!mounted) {
+      return;
+    }
     setState(() {
-      _images.addAll(validImages.take(remainCount));
+      _images.addAll(accepted.take(remain));
     });
   }
 
-  void _removeImage(int index) {
-    if (_isSubmitting) return;
-
-    setState(() {
-      _images.removeAt(index);
-    });
-  }
-
-  Future<List<String>> _uploadImages({
-    required String requestId,
-    required String userId,
-  }) async {
-    final urls = <String>[];
-
+  Future<List<String>> _upload(String requestId, String userId) async {
+    final List<String> urls = <String>[];
     for (int i = 0; i < _images.length; i++) {
-      final image = _images[i];
-      final bytes = await image.readAsBytes();
-
-      final fileName =
+      final _PendingImage image = _images[i];
+      final String fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${i}_${image.name}';
-
-      final ref = FirebaseStorage.instance
+      final Reference ref = FirebaseStorage.instance
           .ref()
           .child('platform_contact_requests')
           .child(requestId)
           .child(fileName);
-
-      final uploadTask = await ref.putData(
-        bytes,
+      final TaskSnapshot upload = await ref.putData(
+        image.bytes,
         SettableMetadata(
           contentType: 'image/jpeg',
-          customMetadata: {
+          customMetadata: <String, String>{
             'shopId': widget.shopId,
             'userId': userId,
             'source': 'shop_owner',
           },
         ),
       );
-
-      final url = await uploadTask.ref.getDownloadURL();
-      urls.add(url);
+      urls.add(await upload.ref.getDownloadURL());
     }
-
     return urls;
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請先登入')));
+    if (_submitting || !(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-
-    setState(() => _isSubmitting = true);
-
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _toast('請先登入');
+      return;
+    }
+    setState(() => _submitting = true);
     try {
-      final shopDoc = await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(widget.shopId)
-          .get();
-
-      final shopData = shopDoc.data() ?? {};
-      final shopName = (shopData['name'] ?? '').toString();
-      final shopCode = (shopData['shopCode'] ?? '').toString();
-
-      final docRef = FirebaseFirestore.instance
+      final DocumentSnapshot<Map<String, dynamic>> shopDoc =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .get();
+      final Map<String, dynamic> shop = shopDoc.data() ?? <String, dynamic>{};
+      final DocumentReference<Map<String, dynamic>> docRef = FirebaseFirestore
+          .instance
           .collection('platform_contact_requests')
           .doc();
-
-      final imageUrls = await _uploadImages(
-        requestId: docRef.id,
-        userId: user.uid,
-      );
-
-      final now = FieldValue.serverTimestamp();
-
-      await docRef.set({
+      final List<String> imageUrls = await _upload(docRef.id, user.uid);
+      final FieldValue now = FieldValue.serverTimestamp();
+      final String title = _title.text.trim();
+      final String content = _content.text.trim();
+      await docRef.set(<String, dynamic>{
         'source': 'shop_owner',
         'shopId': widget.shopId,
-        'shopName': shopName,
-        'shopCode': shopCode,
+        'shopName': (shop['name'] ?? '').toString(),
+        'shopCode': (shop['shopCode'] ?? '').toString(),
         'userId': user.uid,
         'userEmail': user.email ?? '',
         'category': _category,
-        'title': _titleController.text.trim(),
-        'content': _contentController.text.trim(),
+        'title': title,
+        'content': content,
         'imageUrls': imageUrls,
         'imageCount': imageUrls.length,
         'status': 'open',
+        'lastMessage': content,
+        'lastSenderType': 'shop_owner',
         'createdAt': now,
         'updatedAt': now,
       });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已送出，平台會在後台看到這筆聯絡紀錄')));
-
-      Navigator.pop(context);
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('送出失敗：$e')));
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
+      if (!mounted) {
+        return;
       }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => ShopContactRequestDetailPage(requestId: docRef.id),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _toast('送出失敗，內容已保留');
+      debugPrint('建立聯絡案件失敗：$error');
+      setState(() => _submitting = false);
     }
   }
 
-  Widget _buildImageSection() {
-    return Card(
+  Future<void> _pickCategory() async {
+    final String? picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: contactCaseCategories.map((String item) {
+              return ListTile(
+                title: Text(item),
+                trailing: item == _category ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.pop(sheetContext, item),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() => _category = picked);
+    }
+  }
+
+  void _toast(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool phone = MediaQuery.sizeOf(context).width < 720;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(title: const Text('建立案件')),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: <Widget>[
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    children: <Widget>[
+                      const Text(
+                        '送出後可在同一案件繼續補充，不必重新填表。',
+                        style: TextStyle(color: Color(0xFF64748B)),
+                      ),
+                      const SizedBox(height: 12),
+                      if (phone)
+                        _CategoryButton(
+                          category: _category,
+                          enabled: !_submitting,
+                          onTap: _pickCategory,
+                        )
+                      else
+                        DropdownButtonFormField<String>(
+                          initialValue: _category,
+                          decoration: const InputDecoration(labelText: '問題分類'),
+                          items: contactCaseCategories
+                              .map(
+                                (String item) => DropdownMenuItem<String>(
+                                  value: item,
+                                  child: Text(item),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _submitting
+                              ? null
+                              : (String? value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+                                  setState(() => _category = value);
+                                },
+                        ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _title,
+                        enabled: !_submitting,
+                        decoration: const InputDecoration(
+                          labelText: '標題',
+                          hintText: '例如：訂單列表無法正常顯示',
+                        ),
+                        validator: (String? value) {
+                          final String text = (value ?? '').trim();
+                          if (text.isEmpty) {
+                            return '請輸入標題';
+                          }
+                          if (text.length < 3) {
+                            return '標題至少 3 個字';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _content,
+                        enabled: !_submitting,
+                        minLines: 4,
+                        maxLines: 8,
+                        decoration: const InputDecoration(
+                          labelText: '問題內容',
+                          alignLabelWithHint: true,
+                          hintText: '請寫下頁面、操作步驟與錯誤情況',
+                        ),
+                        validator: (String? value) {
+                          final String text = (value ?? '').trim();
+                          if (text.isEmpty) {
+                            return '請輸入問題內容';
+                          }
+                          if (text.length < 10) {
+                            return '內容至少 10 個字';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _AttachmentBox(
+                        images: _images,
+                        submitting: _submitting,
+                        onPick: _pickImages,
+                        onRemove: (int index) {
+                          if (_submitting) {
+                            return;
+                          }
+                          setState(() => _images.removeAt(index));
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _submitting ? null : _submit,
+                        child: Text(_submitting ? '送出中' : '建立並開始對話'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryButton extends StatelessWidget {
+  const _CategoryButton({
+    required this.category,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String category;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: const InputDecoration(labelText: '問題分類'),
+        child: Row(
+          children: <Widget>[
+            Expanded(child: Text(category)),
+            const Icon(Icons.expand_more),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachmentBox extends StatelessWidget {
+  const _AttachmentBox({
+    required this.images,
+    required this.submitting,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final List<_PendingImage> images;
+  final bool submitting;
+  final VoidCallback onPick;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('附加照片', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Text(
-              '最多 3 張，每張限制 5MB。可上傳錯誤畫面、截圖或相關照片。',
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-
-            if (_images.isNotEmpty)
+          children: <Widget>[
+            Text('附件 ${images.length}/3　每張最多 5MB'),
+            if (images.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
               Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: List.generate(_images.length, (index) {
-                  final image = _images[index];
-
+                spacing: 8,
+                runSpacing: 8,
+                children: List<Widget>.generate(images.length, (int index) {
                   return Stack(
-                    children: [
-                      Container(
-                        width: 92,
-                        height: 92,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: FutureBuilder<List<int>>(
-                          future: image.readAsBytes(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              );
-                            }
-
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.memory(
-                                snapshot.data! as dynamic,
-                                width: 92,
-                                height: 92,
-                                fit: BoxFit.cover,
-                              ),
-                            );
-                          },
+                    children: <Widget>[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(
+                          images[index].bytes,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
                         ),
                       ),
                       Positioned(
                         right: 2,
                         top: 2,
                         child: InkWell(
-                          onTap: () => _removeImage(index),
-                          child: Container(
-                            decoration: const BoxDecoration(
+                          onTap: () => onRemove(index),
+                          child: const DecoratedBox(
+                            decoration: BoxDecoration(
                               color: Colors.black54,
                               shape: BoxShape.circle,
                             ),
-                            padding: const EdgeInsets.all(3),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 16,
+                            child: Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -290,284 +538,185 @@ class _ShopContactPlatformPageState extends State<ShopContactPlatformPage> {
                   );
                 }),
               ),
-
-            if (_images.isNotEmpty) const SizedBox(height: 12),
-
+            ],
+            const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: _isSubmitting || _images.length >= _maxImageCount
-                  ? null
-                  : _pickImages,
-              icon: const Icon(Icons.add_photo_alternate),
-              label: Text('選擇照片 ${_images.length}/$_maxImageCount'),
+              onPressed: submitting || images.length >= 3 ? null : onPick,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: const Text('選擇照片'),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  String _statusText(String status) {
-    switch (status) {
-      case 'open':
-        return '待處理';
-      case 'processing':
-        return '處理中';
-      case 'closed':
-        return '已關閉';
-      default:
-        return status;
-    }
-  }
+class _CaseTile extends StatelessWidget {
+  const _CaseTile({required this.requestId, required this.data});
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'open':
-        return Colors.red;
-      case 'processing':
-        return Colors.orange;
-      case 'closed':
-        return Colors.grey;
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
-  String _formatDate(dynamic value) {
-    if (value is! Timestamp) return '-';
-    return DateFormat('yyyy/MM/dd HH:mm').format(value.toDate());
-  }
-
-  Widget _buildMyRequestList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('platform_contact_requests')
-          .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text('案件讀取失敗：${snapshot.error}'),
-            ),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final allDocs = snapshot.data?.docs ?? [];
-
-        final docs =
-            allDocs.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              return (data['source'] ?? '').toString() == 'shop_owner' &&
-                  (data['shopId'] ?? '').toString() == widget.shopId;
-            }).toList()..sort((a, b) {
-              final aData = a.data() as Map<String, dynamic>;
-              final bData = b.data() as Map<String, dynamic>;
-
-              final aTime = aData['updatedAt'];
-              final bTime = bData['updatedAt'];
-
-              if (aTime is Timestamp && bTime is Timestamp) {
-                return bTime.compareTo(aTime);
-              }
-
-              return 0;
-            });
-
-        if (docs.isEmpty) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(
-                '目前沒有案件紀錄',
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
-            ),
-          );
-        }
-
-        return Column(
-          children: docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-
-            final status = (data['status'] ?? 'open').toString();
-            final title = (data['title'] ?? '未填標題').toString();
-            final category = (data['category'] ?? '未分類').toString();
-            final lastMessage = (data['lastMessage'] ?? '').toString();
-            final updatedAtText = _formatDate(data['updatedAt']);
-
-            return Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: _statusColor(status).withValues(alpha: 0.12),
-                  child: Icon(Icons.support_agent, color: _statusColor(status)),
-                ),
-                title: Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('分類：$category'),
-                      Text('狀態：${_statusText(status)}'),
-                      Text('更新：$updatedAtText'),
-                      if (lastMessage.isNotEmpty)
-                        Text(
-                          '最後訊息：$lastMessage',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ShopContactRequestDetailPage(requestId: doc.id),
-                    ),
-                  );
-                },
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
+  final String requestId;
+  final Map<String, dynamic> data;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
-      appBar: AppBar(
-        title: const Text('聯絡平台'),
-        backgroundColor: const Color(0xFFFFFCF7),
-        surfaceTintColor: Colors.transparent,
+    final String status = (data['status'] ?? 'open').toString();
+    final String title = (data['title'] ?? '未填標題').toString();
+    final String category = (data['category'] ?? '未分類').toString();
+    final String when = _timeText(data['updatedAt'] ?? data['createdAt']);
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(
-                  '這裡不是寄 Email，而是送出一筆平台聯絡案件。平台後台之後可以查看、回覆與關閉案件。',
-                  style: TextStyle(color: Colors.grey.shade700, height: 1.4),
-                ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  ShopContactRequestDetailPage(requestId: requestId),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _StatusLabel(status: status),
+                ],
               ),
-            ),
-
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              value: _category,
-              decoration: const InputDecoration(
-                labelText: '問題分類',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 4),
+              Text(
+                '$category　$when',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
               ),
-              items: _categories
-                  .map(
-                    (item) => DropdownMenuItem(value: item, child: Text(item)),
-                  )
-                  .toList(),
-              onChanged: _isSubmitting
-                  ? null
-                  : (value) {
-                      if (value == null) return;
-                      setState(() => _category = value);
-                    },
-            ),
-
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _titleController,
-              enabled: !_isSubmitting,
-              decoration: const InputDecoration(
-                labelText: '標題',
-                hintText: '例如：訂單列表無法正常顯示',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 4),
+              Text(
+                contactCaseSummary(data),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(0xFF334155)),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '請輸入標題';
-                }
-                if (value.trim().length < 3) {
-                  return '標題至少 3 個字';
-                }
-                return null;
-              },
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusLabel extends StatelessWidget {
+  const _StatusLabel({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color fg, Color bg) = switch (status) {
+      'processing' => (const Color(0xFF1D4ED8), const Color(0xFFEFF6FF)),
+      'closed' => (const Color(0xFF475569), const Color(0xFFF1F5F9)),
+      _ => (const Color(0xFFB45309), const Color(0xFFFFF7ED)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        contactCaseStatusLabel(status),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
+      ),
+    );
+  }
+}
+
+class _EmptyPane extends StatelessWidget {
+  const _EmptyPane({
+    required this.title,
+    required this.message,
+    this.action,
+    this.onPressed,
+  });
+
+  final String title;
+  final String message;
+  final String? action;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.forum_outlined,
+              size: 36,
+              color: Color(0xFF94A3B8),
             ),
-
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _contentController,
-              enabled: !_isSubmitting,
-              minLines: 6,
-              maxLines: 10,
-              decoration: const InputDecoration(
-                labelText: '問題內容',
-                hintText: '請描述你遇到的狀況，包含頁面名稱、操作步驟、錯誤畫面等',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '請輸入問題內容';
-                }
-                if (value.trim().length < 10) {
-                  return '內容至少 10 個字，方便平台判斷問題';
-                }
-                return null;
-              },
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF64748B)),
             ),
-
-            const SizedBox(height: 16),
-
-            _buildImageSection(),
-
-            const SizedBox(height: 24),
-
-            SizedBox(
-              height: 48,
-              child: FilledButton.icon(
-                onPressed: _isSubmitting ? null : _submit,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-                label: Text(_isSubmitting ? '送出中...' : '送出給平台'),
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            const Text(
-              '我的案件紀錄',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 10),
-
-            _buildMyRequestList(),
+            if (action != null) ...<Widget>[
+              const SizedBox(height: 12),
+              FilledButton(onPressed: onPressed, child: Text(action!)),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+int _newestFirst(
+  QueryDocumentSnapshot<Map<String, dynamic>> a,
+  QueryDocumentSnapshot<Map<String, dynamic>> b,
+) {
+  final int left = _millis(a.data()['updatedAt'] ?? a.data()['createdAt']);
+  final int right = _millis(b.data()['updatedAt'] ?? b.data()['createdAt']);
+  return right.compareTo(left);
+}
+
+String _timeText(Object? value) {
+  final DateTime? time = _date(value);
+  if (time == null) {
+    return '-';
+  }
+  return '${contactDayLabel(time)} ${contactClockLabel(time)}';
+}
+
+DateTime? _date(Object? value) {
+  if (value is Timestamp) {
+    return value.toDate().toLocal();
+  }
+  return null;
+}
+
+int _millis(Object? value) {
+  return _date(value)?.millisecondsSinceEpoch ?? 0;
 }

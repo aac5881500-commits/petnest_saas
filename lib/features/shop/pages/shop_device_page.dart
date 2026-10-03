@@ -3,10 +3,14 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/camera_access_policy.dart';
+import 'package:petnest_saas/core/models/camera_brand.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/booking/widgets/camera_brand_launch.dart';
+import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_access_panel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const String _httpsUrlError = '請輸入可直接開啟的 HTTPS 攝影機網址';
@@ -19,153 +23,183 @@ class ShopDevicePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('攝影機設定'),
-        actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: ShopRoomService.instance.roomsRef(shopId).snapshots(),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> roomsSnap,
-            ) {
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: ShopRoomService.instance
-                    .roomTypesRef(shopId)
-                    .snapshots(),
-                builder:
-                    (
-                      BuildContext context,
-                      AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                      typesSnap,
-                    ) {
-                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: ShopDeviceService.instance.watchDevices(shopId),
-                        builder:
-                            (
-                              BuildContext context,
-                              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                              devicesSnap,
-                            ) {
-                              return StreamBuilder<
-                                DocumentSnapshot<Map<String, dynamic>>
-                              >(
-                                stream: FirebaseFirestore.instance
-                                    .collection('shops')
-                                    .doc(shopId)
-                                    .snapshots(),
-                                builder:
-                                    (
-                                      BuildContext context,
-                                      AsyncSnapshot<
-                                        DocumentSnapshot<Map<String, dynamic>>
-                                      >
-                                      shopSnap,
-                                    ) {
-                                      final Object? failure =
-                                          roomsSnap.error ??
-                                          typesSnap.error ??
-                                          devicesSnap.error;
-                                      if (failure != null) {
-                                        debugPrint(failure.toString());
-                                        return const _CameraMessage(
-                                          icon: Icons.cloud_off_outlined,
-                                          title: '攝影機資料讀取失敗，請重新整理後再試。',
-                                        );
-                                      }
-                                      if (!roomsSnap.hasData ||
-                                          !typesSnap.hasData ||
-                                          !devicesSnap.hasData) {
-                                        return const Center(
-                                          child: CircularProgressIndicator(),
-                                        );
-                                      }
-                                      final bool showCameraSection =
-                                          shopSnap.data
-                                              ?.data()?['showCameraSection'] !=
-                                          false;
-                                      final List<_RoomCameraLine> lines =
-                                          _roomCameraLines(
-                                            rooms: roomsSnap.data!.docs,
-                                            roomTypes: typesSnap.data!.docs,
-                                            devices: devicesSnap.data!.docs,
-                                          );
-                                      return LayoutBuilder(
-                                        builder:
-                                            (
-                                              BuildContext context,
-                                              BoxConstraints constraints,
-                                            ) {
-                                              final bool desktop =
-                                                  constraints.maxWidth >= 900;
-                                              final double pad = desktop
-                                                  ? 24
-                                                  : 16;
-                                              return ListView(
-                                                padding: EdgeInsets.fromLTRB(
-                                                  pad,
-                                                  16,
-                                                  pad,
-                                                  24,
-                                                ),
-                                                children: <Widget>[
-                                                  _ServiceBar(
-                                                    showCameraSection:
-                                                        showCameraSection,
-                                                    lines: lines,
-                                                    onChanged: (bool value) {
-                                                      _updateShowCameraSection(
-                                                        context,
-                                                        shopId: shopId,
-                                                        value: value,
-                                                        liveCount: lines
-                                                            .where(
-                                                              (
-                                                                _RoomCameraLine
-                                                                line,
-                                                              ) =>
-                                                                  line.status ==
-                                                                  _CameraRowStatus
-                                                                      .live,
-                                                            )
-                                                            .length,
-                                                      );
-                                                    },
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  const _CompatibilityStrip(),
-                                                  const SizedBox(height: 12),
-                                                  if (lines.isEmpty)
-                                                    const _CameraMessage(
-                                                      icon: Icons
-                                                          .videocam_off_outlined,
-                                                      title: '尚未建立房間',
-                                                      message:
-                                                          '新增房間後，這裡會出現對應的攝影機設定。',
-                                                    )
-                                                  else if (desktop)
-                                                    _CameraTable(
-                                                      shopId: shopId,
-                                                      lines: lines,
-                                                    )
-                                                  else
-                                                    _CameraPhoneList(
-                                                      shopId: shopId,
-                                                      lines: lines,
-                                                    ),
-                                                ],
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('攝影機設定'),
+          actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
+          bottom: const TabBar(
+            tabs: <Widget>[
+              Tab(text: '房間設備'),
+              Tab(text: '分享申請'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: <Widget>[
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: ShopRoomService.instance.roomsRef(shopId).snapshots(),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
+                    roomsSnap,
+                  ) {
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: ShopRoomService.instance
+                          .roomTypesRef(shopId)
+                          .snapshots(),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
+                            typesSnap,
+                          ) {
+                            return StreamBuilder<
+                              QuerySnapshot<Map<String, dynamic>>
+                            >(
+                              stream: ShopDeviceService.instance.watchDevices(
+                                shopId,
+                              ),
+                              builder:
+                                  (
+                                    BuildContext context,
+                                    AsyncSnapshot<
+                                      QuerySnapshot<Map<String, dynamic>>
+                                    >
+                                    devicesSnap,
+                                  ) {
+                                    return StreamBuilder<
+                                      DocumentSnapshot<Map<String, dynamic>>
+                                    >(
+                                      stream: FirebaseFirestore.instance
+                                          .collection('shops')
+                                          .doc(shopId)
+                                          .snapshots(),
+                                      builder:
+                                          (
+                                            BuildContext context,
+                                            AsyncSnapshot<
+                                              DocumentSnapshot<
+                                                Map<String, dynamic>
+                                              >
+                                            >
+                                            shopSnap,
+                                          ) {
+                                            final Object? failure =
+                                                roomsSnap.error ??
+                                                typesSnap.error ??
+                                                devicesSnap.error;
+                                            if (failure != null) {
+                                              debugPrint(failure.toString());
+                                              return const _CameraMessage(
+                                                icon: Icons.cloud_off_outlined,
+                                                title: '攝影機資料讀取失敗，請重新整理後再試。',
                                               );
-                                            },
-                                      );
-                                    },
-                              );
-                            },
-                      );
-                    },
-              );
-            },
+                                            }
+                                            if (!roomsSnap.hasData ||
+                                                !typesSnap.hasData ||
+                                                !devicesSnap.hasData) {
+                                              return const Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              );
+                                            }
+                                            final bool showCameraSection =
+                                                shopSnap.data
+                                                    ?.data()?['showCameraSection'] !=
+                                                false;
+                                            final List<_RoomCameraLine>
+                                            lines = _roomCameraLines(
+                                              rooms: roomsSnap.data!.docs,
+                                              roomTypes: typesSnap.data!.docs,
+                                              devices: devicesSnap.data!.docs,
+                                            );
+                                            return LayoutBuilder(
+                                              builder:
+                                                  (
+                                                    BuildContext context,
+                                                    BoxConstraints constraints,
+                                                  ) {
+                                                    final bool desktop =
+                                                        constraints.maxWidth >=
+                                                        900;
+                                                    final double pad = desktop
+                                                        ? 24
+                                                        : 16;
+                                                    return ListView(
+                                                      padding:
+                                                          EdgeInsets.fromLTRB(
+                                                            pad,
+                                                            16,
+                                                            pad,
+                                                            24,
+                                                          ),
+                                                      children: <Widget>[
+                                                        _ServiceBar(
+                                                          showCameraSection:
+                                                              showCameraSection,
+                                                          lines: lines,
+                                                          onChanged: (bool value) {
+                                                            _updateShowCameraSection(
+                                                              context,
+                                                              shopId: shopId,
+                                                              value: value,
+                                                              liveCount: lines
+                                                                  .where(
+                                                                    (
+                                                                      _RoomCameraLine
+                                                                      line,
+                                                                    ) =>
+                                                                        line.status ==
+                                                                        _CameraRowStatus
+                                                                            .live,
+                                                                  )
+                                                                  .length,
+                                                            );
+                                                          },
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        const _CompatibilityStrip(),
+                                                        const SizedBox(
+                                                          height: 12,
+                                                        ),
+                                                        if (lines.isEmpty)
+                                                          const _CameraMessage(
+                                                            icon: Icons
+                                                                .videocam_off_outlined,
+                                                            title: '尚未建立房間',
+                                                            message:
+                                                                '新增房間後，這裡會出現對應的攝影機設定。',
+                                                          )
+                                                        else if (desktop)
+                                                          _CameraTable(
+                                                            shopId: shopId,
+                                                            lines: lines,
+                                                          )
+                                                        else
+                                                          _CameraPhoneList(
+                                                            shopId: shopId,
+                                                            lines: lines,
+                                                          ),
+                                                      ],
+                                                    );
+                                                  },
+                                            );
+                                          },
+                                    );
+                                  },
+                            );
+                          },
+                    );
+                  },
+            ),
+            ShopCameraAccessPanel(shopId: shopId),
+          ],
+        ),
       ),
     );
   }
@@ -198,13 +232,38 @@ class _RoomCameraLine {
 
   String get note => (primary?.data()['note'] ?? '').toString();
 
+  String get viewMode => cameraViewModeOf(primary?.data());
+
+  String get provider => (primary?.data()['provider'] ?? '').toString();
+
+  String get watchLabel {
+    if (viewMode != cameraViewExternalApp) {
+      return url.trim().isEmpty ? '網址觀看' : _urlLabel(url);
+    }
+    final String label = cameraBrandLabel(provider);
+    return label.isEmpty ? '外部 App・未開放品牌' : '外部 App・$label';
+  }
+
+  String get externalDeviceName =>
+      (primary?.data()['externalDeviceName'] ?? '').toString();
+
+  String get customerShareNote =>
+      (primary?.data()['customerShareNote'] ?? '').toString();
+
   bool get enabled => primary?.data()['enabled'] == true;
 
   bool get platformLocked => primary?.data()['platformLocked'] == true;
 
-  bool get hasValidUrl => _isDirectHttpsCameraUrl(url);
+  bool get hasValidUrl =>
+      viewMode == cameraViewWebUrl && cameraIsDirectHttps(url);
 
-  bool get switchEnabled => hasValidUrl && !platformLocked;
+  bool get setupComplete => cameraSetupComplete(primary?.data());
+
+  bool get switchEnabled => setupComplete && !platformLocked;
+
+  String get disabledSwitchTip => viewMode == cameraViewExternalApp
+      ? '請先完成外部 App 品牌設定後再啟用'
+      : _disabledSwitchTip;
 }
 
 List<_RoomCameraLine> _roomCameraLines({
@@ -278,7 +337,7 @@ _CameraRowStatus _statusOf(Map<String, dynamic>? data) {
   if (data['platformLocked'] == true) {
     return _CameraRowStatus.locked;
   }
-  if (!_isDirectHttpsCameraUrl((data['url'] ?? '').toString())) {
+  if (!cameraSetupComplete(data)) {
     return _CameraRowStatus.unset;
   }
   if (data['enabled'] != true) {
@@ -294,8 +353,8 @@ int _compareCameras(
   final Map<String, dynamic> aData = a.data();
   final Map<String, dynamic> bData = b.data();
   final int urlRank = _preferTrue(
-    _isDirectHttpsCameraUrl((aData['url'] ?? '').toString()),
-    _isDirectHttpsCameraUrl((bData['url'] ?? '').toString()),
+    cameraSetupComplete(aData),
+    cameraSetupComplete(bData),
   );
   if (urlRank != 0) {
     return urlRank;
@@ -354,13 +413,7 @@ DateTime? _readTime(Object? value) {
   return null;
 }
 
-bool _isDirectHttpsCameraUrl(String raw) {
-  final Uri? uri = Uri.tryParse(raw.trim());
-  if (uri == null || !uri.isScheme('https')) {
-    return false;
-  }
-  return uri.host.trim().isNotEmpty;
-}
+bool _isDirectHttpsCameraUrl(String raw) => cameraIsDirectHttps(raw);
 
 String _urlLabel(String raw) {
   final String url = raw.trim();
@@ -392,7 +445,7 @@ class _ServiceBar extends StatelessWidget {
         .where((_RoomCameraLine line) => line.status == _CameraRowStatus.live)
         .length;
     final int unsetCount = lines
-        .where((_RoomCameraLine line) => !line.hasValidUrl)
+        .where((_RoomCameraLine line) => !line.setupComplete)
         .length;
     final int duplicateRooms = lines
         .where((_RoomCameraLine line) => line.cameraCount >= 2)
@@ -428,7 +481,7 @@ class _ServiceBar extends StatelessWidget {
                 ),
                 Text(
                   showCameraSection
-                      ? '入住中的會員只會看見自己房間已啟用的攝影機。'
+                      ? '入住或安親中的會員只會看見自己房間已啟用的攝影機。'
                       : '會員前台目前不顯示攝影機入口。',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -505,7 +558,7 @@ class _CompatibilityStrip extends StatelessWidget {
           const SizedBox(width: 6),
           const Expanded(
             child: Text(
-              '僅支援可從店外直接開啟的 HTTPS 網頁觀看連結。',
+              '網址觀看使用 HTTPS。外部 App 由店家在原廠 App 手動分享，請打開相容性說明。',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12.5, color: Color(0xFF6B7280)),
@@ -570,7 +623,7 @@ class _TableHeader extends StatelessWidget {
         children: <Widget>[
           SizedBox(width: 132, child: Text('房間', style: style)),
           SizedBox(width: 176, child: Text('房型', style: style)),
-          Expanded(child: Text('外網觀看網址', style: style)),
+          Expanded(child: Text('觀看方式', style: style)),
           SizedBox(width: 118, child: Text('狀態', style: style)),
           SizedBox(width: 72, child: Text('啟用', style: style)),
           SizedBox(width: 84, child: Text('操作', style: style)),
@@ -656,7 +709,7 @@ class _CameraPhoneCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String host = line.url.trim().isEmpty ? '尚未設定' : _urlLabel(line.url);
+    final String host = line.watchLabel;
     return Container(
       height: 84,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -730,9 +783,11 @@ class _CameraPhoneCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
-                          color: line.url.trim().isEmpty
-                              ? const Color(0xFF9CA3AF)
-                              : const Color(0xFF374151),
+                          color:
+                              line.viewMode == cameraViewExternalApp ||
+                                  line.url.trim().isNotEmpty
+                              ? const Color(0xFF374151)
+                              : const Color(0xFF9CA3AF),
                         ),
                       ),
                     ),
@@ -794,6 +849,16 @@ class _UrlCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (line.viewMode == cameraViewExternalApp) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          line.watchLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
     if (line.url.trim().isEmpty) {
       return Row(
         children: <Widget>[
@@ -926,7 +991,7 @@ class _EnableSwitch extends StatelessWidget {
     if (line.switchEnabled) {
       return control;
     }
-    return Tooltip(message: _disabledSwitchTip, child: control);
+    return Tooltip(message: line.disabledSwitchTip, child: control);
   }
 }
 
@@ -948,18 +1013,52 @@ class _RowActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         IconButton(
-          tooltip: '編輯網址與備註',
+          tooltip: '編輯攝影機設定',
           style: style,
           onPressed: () => _showEditDeviceDialog(context, shopId, line),
           icon: const Icon(Icons.edit_outlined, size: 18),
         ),
         IconButton(
-          tooltip: '測試網址',
+          tooltip: line.viewMode == cameraViewExternalApp ? '原廠 App' : '測試網址',
           style: style,
-          onPressed: line.hasValidUrl && !line.platformLocked
-              ? () => _openExternalCameraUrl(context, line.url)
-              : null,
-          icon: const Icon(Icons.open_in_new, size: 18),
+          onPressed: line.platformLocked
+              ? null
+              : () {
+                  if (line.viewMode == cameraViewExternalApp) {
+                    final CameraBrand? brand = cameraBrandById(line.provider);
+                    if (brand == null) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('此品牌尚未開放')));
+                      return;
+                    }
+                    showDialog<void>(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        return AlertDialog(
+                          title: Text(brand.appName),
+                          content: CameraBrandActions(providerId: brand.id),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('關閉'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                    return;
+                  }
+                  if (line.hasValidUrl) {
+                    _openExternalCameraUrl(context, line.url);
+                  }
+                },
+          icon: Icon(
+            line.viewMode == cameraViewExternalApp
+                ? Icons.phone_android_outlined
+                : Icons.open_in_new,
+            size: 18,
+          ),
         ),
       ],
     );
@@ -1047,10 +1146,10 @@ Future<void> _setEnabled(
   _RoomCameraLine line,
   bool enabled,
 ) async {
-  if (enabled && !line.hasValidUrl) {
+  if (enabled && !line.setupComplete) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text(_disabledSwitchTip)));
+    ).showSnackBar(SnackBar(content: Text(line.disabledSwitchTip)));
     return;
   }
   final String? primaryId = line.primary?.id;
@@ -1073,7 +1172,15 @@ Future<void> _setEnabled(
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${line.roomName} 已${enabled ? '啟用' : '停用'}')),
+      SnackBar(
+        content: Text(
+          enabled
+              ? (line.viewMode == cameraViewExternalApp
+                    ? '${line.roomName} 已啟用。顧客可提出分享申請，請到${cameraBrandById(line.provider)?.appName ?? '原廠 App'}手動分享。'
+                    : '${line.roomName} 已啟用')
+              : '${line.roomName} 已停用。PetNest 關閉入口不會自動移除原廠 App 的觀看權限，請至原廠 App 取消分享。',
+        ),
+      ),
     );
   } catch (error) {
     debugPrint('更新攝影機啟用狀態失敗：$error');
@@ -1093,14 +1200,22 @@ Future<void> _openExternalCameraUrl(BuildContext context, String url) async {
     ).showSnackBar(const SnackBar(content: Text(_httpsUrlError)));
     return;
   }
-  final bool launched = await launchUrl(
-    Uri.parse(url.trim()),
-    mode: LaunchMode.externalApplication,
-  );
-  if (!launched && context.mounted) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('無法開啟此網址，請確認網址與外網存取設定')));
+  try {
+    final bool launched = await launchUrl(
+      Uri.parse(url.trim()),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('無法開啟此網址，請確認網址與外網存取設定')));
+    }
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('無法開啟此網址，請確認網址與外網存取設定')));
+    }
   }
 }
 
@@ -1302,7 +1417,7 @@ class _CameraCompatibilityGuide extends StatelessWidget {
           const _GuideQaCard(
             question: '我有小米、Tapo、Eufy、Google 等家用攝影機，可以用嗎？',
             answer:
-                '不一定。只要它只能透過原廠 App 看，通常就不能直接使用；是否能用只看有沒有可外網直接開啟的 HTTPS 分享網址。',
+                '小米／米家可改用「外部設備」模式，由店家在米家手動分享給顧客。Tapo、Eufy、Google 等仍要有可從外網直接開啟的 HTTPS 觀看網址。',
           ),
           const SizedBox(height: 8),
           const _GuideQaCard(
@@ -1692,32 +1807,96 @@ void _showEditDeviceDialog(
   String shopId,
   _RoomCameraLine line,
 ) {
-  final TextEditingController urlController = TextEditingController(
-    text: line.url,
-  );
-  final TextEditingController noteController = TextEditingController(
-    text: line.note,
-  );
-  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
-
   showDialog<void>(
     context: context,
     builder: (BuildContext dialogContext) {
-      final double width = (MediaQuery.sizeOf(dialogContext).width - 96).clamp(
-        0,
-        420,
+      return _CameraSettingsDialog(
+        shopId: shopId,
+        line: line,
+        hostContext: context,
       );
-      return AlertDialog(
-        title: Text('${line.roomName} 攝影機設定'),
-        content: SizedBox(
-          width: width.toDouble(),
-          child: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
+    },
+  );
+}
+
+class _CameraSettingsDialog extends StatefulWidget {
+  const _CameraSettingsDialog({
+    required this.shopId,
+    required this.line,
+    required this.hostContext,
+  });
+
+  final String shopId;
+  final _RoomCameraLine line;
+  final BuildContext hostContext;
+
+  @override
+  State<_CameraSettingsDialog> createState() => _CameraSettingsDialogState();
+}
+
+class _CameraSettingsDialogState extends State<_CameraSettingsDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _url;
+  late final TextEditingController _note;
+  late final TextEditingController _deviceName;
+  late final TextEditingController _customerNote;
+  late String _mode;
+  late String _provider;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.line.viewMode;
+    _provider = cameraBrandById(widget.line.provider)?.id ?? '';
+    _url = TextEditingController(text: widget.line.url);
+    _note = TextEditingController(text: widget.line.note);
+    _deviceName = TextEditingController(text: widget.line.externalDeviceName);
+    _customerNote = TextEditingController(text: widget.line.customerShareNote);
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _note.dispose();
+    _deviceName.dispose();
+    _customerNote.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool external = _mode == cameraViewExternalApp;
+    final double width = (MediaQuery.sizeOf(context).width - 96).clamp(0, 460);
+    return AlertDialog(
+      title: Text('${widget.line.roomName} 攝影機設定'),
+      content: SizedBox(
+        width: width.toDouble(),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SegmentedButton<String>(
+                  segments: const <ButtonSegment<String>>[
+                    ButtonSegment<String>(
+                      value: cameraViewWebUrl,
+                      label: Text('網址觀看'),
+                    ),
+                    ButtonSegment<String>(
+                      value: cameraViewExternalApp,
+                      label: Text('外部 App'),
+                    ),
+                  ],
+                  selected: <String>{_mode},
+                  onSelectionChanged: (Set<String> value) {
+                    setState(() => _mode = value.first);
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (!external) ...<Widget>[
                   const Text(
                     '請貼上可由店外直接以瀏覽器觀看的 HTTPS 連結。',
                     style: TextStyle(
@@ -1728,7 +1907,7 @@ void _showEditDeviceDialog(
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
-                    controller: urlController,
+                    controller: _url,
                     keyboardType: TextInputType.url,
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     decoration: const InputDecoration(
@@ -1737,93 +1916,166 @@ void _showEditDeviceDialog(
                       helperText: '請先以手機行動網路測試，確認不需使用原廠 App。',
                     ),
                     validator: (String? value) {
-                      if (_isDirectHttpsCameraUrl(value ?? '')) {
+                      if (cameraIsDirectHttps(value ?? '')) {
                         return null;
                       }
                       return _httpsUrlError;
                     },
                   ),
+                ] else ...<Widget>[
+                  if (widget.line.provider.trim().isNotEmpty &&
+                      cameraBrandById(widget.line.provider) == null)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '目前儲存的品牌尚未開放，請改選已開放品牌。不會自動改成小米。',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF9F1239),
+                        ),
+                      ),
+                    ),
+                  DropdownButtonFormField<String>(
+                    initialValue: _provider.isEmpty ? null : _provider,
+                    decoration: const InputDecoration(labelText: '外部品牌'),
+                    items: <DropdownMenuItem<String>>[
+                      for (final CameraBrand brand in cameraReleasedBrands)
+                        DropdownMenuItem<String>(
+                          value: brand.id,
+                          child: Text(brand.label),
+                        ),
+                    ],
+                    onChanged: (String? value) {
+                      setState(() => _provider = value ?? '');
+                    },
+                    validator: (String? value) {
+                      if (cameraBrandSupportsAccountShare(value)) {
+                        return null;
+                      }
+                      return '請選擇已開放的品牌';
+                    },
+                  ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: noteController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: '店內備註（選填）',
-                      hintText: '例如：NVR 分享連結、更新日期',
+                  Text(
+                    cameraExternalWatchReminder(_provider),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: Color(0xFF92400E),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _deviceName,
+                    decoration: const InputDecoration(
+                      labelText: '設備辨識名稱（選填）',
+                      hintText: '方便在原廠 App 找到這台設備',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _customerNote,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: '給顧客的分享說明（選填）',
+                      hintText: '例如：請使用指定地區帳號。不會包含店內備註。',
+                    ),
+                  ),
+                  if (cameraBrandById(_provider) != null)
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('安裝與分享教學'),
+                      children: <Widget>[
+                        for (final String step in cameraBrandById(
+                          _provider,
+                        )!.guide)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(step),
+                            ),
+                          ),
+                      ],
+                    ),
                 ],
-              ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _note,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: '店內備註（選填）',
+                    hintText: '只給店內查看，不會傳給顧客',
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => _saveCameraUrl(
-              context: context,
-              dialogContext: dialogContext,
-              formKey: formKey,
-              shopId: shopId,
-              line: line,
-              urlController: urlController,
-              noteController: noteController,
-            ),
-            child: const Text('儲存'),
-          ),
-        ],
-      );
-    },
-  ).whenComplete(() {
-    urlController.dispose();
-    noteController.dispose();
-  });
-}
-
-Future<void> _saveCameraUrl({
-  required BuildContext context,
-  required BuildContext dialogContext,
-  required GlobalKey<FormState> formKey,
-  required String shopId,
-  required _RoomCameraLine line,
-  required TextEditingController urlController,
-  required TextEditingController noteController,
-}) async {
-  if (formKey.currentState?.validate() != true) {
-    return;
-  }
-  try {
-    await ShopDeviceService.instance.writePrimaryRoomCamera(
-      shopId: shopId,
-      roomId: line.roomId,
-      roomName: line.roomName,
-      primaryDeviceId: line.primary?.id,
-      url: urlController.text.trim(),
-      note: noteController.text.trim(),
-      enabled: false,
-      persistSettings: true,
-      siblingDeviceIds: line.siblingIds,
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? '儲存中' : '儲存'),
+        ),
+      ],
     );
-    if (dialogContext.mounted) {
-      Navigator.pop(dialogContext);
-    }
-    if (!context.mounted) {
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('網址已儲存，請測試後再啟用')));
-  } catch (error) {
-    debugPrint('儲存攝影機設定失敗：$error');
-    if (!context.mounted) {
-      return;
+    final bool external = _mode == cameraViewExternalApp;
+    setState(() => _saving = true);
+    try {
+      await ShopDeviceService.instance.writePrimaryRoomCamera(
+        shopId: widget.shopId,
+        roomId: widget.line.roomId,
+        roomName: widget.line.roomName,
+        primaryDeviceId: widget.line.primary?.id,
+        url: external ? '' : _url.text.trim(),
+        note: _note.text.trim(),
+        enabled: false,
+        persistSettings: true,
+        siblingDeviceIds: widget.line.siblingIds,
+        viewMode: _mode,
+        provider: external ? _provider : '',
+        externalDeviceName: external ? _deviceName.text.trim() : '',
+        customerShareNote: external ? _customerNote.text.trim() : '',
+      );
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      if (!widget.hostContext.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            external
+                ? '外部 App 設定已儲存，請確認品牌與說明後再啟用。分享仍需在原廠 App 手動操作。'
+                : '網址已儲存，請測試後再啟用',
+          ),
+        ),
+      );
+    } catch (error) {
+      debugPrint('儲存攝影機設定失敗：$error');
+      if (!mounted) {
+        return;
+      }
+      setState(() => _saving = false);
+      if (!widget.hostContext.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        widget.hostContext,
+      ).showSnackBar(const SnackBar(content: Text('攝影機設定儲存失敗')));
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('攝影機設定儲存失敗')));
   }
 }
 

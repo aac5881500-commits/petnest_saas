@@ -37,7 +37,7 @@ import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_pre_arrival_guide_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_custom_form_settings_page.dart';
-import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
+import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
@@ -1413,9 +1413,7 @@ class _CatHotelTab extends StatelessWidget {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => RoomDashboardPage(shopId: shopId),
-                            ),
+                            shopOperationsWorkbenchRoute(shopId),
                           );
                         },
                       ),

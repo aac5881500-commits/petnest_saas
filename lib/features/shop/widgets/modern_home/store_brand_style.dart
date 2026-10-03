@@ -6,6 +6,18 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 /// 首頁店家識別與側邊欄精簡店名是兩種顯示情境，不可共用位置或 GlobalKey。
 enum StoreBrandDisplayContext { home, drawer }
 
+/// 副標字數規則。只清理顯示與外觀草稿，不改店家基本資料裡的店名。
+class StoreBrandTextPolicy {
+  const StoreBrandTextPolicy._();
+
+  static const int subtitleMaxCharacters = 24;
+
+  static String sanitizeSubtitle(String value) {
+    final String trimmed = value.trim();
+    return trimmed.characters.take(subtitleMaxCharacters).toString();
+  }
+}
+
 /// 店家識別區的排版。座標是首頁內容區內的 0～1，不是螢幕像素。
 class StoreBrandStyle {
   const StoreBrandStyle({
@@ -200,10 +212,7 @@ class StoreBrandStyle {
           ? HomeThemeModel.parseColorValue(map['homepageBrandNameColor'], 0)
           : null,
       subtitleColorValue: map.containsKey('homepageBrandSubtitleColor')
-          ? HomeThemeModel.parseColorValue(
-              map['homepageBrandSubtitleColor'],
-              0,
-            )
+          ? HomeThemeModel.parseColorValue(map['homepageBrandSubtitleColor'], 0)
           : null,
       textShadowEnabled: map['homepageBrandTextShadowEnabled'] == true,
       textAlign: _align(map['homepageBrandTextAlign']),
@@ -247,18 +256,10 @@ class StoreBrandStyle {
     if (value is! num) {
       return defaultWidthRatio;
     }
-    return value
-        .toDouble()
-        .clamp(minWidthRatio, maxWidthRatio)
-        .toDouble();
+    return value.toDouble().clamp(minWidthRatio, maxWidthRatio).toDouble();
   }
 
-  static double _font(
-    dynamic value,
-    double fallback,
-    double min,
-    double max,
-  ) {
+  static double _font(dynamic value, double fallback, double min, double max) {
     if (value is! num) {
       return fallback;
     }

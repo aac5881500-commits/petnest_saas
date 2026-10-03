@@ -311,7 +311,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                               constraints: const BoxConstraints(maxWidth: 960),
                               child: Padding(
                                 padding: HomeBannerDisplay.outerPadding(
-                                  homeBannerFrame.displaySize,
+                                  homeBannerFrame.widthPreset,
                                 ),
                                 child: AspectRatio(
                                   aspectRatio: HomeBannerDisplay.aspectRatio,

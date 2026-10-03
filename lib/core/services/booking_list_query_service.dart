@@ -33,6 +33,7 @@ class BookingListQueryService {
   static const int pageSize = 20;
 
   static const List<String> stayChipKeys = <String>[
+    'active',
     'pending',
     'depositReview',
     'confirmed',
@@ -41,10 +42,12 @@ class BookingListQueryService {
     'todayCheckIn',
     'todayCheckOut',
     'futureCheckIn',
-    'history',
+    'settled',
+    'cancelled',
   ];
 
   static const List<String> daycareChipKeys = <String>[
+    'active',
     'pending',
     'depositReview',
     'confirmed',
@@ -52,7 +55,19 @@ class BookingListQueryService {
     'checked_in',
     'todayDropOff',
     'todayPickUp',
-    'history',
+    'futureCheckIn',
+    'settled',
+    'cancelled',
+  ];
+
+  /// 尚未結清、尚未取消的訂單。不含 completed／cancelled／no_show。
+  static const List<String> activeStatuses = <String>[
+    'pending',
+    'pending_confirmation',
+    'unpaid',
+    'confirmed',
+    'checked_in',
+    'checked_out',
   ];
 
   static const List<String> _pendingStatuses = <String>[
@@ -139,6 +154,26 @@ class BookingListQueryService {
           return _matchesKindAndFilter(doc.data(), kind, filter);
         })
         .toList();
+    if (filter == 'active' && cursor == null && kind == BookingKind.daycare) {
+      final QuerySnapshot<Map<String, dynamic>> awaiting =
+          await _base(shopId: shopId, kind: kind)
+              .where('status', isEqualTo: 'completed')
+              .orderBy('createdAt', descending: true)
+              .limit(pageSize)
+              .get();
+      final Set<String> seen = docs
+          .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.id)
+          .toSet();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in awaiting.docs) {
+        if (!seen.add(doc.id)) {
+          continue;
+        }
+        if (_matchesKindAndFilter(doc.data(), kind, filter)) {
+          docs.add(doc);
+        }
+      }
+    }
     return BookingListPageResult(
       docs: docs,
       cursor: snap.docs.isEmpty ? cursor : snap.docs.last,
@@ -198,8 +233,60 @@ class BookingListQueryService {
     return snap.count ?? 0;
   }
 
+  Query<Map<String, dynamic>> _searchScope(
+    Query<Map<String, dynamic>> base, {
+    required String kind,
+    required String filter,
+  }) {
+    final List<String> statuses = searchStatusesFor(kind: kind, filter: filter);
+    if (statuses.length == 1) {
+      return base.where('status', isEqualTo: statuses.single);
+    }
+    return base.where('status', whereIn: statuses);
+  }
+
+  static List<String> searchStatusesFor({
+    required String kind,
+    required String filter,
+  }) {
+    switch (filter) {
+      case 'settled':
+        return const <String>['completed'];
+      case 'cancelled':
+        return const <String>['cancelled', 'no_show'];
+      case 'pending':
+        return _pendingStatuses;
+      case 'depositReview':
+        return _depositReviewStatuses;
+      case 'confirmed':
+        return const <String>['confirmed'];
+      case 'awaitingRoom':
+        return kind == BookingKind.daycare
+            ? const <String>['confirmed', 'checked_in']
+            : const <String>['confirmed'];
+      case 'checked_in':
+        return const <String>['checked_in'];
+      case 'todayDropOff':
+      case 'todayPickUp':
+        return _daycareOpenStatuses;
+      case 'todayCheckIn':
+      case 'todayCheckOut':
+        return _stayOpenStatuses;
+      case 'futureCheckIn':
+        return kind == BookingKind.daycare
+            ? _daycareOpenStatuses
+            : _stayOpenStatuses;
+      case 'history':
+        return const <String>['completed', 'cancelled', 'no_show'];
+      case 'active':
+      default:
+        return activeStatuses;
+    }
+  }
+
   bool _isLiveFilter(String filter) {
-    return filter == 'pending' ||
+    return filter == 'active' ||
+        filter == 'pending' ||
         filter == 'depositReview' ||
         filter == 'confirmed' ||
         filter == 'awaitingRoom' ||
@@ -208,8 +295,7 @@ class BookingListQueryService {
         filter == 'todayPickUp' ||
         filter == 'todayCheckIn' ||
         filter == 'todayCheckOut' ||
-        filter == 'futureCheckIn' ||
-        filter == 'history';
+        filter == 'futureCheckIn';
   }
 
   Query<Map<String, dynamic>> _filterQuery(
@@ -222,6 +308,18 @@ class BookingListQueryService {
     final Timestamp todayStart = Timestamp.fromDate(taipei.startUtc);
     final Timestamp todayEnd = Timestamp.fromDate(taipei.endUtc);
     switch (filter) {
+      case 'active':
+        return base
+            .where('status', whereIn: activeStatuses)
+            .orderBy('createdAt', descending: true);
+      case 'settled':
+        return base
+            .where('status', isEqualTo: 'completed')
+            .orderBy('createdAt', descending: true);
+      case 'cancelled':
+        return base
+            .where('status', whereIn: const <String>['cancelled', 'no_show'])
+            .orderBy('createdAt', descending: true);
       case 'pending':
         return base
             .where('status', whereIn: _pendingStatuses)
@@ -275,6 +373,12 @@ class BookingListQueryService {
             .where('endDate', isLessThan: todayEnd)
             .orderBy('endDate', descending: true);
       case 'futureCheckIn':
+        if (kind == BookingKind.daycare) {
+          return base
+              .where('status', whereIn: _daycareOpenStatuses)
+              .where('scheduledStartAt', isGreaterThanOrEqualTo: todayEnd)
+              .orderBy('scheduledStartAt', descending: true);
+        }
         return base
             .where('status', whereIn: _stayOpenStatuses)
             .where('startDate', isGreaterThanOrEqualTo: todayEnd)
@@ -325,7 +429,11 @@ class BookingListQueryService {
     QueryDocumentSnapshot<Map<String, dynamic>>? cursor,
   }) async {
     final String digits = BookingSearchFields.digitsOnly(keyword);
-    Query<Map<String, dynamic>> query = _base(shopId: shopId, kind: kind);
+    Query<Map<String, dynamic>> query = _searchScope(
+      _base(shopId: shopId, kind: kind),
+      kind: kind,
+      filter: filter,
+    );
     if (RegExp(r'^[a-zA-Z0-9\-]{4,}$').hasMatch(keyword) &&
         digits.length != keyword.replaceAll(RegExp(r'[\s-]'), '').length) {
       query = query.where(
@@ -347,11 +455,16 @@ class BookingListQueryService {
       query = query
           .where('petNamesNormalized', arrayContains: name)
           .orderBy('createdAt', descending: true);
-      Query<Map<String, dynamic>> nameQuery = _base(shopId: shopId, kind: kind)
-          .where('customerNameNormalized', isGreaterThanOrEqualTo: name)
-          .where('customerNameNormalized', isLessThan: '$name\uf8ff')
-          .orderBy('customerNameNormalized')
-          .limit(pageSize);
+      Query<Map<String, dynamic>> nameQuery =
+          _searchScope(
+                _base(shopId: shopId, kind: kind),
+                kind: kind,
+                filter: filter,
+              )
+              .where('customerNameNormalized', isGreaterThanOrEqualTo: name)
+              .where('customerNameNormalized', isLessThan: '$name\uf8ff')
+              .orderBy('customerNameNormalized')
+              .limit(pageSize);
       if (cursor != null) {
         nameQuery = nameQuery.startAfterDocument(cursor);
       }
@@ -379,9 +492,10 @@ class BookingListQueryService {
     final QuerySnapshot<Map<String, dynamic>> snap = await query.get();
     if (snap.docs.isEmpty &&
         BookingSearchFields.normalizeCode(keyword).isNotEmpty) {
-      Query<Map<String, dynamic>> legacy = _base(
-        shopId: shopId,
+      Query<Map<String, dynamic>> legacy = _searchScope(
+        _base(shopId: shopId, kind: kind),
         kind: kind,
+        filter: filter,
       ).where('bookingCode', isEqualTo: keyword.trim()).limit(pageSize);
       final QuerySnapshot<Map<String, dynamic>> legacySnap = await legacy.get();
       return BookingListPageResult(

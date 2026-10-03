@@ -32,6 +32,7 @@ class BookingStatusFilter extends StatelessWidget {
   final bool countsIncomplete;
 
   static const List<BookingFilterChipSpec> stayItems = <BookingFilterChipSpec>[
+    BookingFilterChipSpec(type: 'active', label: '全部'),
     BookingFilterChipSpec(type: 'pending', label: '待確認', attention: true),
     BookingFilterChipSpec(
       type: 'depositReview',
@@ -48,11 +49,13 @@ class BookingStatusFilter extends StatelessWidget {
       attention: true,
     ),
     BookingFilterChipSpec(type: 'futureCheckIn', label: '未來入住'),
-    BookingFilterChipSpec(type: 'history', label: '歷史訂單'),
+    BookingFilterChipSpec(type: 'settled', label: '結清'),
+    BookingFilterChipSpec(type: 'cancelled', label: '已取消'),
   ];
 
   static const List<BookingFilterChipSpec>
   daycareItems = <BookingFilterChipSpec>[
+    BookingFilterChipSpec(type: 'active', label: '全部'),
     BookingFilterChipSpec(type: 'pending', label: '待確認', attention: true),
     BookingFilterChipSpec(
       type: 'depositReview',
@@ -62,19 +65,24 @@ class BookingStatusFilter extends StatelessWidget {
     BookingFilterChipSpec(type: 'confirmed', label: '已確認'),
     BookingFilterChipSpec(type: 'awaitingRoom', label: '待分房', attention: true),
     BookingFilterChipSpec(type: 'checked_in', label: '安親中', attention: true),
-    BookingFilterChipSpec(type: 'todayDropOff', label: '今日送達', attention: true),
-    BookingFilterChipSpec(type: 'todayPickUp', label: '今日接回', attention: true),
-    BookingFilterChipSpec(type: 'history', label: '歷史訂單'),
+    BookingFilterChipSpec(type: 'todayDropOff', label: '今日安親', attention: true),
+    BookingFilterChipSpec(type: 'todayPickUp', label: '今日結束', attention: true),
+    BookingFilterChipSpec(type: 'futureCheckIn', label: '未來安親'),
+    BookingFilterChipSpec(type: 'settled', label: '結清'),
+    BookingFilterChipSpec(type: 'cancelled', label: '已取消'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: items.map((BookingFilterChipSpec item) {
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (BuildContext context, int index) {
+          final BookingFilterChipSpec item = items[index];
           final bool selected = selectedType == item.type;
           final bool hasCount = counts.containsKey(item.type);
           final int count = hasCount ? counts[item.type]! : 0;
@@ -105,42 +113,36 @@ class BookingStatusFilter extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (item.type != 'history' ||
-                      count > 0 ||
-                      !hasCount) ...<Widget>[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: showRed
+                          ? Colors.red
+                          : (selected
+                                ? Colors.white.withValues(alpha: 0.25)
+                                : Colors.white.withValues(alpha: 0.85)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      countText,
+                      style: TextStyle(
                         color: showRed
-                            ? Colors.red
-                            : (selected
-                                  ? Colors.white.withValues(alpha: 0.25)
-                                  : Colors.white.withValues(alpha: 0.85)),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        countText,
-                        style: TextStyle(
-                          color: showRed
-                              ? Colors.white
-                              : (selected
-                                    ? Colors.white
-                                    : Colors.brown.shade700),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            ? Colors.white
+                            : (selected ? Colors.white : Colors.brown.shade700),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }

@@ -38,9 +38,9 @@ class StoreBrandBlock extends StatelessWidget {
         Text(
           name,
           textAlign: style.flutterTextAlign,
-          maxLines: 2,
+          maxLines: home ? 1 : 2,
           overflow: TextOverflow.ellipsis,
-          softWrap: true,
+          softWrap: !home,
           style: TextStyle(
             fontSize: style.nameFontSize,
             height: 1.2,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_customer_section.dart';
+import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_header_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
@@ -114,5 +115,120 @@ void main() {
     await pumpWidth(1024);
     await pumpWidth(768);
     await pumpWidth(390);
+  });
+
+  testWidgets('手機訂單進度在獨立分頁，主要操作固定在底部', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ShopFrontendThemeInherited(
+        theme: ShopFrontendTheme.fallback,
+        child: MaterialApp(
+          home: AdminBookingDetailScaffold(
+            title: '訂單詳細',
+            bookingCode: 'SHOP0001-B000197',
+            operationsShopId: 'shop-1',
+            splitPhoneActions: true,
+            overview: const Text('訂單摘要'),
+            left: const <Widget>[Text('顧客資訊')],
+            right: const <Widget>[Text('付款')],
+            phoneInlineActions: const Text('取消訂單'),
+            phoneStickyActions: const Text('辦理退房／結算'),
+            progress: const Text('完整時間軸'),
+            actions: const Text('不應出現在手機'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('工作台'), findsOneWidget);
+    expect(find.text('訂單'), findsOneWidget);
+    expect(find.text('進度'), findsOneWidget);
+    expect(find.text('完整時間軸'), findsNothing);
+    expect(find.text('辦理退房／結算'), findsOneWidget);
+    expect(find.text('不應出現在手機'), findsNothing);
+    expect(find.text('顧客資訊'), findsOneWidget);
+    await tester.tap(find.text('進度'));
+    await tester.pump();
+    expect(find.text('完整時間軸'), findsOneWidget);
+    expect(find.text('顧客資訊'), findsNothing);
+  });
+
+  testWidgets('桌機保留右側訂單進度', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ShopFrontendThemeInherited(
+        theme: ShopFrontendTheme.fallback,
+        child: MaterialApp(
+          home: AdminBookingDetailScaffold(
+            title: '訂單詳細',
+            bookingCode: 'B1',
+            operationsShopId: 'shop-1',
+            overview: const Text('訂單摘要'),
+            actions: const Text('辦理退房／結算'),
+            phoneStickyActions: const Text('手機底部'),
+            left: const <Widget>[Text('顧客資訊')],
+            right: const <Widget>[Text('付款')],
+            progress: const Text('完整時間軸'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('營運工作台'), findsOneWidget);
+    expect(find.text('完整時間軸'), findsOneWidget);
+    expect(find.text('辦理退房／結算'), findsOneWidget);
+    expect(find.text('手機底部'), findsNothing);
+    expect(find.text('進度'), findsNothing);
+  });
+
+  testWidgets('營運工作台已在堆疊時 pop 回去，不另開一頁', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (BuildContext context) {
+            return TextButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    settings: const RouteSettings(
+                      name: shopOperationsWorkbenchRouteName,
+                    ),
+                    builder: (_) => const Scaffold(body: Text('原工作台')),
+                  ),
+                );
+              },
+              child: const Text('先開工作台'),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('先開工作台'));
+    await tester.pumpAndSettle();
+    final BuildContext workbench = tester.element(
+      find.text('原工作台', skipOffstage: false),
+    );
+    Navigator.of(workbench).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          body: TextButton(
+            onPressed: () =>
+                openShopOperationsWorkbench(workbench, shopId: 'shop-1'),
+            child: const Text('回工作台'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('回工作台'));
+    await tester.pumpAndSettle();
+    expect(find.text('原工作台'), findsOneWidget);
+    expect(find.text('回工作台'), findsNothing);
   });
 }

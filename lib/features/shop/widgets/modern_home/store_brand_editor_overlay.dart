@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_block.dart';
@@ -83,10 +84,7 @@ class StoreBrandLane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!editable) {
-      return _BrandAlign(
-        x: style.x,
-        child: _block(),
-      );
+      return _BrandAlign(x: style.x, child: _block());
     }
     return _StoreBrandLaneEditor(
       style: style,
@@ -115,10 +113,7 @@ class _BrandAlign extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment(x.clamp(0, 1) * 2 - 1, 0),
-      child: child,
-    );
+    return Align(alignment: Alignment(x.clamp(0, 1) * 2 - 1, 0), child: child);
   }
 }
 
@@ -140,53 +135,50 @@ class _StoreBrandLaneEditor extends StatefulWidget {
 class _StoreBrandLaneEditorState extends State<_StoreBrandLaneEditor> {
   final GlobalKey _laneKey = GlobalKey(debugLabel: 'brandLane');
   final GlobalKey _blockKey = GlobalKey(debugLabel: 'brandLaneBlock');
+  late final ValueNotifier<double> _dragX;
   bool _dragging = false;
   double? _grabDx;
-  double? _left;
-  double? _settledX;
+
+  @override
+  void initState() {
+    super.initState();
+    _dragX = ValueNotifier<double>(widget.style.x);
+  }
+
+  @override
+  void dispose() {
+    _dragX.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_StoreBrandLaneEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final double? settled = _settledX;
-    if (settled != null && (widget.style.x - settled).abs() < 0.0001) {
-      _settledX = null;
+    if (!_dragging && (widget.style.x - _dragX.value).abs() > 0.0001) {
+      _dragX.value = widget.style.x;
     }
   }
-
-  double get _displayX => _settledX ?? widget.style.x;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double lane = constraints.maxWidth;
-        if (!_dragging) {
-          return SizedBox(
-            key: _laneKey,
-            width: lane,
-            child: Align(
-              alignment: Alignment(_displayX.clamp(0, 1) * 2 - 1, 0),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: lane),
-                child: _target(dragging: false),
-              ),
-            ),
-          );
-        }
-        final double left = _left ?? 0;
+        final double laneWidth = constraints.maxWidth;
         return SizedBox(
           key: _laneKey,
-          width: lane,
+          width: laneWidth,
           child: ClipRect(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.only(left: left),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: lane),
-                  child: _target(dragging: true),
-                ),
+            child: ValueListenableBuilder<double>(
+              valueListenable: _dragX,
+              builder: (BuildContext context, double x, Widget? child) {
+                return Align(
+                  alignment: Alignment(x.clamp(0.0, 1.0) * 2 - 1, 0),
+                  child: child,
+                );
+              },
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: laneWidth),
+                child: _target(),
               ),
             ),
           ),
@@ -195,29 +187,32 @@ class _StoreBrandLaneEditorState extends State<_StoreBrandLaneEditor> {
     );
   }
 
-  Widget _target({required bool dragging}) {
-    return Listener(
+  Widget _target() {
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPointerDown: (PointerDownEvent event) => _onDown(event.position),
-      onPointerMove: (PointerMoveEvent event) => _onMove(event.position),
-      onPointerUp: (_) => _commit(),
-      onPointerCancel: (_) => _commit(),
+      dragStartBehavior: DragStartBehavior.down,
+      onHorizontalDragStart: _onHorizontalDragStart,
+      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
+      onHorizontalDragCancel: _onHorizontalDragCancel,
       child: DecoratedBox(
         key: _blockKey,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: dragging ? const Color(0x66B86B18) : const Color(0x00000000),
+            color: _dragging
+                ? const Color(0x66B86B18)
+                : const Color(0x00000000),
             width: 1.5,
           ),
-          color: dragging ? const Color(0x14B86B18) : const Color(0x00000000),
+          color: _dragging ? const Color(0x14B86B18) : const Color(0x00000000),
         ),
-        child: widget.child,
+        child: SelectionContainer.disabled(child: widget.child),
       ),
     );
   }
 
-  void _onDown(Offset globalPosition) {
+  void _onHorizontalDragStart(DragStartDetails details) {
     final RenderBox? lane = _box(_laneKey);
     final RenderBox? block = _box(_blockKey);
     if (lane == null || block == null) {
@@ -226,45 +221,42 @@ class _StoreBrandLaneEditorState extends State<_StoreBrandLaneEditor> {
     final double childLeft = lane
         .globalToLocal(block.localToGlobal(Offset.zero))
         .dx;
-    final double local = lane.globalToLocal(globalPosition).dx;
-    setState(() {
-      _dragging = true;
-      _left = childLeft;
-      _grabDx = local - childLeft;
-    });
+    final double localPointerX = lane.globalToLocal(details.globalPosition).dx;
+    _grabDx = localPointerX - childLeft;
+    setState(() => _dragging = true);
   }
 
-  void _onMove(Offset globalPosition) {
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
     final RenderBox? lane = _box(_laneKey);
     final RenderBox? block = _box(_blockKey);
     final double? grab = _grabDx;
-    if (lane == null || block == null || grab == null || !_dragging) {
+    if (lane == null || block == null || grab == null) {
       return;
     }
-    final double local = lane.globalToLocal(globalPosition).dx;
+    final double localPointerX = lane.globalToLocal(details.globalPosition).dx;
     final double travel = math.max(0, lane.size.width - block.size.width);
-    setState(() {
-      _left = (local - grab).clamp(0, travel).toDouble();
-    });
+    final double targetLeft = (localPointerX - grab).clamp(0.0, travel);
+    _dragX.value = StoreBrandGeometry.normalizeX(
+      left: targetLeft,
+      laneWidth: lane.size.width,
+      contentWidth: block.size.width,
+    );
   }
 
-  void _commit() {
-    final RenderBox? lane = _box(_laneKey);
-    final RenderBox? block = _box(_blockKey);
-    final double left = _left ?? 0;
-    final double x = lane == null || block == null
-        ? widget.style.x
-        : StoreBrandGeometry.normalizeX(
-            left: left,
-            laneWidth: lane.size.width,
-            contentWidth: block.size.width,
-          );
-    setState(() {
-      _dragging = false;
-      _grabDx = null;
-      _left = null;
-      _settledX = x;
-    });
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    _finishDrag();
+  }
+
+  void _onHorizontalDragCancel() {
+    _finishDrag();
+  }
+
+  void _finishDrag() {
+    final double x = _dragX.value;
+    _grabDx = null;
+    if (_dragging) {
+      setState(() => _dragging = false);
+    }
     if ((x - widget.style.x).abs() > 0.0001) {
       widget.onChanged(widget.style.copyWith(x: x));
     }

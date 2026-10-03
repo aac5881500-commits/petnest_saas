@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/platform_permission_keys.dart';
 import '../../../core/services/platform_admin_service.dart';
+import 'package:petnest_saas/core/models/camera_access_policy.dart';
+import 'package:petnest_saas/core/models/camera_brand.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -224,12 +226,22 @@ class PlatformShopDeviceManagePage extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text('類型：${type == 'camera' ? '攝影機' : type}'),
+                          Text(
+                            '觀看方式：${(data['viewMode'] ?? '').toString() == cameraViewExternalApp ? (cameraBrandLabel((data['provider'] ?? '').toString()).isEmpty ? '外部 App・未開放品牌' : '外部 App・${cameraBrandLabel((data['provider'] ?? '').toString())}') : '網址觀看'}',
+                          ),
                           if (roomName.isNotEmpty) Text('綁定房間：$roomName'),
                           Text('店家啟用：${enabled ? '是' : '否'}'),
                           Text('平台鎖定：${platformLocked ? '是' : '否'}'),
+                          if ((data['viewMode'] ?? '').toString() ==
+                              'external_app')
+                            Text(
+                              '鎖定後顧客不能再申請。已分享的${cameraBrandById((data['provider'] ?? '').toString())?.appName ?? '原廠 App'}帳號不會自動移除，店家仍需到原廠 App 取消。',
+                            ),
                           if (lockedReason.isNotEmpty)
                             Text('鎖定原因：$lockedReason'),
-                          if (url.isNotEmpty) ...[
+                          if (url.startsWith('https://') &&
+                              (data['viewMode'] ?? '').toString() !=
+                                  'external_app') ...[
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,

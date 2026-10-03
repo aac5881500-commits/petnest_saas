@@ -45,7 +45,7 @@ void main() {
 
   test('核對轉帳改讀 paymentProofs，無照片可現場核對', () {
     final String src = File(
-      'lib/features/admin/widgets/admin_booking_settlement_panel.dart',
+      'lib/features/admin/widgets/settlement_action_runner.dart',
     ).readAsStringSync();
     expect(src.contains('latestUnconfirmedBalance'), isTrue);
     expect(src.contains("'proofId': proof.proofId"), isTrue);

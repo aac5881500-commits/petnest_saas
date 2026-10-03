@@ -152,7 +152,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
                 AdminPagedBookingList(
                   shopId: widget.shopId,
                   kind: BookingKind.accommodation,
-                  initialFilter: widget.filterType ?? 'pending',
+                  initialFilter: widget.filterType ?? 'active',
                 ),
                 AdminDaycareOrderList(shopId: widget.shopId),
               ],
@@ -160,7 +160,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
           : AdminPagedBookingList(
               shopId: widget.shopId,
               kind: BookingKind.accommodation,
-              initialFilter: widget.filterType ?? 'pending',
+              initialFilter: widget.filterType ?? 'active',
             ),
     );
   }

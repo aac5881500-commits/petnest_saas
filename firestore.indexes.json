@@ -820,6 +820,15 @@
     { "fieldPath": "__name__", "order": "ASCENDING" }
   ],
   "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "camera_access_requests",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
 }
 ],
 "fieldOverrides": []

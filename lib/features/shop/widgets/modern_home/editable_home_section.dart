@@ -31,9 +31,9 @@ class EditableHomeSection extends StatelessWidget {
     if (!enabled) {
       return const SizedBox.shrink();
     }
-    return Listener(
+    return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => onSelect?.call(),
+      onTap: onSelect,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),

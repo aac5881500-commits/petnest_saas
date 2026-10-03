@@ -12,7 +12,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
+import 'package:petnest_saas/features/admin/models/settlement_next_action.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_settlement_panel.dart';
+import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
@@ -130,6 +132,135 @@ class AdminBookingDetailPage extends StatelessWidget {
                       settlementLocked:
                           BookingSettlementMath.isSettlementLocked(data),
                     );
+                    final bool showStayOps =
+                        canEdit &&
+                        !BookingSettlementMath.isSettlementLocked(data);
+                    final String stayStatus = status.toString();
+                    final num stayDeposit = depositAmount is num
+                        ? depositAmount
+                        : 0;
+                    final bool stayDepositPaid =
+                        BookingPaymentStatus.isDepositConfirmed(data);
+                    final StayBookingActionFlags stayFlags =
+                        stayBookingActionFlags(
+                          data: data,
+                          status: stayStatus,
+                          depositAmount: stayDeposit,
+                          depositPaid: stayDepositPaid,
+                        );
+                    final SettlementNextAction stayNext =
+                        resolveSettlementNextAction(data);
+                    final bool stayCanAdjust =
+                        canEdit &&
+                        !BookingSettlementMath.isSettlementLocked(data) &&
+                        BookingSettlementMath.isSettlementConfirmed(data);
+                    Widget stayNextView({required bool bar}) {
+                      return SettlementNextActionView(
+                        key: bar ? null : SettlementNextActionView.slotKey,
+                        action: stayNext,
+                        shopId: shopId,
+                        bookingId: bookingId,
+                        data: data,
+                        bar: bar,
+                        onCheckout: () =>
+                            _handleCheckOut(context: context, data: data),
+                        onAdjust: stayCanAdjust
+                            ? () =>
+                                  _handleCheckOut(context: context, data: data)
+                            : null,
+                      );
+                    }
+
+                    final bool staySettlementSticky =
+                        stayNext.visible &&
+                        !(stayNext.kind ==
+                                SettlementNextActionKind.checkoutOrSettle &&
+                            stayStatus == 'checked_in') &&
+                        (showStayOps || stayNext.done);
+                    Widget staySection(AdminBookingActionChrome chrome) {
+                      return AdminBookingActionSection(
+                        data: data,
+                        status: stayStatus,
+                        depositAmount: stayDeposit,
+                        depositPaid: stayDepositPaid,
+                        chrome: chrome,
+                        onAssignRoom: () async {
+                          await showAdminAssignRoomDialog(
+                            context: context,
+                            bookingId: bookingId,
+                            data: data,
+                          );
+                        },
+                        onChangeRoom: () async {
+                          await showAdminChangeRoomDialog(
+                            context: context,
+                            bookingId: bookingId,
+                            data: data,
+                          );
+                        },
+                        onConfirmBooking: () async {
+                          await _updateStatus('confirmed');
+                        },
+                        onConfirmDeposit: () async {
+                          await _confirmDepositAndBooking(context);
+                        },
+                        onCancelBooking: () async {
+                          await showAdminCancelBookingDialog(
+                            context: context,
+                            bookingId: bookingId,
+                          );
+                        },
+                        onCheckIn: () async {
+                          if (data['assignStatus'] != 'assigned' ||
+                              data['roomId'] == null ||
+                              data['roomName'] == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('此訂單尚未分房，不能辦理入住')),
+                            );
+                            return;
+                          }
+                          try {
+                            await BookingService.instance.checkInBooking(
+                              bookingId: bookingId,
+                            );
+                            await FirebaseFirestore.instance
+                                .collection('action_logs')
+                                .add({
+                                  'type': 'booking_status_update',
+                                  'bookingId': bookingId,
+                                  'bookingShortId': bookingId.substring(0, 8),
+                                  'shopId': data['shopId'],
+                                  'roomId': data['roomId'],
+                                  'roomName': data['roomName'],
+                                  'roomTypeName': data['roomTypeName'],
+                                  'fromStatus': status,
+                                  'toStatus': 'checked_in',
+                                  'operatorUid':
+                                      FirebaseAuth.instance.currentUser?.uid,
+                                  'operatorRole': 'staff',
+                                  'operatorEmail':
+                                      FirebaseAuth.instance.currentUser?.email,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                });
+                          } catch (error) {
+                            if (!context.mounted) {
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  InventoryException.userMessage(error),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        onCheckOut: () async {
+                          await _handleCheckOut(context: context, data: data);
+                        },
+                      );
+                    }
+
                     return AdminBookingDetailScaffold(
                       title: '訂單詳細',
                       bookingCode: bookingCode.isEmpty
@@ -137,6 +268,8 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 ? bookingId.substring(0, 8)
                                 : bookingId)
                           : bookingCode,
+                      operationsShopId: shopId,
+                      splitPhoneActions: true,
                       banners: <Widget>[
                         if (data['source'] == 'admin' &&
                             (data['note'] ?? '').toString().trim().isNotEmpty)
@@ -154,107 +287,21 @@ class AdminBookingDetailPage extends StatelessWidget {
                         data: data,
                         bookingId: bookingId,
                       ),
-                      actions:
-                          canEdit &&
-                              !BookingSettlementMath.isSettlementLocked(data)
+                      actions: showStayOps
                           ? AdminBookingDetailCard(
-                              child: AdminBookingActionSection(
-                                data: data,
-                                status: status,
-                                depositAmount: depositAmount,
-                                depositPaid:
-                                    BookingPaymentStatus.isDepositConfirmed(
-                                      data,
-                                    ),
-                                onAssignRoom: () async {
-                                  await showAdminAssignRoomDialog(
-                                    context: context,
-                                    bookingId: bookingId,
-                                    data: data,
-                                  );
-                                },
-                                onChangeRoom: () async {
-                                  await showAdminChangeRoomDialog(
-                                    context: context,
-                                    bookingId: bookingId,
-                                    data: data,
-                                  );
-                                },
-                                onConfirmBooking: () async {
-                                  await _updateStatus('confirmed');
-                                },
-                                onConfirmDeposit: () async {
-                                  await _confirmDepositAndBooking(context);
-                                },
-                                onCancelBooking: () async {
-                                  await showAdminCancelBookingDialog(
-                                    context: context,
-                                    bookingId: bookingId,
-                                  );
-                                },
-                                onCheckIn: () async {
-                                  if (data['assignStatus'] != 'assigned' ||
-                                      data['roomId'] == null ||
-                                      data['roomName'] == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('此訂單尚未分房，不能辦理入住'),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  try {
-                                    await BookingService.instance
-                                        .checkInBooking(bookingId: bookingId);
-                                    await FirebaseFirestore.instance
-                                        .collection('action_logs')
-                                        .add({
-                                          'type': 'booking_status_update',
-                                          'bookingId': bookingId,
-                                          'bookingShortId': bookingId.substring(
-                                            0,
-                                            8,
-                                          ),
-                                          'shopId': data['shopId'],
-                                          'roomId': data['roomId'],
-                                          'roomName': data['roomName'],
-                                          'roomTypeName': data['roomTypeName'],
-                                          'fromStatus': status,
-                                          'toStatus': 'checked_in',
-                                          'operatorUid': FirebaseAuth
-                                              .instance
-                                              .currentUser
-                                              ?.uid,
-                                          'operatorRole': 'staff',
-                                          'operatorEmail': FirebaseAuth
-                                              .instance
-                                              .currentUser
-                                              ?.email,
-                                          'createdAt':
-                                              FieldValue.serverTimestamp(),
-                                        });
-                                  } catch (error) {
-                                    if (!context.mounted) {
-                                      return;
-                                    }
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          InventoryException.userMessage(error),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                onCheckOut: () async {
-                                  await _handleCheckOut(
-                                    context: context,
-                                    data: data,
-                                  );
-                                },
-                              ),
+                              child: staySection(AdminBookingActionChrome.full),
                             )
                           : null,
+                      phoneInlineActions: showStayOps && stayFlags.hasInline
+                          ? staySection(AdminBookingActionChrome.phoneInline)
+                          : null,
+                      phoneStickyActions: staySettlementSticky
+                          ? stayNextView(bar: true)
+                          : (showStayOps && stayFlags.hasSticky
+                                ? staySection(
+                                    AdminBookingActionChrome.phoneSticky,
+                                  )
+                                : null),
                       left: <Widget>[
                         AdminBookingDetailSection(
                           title: '顧客資訊',
@@ -379,6 +426,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                         ),
                       ],
                       right: <Widget>[
+                        if (stayNext.visible) stayNextView(bar: false),
                         AdminBookingSettlementPanel(
                           shopId: shopId,
                           bookingId: bookingId,

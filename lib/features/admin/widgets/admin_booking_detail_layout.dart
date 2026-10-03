@@ -4,8 +4,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/core/services/booking_pet_care_form_loader.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_focus.dart';
+import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_scope.dart';
 
 enum AdminBookingDetailMode { phone, tablet, desktop }
@@ -84,6 +86,10 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.actions,
     this.banners = const <Widget>[],
     this.appBarActions = const <Widget>[],
+    this.phoneInlineActions,
+    this.phoneStickyActions,
+    this.splitPhoneActions = false,
+    this.operationsShopId = '',
     this.handover,
     this.handoverHasContent = false,
     this.forms = const <Widget>[],
@@ -101,6 +107,10 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final List<Widget> left;
   final List<Widget> right;
   final List<Widget> appBarActions;
+  final Widget? phoneInlineActions;
+  final Widget? phoneStickyActions;
+  final bool splitPhoneActions;
+  final String operationsShopId;
   final Widget? handover;
   final bool handoverHasContent;
   final List<Widget> forms;
@@ -118,6 +128,10 @@ class AdminBookingDetailScaffold extends StatelessWidget {
         final AdminBookingDetailMode mode = AdminBookingDetailMetrics.modeFor(
           width,
         );
+        final bool phone = mode == AdminBookingDetailMode.phone;
+        final Widget? inlineActions = phone && splitPhoneActions
+            ? phoneInlineActions
+            : actions;
         return AdminBookingDetailScope(
           mode: mode,
           width: width,
@@ -144,6 +158,11 @@ class AdminBookingDetailScaffold extends StatelessWidget {
                     icon: const Icon(Icons.copy_rounded, size: 20),
                   ),
                 ...appBarActions,
+                if (operationsShopId.trim().isNotEmpty)
+                  _WorkbenchButton(
+                    shopId: operationsShopId.trim(),
+                    compact: phone,
+                  ),
               ],
             ),
             body: _DetailBody(
@@ -151,7 +170,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
               width: width,
               banners: banners,
               overview: overview,
-              actions: actions,
+              actions: inlineActions,
               left: left,
               right: right,
               handover: handover,
@@ -162,6 +181,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
               progress: progress,
               petCareFuture: petCareFuture,
             ),
+            bottomNavigationBar: phone ? phoneStickyActions : null,
           ),
         );
       },
@@ -246,7 +266,7 @@ class _DetailBodyState extends State<_DetailBody> {
     setState(() {
       _expanded.add(anchor);
       if (widget.mode == AdminBookingDetailMode.phone) {
-        _tab = 1;
+        _tab = 2;
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -470,12 +490,16 @@ class _DetailBodyState extends State<_DetailBody> {
 
   List<Widget> _desktopAside() {
     final List<Widget> right = widget.right;
-    final int paymentCount = right.length >= 2 ? 2 : right.length;
+    final bool hasNext =
+        right.isNotEmpty && right.first.key == SettlementNextActionView.slotKey;
+    final List<Widget> rest = hasNext ? right.skip(1).toList() : right;
+    final int paymentCount = rest.length >= 2 ? 2 : rest.length;
     return <Widget>[
+      if (hasNext) right.first,
       if (widget.progress != null) widget.progress!,
-      ...right.take(paymentCount),
+      ...rest.take(paymentCount),
       if (widget.formSummary != null) widget.formSummary!,
-      ...right.skip(paymentCount),
+      ...rest.skip(paymentCount),
     ];
   }
 
@@ -497,8 +521,13 @@ class _DetailBodyState extends State<_DetailBody> {
               ],
               const SizedBox(height: 16),
               _SingleColumn(
-                leading: _leftForSingleColumn,
-                trailing: widget.right,
+                leading: widget.left,
+                trailing: widget.right
+                    .where(
+                      (Widget item) =>
+                          item.key != SettlementNextActionView.slotKey,
+                    )
+                    .toList(),
               ),
             ]),
           ),
@@ -510,15 +539,25 @@ class _DetailBodyState extends State<_DetailBody> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
           child: SegmentedButton<int>(
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: WidgetStatePropertyAll<EdgeInsets>(
+                EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
             segments: <ButtonSegment<int>>[
-              const ButtonSegment<int>(value: 0, label: Text('訂單資料')),
-              const ButtonSegment<int>(value: 1, label: Text('表單資料')),
+              const ButtonSegment<int>(value: 0, label: Text('訂單')),
+              const ButtonSegment<int>(value: 1, label: Text('進度')),
+              const ButtonSegment<int>(value: 2, label: Text('表單')),
               ButtonSegment<int>(
-                value: 2,
-                label: Text(widget.handoverHasContent ? '交接與溝通・有內容' : '交接與溝通'),
+                value: 3,
+                label: const Text('交接'),
+                tooltip: widget.handoverHasContent ? '交接與溝通，有內容' : '交接與溝通',
               ),
             ],
-            selected: <int>{_tab},
+            selected: <int>{_tab.clamp(0, 3)},
             onSelectionChanged: (Set<int> next) {
               setState(() => _tab = next.first);
             },
@@ -526,9 +565,20 @@ class _DetailBodyState extends State<_DetailBody> {
         ),
         Expanded(
           child: IndexedStack(
-            index: _tab,
+            index: _tab.clamp(0, 3),
             children: <Widget>[
               orderScroll,
+              ListView(
+                padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
+                children: widget.progress == null
+                    ? const <Widget>[
+                        Padding(
+                          padding: EdgeInsets.only(top: 24),
+                          child: Text('目前沒有訂單進度'),
+                        ),
+                      ]
+                    : <Widget>[widget.progress!],
+              ),
               ListView(
                 padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
                 children: widget.forms.isEmpty
@@ -555,6 +605,31 @@ class _DetailBodyState extends State<_DetailBody> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _WorkbenchButton extends StatelessWidget {
+  const _WorkbenchButton({required this.shopId, required this.compact});
+
+  final String shopId;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    return Tooltip(
+      message: '營運工作台',
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          foregroundColor: theme.muted,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 10),
+        ),
+        onPressed: () => openShopOperationsWorkbench(context, shopId: shopId),
+        icon: Icon(Icons.dashboard_customize_outlined, size: compact ? 16 : 18),
+        label: Text(compact ? '工作台' : '營運工作台'),
+      ),
     );
   }
 }

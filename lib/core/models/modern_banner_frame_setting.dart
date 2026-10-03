@@ -1,13 +1,18 @@
 // 檔案名稱：lib/core/models/modern_banner_frame_setting.dart
-// 功能說明：新版首頁 Banner 外框、圖片縮放與對齊設定
+// 功能說明：新版首頁 Banner 外框。寬度與高度分開設定。
 
 import 'package:flutter/material.dart';
 
 enum HomeBannerDisplaySize { small, standard, large }
 
+enum HomeBannerWidthPreset { narrow, standard, full }
+
+enum HomeBannerHeightPreset { short, standard, tall }
+
 class ModernBannerFrameSetting {
   const ModernBannerFrameSetting({
-    this.displaySize = HomeBannerDisplaySize.standard,
+    this.widthPreset = HomeBannerWidthPreset.standard,
+    this.heightPreset = HomeBannerHeightPreset.standard,
     this.bannerImageFit = fitFill,
     this.bannerImageAlignment = alignCenter,
   });
@@ -18,9 +23,22 @@ class ModernBannerFrameSetting {
   static const String alignCenter = 'center';
   static const String alignBottom = 'bottom';
 
-  final HomeBannerDisplaySize displaySize;
+  final HomeBannerWidthPreset widthPreset;
+  final HomeBannerHeightPreset heightPreset;
   final String bannerImageFit;
   final String bannerImageAlignment;
+
+  /// 舊欄位相容。只跟寬度走，不再決定高度。
+  HomeBannerDisplaySize get displaySize {
+    switch (widthPreset) {
+      case HomeBannerWidthPreset.narrow:
+        return HomeBannerDisplaySize.small;
+      case HomeBannerWidthPreset.standard:
+        return HomeBannerDisplaySize.standard;
+      case HomeBannerWidthPreset.full:
+        return HomeBannerDisplaySize.large;
+    }
+  }
 
   String get displaySizeKey {
     switch (displaySize) {
@@ -33,31 +51,63 @@ class ModernBannerFrameSetting {
     }
   }
 
-  /// 小 2.4:1、標準 16:9、大 3:2。寬度由 container 決定，高度等比縮放。
-  double get aspectRatio {
-    switch (displaySize) {
-      case HomeBannerDisplaySize.small:
-        return 2.4;
-      case HomeBannerDisplaySize.standard:
+  String get widthPresetKey {
+    switch (widthPreset) {
+      case HomeBannerWidthPreset.narrow:
+        return 'narrow';
+      case HomeBannerWidthPreset.standard:
+        return 'standard';
+      case HomeBannerWidthPreset.full:
+        return 'full';
+    }
+  }
+
+  String get heightPresetKey {
+    switch (heightPreset) {
+      case HomeBannerHeightPreset.short:
+        return 'short';
+      case HomeBannerHeightPreset.standard:
+        return 'standard';
+      case HomeBannerHeightPreset.tall:
+        return 'tall';
+    }
+  }
+
+  /// 矮版較扁、標準 16:9、高版較高。寬度由 container 決定。
+  double get frameAspectRatio {
+    switch (heightPreset) {
+      case HomeBannerHeightPreset.short:
+        return 2.20;
+      case HomeBannerHeightPreset.standard:
         return 16 / 9;
-      case HomeBannerDisplaySize.large:
+      case HomeBannerHeightPreset.tall:
         return 3 / 2;
     }
   }
 
-  /// 相容舊 UI／評論徽章：小 = 舊極簡+精簡。
-  bool get isUltraCompact => displaySize == HomeBannerDisplaySize.small;
-  bool get isCompact => displaySize == HomeBannerDisplaySize.small;
-  bool get isStandard => displaySize == HomeBannerDisplaySize.standard;
-  bool get isLarge => displaySize == HomeBannerDisplaySize.large;
+  double get aspectRatio => frameAspectRatio;
 
-  String get heightPreset {
-    switch (displaySize) {
-      case HomeBannerDisplaySize.small:
+  /// 標準高度完整放入 16:9 成品；其餘高度填滿並裁切邊緣。
+  BoxFit get completePosterFit {
+    return heightPreset == HomeBannerHeightPreset.standard
+        ? BoxFit.contain
+        : BoxFit.cover;
+  }
+
+  bool get isUltraCompact => widthPreset == HomeBannerWidthPreset.narrow;
+  bool get isCompact => widthPreset == HomeBannerWidthPreset.narrow;
+  bool get isStandard =>
+      widthPreset == HomeBannerWidthPreset.standard &&
+      heightPreset == HomeBannerHeightPreset.standard;
+  bool get isLarge => widthPreset == HomeBannerWidthPreset.full;
+
+  String get legacyHeightPreset {
+    switch (widthPreset) {
+      case HomeBannerWidthPreset.narrow:
         return 'compact';
-      case HomeBannerDisplaySize.standard:
+      case HomeBannerWidthPreset.standard:
         return 'standard';
-      case HomeBannerDisplaySize.large:
+      case HomeBannerWidthPreset.full:
         return 'large';
     }
   }
@@ -91,16 +141,18 @@ class ModernBannerFrameSetting {
     if (width <= 0) {
       return 0;
     }
-    return width / aspectRatio;
+    return width / frameAspectRatio;
   }
 
   ModernBannerFrameSetting copyWith({
-    HomeBannerDisplaySize? displaySize,
+    HomeBannerWidthPreset? widthPreset,
+    HomeBannerHeightPreset? heightPreset,
     String? bannerImageFit,
     String? bannerImageAlignment,
   }) {
     return ModernBannerFrameSetting(
-      displaySize: displaySize ?? this.displaySize,
+      widthPreset: widthPreset ?? this.widthPreset,
+      heightPreset: heightPreset ?? this.heightPreset,
       bannerImageFit: bannerImageFit ?? this.bannerImageFit,
       bannerImageAlignment: bannerImageAlignment ?? this.bannerImageAlignment,
     );
@@ -108,8 +160,10 @@ class ModernBannerFrameSetting {
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
+      'homeBannerWidthPreset': widthPresetKey,
+      'homeBannerHeightPreset': heightPresetKey,
       'homeBannerDisplaySize': displaySizeKey,
-      'bannerHeightPreset': heightPreset,
+      'bannerHeightPreset': legacyHeightPreset,
       'bannerImageFit': bannerImageFit,
       'bannerImageAlignment': bannerImageAlignment,
     };
@@ -117,7 +171,8 @@ class ModernBannerFrameSetting {
 
   factory ModernBannerFrameSetting.fromMap(Map<String, dynamic> map) {
     return ModernBannerFrameSetting(
-      displaySize: _parseDisplaySize(map),
+      widthPreset: _parseWidth(map),
+      heightPreset: _parseHeight(map),
       bannerImageFit: (map['bannerImageFit'] ?? fitFill).toString(),
       bannerImageAlignment: (map['bannerImageAlignment'] ?? alignCenter)
           .toString(),
@@ -136,25 +191,61 @@ class ModernBannerFrameSetting {
     return ModernBannerFrameSetting.fromMap(Map<String, dynamic>.from(modern));
   }
 
-  static HomeBannerDisplaySize _parseDisplaySize(Map<String, dynamic> map) {
-    final String size = (map['homeBannerDisplaySize'] ?? '').toString().trim();
-    switch (size) {
-      case 'small':
-        return HomeBannerDisplaySize.small;
-      case 'standard':
-        return HomeBannerDisplaySize.standard;
-      case 'large':
-        return HomeBannerDisplaySize.large;
-    }
+  @override
+  bool operator ==(Object other) {
+    return other is ModernBannerFrameSetting &&
+        other.widthPreset == widthPreset &&
+        other.heightPreset == heightPreset &&
+        other.bannerImageFit == bannerImageFit &&
+        other.bannerImageAlignment == bannerImageAlignment;
+  }
 
-    switch ((map['bannerHeightPreset'] ?? 'standard').toString()) {
+  @override
+  int get hashCode => Object.hash(
+    widthPreset,
+    heightPreset,
+    bannerImageFit,
+    bannerImageAlignment,
+  );
+
+  static HomeBannerWidthPreset _parseWidth(Map<String, dynamic> map) {
+    switch ((map['homeBannerWidthPreset'] ?? '').toString().trim()) {
+      case 'narrow':
+        return HomeBannerWidthPreset.narrow;
+      case 'standard':
+        return HomeBannerWidthPreset.standard;
+      case 'full':
+        return HomeBannerWidthPreset.full;
+    }
+    switch ((map['homeBannerDisplaySize'] ?? '').toString().trim()) {
+      case 'small':
+        return HomeBannerWidthPreset.narrow;
+      case 'standard':
+        return HomeBannerWidthPreset.standard;
+      case 'large':
+        return HomeBannerWidthPreset.full;
+    }
+    switch ((map['bannerHeightPreset'] ?? '').toString()) {
       case 'ultraCompact':
       case 'compact':
-        return HomeBannerDisplaySize.small;
+        return HomeBannerWidthPreset.narrow;
       case 'large':
-        return HomeBannerDisplaySize.large;
+        return HomeBannerWidthPreset.full;
       default:
-        return HomeBannerDisplaySize.standard;
+        return HomeBannerWidthPreset.standard;
+    }
+  }
+
+  static HomeBannerHeightPreset _parseHeight(Map<String, dynamic> map) {
+    switch ((map['homeBannerHeightPreset'] ?? '').toString().trim()) {
+      case 'short':
+        return HomeBannerHeightPreset.short;
+      case 'tall':
+        return HomeBannerHeightPreset.tall;
+      case 'standard':
+        return HomeBannerHeightPreset.standard;
+      default:
+        return HomeBannerHeightPreset.standard;
     }
   }
 }

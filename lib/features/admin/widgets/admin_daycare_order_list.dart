@@ -20,7 +20,7 @@ class AdminDaycareOrderList extends StatelessWidget {
     return AdminPagedBookingList(
       shopId: shopId,
       kind: BookingKind.daycare,
-      initialFilter: 'pending',
+      initialFilter: 'active',
       showCreateButton: showCreateButton,
     );
   }

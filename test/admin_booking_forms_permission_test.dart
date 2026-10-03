@@ -1,4 +1,4 @@
-﻿// 檔案名稱：test/admin_booking_forms_permission_test.dart
+// 檔案名稱：test/admin_booking_forms_permission_test.dart
 // 功能說明：店家後台表單／客戶備註編輯權限、完整表單階層與寵物卡不再放照護入口。
 
 import 'package:flutter/material.dart';
@@ -105,8 +105,7 @@ void main() {
             'p2': <String, dynamic>{
               'petId': 'p2',
               'petName': '喵喵',
-              'answers':
-                  (_answer(label: '飲食', value: '濕食')['answers'] as List),
+              'answers': (_answer(label: '飲食', value: '濕食')['answers'] as List),
             },
           },
           pets: const <Map<String, dynamic>>[
@@ -125,7 +124,7 @@ void main() {
     expect(find.text('寵物照護資料提醒'), findsNothing);
   });
 
-  testWidgets('desktop 3/1 主副欄，mobile 維持三分頁；摘要可展開表單', (
+  testWidgets('desktop 3/1 主副欄，mobile 四段分頁；摘要可展開表單', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 1100);
@@ -155,10 +154,7 @@ void main() {
             right: const <Widget>[
               AdminBookingDetailCard(child: Text('付款摘要')),
               AdminBookingDetailCard(child: Text('條款')),
-              AdminBookingDetailSection(
-                title: '操作紀錄',
-                child: Text('紀錄內容'),
-              ),
+              AdminBookingDetailSection(title: '操作紀錄', child: Text('紀錄內容')),
             ],
             forms: <Widget>[
               AdminBookingFormAnswersSection(
@@ -209,18 +205,17 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('訂單資料'), findsOneWidget);
-    expect(find.text('表單資料'), findsOneWidget);
-    expect(find.text('交接與溝通'), findsOneWidget);
+    expect(find.text('訂單'), findsOneWidget);
+    expect(find.text('進度'), findsOneWidget);
+    expect(find.text('表單'), findsOneWidget);
+    expect(find.text('交接'), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('admin-booking-desktop-split')),
       findsNothing,
     );
   });
 
-  testWidgets('手機表單資料分頁顯示訂單表單，不再出現寵物照護卡', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('手機表單資料分頁顯示訂單表單，不再出現寵物照護卡', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -268,7 +263,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('表單資料'));
+    await tester.tap(find.text('表單'));
     await tester.pumpAndSettle();
     expect(find.text('寵物照護資料'), findsNothing);
     expect(find.textContaining('訂單資訊'), findsWidgets);
@@ -283,9 +278,7 @@ void main() {
         const AdminBookingFormSummaryCard(
           shopId: 'shop-a',
           bookingId: 'b1',
-          data: <String, dynamic>{
-            'source': 'app',
-          },
+          data: <String, dynamic>{'source': 'app'},
         ),
       ),
     );

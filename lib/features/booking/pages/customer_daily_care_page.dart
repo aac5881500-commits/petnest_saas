@@ -8,7 +8,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/shop_permission_keys.dart';
 import '../../../core/models/booking_kind.dart';
@@ -22,9 +21,10 @@ import '../../../core/services/daily_care_daycare_access.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_record_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
-import '../../../core/services/shop_device_service.dart';
+import '../../../core/services/camera_access_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
+import '../widgets/customer_camera_entry.dart';
 import 'customer_daily_care_photo_page.dart';
 
 class CustomerDailyCarePage extends StatefulWidget {
@@ -661,8 +661,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
         : const SizedBox.shrink();
 
     return _CameraAwareServiceRow(
-      shopId: widget.shopId,
-      bookingData: bookingData,
+      bookingId: widget.bookingId,
       previewMode: widget.previewMode,
       photoButton: showPhotos ? photoButton : null,
     );
@@ -799,71 +798,40 @@ class _EmptyCareView extends StatelessWidget {
 
 class _CameraAwareServiceRow extends StatelessWidget {
   const _CameraAwareServiceRow({
-    required this.shopId,
-    required this.bookingData,
+    required this.bookingId,
     required this.previewMode,
     required this.photoButton,
   });
 
-  final String shopId;
-  final Map<String, dynamic> bookingData;
+  final String bookingId;
   final bool previewMode;
   final Widget? photoButton;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(shopId),
-      builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-          ) {
-            final bool shopCameraOn =
-                (shopSnap.data?['showCameraSection'] ?? true) != false;
-            final String status = (bookingData['status'] ?? '').toString();
-            final String roomId = (bookingData['roomId'] ?? '')
-                .toString()
-                .trim();
-            final bool stayActive = status == 'checked_in';
-            if (!shopCameraOn || !stayActive || roomId.isEmpty || previewMode) {
-              return _buttons(camera: null);
-            }
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: ShopDeviceService.instance.watchCameraDevicesByRoom(
-                shopId: shopId,
-                roomId: roomId,
-              ),
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> camSnap,
-                  ) {
-                    if (!camSnap.hasData || camSnap.data!.docs.isEmpty) {
-                      return _buttons(camera: null);
-                    }
-                    final Map<String, dynamic> camera = camSnap.data!.docs.first
-                        .data();
-                    final String url = (camera['url'] ?? '').toString().trim();
-                    final Uri? uri = Uri.tryParse(url);
-                    final bool valid =
-                        uri != null &&
-                        uri.hasScheme &&
-                        (uri.scheme == 'https' || uri.scheme == 'http') &&
-                        url.isNotEmpty;
-                    if (!valid) {
-                      return _buttons(camera: null);
-                    }
-                    return _buttons(
-                      camera: OutlinedButton.icon(
-                        onPressed: () => _openCamera(context, url),
-                        icon: const Icon(Icons.videocam_outlined),
-                        label: const Text('觀看攝影機'),
-                      ),
-                    );
-                  },
-            );
-          },
+    if (previewMode) {
+      return _buttons(camera: null);
+    }
+    return CustomerCameraGate(
+      bookingId: bookingId,
+      builder: (BuildContext context, CustomerCameraGateState state) {
+        final CustomerRoomCameraResult? result = state.result;
+        Widget? camera;
+        if (result != null && result.isError) {
+          camera = OutlinedButton.icon(
+            onPressed: state.retry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('重新讀取攝影機'),
+          );
+        } else if (result != null && result.isReady) {
+          camera = OutlinedButton.icon(
+            onPressed: () => state.open(context),
+            icon: const Icon(Icons.videocam_outlined),
+            label: const Text('觀看攝影機'),
+          );
+        }
+        return _buttons(camera: camera);
+      },
     );
   }
 
@@ -884,35 +852,5 @@ class _CameraAwareServiceRow extends StatelessWidget {
         Expanded(child: camera),
       ],
     );
-  }
-
-  Future<void> _openCamera(BuildContext context, String url) async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('前往外部攝影機頁面'),
-          content: const Text('即將開啟店家提供的攝影機連結，請確認是否前往。'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('前往'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirm != true) {
-      return;
-    }
-    final Uri? uri = Uri.tryParse(url);
-    if (uri == null) {
-      return;
-    }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
