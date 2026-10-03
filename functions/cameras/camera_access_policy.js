@@ -519,6 +519,27 @@ function customerCameraView(device, booking) {
   return view;
 }
 
+/**
+ * 房間訊號只回傳房間文件 ID。移房同時包含原房與新房。
+ * @param {Object|null} before 寫入前的設備
+ * @param {Object|null} after 寫入後的設備
+ * @return {Array<string>}
+ */
+function cameraSignalRoomIds(before, after) {
+  const ids = [];
+  const rows = [before, after];
+  for (const data of rows) {
+    if (!data || String(data.type || "") !== "camera") {
+      continue;
+    }
+    const roomId = String(data.roomId || "").trim();
+    if (roomId && !ids.includes(roomId)) {
+      ids.push(roomId);
+    }
+  }
+  return ids;
+}
+
 module.exports = {
   VIEW_WEB,
   VIEW_EXTERNAL,
@@ -549,4 +570,5 @@ module.exports = {
   requestSyncReason,
   commitSyncWrite,
   customerCameraView,
+  cameraSignalRoomIds,
 };

@@ -691,15 +691,18 @@ match /devices/{deviceId} {
   allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
 }
 
-// 米家分享申請。顧客只能讀自己的，店家管理只能讀；寫入一律走後端。
+// 米家分享申請。顧客查詢必須是 userId == 自己的 UID，只能讀到自己的申請。
+// 店主、ownerUid 或 manage_devices 才能讀該店全部申請。一般會員不可讀。
+// 寫入一律走後端。
 match /camera_access_requests/{requestId} {
-  allow read: if signedIn() && (
-    isRootAdmin()
+  allow read: if signedIn()
+    && resource.data.userId == request.auth.uid;
+
+  allow read: if isRootAdmin()
     || isShopOwner(shopId)
     || isShopOwnerUid(shopId)
-    || hasShopPermissionKey(shopId, 'manage_devices')
-    || resource.data.userId == request.auth.uid
-  );
+    || hasShopPermissionKey(shopId, 'manage_devices');
+
   allow create, update, delete: if false;
 }
 

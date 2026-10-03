@@ -24,6 +24,7 @@ import '../../../core/services/daycare_function_service.dart';
 import '../../../core/services/daily_care_report_export_service.dart';
 import '../../room/daily_care_record_edit_launcher.dart';
 import '../../room/widgets/daily_care_record_editor.dart';
+import 'daily_care_session_actions.dart';
 
 /// 歷史未完成專用色：中性灰紅，不能和橘色「待填」混用。
 const Color historyIncompleteColor = Color(0xFF8D6E63);
@@ -1433,79 +1434,102 @@ class _SessionMiniCard extends StatelessWidget {
     return Material(
       color: highlight ? const Color(0xFFE3F2FD) : const Color(0xFFF8FAFC),
       borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        key: ValueKey<String>(
-          'daily-care-session-${session.bookingId}-${session.sessionIndex}',
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        borderRadius: BorderRadius.circular(10),
-        onTap: actionEnabled
-            ? () => DailyCareRecordEditLauncher.open(
-                context: context,
-                shopId: session.shopId,
-                bookingId: session.bookingId,
-                recordDate: session.recordDate,
-                sessionIndex: session.sessionIndex,
-                roomId: session.roomId,
-                roomName: session.roomName,
-                serviceType: session.serviceType,
-                petIds: session.petIds,
-                setting: setting,
-                entitlement: session.entitlement,
-                readOnly: locked,
-              )
-            : null,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 44),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            InkWell(
+              key: ValueKey<String>(
+                'daily-care-session-${session.bookingId}-${session.sessionIndex}',
+              ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              onTap: actionEnabled
+                  ? () => DailyCareRecordEditLauncher.open(
+                      context: context,
+                      shopId: session.shopId,
+                      bookingId: session.bookingId,
+                      recordDate: session.recordDate,
+                      sessionIndex: session.sessionIndex,
+                      roomId: session.roomId,
+                      roomName: session.roomName,
+                      serviceType: session.serviceType,
+                      petIds: session.petIds,
+                      setting: setting,
+                      entitlement: session.entitlement,
+                      readOnly: locked,
+                    )
+                  : null,
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 44),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
                   children: <Widget>[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: <Widget>[
-                        Text(
-                          session.sessionName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1F2937),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 2,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: <Widget>[
+                              Text(
+                                session.sessionName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1F2937),
+                                ),
+                              ),
+                              Text(
+                                _statusText,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Text(
-                          _statusText,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: statusColor,
+                          Text(
+                            '已上傳 ${session.photoCount}/$_photoQuota',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.3,
+                              color: Color(0xFF4B5563),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      '已上傳 ${session.photoCount}/$_photoQuota',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.3,
-                        color: Color(0xFF4B5563),
+                        ],
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    Icon(actionIcon, size: 18, color: statusColor),
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
-              Icon(actionIcon, size: 18, color: statusColor),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: DailyCareSessionActionButtons(
+                completed: done,
+                onPreview: () => openDailyCareCustomerPreview(context, session),
+                onShare: () {
+                  shareDailyCareSession(
+                    context: context,
+                    item: session,
+                    setting: setting,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2754,7 +2778,7 @@ class _QuickPreviewState extends State<_QuickPreview> {
     );
 
     children.add(const SizedBox(height: 14));
-    children.addAll(_buildShareActions(bundle, photos));
+    children.addAll(_buildShareActions(bundle));
     return children;
   }
 
@@ -2773,10 +2797,7 @@ class _QuickPreviewState extends State<_QuickPreview> {
     );
   }
 
-  List<Widget> _buildShareActions(
-    _PreviewBundle bundle,
-    List<DailyCarePhotoModel> photos,
-  ) {
+  List<Widget> _buildShareActions(_PreviewBundle bundle) {
     final DailyCareReportCenterItem item = widget.session;
     final List<DateTime> dates = DailyCareReportExportService.instance
         .recordCareDates(stay: bundle.stay, records: bundle.records);
@@ -2791,28 +2812,36 @@ class _QuickPreviewState extends State<_QuickPreview> {
     return <Widget>[
       const Text('分享圖', style: TextStyle(fontWeight: FontWeight.w800)),
       const SizedBox(height: 8),
+      DailyCareSessionActionButtons(
+        completed: item.isCompleted && !_generating,
+        onPreview: _generating
+            ? null
+            : () => openDailyCareCustomerPreview(context, item),
+        onShare: () => _generate(
+          bundle: bundle,
+          onlyDate: item.recordDate,
+          onlySessionIndex: item.sessionIndex,
+          kind: DailyCareReportExportKind.singleDay,
+        ),
+      ),
+      if (!item.isCompleted) ...<Widget>[
+        const SizedBox(height: 6),
+        const Text(
+          '完成後才能分享本場',
+          style: TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+      ],
+      const SizedBox(height: 8),
       Wrap(
         spacing: 8,
         runSpacing: 8,
         children: <Widget>[
-          FilledButton.tonal(
-            onPressed: _generating
-                ? null
-                : () => _generate(
-                    bundle: bundle,
-                    photos: photos,
-                    onlyDate: item.recordDate,
-                    kind: DailyCareReportExportKind.singleDay,
-                  ),
-            child: const Text('產生本場分享圖'),
-          ),
           if (stayOrder)
             OutlinedButton(
               onPressed: _generating
                   ? null
                   : () => _generate(
                       bundle: bundle,
-                      photos: photos,
                       kind: DailyCareReportExportKind.fullStay,
                     ),
               child: const Text('產生本次住宿完整分享圖'),
@@ -2821,8 +2850,7 @@ class _QuickPreviewState extends State<_QuickPreview> {
             OutlinedButton(
               onPressed: _generating
                   ? null
-                  : () =>
-                        _pickDate(bundle: bundle, photos: photos, dates: dates),
+                  : () => _pickDate(bundle: bundle, dates: dates),
               child: const Text('選擇單日詳細圖'),
             ),
           if (summaryReady)
@@ -2831,7 +2859,6 @@ class _QuickPreviewState extends State<_QuickPreview> {
                   ? null
                   : () => _generate(
                       bundle: bundle,
-                      photos: photos,
                       kind: DailyCareReportExportKind.summary,
                     ),
               child: const Text('產生照護摘要圖'),
@@ -2854,7 +2881,6 @@ class _QuickPreviewState extends State<_QuickPreview> {
 
   Future<void> _pickDate({
     required _PreviewBundle bundle,
-    required List<DailyCarePhotoModel> photos,
     required List<DateTime> dates,
   }) async {
     final DateTime? picked = await showDialog<DateTime>(
@@ -2877,7 +2903,6 @@ class _QuickPreviewState extends State<_QuickPreview> {
     }
     await _generate(
       bundle: bundle,
-      photos: photos,
       onlyDate: picked,
       kind: DailyCareReportExportKind.singleDay,
     );
@@ -2885,8 +2910,8 @@ class _QuickPreviewState extends State<_QuickPreview> {
 
   Future<void> _generate({
     required _PreviewBundle bundle,
-    required List<DailyCarePhotoModel> photos,
     DateTime? onlyDate,
+    int? onlySessionIndex,
     DailyCareReportExportKind kind = DailyCareReportExportKind.fullStay,
   }) async {
     if (_generating) {
@@ -2898,12 +2923,23 @@ class _QuickPreviewState extends State<_QuickPreview> {
     final DailyCareReportExportService export =
         DailyCareReportExportService.instance;
     try {
+      final List<DailyCareRecordModel> source =
+          kind == DailyCareReportExportKind.singleDay
+          ? completedSessionRecords(
+              records: bundle.records,
+              onlyDate: onlyDate ?? widget.session.recordDate,
+              onlySessionIndex: onlySessionIndex,
+            )
+          : bundle.records;
+      if (kind == DailyCareReportExportKind.singleDay && source.isEmpty) {
+        throw StateError('尚未完成的場次不能分享');
+      }
       final DailyCareReportData data = export.buildReport(
         booking: bundle.booking,
         shop: bundle.shop,
         stay: bundle.stay,
         setting: widget.setting,
-        records: bundle.records,
+        records: source,
         onlyDate: onlyDate,
         kind: kind,
       );
@@ -2913,33 +2949,29 @@ class _QuickPreviewState extends State<_QuickPreview> {
       if (kind == DailyCareReportExportKind.summary && bundle.records.isEmpty) {
         throw StateError('沒有可產出的照護紀錄');
       }
-      final ImageProvider? logo = await export.preloadLogo(
-        context,
-        data.shopLogoUrl,
-      );
-      if (!mounted) {
-        return;
-      }
-      List<ImageProvider> photoProviders = const <ImageProvider>[];
-      if (kind != DailyCareReportExportKind.summary) {
-        photoProviders = await export.preloadPhotos(
+      if (kind == DailyCareReportExportKind.singleDay) {
+        await exportDailyCarePoster(
+          context: context,
+          data: data,
+          setting: widget.setting,
+          guestName: widget.session.customerName,
+          daycare: widget.session.isDaycare,
+        );
+      } else {
+        final ImageProvider? logo = await export.preloadLogo(
           context,
-          photos.map((DailyCarePhotoModel photo) => photo.previewUrl).toList(),
+          data.shopLogoUrl,
+        );
+        if (!mounted) {
+          return;
+        }
+        await export.exportPng(
+          context: context,
+          data: data,
+          logoProvider: logo,
+          fileName: export.fileName(data: data),
         );
       }
-      if (!mounted) {
-        return;
-      }
-      await export.exportPng(
-        context: context,
-        data: data,
-        logoProvider: logo,
-        fileName: export.fileName(data: data),
-        photoProviders: photoProviders,
-        expiryNote: buildPhotoExpiryFootnote(
-          expiresAt: _earliestExpiry(photos),
-        ),
-      );
       if (!mounted) {
         return;
       }

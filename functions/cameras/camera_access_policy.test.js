@@ -245,3 +245,28 @@ test("已結束不會被同步改回待取消，邀請後退房保留取消待�
   );
   assert.equal(again, null);
 });
+
+test("房間訊號只含房間文件 ID，移房會通知原房與新房", () => {
+  assert.deepEqual(policy.cameraSignalRoomIds(null, {
+    type: "camera",
+    roomId: "room-a",
+    url: "https://cam.example/secret",
+    note: "帳號不要外流",
+  }), ["room-a"]);
+  assert.deepEqual(policy.cameraSignalRoomIds(
+      {type: "camera", roomId: "room-a"},
+      {type: "camera", roomId: "room-b", url: "https://cam.example/new"},
+  ), ["room-a", "room-b"]);
+  assert.deepEqual(policy.cameraSignalRoomIds(
+      {type: "camera", roomId: "room-a"},
+      null,
+  ), ["room-a"]);
+  assert.deepEqual(policy.cameraSignalRoomIds(
+      {type: "lock", roomId: "room-a"},
+      {type: "camera", roomId: "room-a"},
+  ), ["room-a"]);
+  assert.deepEqual(policy.cameraSignalRoomIds(
+      {type: "feeder", roomId: "room-a"},
+      {type: "feeder", roomId: "room-b"},
+  ), []);
+});

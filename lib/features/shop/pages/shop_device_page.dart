@@ -2057,9 +2057,7 @@ class _CameraSettingsDialogState extends State<_CameraSettingsDialog> {
       ScaffoldMessenger.of(widget.hostContext).showSnackBar(
         SnackBar(
           content: Text(
-            external
-                ? '外部 App 設定已儲存，請確認品牌與說明後再啟用。分享仍需在原廠 App 手動操作。'
-                : '網址已儲存，請測試後再啟用',
+            external ? '設定已儲存，請開啟此房攝影機。外部分享仍需在原廠 App 手動操作。' : '設定已儲存，請開啟此房攝影機。',
           ),
         ),
       );

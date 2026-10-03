@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_camera_section.dart
-// 功能說明：舊的訂單攝影機區塊。改走共用入口，不再直接讀取 devices。
+// 功能說明：訂單攝影機區塊。入口跟著目前房間、店家總開關與房間訊號更新。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/widgets/customer_camera_entry.dart';

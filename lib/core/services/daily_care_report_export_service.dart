@@ -18,6 +18,7 @@ import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
 import '../models/home_theme_model.dart';
 import '../widgets/daily_care_report_view.dart';
+import '../widgets/daily_care_share_card.dart';
 import '../widgets/daily_care_summary_report_view.dart';
 
 class DailyCareReportExportService {
@@ -294,6 +295,10 @@ class DailyCareReportExportService {
     required String fileName,
     List<ImageProvider> photoProviders = const <ImageProvider>[],
     String expiryNote = '',
+    DailyCareSettingModel? journalSetting,
+    ImageProvider? backgroundProvider,
+    String guestName = '',
+    bool daycare = false,
   }) async {
     final Uint8List bytes = await capturePng(
       context: context,
@@ -301,6 +306,10 @@ class DailyCareReportExportService {
       logoProvider: logoProvider,
       photoProviders: photoProviders,
       expiryNote: expiryNote,
+      journalSetting: journalSetting,
+      backgroundProvider: backgroundProvider,
+      guestName: guestName,
+      daycare: daycare,
     );
     await savePng(bytes: bytes, fileName: fileName);
   }
@@ -311,7 +320,36 @@ class DailyCareReportExportService {
     required ImageProvider? logoProvider,
     List<ImageProvider> photoProviders = const <ImageProvider>[],
     String expiryNote = '',
+    DailyCareSettingModel? journalSetting,
+    ImageProvider? backgroundProvider,
+    String guestName = '',
+    bool daycare = false,
   }) async {
+    if (data.kind == DailyCareReportExportKind.singleDay) {
+      if (!context.mounted) {
+        throw StateError('頁面已關閉');
+      }
+      final ui.Image image = await _captureSection(
+        context: context,
+        child: DailyCareShareCard(
+          data: data,
+          setting: journalSetting ?? const DailyCareSettingModel(),
+          logoProvider: logoProvider,
+          backgroundProvider: backgroundProvider,
+          guestName: guestName,
+          daycare: daycare,
+        ),
+      );
+      try {
+        final ByteData? png = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        return png!.buffer.asUint8List();
+      } finally {
+        image.dispose();
+      }
+    }
+
     if (data.kind == DailyCareReportExportKind.summary) {
       if (!context.mounted) {
         throw StateError('頁面已關閉');
@@ -380,8 +418,6 @@ class DailyCareReportExportService {
             showHeader: false,
             showStayInfo: false,
             days: const <DailyCareReportDay>[],
-            photoProviders: photoProviders,
-            expiryNote: expiryNote,
           ),
         ),
       );
@@ -475,6 +511,7 @@ class DailyCareReportExportService {
       _toiletKeys,
       enabled,
       customLabels,
+      alwaysShowIfFilled: true,
     );
     if (toilet.isNotEmpty) {
       groups.add(DailyCareReportGroup(title: '大小便狀況', fields: toilet));
@@ -578,6 +615,7 @@ class DailyCareReportExportService {
     final List<DailyCareReportField> fields = <DailyCareReportField>[];
     for (final String key in keys) {
       if (!alwaysShowIfFilled &&
+          !DailyCareReportFormat.isAlwaysOn(key) &&
           !enabled.contains(key) &&
           !customLabels.containsKey(key)) {
         continue;

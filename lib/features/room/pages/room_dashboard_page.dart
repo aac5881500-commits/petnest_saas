@@ -19,6 +19,7 @@ import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
+import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entry.dart';
 
 enum _RoomQuickFilter { all, needs, checkedIn, vacant }
 
@@ -82,6 +83,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   DateTime selectedDate = DateTime.now();
   bool _loadingPermission = true;
   bool _hasPermission = false;
+  bool _canManageCameras = false;
   String _selectedRoomTypeFilter = '__all__';
   _RoomQuickFilter _quickFilter = _RoomQuickFilter.all;
   final Set<String> _collapsedTypes = <String>{};
@@ -128,12 +130,27 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       memberData,
       ShopPermissionKeys.manageRoomDashboard,
     );
+    bool canManageCameras = ShopService.instance.hasPermission(
+      memberData,
+      ShopPermissionKeys.manageDevices,
+    );
+    if (!canManageCameras && user.uid.isNotEmpty) {
+      try {
+        final Map<String, dynamic>? shop = await ShopService.instance.getShop(
+          widget.shopId,
+        );
+        canManageCameras = (shop?['ownerUid'] ?? '').toString() == user.uid;
+      } catch (_) {
+        canManageCameras = false;
+      }
+    }
     if (!mounted) {
       return;
     }
     setState(() {
       _loadingPermission = false;
       _hasPermission = hasPermission;
+      _canManageCameras = canManageCameras;
     });
   }
 
@@ -315,19 +332,20 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                   return _workspace(
                                                     desktop: desktop,
                                                     rooms: rooms,
-                                                    bookings: bookingSnap
-                                                        .data!
-                                                        .docs,
-                                                    calendarDocs: calendarSnap
-                                                        .data!
-                                                        .docs,
+                                                    bookings:
+                                                        bookingSnap.data!.docs,
+                                                    calendarDocs:
+                                                        calendarSnap.data!.docs,
                                                     occupancies: occupancySnap
                                                         .data!
                                                         .docs
                                                         .map(
                                                           (
                                                             QueryDocumentSnapshot<
-                                                              Map<String, dynamic>
+                                                              Map<
+                                                                String,
+                                                                dynamic
+                                                              >
                                                             >
                                                             doc,
                                                           ) => doc.data(),
@@ -597,6 +615,67 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     final Widget header = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        if (_canManageCameras)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: ShopCameraShareEntry(
+              shopId: widget.shopId,
+              builder: (BuildContext context, ShopCameraShareEntryView view) {
+                return Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () =>
+                        openShopCameraAccessPage(context, widget.shopId),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: _accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.video_camera_front_outlined,
+                              color: _accent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                const Text(
+                                  '攝影機分享申請',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  view.subtitle,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         _dateBar(desktop: desktop),
         _filters(rooms: rooms, typeNames: typeNames, typeFilter: typeFilter),
         if (!reportsOn)

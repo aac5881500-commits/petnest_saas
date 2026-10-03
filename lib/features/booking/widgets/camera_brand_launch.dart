@@ -243,6 +243,10 @@ bool cameraGateResultIsCurrent({
   required int currentTicket,
   required String requestBookingId,
   required String currentBookingId,
+  String requestRoomId = '',
+  String currentRoomId = '',
 }) {
-  return requestTicket == currentTicket && requestBookingId == currentBookingId;
+  return requestTicket == currentTicket &&
+      requestBookingId == currentBookingId &&
+      requestRoomId == currentRoomId;
 }

@@ -24,6 +24,10 @@ class ModernHomeEditorPreview extends StatelessWidget {
     this.onSelectSection,
     this.onBrandStyleChanged,
     this.onHomeSectionOrderChanged,
+    this.selectedRoomTypeId,
+    this.onSelectRoomType,
+    this.focusSectionId,
+    this.focusSectionToken = 0,
     this.draftHomeBanners,
     this.initialPreviewBannerId,
     this.onPreviewBannerChanged,
@@ -51,6 +55,10 @@ class ModernHomeEditorPreview extends StatelessWidget {
   final ValueChanged<String>? onSelectSection;
   final ValueChanged<StoreBrandStyle>? onBrandStyleChanged;
   final ValueChanged<List<String>>? onHomeSectionOrderChanged;
+  final String? selectedRoomTypeId;
+  final ValueChanged<String>? onSelectRoomType;
+  final String? focusSectionId;
+  final int focusSectionToken;
   final List<StoreBannerModel>? draftHomeBanners;
   final String? initialPreviewBannerId;
   final ValueChanged<StoreBannerModel>? onPreviewBannerChanged;
@@ -108,6 +116,10 @@ class ModernHomeEditorPreview extends StatelessWidget {
       onSelectSection: onSelectSection,
       onBrandStyleChanged: onBrandStyleChanged,
       onHomeSectionOrderChanged: onHomeSectionOrderChanged,
+      selectedRoomTypeId: selectedRoomTypeId,
+      onSelectRoomType: onSelectRoomType,
+      focusSectionId: focusSectionId,
+      focusSectionToken: focusSectionToken,
     );
   }
 

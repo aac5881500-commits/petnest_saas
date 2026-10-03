@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
@@ -18,6 +19,7 @@ import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/frontend_navigation_panel.dart';
@@ -26,6 +28,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_edito
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_settings_card.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/room_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_store_card.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
@@ -87,6 +90,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   String _selectedDensity = 'comfortable';
   StoreBrandStyle _brandStyle = const StoreBrandStyle();
   List<String> _homeSectionOrder = HomeSectionOrder.normalize(null);
+  HomeRoomSectionSetting _roomSection = const HomeRoomSectionSetting();
+  String? _selectedRoomTypeId;
+  int _roomFocusToken = 0;
   HomeTextStyleModel _modernBannerTitleStyle = const HomeTextStyleModel(
     fontSize: 22,
     colorValue: 0xFFFFFFFF,
@@ -171,7 +177,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(_onTabChanged);
     _bindModernDraftListeners();
     _loadSettings();
@@ -181,7 +187,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     if (_tabController.indexIsChanging || !mounted) {
       return;
     }
-    setState(() {});
+    setState(() {
+      if (_tabController.index == 2 && _selectedLayout == 'modern') {
+        _selectedHomeSection = 'rooms';
+        _roomFocusToken++;
+      }
+    });
   }
 
   void _bindModernDraftListeners() {
@@ -257,6 +268,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       'themeColors': _modernTheme.toMap(),
       ..._brandStyle.toMap(),
       'homeSectionOrder': _homeSectionOrder,
+      'roomSection': _roomSection.toMap(),
       ..._draftStoreHomeSetting.toMap(),
       ..._navigationConfig.toMap(),
     };
@@ -563,6 +575,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _homeSectionOrder = HomeSectionOrder.normalize(
           modernAppearance['homeSectionOrder'],
         );
+        _roomSection = HomeRoomSectionSetting.fromMap(
+          modernAppearance['roomSection'],
+        );
         _modernBannerPreviewImageUrl = _firstActiveBannerUrl(shopData);
         _brandStyle = StoreBrandStyle.fromMap(
           modernAppearance,
@@ -768,6 +783,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
                 ..._brandStyle.toMap(),
                 'homeSectionOrder': _homeSectionOrder,
+                'roomSection': _roomSection.toMap(),
 
                 ..._draftStoreHomeSetting.toMap(),
                 ..._navigationConfig.toMap(),
@@ -849,7 +865,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final bool desktopModern =
         MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
-    final bool pinSaveOnEditor = desktopModern && _tabController.index != 3;
+    final bool pinSaveOnEditor = desktopModern && _tabController.index != 4;
     return PopScope(
       canPop: !_hasUnsaved,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -873,6 +889,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             tabs: const [
               Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
               Tab(icon: Icon(Icons.color_lens_outlined), text: '首頁色彩'),
+              Tab(icon: Icon(Icons.bedroom_parent_outlined), text: '房型展示'),
               Tab(icon: Icon(Icons.menu_rounded), text: '導覽設定'),
               Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
             ],
@@ -884,6 +901,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           children: [
             _buildAppearancePane(desktopModern),
             _buildColorPane(desktopModern),
+            _buildRoomPane(desktopModern),
             _buildNavigationPane(desktopModern),
 
             Scrollbar(
@@ -1071,6 +1089,108 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       _modernTheme = value;
       _appearanceDirty = true;
     });
+  }
+
+  Widget _buildRoomPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: const <Widget>[
+          Text('房型展示只套用在新版前台。請先在外觀設定改用新版首頁。', style: TextStyle(height: 1.4)),
+        ],
+      );
+    }
+    final Widget settings = RoomSectionSettingsPanel(
+      shopId: widget.shopId,
+      setting: _roomSection,
+      theme: _modernTheme,
+      selectedRoomTypeId: _selectedRoomTypeId,
+      onChanged: (HomeRoomSectionSetting value) {
+        setState(() {
+          _roomSection = value;
+          _appearanceDirty = true;
+        });
+      },
+      onManageRooms: _openRoomManagement,
+    );
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: 'roomDesktop',
+                focusSectionId: 'rooms',
+                focusSectionToken: _roomFocusToken,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _openRoomSectionPreview,
+              icon: const Icon(Icons.smartphone_outlined),
+              label: const Text('預覽房型區塊'),
+            ),
+          ),
+        ),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  void _openRoomManagement() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ShopRoomTypePage(shopId: widget.shopId),
+      ),
+    );
+  }
+
+  void _openRoomSectionPreview() {
+    setState(() => _roomFocusToken++);
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('預覽房型區塊'),
+              leading: const CloseButton(),
+            ),
+            body: _homeCanvasPreview(
+              showCaption: false,
+              canvasMode: 'roomDialog',
+              focusSectionId: 'rooms',
+              focusSectionToken: _roomFocusToken,
+              embeddedAdminPreview: false,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildColorPane(bool desktopModern) {
@@ -1292,6 +1412,16 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
 
   void _selectHomeSection(String sectionId) {
+    if (sectionId == 'rooms') {
+      if (_tabController.index != 2) {
+        _tabController.animateTo(2);
+      }
+      if (_selectedHomeSection == 'rooms') {
+        return;
+      }
+      setState(() => _selectedHomeSection = 'rooms');
+      return;
+    }
     if (_selectedHomeSection == sectionId) {
       return;
     }
@@ -1340,8 +1470,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         return '最新公告';
       case 'dailyCare':
         return '住宿日誌';
-      case 'rooms':
-        return '熱門房型';
       case 'services':
         return '住宿服務';
       case 'reviews':
@@ -1358,7 +1486,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       case 'facilities':
       case 'announcements':
       case 'dailyCare':
-      case 'rooms':
       case 'services':
       case 'reviews':
       case 'footer':
@@ -1372,6 +1499,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     required bool showCaption,
     required String canvasMode,
     bool embeddedAdminPreview = true,
+    String? focusSectionId,
+    int focusSectionToken = 0,
   }) {
     return ModernHomeEditorPreview(
       shopId: widget.shopId,
@@ -1384,6 +1513,14 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       canvasMode: canvasMode,
       frameWidth: 390,
       selectedSectionId: _selectedHomeSection,
+      focusSectionId: focusSectionId,
+      focusSectionToken: focusSectionToken,
+      selectedRoomTypeId: _selectedRoomTypeId,
+      onSelectRoomType: (String roomTypeId) {
+        setState(() {
+          _selectedRoomTypeId = roomTypeId.isEmpty ? null : roomTypeId;
+        });
+      },
       onSelectSection: _selectHomeSection,
       onBrandStyleChanged: (StoreBrandStyle style) {
         setState(() {

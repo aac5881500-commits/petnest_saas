@@ -1,11 +1,15 @@
 // 檔案名稱：lib/core/models/shop_task_item.dart
-// 功能說明：後台共用待辦中心 V1
+// 功能說明：後台共用待辦中心
 // 依現有業務資料即時計算，不是通知歷史。
-// V1 正式接入 dailyCare / booking；其餘 type 僅預留擴充。
+// 已接入每日照護、訂單與攝影機分享申請。
+
+import 'camera_access_policy.dart';
+import 'camera_brand.dart';
 
 enum ShopTaskType {
   dailyCare,
   booking,
+  cameraShare,
   payment,
   storeOrder,
   pickup,
@@ -50,6 +54,8 @@ class ShopTaskItem {
         return '每日照護';
       case ShopTaskType.booking:
         return '訂單';
+      case ShopTaskType.cameraShare:
+        return '攝影機分享';
       case ShopTaskType.payment:
         return '付款';
       case ShopTaskType.storeOrder:
@@ -89,6 +95,18 @@ class ShopTaskCenterSnapshot {
     this.checkedInRoomCount = 0,
     this.hasError = false,
     this.errorMessage = '',
+    this.bookingEnabled = false,
+    this.bookingLoading = false,
+    this.bookingErrorCode = '',
+    this.bookingErrorSource = '',
+    this.careEnabled = false,
+    this.careLoading = false,
+    this.careErrorCode = '',
+    this.careErrorSource = '',
+    this.cameraEnabled = false,
+    this.cameraLoading = false,
+    this.cameraErrorCode = '',
+    this.cameraErrorSource = '',
   });
 
   final List<ShopTaskItem> items;
@@ -96,6 +114,36 @@ class ShopTaskCenterSnapshot {
   final int checkedInRoomCount;
   final bool hasError;
   final String errorMessage;
+  final bool bookingEnabled;
+  final bool bookingLoading;
+  final String bookingErrorCode;
+  final String bookingErrorSource;
+  final bool careEnabled;
+  final bool careLoading;
+  final String careErrorCode;
+  final String careErrorSource;
+  final bool cameraEnabled;
+  final bool cameraLoading;
+  final String cameraErrorCode;
+  final String cameraErrorSource;
+
+  bool get hasLaneLoading {
+    return (bookingEnabled && bookingLoading) ||
+        (careEnabled && careLoading) ||
+        (cameraEnabled && cameraLoading);
+  }
+
+  bool get hasLaneError {
+    return bookingErrorCode.isNotEmpty ||
+        careErrorCode.isNotEmpty ||
+        cameraErrorCode.isNotEmpty;
+  }
+
+  /// 已訂閱的分類都讀完、都沒有錯誤，而且沒有待辦，才算全部完成。
+  bool get isAllClear {
+    final bool anyLane = bookingEnabled || careEnabled || cameraEnabled;
+    return anyLane && !hasLaneLoading && !hasLaneError && items.isEmpty;
+  }
 
   int get totalCount => items.length;
 
@@ -117,4 +165,124 @@ class ShopTaskCenterSnapshot {
     hasError: true,
     errorMessage: '目前無法取得待辦事項，請稍後再試。',
   );
+}
+
+/// 店主需要立即處理的分享申請。補資料、已邀請與已結束不計入。
+bool cameraRequestCountsAsOwnerTask(String status) {
+  return status == cameraRequestPending ||
+      status == cameraRequestRevocationPending;
+}
+
+String cameraOwnerTaskAction(String status) {
+  if (status == cameraRequestPending) {
+    return '待邀請';
+  }
+  if (status == cameraRequestRevocationPending) {
+    return '待取消分享';
+  }
+  return '';
+}
+
+/// 由申請文件算出待辦。分享帳號只留在有權限的申請詳情，不放進待辦。
+List<ShopTaskItem> cameraOwnerTasks({
+  required String shopId,
+  required List<Map<String, dynamic>> requests,
+}) {
+  final List<ShopTaskItem> items = <ShopTaskItem>[];
+  for (final Map<String, dynamic> request in requests) {
+    final String status = (request['status'] ?? '').toString();
+    if (!cameraRequestCountsAsOwnerTask(status)) {
+      continue;
+    }
+    final String requestId = (request['requestId'] ?? request['id'] ?? '')
+        .toString()
+        .trim();
+    if (requestId.isEmpty) {
+      continue;
+    }
+    final String roomName = (request['roomName'] ?? '').toString().trim();
+    final String customerName = (request['customerName'] ?? '')
+        .toString()
+        .trim();
+    final String provider = (request['provider'] ?? '').toString().trim();
+    final String brand = cameraBrandLabel(provider);
+    final String action = cameraOwnerTaskAction(status);
+    final DateTime? createdAt = readShopTaskDate(request['createdAt']);
+    items.add(
+      ShopTaskItem(
+        id: 'camera_$requestId',
+        type: ShopTaskType.cameraShare,
+        shopId: shopId,
+        title: roomName.isEmpty ? '攝影機分享' : roomName,
+        subtitle: <String>[
+          if (customerName.isNotEmpty) customerName,
+          if (brand.isNotEmpty) brand,
+          if (action.isNotEmpty) action,
+          if (createdAt != null) formatShopTaskTime(createdAt),
+        ].join(' · '),
+        statusLabel: action,
+        createdAt: createdAt,
+        priority: 15,
+        iconKey: 'camera',
+        targetType: 'cameraAccessRequest',
+        targetId: requestId,
+        metadata: <String, dynamic>{
+          'requestId': requestId,
+          'status': status,
+          'roomName': roomName,
+          'customerName': customerName,
+          'provider': provider,
+          'action': action,
+        },
+      ),
+    );
+  }
+  return items;
+}
+
+DateTime? readShopTaskDate(Object? value) {
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is int) {
+    return DateTime.fromMillisecondsSinceEpoch(value);
+  }
+  if (value == null) {
+    return null;
+  }
+  try {
+    final Object? date = (value as dynamic).toDate();
+    if (date is DateTime) {
+      return date;
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
+}
+
+String formatShopTaskTime(DateTime value) {
+  final String month = value.month.toString();
+  final String day = value.day.toString();
+  final String hour = value.hour.toString().padLeft(2, '0');
+  final String minute = value.minute.toString().padLeft(2, '0');
+  return '$month/$day $hour:$minute';
+}
+
+String shopTaskLaneErrorMessage({
+  required String laneLabel,
+  required String code,
+}) {
+  switch (code) {
+    case 'permission-denied':
+      return '$laneLabel沒有讀取權限。';
+    case 'failed-precondition':
+      return '$laneLabel查詢尚未就緒，可能缺少索引。';
+    case 'unavailable':
+    case 'deadline-exceeded':
+    case 'network-request-failed':
+      return '$laneLabel網路讀取失敗，請再試一次。';
+    default:
+      return '$laneLabel讀取失敗（$code）。';
+  }
 }

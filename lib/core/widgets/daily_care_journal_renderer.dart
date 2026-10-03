@@ -61,6 +61,7 @@ class DailyCareJournalScaffold extends StatelessWidget {
     required this.setting,
     required this.body,
     this.shopName = '',
+    this.titleOverride,
     this.banner,
     this.leading,
   });
@@ -68,6 +69,7 @@ class DailyCareJournalScaffold extends StatelessWidget {
   final DailyCareSettingModel setting;
   final Widget body;
   final String shopName;
+  final String? titleOverride;
   final Widget? banner;
   final Widget? leading;
 
@@ -88,7 +90,7 @@ class DailyCareJournalScaffold extends StatelessWidget {
             centerTitle: true,
             leading: leading,
             title: Text(
-              shopName.trim(),
+              (titleOverride ?? shopName).trim(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -155,6 +157,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
     this.photosBoundToSelectedRecord = false,
     this.showPhotoSection = false,
     this.shopName = '',
+    this.showShopHeading = false,
     this.shopLogoUrl = '',
     this.isDaycare = false,
     this.offerName = '',
@@ -177,6 +180,9 @@ class DailyCareJournalRenderer extends StatelessWidget {
   final bool photosBoundToSelectedRecord;
   final bool showPhotoSection;
   final String shopName;
+
+  /// 預覽把 AppBar 讓給「顧客端預覽」時，把店名放回內容頂端。
+  final bool showShopHeading;
   final String shopLogoUrl;
   final bool isDaycare;
   final String offerName;
@@ -372,17 +378,36 @@ class DailyCareJournalRenderer extends StatelessWidget {
   }
 
   Widget _buildKindSubtitle() {
+    final String shop = shopName.trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-      child: Text(
-        journalKind(isDaycare: isDaycare),
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: DailyCareJournalThemeTokens.primary,
-          height: 1.2,
-        ),
+      child: Column(
+        children: <Widget>[
+          if (showShopHeading && shop.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                shop,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: DailyCareJournalThemeTokens.headerInk,
+                  height: 1.2,
+                ),
+              ),
+            ),
+          Text(
+            journalKind(isDaycare: isDaycare),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: DailyCareJournalThemeTokens.primary,
+              height: 1.2,
+            ),
+          ),
+        ],
       ),
     );
   }

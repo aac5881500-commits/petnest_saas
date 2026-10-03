@@ -12,37 +12,88 @@ import '../services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import '../../features/room/daily_care_record_edit_launcher.dart';
 
-class ShopTaskCenterPanel extends StatelessWidget {
+class ShopTaskCenterPanel extends StatefulWidget {
   const ShopTaskCenterPanel({
     super.key,
     required this.shopId,
     required this.canViewBookings,
     required this.canFillDailyCare,
+    this.canManageDevices = false,
     this.showViewAll = true,
     this.closeBeforeOpen = true,
     this.onViewAll,
-    this.onRetry,
+    this.onOpenCamera,
   });
 
   final String shopId;
   final bool canViewBookings;
   final bool canFillDailyCare;
+  final bool canManageDevices;
   final bool showViewAll;
   final bool closeBeforeOpen;
   final VoidCallback? onViewAll;
-  final VoidCallback? onRetry;
+  final void Function(ShopTaskItem item)? onOpenCamera;
+
+  @override
+  State<ShopTaskCenterPanel> createState() => _ShopTaskCenterPanelState();
+}
+
+class _ShopTaskCenterPanelState extends State<ShopTaskCenterPanel> {
+  ShopTaskCenterBinding? _binding;
+
+  @override
+  void initState() {
+    super.initState();
+    _open();
+  }
+
+  @override
+  void didUpdateWidget(ShopTaskCenterPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.canViewBookings != widget.canViewBookings ||
+        oldWidget.canFillDailyCare != widget.canFillDailyCare ||
+        oldWidget.canManageDevices != widget.canManageDevices) {
+      _binding?.close();
+      _open();
+    }
+  }
+
+  void _open() {
+    _binding = ShopTaskCenterService.instance.openBinding(
+      shopId: widget.shopId,
+      canViewBookings: widget.canViewBookings,
+      canFillDailyCare: widget.canFillDailyCare,
+      canManageDevices: widget.canManageDevices,
+    );
+  }
+
+  @override
+  void dispose() {
+    _binding?.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final ShopTaskCenterBinding? binding = _binding;
+    if (binding == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
     return StreamBuilder<ShopTaskCenterSnapshot>(
-      stream: ShopTaskCenterService.instance.streamSnapshot(
-        shopId: shopId,
-        canViewBookings: canViewBookings,
-        canFillDailyCare: canFillDailyCare,
-      ),
+      stream: binding.snapshots,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _errorView(context);
+          return _laneMessage(
+            '目前無法取得待辦事項，請稍後再試。',
+            onRetry: () {
+              binding.close();
+              setState(_open);
+            },
+          );
         }
         if (!snapshot.hasData) {
           return const Padding(
@@ -50,39 +101,35 @@ class ShopTaskCenterPanel extends StatelessWidget {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-
-        final ShopTaskCenterSnapshot data = snapshot.data!;
-        if (data.hasError) {
-          return _errorView(context, message: data.errorMessage);
-        }
-
         return _TaskList(
-          snapshot: data,
-          showViewAll: showViewAll,
-          closeBeforeOpen: closeBeforeOpen,
-          onViewAll: onViewAll,
+          snapshot: snapshot.data!,
+          showViewAll: widget.showViewAll,
+          closeBeforeOpen: widget.closeBeforeOpen,
+          onViewAll: widget.onViewAll,
+          onOpenCamera: widget.onOpenCamera,
+          onRetryBooking: binding.retryBooking,
+          onRetryCare: binding.retryCare,
+          onRetryCamera: binding.retryCamera,
         );
       },
     );
   }
+}
 
-  Widget _errorView(BuildContext context, {String? message}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(
-            message ?? '目前無法取得待辦事項，請稍後再試。',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, height: 1.5),
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton(onPressed: onRetry, child: const Text('重新整理')),
+Widget _laneMessage(String message, {VoidCallback? onRetry}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(message, style: const TextStyle(fontSize: 14, height: 1.45)),
+        if (onRetry != null) ...<Widget>[
+          const SizedBox(height: 8),
+          OutlinedButton(onPressed: onRetry, child: const Text('重試')),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
 
 class _TaskList extends StatelessWidget {
@@ -91,12 +138,20 @@ class _TaskList extends StatelessWidget {
     required this.showViewAll,
     required this.closeBeforeOpen,
     this.onViewAll,
+    this.onOpenCamera,
+    this.onRetryBooking,
+    this.onRetryCare,
+    this.onRetryCamera,
   });
 
   final ShopTaskCenterSnapshot snapshot;
   final bool showViewAll;
   final bool closeBeforeOpen;
   final VoidCallback? onViewAll;
+  final void Function(ShopTaskItem item)? onOpenCamera;
+  final VoidCallback? onRetryBooking;
+  final VoidCallback? onRetryCare;
+  final VoidCallback? onRetryCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +160,9 @@ class _TaskList extends StatelessWidget {
     );
     final List<ShopTaskItem> bookingItems = snapshot.ofType(
       ShopTaskType.booking,
+    );
+    final List<ShopTaskItem> cameraItems = snapshot.ofType(
+      ShopTaskType.cameraShare,
     );
 
     return Column(
@@ -121,7 +179,9 @@ class _TaskList extends StatelessWidget {
                 ),
               ),
               Text(
-                '${snapshot.totalCount}',
+                snapshot.hasLaneLoading
+                    ? '${snapshot.totalCount}（部分讀取中）'
+                    : '${snapshot.totalCount}',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -131,7 +191,44 @@ class _TaskList extends StatelessWidget {
             ],
           ),
         ),
-        if (snapshot.totalCount == 0)
+        if (snapshot.careEnabled && snapshot.careLoading)
+          _laneMessage('每日照護讀取中'),
+        if (snapshot.careErrorCode.isNotEmpty)
+          _laneMessage(
+            shopTaskLaneErrorMessage(
+              laneLabel: '每日照護',
+              code: snapshot.careErrorCode,
+            ),
+            onRetry: onRetryCare,
+          ),
+        if (snapshot.bookingEnabled && snapshot.bookingLoading)
+          _laneMessage('訂單讀取中'),
+        if (snapshot.bookingErrorCode.isNotEmpty)
+          _laneMessage(
+            shopTaskLaneErrorMessage(
+              laneLabel: '訂單',
+              code: snapshot.bookingErrorCode,
+            ),
+            onRetry: onRetryBooking,
+          ),
+        if (snapshot.cameraEnabled && snapshot.cameraLoading)
+          _laneMessage('攝影機分享讀取中'),
+        if (snapshot.cameraErrorCode.isNotEmpty)
+          _laneMessage(
+            shopTaskLaneErrorMessage(
+              laneLabel: '攝影機分享',
+              code: snapshot.cameraErrorCode,
+            ),
+            onRetry: onRetryCamera,
+          ),
+        if (!snapshot.bookingEnabled &&
+            !snapshot.careEnabled &&
+            !snapshot.cameraEnabled)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 28, 20, 32),
+            child: Text('目前沒有你可處理的待辦'),
+          ),
+        if (snapshot.isAllClear)
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 28, 20, 32),
             child: Column(
@@ -153,8 +250,8 @@ class _TaskList extends StatelessWidget {
                 ),
               ],
             ),
-          )
-        else ...<Widget>[
+          ),
+        if (!snapshot.isAllClear) ...<Widget>[
           if (careItems.isNotEmpty)
             _GroupBlock(
               title: '每日照護',
@@ -175,6 +272,20 @@ class _TaskList extends StatelessWidget {
                     (ShopTaskItem item) => _BookingTile(
                       item: item,
                       closeBeforeOpen: closeBeforeOpen,
+                    ),
+                  )
+                  .toList(),
+            ),
+          if (cameraItems.isNotEmpty)
+            _GroupBlock(
+              title: '攝影機分享',
+              count: cameraItems.length,
+              children: cameraItems
+                  .map(
+                    (ShopTaskItem item) => _CameraTile(
+                      item: item,
+                      closeBeforeOpen: closeBeforeOpen,
+                      onOpen: onOpenCamera,
                     ),
                   )
                   .toList(),
@@ -360,6 +471,37 @@ class _BookingTile extends StatelessWidget {
               );
             }
           : null,
+    );
+  }
+}
+
+class _CameraTile extends StatelessWidget {
+  const _CameraTile({
+    required this.item,
+    required this.closeBeforeOpen,
+    this.onOpen,
+  });
+
+  final ShopTaskItem item;
+  final bool closeBeforeOpen;
+  final void Function(ShopTaskItem item)? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TaskCard(
+      icon: Icons.videocam_outlined,
+      title: item.title,
+      subtitle: item.subtitle,
+      statusLabel: item.statusLabel,
+      actionLabel: onOpen == null ? null : '處理申請',
+      onAction: onOpen == null
+          ? null
+          : () {
+              if (closeBeforeOpen && Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+              onOpen!(item);
+            },
     );
   }
 }

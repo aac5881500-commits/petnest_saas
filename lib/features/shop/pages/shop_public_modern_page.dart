@@ -13,6 +13,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_bottom_nav
 import 'package:petnest_saas/features/shop/widgets/modern_home/shop_menu_button.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
 import 'package:petnest_saas/core/models/home_banner_display.dart';
+import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/editable_home_section.dart';
@@ -26,6 +27,8 @@ import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_room_section.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_shop_footer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_review_section.dart';
@@ -55,6 +58,10 @@ class ShopPublicModernPage extends StatefulWidget {
     this.onSelectSection,
     this.onBrandStyleChanged,
     this.onHomeSectionOrderChanged,
+    this.selectedRoomTypeId,
+    this.onSelectRoomType,
+    this.focusSectionId,
+    this.focusSectionToken = 0,
     this.draftModernAppearance,
     this.draftLogoUrl,
     this.draftHomeBanners,
@@ -83,6 +90,12 @@ class ShopPublicModernPage extends StatefulWidget {
   final ValueChanged<String>? onSelectSection;
   final ValueChanged<StoreBrandStyle>? onBrandStyleChanged;
   final ValueChanged<List<String>>? onHomeSectionOrderChanged;
+  final String? selectedRoomTypeId;
+  final ValueChanged<String>? onSelectRoomType;
+
+  /// 外觀設定切到房型展示時，把編排畫布捲到房型區塊。
+  final String? focusSectionId;
+  final int focusSectionToken;
 
   /// 尚未儲存的新版外觀。正式前台不傳，仍讀 Firestore。
   final Map<String, dynamic>? draftModernAppearance;
@@ -463,6 +476,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final List<String> sectionOrder = HomeSectionOrder.normalize(
           modernAppearance['homeSectionOrder'],
         );
+        final HomeRoomSectionSetting roomSection =
+            HomeRoomSectionSetting.fromMap(modernAppearance['roomSection']);
         final bool showAnnouncements = shop['showAnnouncementSection'] != false;
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
@@ -482,6 +497,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             storeHomeSetting: storeHomeSetting,
             frameSetting: bannerFrameSetting,
             useBottomBar: useBottomBar,
+            roomSection: roomSection,
           );
         }
 
@@ -855,273 +871,64 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     );
   }
 
-  Widget _buildPopularRoomSection({required HomeThemeModel theme}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.pets_rounded, size: 16, color: theme.primaryColor),
-            const SizedBox(width: 6),
-            Text(
-              '熱門房型',
-              style: TextStyle(
-                fontSize: 16,
-                height: 1.2,
-                fontWeight: FontWeight.w800,
-                color: theme.textColor,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 9),
-
-        StreamBuilder<List<Map<String, dynamic>>>(
-          stream: _roomTypesStream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 196,
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return Container(
-                height: 120,
-                width: double.infinity,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: theme.cardBorderColor),
-                ),
-                child: Text(
-                  '房型資料讀取失敗',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              );
-            }
-
-            final roomTypes = snapshot.data ?? [];
-
-            if (roomTypes.isEmpty) {
-              return Container(
-                height: 120,
-                width: double.infinity,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: theme.cardBorderColor),
-                ),
-                child: Text(
-                  '目前尚未建立房型',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.secondaryTextColor,
-                  ),
-                ),
-              );
-            }
-
-            return SizedBox(
-              height: 128,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.zero,
-                itemCount: roomTypes.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(width: 7),
-                itemBuilder: (context, index) {
-                  if (index == roomTypes.length) {
-                    return _buildAllRoomsCard(context, theme: theme);
-                  }
-                  return _buildRoomTypeCard(
-                    context: context,
-                    roomType: roomTypes[index],
-                    theme: theme,
+  Widget _buildPopularRoomSection({
+    required HomeThemeModel theme,
+    required HomeRoomSectionSetting roomSection,
+  }) {
+    final bool preview = widget.layoutCanvas || widget.isPreview;
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _roomTypesStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const SizedBox(
+            height: 120,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        return ModernHomeRoomSection(
+          theme: theme,
+          setting: roomSection,
+          roomTypes: snapshot.data ?? const <Map<String, dynamic>>[],
+          preview: preview,
+          loadFailed: snapshot.hasError,
+          selectedRoomTypeId: widget.selectedRoomTypeId,
+          onSelectRoomType: (String roomTypeId) {
+            widget.onSelectRoomType?.call(roomTypeId);
+            widget.onSelectSection?.call('rooms');
+          },
+          onOpenRoom: preview
+              ? null
+              : (Map<String, dynamic> roomType) {
+                  _openPage(
+                    RoomTypeDetailPage(
+                      shopId: widget.shopId,
+                      roomType: roomType,
+                      startDate: DateTime.now(),
+                      endDate: DateTime.now().add(const Duration(days: 1)),
+                      theme: theme,
+                      isIntroMode: true,
+                    ),
                   );
                 },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRoomTypeCard({
-    required BuildContext context,
-    required Map<String, dynamic> roomType,
-    required HomeThemeModel theme,
-  }) {
-    final name = (roomType['name'] ?? '未命名房型').toString().trim();
-
-    final rawImages = roomType['images'];
-    final images = rawImages is List
-        ? rawImages
-              .map((item) => item.toString().trim())
-              .where((item) => item.isNotEmpty)
-              .toList()
-        : <String>[];
-
-    final imageUrl = images.isNotEmpty ? images.first : '';
-
-    final rawPrice = roomType['price'];
-    final price = rawPrice is num
-        ? rawPrice.toInt()
-        : int.tryParse(rawPrice?.toString() ?? '') ?? 0;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        _openPage(
-          RoomTypeDetailPage(
-            shopId: widget.shopId,
-            roomType: roomType,
-            startDate: DateTime.now(),
-            endDate: DateTime.now().add(const Duration(days: 1)),
-            theme: theme,
-            isIntroMode: true,
-          ),
+          onOpenAllRooms: preview
+              ? null
+              : () {
+                  _openPage(
+                    ShopRoomIntroPage(shopId: widget.shopId, theme: theme),
+                  );
+                },
+          onManageRooms: preview
+              ? () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ShopRoomTypePage(shopId: widget.shopId),
+                    ),
+                  );
+                }
+              : null,
         );
       },
-      child: Container(
-        width: 112,
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.cardBorderColor),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 70,
-                width: double.infinity,
-                child: imageUrl.isEmpty
-                    ? Container(
-                        color: theme.primaryColor.withValues(alpha: 0.12),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.bedroom_parent_outlined,
-                          size: 30,
-                          color: theme.primaryColor,
-                        ),
-                      )
-                    : Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) {
-                          return Container(
-                            color: theme.primaryColor.withValues(alpha: 0.12),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              size: 28,
-                              color: theme.primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.fromLTRB(7, 5, 5, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              height: 1,
-                              fontWeight: FontWeight.w800,
-                              color: theme.textColor,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 12,
-                          color: theme.primaryColor,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      price > 0 ? '\$$price / 天起' : '價格洽店家',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        height: 1,
-                        fontWeight: FontWeight.w800,
-                        color: theme.primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAllRoomsCard(
-    BuildContext context, {
-    required HomeThemeModel theme,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
-      },
-      child: Container(
-        width: 72,
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.cardBorderColor),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '>>',
-              style: TextStyle(
-                fontSize: 20,
-                height: 1,
-                fontWeight: FontWeight.w800,
-                color: theme.primaryColor,
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              '全部房型',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: theme.textColor,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1138,6 +945,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required ModernStoreHomeSetting storeHomeSetting,
     required ModernBannerFrameSetting frameSetting,
     required bool useBottomBar,
+    required HomeRoomSectionSetting roomSection,
   }) {
     switch (sectionId) {
       case 'header':
@@ -1178,7 +986,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           platformPreview: widget.platformPreview,
         );
       case 'rooms':
-        return _buildPopularRoomSection(theme: theme);
+        return _buildPopularRoomSection(theme: theme, roomSection: roomSection);
       case 'featured':
         return FeaturedStoreProductsSection(
           shopId: widget.shopId,
@@ -1262,6 +1070,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             selectedSectionId: widget.selectedSectionId,
             onSelectSection: widget.onSelectSection,
             onSectionOrderChanged: widget.onHomeSectionOrderChanged,
+            focusSectionId: widget.focusSectionId,
+            focusSectionToken: widget.focusSectionToken,
             buildSection: buildSection,
           ),
           FloatingContactButton(
@@ -1698,6 +1508,8 @@ class _HomeLayoutCanvas extends StatefulWidget {
     required this.selectedSectionId,
     required this.onSelectSection,
     required this.onSectionOrderChanged,
+    required this.focusSectionId,
+    required this.focusSectionToken,
     required this.buildSection,
   });
 
@@ -1710,6 +1522,8 @@ class _HomeLayoutCanvas extends StatefulWidget {
   final String? selectedSectionId;
   final ValueChanged<String>? onSelectSection;
   final ValueChanged<List<String>>? onSectionOrderChanged;
+  final String? focusSectionId;
+  final int focusSectionToken;
   final Widget Function(String sectionId) buildSection;
 
   @override
@@ -1718,11 +1532,75 @@ class _HomeLayoutCanvas extends StatefulWidget {
 
 class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
   final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _anchors = <String, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleSectionFocus();
+  }
+
+  @override
+  void didUpdateWidget(_HomeLayoutCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusSectionToken != oldWidget.focusSectionToken ||
+        widget.focusSectionId != oldWidget.focusSectionId) {
+      _scheduleSectionFocus();
+    }
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  GlobalKey _anchor(String sectionId) {
+    return _anchors.putIfAbsent(sectionId, GlobalKey.new);
+  }
+
+  void _scheduleSectionFocus() {
+    final String? sectionId = widget.focusSectionId;
+    if (sectionId == null || sectionId.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _revealSection(sectionId, allowJump: true);
+    });
+  }
+
+  void _revealSection(String sectionId, {required bool allowJump}) {
+    final BuildContext? target = _anchor(sectionId).currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.08,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOut,
+      );
+      return;
+    }
+    if (!allowJump || !_scrollController.hasClients) {
+      return;
+    }
+    final int index = widget.sectionIds.indexOf(sectionId);
+    if (index < 0) {
+      return;
+    }
+    final double offset = (index * 180.0).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+    _scrollController.jumpTo(offset);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _revealSection(sectionId, allowJump: false);
+    });
   }
 
   Widget _fixedSection(String sectionId) {
@@ -1731,7 +1609,10 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
       sectionId: sectionId,
       selected: widget.selectedSectionId == sectionId,
       onSelect: () => widget.onSelectSection?.call(sectionId),
-      child: widget.buildSection(sectionId),
+      child: KeyedSubtree(
+        key: _anchor(sectionId),
+        child: widget.buildSection(sectionId),
+      ),
     );
   }
 
@@ -1742,38 +1623,41 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
       sectionId: sectionId,
       selected: widget.selectedSectionId == sectionId,
       onSelect: () => widget.onSelectSection?.call(sectionId),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          Padding(
-            padding: EdgeInsets.only(bottom: gap),
-            child: widget.buildSection(sectionId),
-          ),
-          if (sectionId == 'banners')
-            Positioned(
-              top: 4,
-              right: 4,
-              child: ReorderableDragStartListener(
-                index: index,
-                child: Tooltip(
-                  message: '拖曳整個海報區塊',
-                  child: Material(
-                    color: Colors.white.withValues(alpha: 0.94),
-                    elevation: 2,
-                    borderRadius: BorderRadius.circular(8),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.drag_indicator_rounded,
-                        size: 20,
-                        color: Color(0xFF475569),
+      child: KeyedSubtree(
+        key: _anchor(sectionId),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Padding(
+              padding: EdgeInsets.only(bottom: gap),
+              child: widget.buildSection(sectionId),
+            ),
+            if (sectionId == 'banners')
+              Positioned(
+                top: 4,
+                right: 4,
+                child: ReorderableDragStartListener(
+                  index: index,
+                  child: Tooltip(
+                    message: '拖曳整個海報區塊',
+                    child: Material(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      elevation: 2,
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.drag_indicator_rounded,
+                          size: 20,
+                          color: Color(0xFF475569),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

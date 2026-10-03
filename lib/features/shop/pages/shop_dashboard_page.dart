@@ -53,6 +53,7 @@ import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payout_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_report_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_device_page.dart';
+import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entry.dart';
 import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
@@ -1541,6 +1542,34 @@ class _CatHotelTab extends StatelessWidget {
                           );
                         },
                       ),
+                    if (_can(ShopPermissionKeys.manageDevices) ||
+                        ((FirebaseAuth.instance.currentUser?.uid ?? '')
+                                .isNotEmpty &&
+                            (shop['ownerUid'] ?? '').toString() ==
+                                FirebaseAuth.instance.currentUser?.uid))
+                      ShopCameraShareEntry(
+                        shopId: shopId,
+                        enabled: isProfileComplete,
+                        builder:
+                            (
+                              BuildContext context,
+                              ShopCameraShareEntryView view,
+                            ) {
+                              return _MenuTile(
+                                title: '攝影機分享申請',
+                                subtitle: isProfileComplete
+                                    ? view.subtitle
+                                    : '請先完成基本資料',
+                                icon: Icons.video_camera_front_outlined,
+                                enabled: isProfileComplete,
+                                badgeCount: isProfileComplete
+                                    ? view.badgeCount
+                                    : 0,
+                                onTap: () =>
+                                    openShopCameraAccessPage(context, shopId),
+                              );
+                            },
+                      ),
                   ],
                 ),
                 _DashboardSection(
@@ -2082,6 +2111,20 @@ class _RoomDashboardTile extends StatefulWidget {
 
 class _RoomDashboardTileState extends State<_RoomDashboardTile> {
   DailyCareReportCenterSnapshot? _lastReport;
+  Stream<ShopTaskCenterSnapshot>? _tasks;
+  String _taskShopId = '';
+
+  Stream<ShopTaskCenterSnapshot> _taskStream() {
+    if (_tasks == null || _taskShopId != widget.shopId) {
+      _taskShopId = widget.shopId;
+      _tasks = ShopTaskCenterService.instance.streamSnapshot(
+        shopId: widget.shopId,
+        canViewBookings: false,
+        canFillDailyCare: true,
+      );
+    }
+    return _tasks!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2112,11 +2155,7 @@ class _RoomDashboardTileState extends State<_RoomDashboardTile> {
         }
 
         return StreamBuilder<ShopTaskCenterSnapshot>(
-          stream: ShopTaskCenterService.instance.streamSnapshot(
-            shopId: widget.shopId,
-            canViewBookings: false,
-            canFillDailyCare: true,
-          ),
+          stream: _taskStream(),
           builder: (context, taskSnapshot) {
             final int checkedInRooms =
                 taskSnapshot.data?.checkedInRoomCount ?? 0;

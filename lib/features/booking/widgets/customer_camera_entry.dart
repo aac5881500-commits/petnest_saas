@@ -1,5 +1,7 @@
 // 檔案名稱：lib/features/booking/widgets/customer_camera_entry.dart
-// 功能說明：訂單詳細與照護日誌共用的攝影機入口。網址開啟外部頁，外部品牌走分享申請。
+// 功能說明：照護回報與訂單詳細共用的攝影機入口，跟著目前房間與最新設備設定更新。
+
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -7,9 +9,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:petnest_saas/core/models/camera_access_policy.dart';
 import 'package:petnest_saas/core/models/camera_brand.dart';
+import 'package:petnest_saas/core/models/camera_entry_watch.dart';
 import 'package:petnest_saas/core/services/camera_access_service.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';
 import 'package:petnest_saas/features/booking/widgets/camera_brand_launch.dart';
+
+typedef CustomerCameraPresenter =
+    Future<void> Function(BuildContext context, CustomerRoomCamera camera);
 
 class CustomerCameraGate extends StatefulWidget {
   const CustomerCameraGate({
@@ -17,12 +23,20 @@ class CustomerCameraGate extends StatefulWidget {
     required this.bookingId,
     required this.builder,
     this.enabled = true,
+    this.watchEntry,
+    this.loadCamera,
+    this.presentExternal,
+    this.reloadDelay = cameraEntryReloadDelay,
   });
 
   final String bookingId;
   final bool enabled;
   final Widget Function(BuildContext context, CustomerCameraGateState state)
   builder;
+  final Stream<CameraEntryWatch> Function(String bookingId)? watchEntry;
+  final Future<CustomerRoomCameraResult> Function(String bookingId)? loadCamera;
+  final CustomerCameraPresenter? presentExternal;
+  final Duration reloadDelay;
 
   @override
   State<CustomerCameraGate> createState() => CustomerCameraGateState();
@@ -33,14 +47,17 @@ class CustomerCameraGateState extends State<CustomerCameraGate>
   CustomerRoomCameraResult? _result;
   bool _loading = false;
   int _ticket = 0;
+  StreamSubscription<CameraEntryWatch>? _watchSub;
+  Timer? _reloadTimer;
+  CameraEntryWatch? _watch;
+  bool _externalOpen = false;
+  String _presentedKey = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.enabled && widget.bookingId.trim().isNotEmpty) {
-      _load();
-    }
+    _listen();
   }
 
   @override
@@ -48,26 +65,113 @@ class CustomerCameraGateState extends State<CustomerCameraGate>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.bookingId != widget.bookingId ||
         oldWidget.enabled != widget.enabled) {
-      _load();
+      _ticket++;
+      _reloadTimer?.cancel();
+      _watch = null;
+      _dismissExternal();
+      _listen();
+      setState(() {
+        _result = null;
+        _loading = false;
+      });
     }
   }
 
   @override
   void dispose() {
+    _ticket++;
+    _reloadTimer?.cancel();
+    _watchSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && widget.enabled) {
       _load();
     }
   }
 
-  Future<void> _load() async {
+  void _listen() {
+    _watchSub?.cancel();
+    _watchSub = null;
+    if (!widget.enabled || widget.bookingId.trim().isEmpty) {
+      return;
+    }
+    final Stream<CameraEntryWatch> stream = widget.watchEntry != null
+        ? widget.watchEntry!(widget.bookingId)
+        : CameraAccessService.instance.watchCustomerCameraEntry(
+            widget.bookingId,
+          );
+    _watchSub = stream.listen(_onWatch, onError: _onWatchError);
+  }
+
+  void _onWatch(CameraEntryWatch next) {
+    if (!mounted || next.bookingId != widget.bookingId) {
+      return;
+    }
+    final CameraEntryWatch? previous = _watch;
+    if (!cameraEntryShouldReload(previous, next)) {
+      return;
+    }
+    _watch = next;
+    final bool closed = !next.serviceOpen || !next.shopCameraOn;
+    if (previous != null) {
+      _ticket++;
+      _dismissExternal();
+      setState(() {
+        _result = closed ? const CustomerRoomCameraResult.hidden() : null;
+        _loading = !closed;
+      });
+    } else if (closed) {
+      setState(() {
+        _result = const CustomerRoomCameraResult.hidden();
+        _loading = false;
+      });
+    }
+    _reloadTimer?.cancel();
+    _reloadTimer = Timer(widget.reloadDelay, () {
+      if (!mounted) {
+        return;
+      }
+      _load(expectedRoomId: next.roomId);
+    });
+  }
+
+  void _onWatchError(Object error) {
+    _ticket++;
+    _reloadTimer?.cancel();
+    _watchSub?.cancel();
+    _watchSub = null;
+    _dismissExternal();
+    if (!mounted) {
+      return;
+    }
+    final String message =
+        error is CameraAccessException && error.message.isNotEmpty
+        ? error.message
+        : '攝影機暫時無法讀取，請再試一次';
+    setState(() {
+      _result = CustomerRoomCameraResult.error(message);
+      _loading = false;
+    });
+  }
+
+  Future<CustomerRoomCameraResult> _fetch(String bookingId) {
+    final Future<CustomerRoomCameraResult> Function(String bookingId)? loader =
+        widget.loadCamera;
+    if (loader != null) {
+      return loader(bookingId);
+    }
+    return CameraAccessService.instance.getCustomerRoomCamera(bookingId);
+  }
+
+  Future<void> _load({String? expectedRoomId, bool clearFirst = false}) async {
+    _reloadTimer?.cancel();
     final int ticket = ++_ticket;
     final String bookingId = widget.bookingId;
+    final String roomId = expectedRoomId ?? _watch?.roomId ?? '';
     if (!widget.enabled || bookingId.trim().isEmpty) {
       if (mounted) {
         setState(() {
@@ -77,35 +181,78 @@ class CustomerCameraGateState extends State<CustomerCameraGate>
       }
       return;
     }
-    setState(() => _loading = true);
-    final CustomerRoomCameraResult result = await CameraAccessService.instance
-        .getCustomerRoomCamera(bookingId);
+    if (clearFirst && mounted) {
+      _dismissExternal();
+      setState(() {
+        _result = null;
+        _loading = true;
+      });
+    } else if (mounted && _result == null) {
+      setState(() => _loading = true);
+    }
+    final CustomerRoomCameraResult result = await _fetch(bookingId);
     if (!mounted ||
         !cameraGateResultIsCurrent(
           requestTicket: ticket,
           currentTicket: _ticket,
           requestBookingId: bookingId,
           currentBookingId: widget.bookingId,
+          requestRoomId: roomId,
+          currentRoomId: _watch?.roomId ?? roomId,
         )) {
       return;
     }
+    final bool locallyClosed =
+        _watch != null && (!_watch!.serviceOpen || !_watch!.shopCameraOn);
+    final CustomerRoomCameraResult shown = locallyClosed && result.isError
+        ? const CustomerRoomCameraResult.hidden()
+        : result;
+    if (_externalOpen && shown.camera != null) {
+      final String key = customerCameraIdentity(
+        roomId: shown.camera!.roomId,
+        deviceId: shown.camera!.deviceId,
+        viewMode: shown.camera!.viewMode,
+        provider: shown.camera!.provider,
+      );
+      if (_presentedKey.isNotEmpty && key != _presentedKey) {
+        _dismissExternal();
+      }
+    }
     setState(() {
-      _result = result;
+      _result = shown;
       _loading = false;
     });
   }
 
+  void _dismissExternal() {
+    if (!_externalOpen || !mounted) {
+      return;
+    }
+    _externalOpen = false;
+    _presentedKey = '';
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(const SnackBar(content: Text('房間或攝影機已變更，請重新開啟')));
+  }
+
   Future<void> open(BuildContext context) async {
+    _reloadTimer?.cancel();
     final int ticket = ++_ticket;
     final String bookingId = widget.bookingId;
-    final CustomerRoomCameraResult result = await CameraAccessService.instance
-        .getCustomerRoomCamera(bookingId);
+    final String roomId = _watch?.roomId ?? '';
+    final CustomerRoomCameraResult result = await _fetch(bookingId);
     if (!mounted ||
         !cameraGateResultIsCurrent(
           requestTicket: ticket,
           currentTicket: _ticket,
           requestBookingId: bookingId,
           currentBookingId: widget.bookingId,
+          requestRoomId: roomId,
+          currentRoomId: _watch?.roomId ?? roomId,
         )) {
       return;
     }
@@ -118,49 +265,55 @@ class CustomerCameraGateState extends State<CustomerCameraGate>
     }
     final CustomerRoomCamera? camera = result.camera;
     if (!result.isReady || camera == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.message.isEmpty ? '目前沒有可使用的攝影機，請再試一次' : result.message,
-          ),
-        ),
-      );
+      final String message = result.isUnsupported
+          ? (result.message.isEmpty ? '此品牌尚未開放，不能改用其他品牌觀看。' : result.message)
+          : (result.message.isEmpty ? '目前沒有可使用的攝影機，請再試一次' : result.message);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       return;
     }
     if (!camera.isExternal) {
       await _openWeb(context, camera);
       return;
     }
-    final bool wide = MediaQuery.sizeOf(context).width >= 720;
-    final Widget sheet = _ExternalRequestSheet(
-      bookingId: widget.bookingId,
-      camera: camera,
+    await _presentExternal(context, camera);
+    if (mounted) {
+      await _load(expectedRoomId: _watch?.roomId ?? roomId);
+    }
+  }
+
+  Future<void> _presentExternal(
+    BuildContext context,
+    CustomerRoomCamera camera,
+  ) async {
+    _externalOpen = true;
+    _presentedKey = customerCameraIdentity(
+      roomId: camera.roomId,
+      deviceId: camera.deviceId,
+      viewMode: camera.viewMode,
+      provider: camera.provider,
     );
-    if (wide) {
+    try {
+      final CustomerCameraPresenter? presenter = widget.presentExternal;
+      if (presenter != null) {
+        await presenter(context, camera);
+        return;
+      }
       await showDialog<void>(
         context: context,
         builder: (BuildContext dialogContext) {
-          return Dialog(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 480,
-                maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.8,
-              ),
-              child: sheet,
+          return CustomerCameraRequestDialog(
+            child: _ExternalRequestSheet(
+              bookingId: widget.bookingId,
+              camera: camera,
             ),
           );
         },
       );
-    } else {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (BuildContext sheetContext) => sheet,
-      );
-    }
-    if (mounted) {
-      await _load();
+    } finally {
+      _externalOpen = false;
+      _presentedKey = '';
     }
   }
 
@@ -174,43 +327,216 @@ class CustomerCameraGateState extends State<CustomerCameraGate>
 
   bool get loading => _loading && _result == null;
   CustomerRoomCameraResult? get result => _result;
-  Future<void> retry() => _load();
+
+  Future<void> retry() {
+    if (_watchSub == null) {
+      _listen();
+    }
+    return _load(clearFirst: true);
+  }
+}
+
+class CustomerCameraRequestDialog extends StatelessWidget {
+  const CustomerCameraRequestDialog({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final double side = MediaQuery.sizeOf(context).width >= 720 ? 24 : 18;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(horizontal: side, vertical: 16),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return ConstrainedBox(
+            key: const Key('camera-request-card'),
+            constraints: BoxConstraints(
+              maxWidth: 480,
+              maxHeight: constraints.maxHeight,
+            ),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 }
 
 class CustomerCameraDetailEntry extends StatelessWidget {
-  const CustomerCameraDetailEntry({super.key, required this.bookingId});
+  const CustomerCameraDetailEntry({
+    super.key,
+    required this.bookingId,
+    this.watchEntry,
+    this.loadCamera,
+    this.presentExternal,
+    this.reloadDelay = cameraEntryReloadDelay,
+  });
 
   final String bookingId;
+  final Stream<CameraEntryWatch> Function(String bookingId)? watchEntry;
+  final Future<CustomerRoomCameraResult> Function(String bookingId)? loadCamera;
+  final CustomerCameraPresenter? presentExternal;
+  final Duration reloadDelay;
 
   @override
   Widget build(BuildContext context) {
     return CustomerCameraGate(
       bookingId: bookingId,
+      watchEntry: watchEntry,
+      loadCamera: loadCamera,
+      presentExternal: presentExternal,
+      reloadDelay: reloadDelay,
       builder: (BuildContext context, CustomerCameraGateState state) {
-        final CustomerRoomCameraResult? result = state.result;
-        if (state.loading || result == null || result.isHidden) {
-          return const SizedBox.shrink();
-        }
-        if (result.isError) {
-          return BookingDetailEntryRow(
-            icon: Icons.videocam_outlined,
-            title: '房間攝影機',
-            subtitle: result.message,
-            onTap: state.retry,
-          );
-        }
-        final CustomerRoomCamera camera = result.camera!;
-        return BookingDetailEntryRow(
-          icon: Icons.videocam_outlined,
-          title: camera.name,
-          subtitle: camera.isExternal
-              ? '透過${camera.appName.isEmpty ? '原廠 App' : camera.appName}觀看'
-              : '開啟店家提供的攝影機畫面。已開啟的網址無法由 PetNest 自動撤銷。',
-          onTap: () => state.open(context),
-        );
+        return customerCameraDetailRow(context, state);
       },
     );
   }
+}
+
+Widget customerCameraDetailRow(
+  BuildContext context,
+  CustomerCameraGateState state,
+) {
+  final CustomerRoomCameraResult? result = state.result;
+  final CustomerCameraEntryPresentation presentation =
+      customerCameraEntryPresentation(result);
+  if (presentation.kind == CustomerCameraEntryKind.none) {
+    return const SizedBox.shrink();
+  }
+  if (presentation.kind == CustomerCameraEntryKind.retry) {
+    return BookingDetailEntryRow(
+      icon: Icons.videocam_outlined,
+      title: presentation.label,
+      subtitle: '點一下重新讀取',
+      onTap: state.retry,
+    );
+  }
+  if (presentation.kind == CustomerCameraEntryKind.unsupported) {
+    final String message = result?.message.trim().isNotEmpty == true
+        ? result!.message.trim()
+        : '此品牌尚未開放，不能改用其他品牌觀看。';
+    return BookingDetailEntryRow(
+      icon: Icons.videocam_outlined,
+      title: presentation.label,
+      subtitle: message,
+      onTap: () => showUnsupportedCamera(context, message),
+    );
+  }
+  final CustomerRoomCamera camera = result!.camera!;
+  return BookingDetailEntryRow(
+    icon: Icons.videocam_outlined,
+    title: presentation.label,
+    subtitle: customerCameraEntrySubtitle(
+      viewMode: camera.viewMode,
+      provider: camera.provider,
+      appName: camera.appName,
+    ),
+    onTap: () => state.open(context),
+  );
+}
+
+class CustomerCameraServiceButtons extends StatelessWidget {
+  const CustomerCameraServiceButtons({
+    super.key,
+    required this.bookingId,
+    required this.previewMode,
+    required this.photoButton,
+    this.watchEntry,
+    this.loadCamera,
+    this.presentExternal,
+    this.reloadDelay = cameraEntryReloadDelay,
+  });
+
+  final String bookingId;
+  final bool previewMode;
+  final Widget? photoButton;
+  final Stream<CameraEntryWatch> Function(String bookingId)? watchEntry;
+  final Future<CustomerRoomCameraResult> Function(String bookingId)? loadCamera;
+  final CustomerCameraPresenter? presentExternal;
+  final Duration reloadDelay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (previewMode) {
+      return _cameraServiceButtons(camera: null);
+    }
+    return CustomerCameraGate(
+      bookingId: bookingId,
+      watchEntry: watchEntry,
+      loadCamera: loadCamera,
+      presentExternal: presentExternal,
+      reloadDelay: reloadDelay,
+      builder: (BuildContext context, CustomerCameraGateState state) {
+        final CustomerCameraEntryPresentation presentation =
+            customerCameraEntryPresentation(state.result);
+        final Widget? camera = switch (presentation.kind) {
+          CustomerCameraEntryKind.none => null,
+          CustomerCameraEntryKind.retry => OutlinedButton.icon(
+            onPressed: state.retry,
+            icon: const Icon(Icons.refresh),
+            label: Text(
+              presentation.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          CustomerCameraEntryKind.unsupported => OutlinedButton.icon(
+            onPressed: () =>
+                showUnsupportedCamera(context, state.result?.message ?? ''),
+            icon: const Icon(Icons.info_outline),
+            label: Text(presentation.label),
+          ),
+          CustomerCameraEntryKind.ready => OutlinedButton.icon(
+            onPressed: () => state.open(context),
+            icon: const Icon(Icons.videocam_outlined),
+            label: Text(presentation.label),
+          ),
+        };
+        return _cameraServiceButtons(camera: camera);
+      },
+    );
+  }
+
+  Widget _cameraServiceButtons({required Widget? camera}) {
+    if (photoButton == null && camera == null) {
+      return const SizedBox.shrink();
+    }
+    if (photoButton == null) {
+      return SizedBox(width: double.infinity, child: camera);
+    }
+    if (camera == null) {
+      return SizedBox(width: double.infinity, child: photoButton);
+    }
+    return Row(
+      children: <Widget>[
+        Expanded(child: photoButton!),
+        const SizedBox(width: 10),
+        Expanded(child: camera),
+      ],
+    );
+  }
+}
+
+Future<void> showUnsupportedCamera(BuildContext context, String message) {
+  final String text = message.trim().isEmpty
+      ? '此品牌尚未開放，不能改用其他品牌觀看。'
+      : message.trim();
+  return showDialog<void>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return AlertDialog(
+        title: const Text('品牌尚未開放'),
+        content: Text(text),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('知道了'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 Future<void> _openWeb(BuildContext context, CustomerRoomCamera camera) async {
@@ -303,32 +629,87 @@ class _ExternalRequestSheetState extends State<_ExternalRequestSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final double inset = MediaQuery.viewInsetsOf(context).bottom;
-    final double height = (MediaQuery.sizeOf(context).height * 0.78 - inset)
-        .clamp(280, 640)
-        .toDouble();
-    return SafeArea(
-      child: SizedBox(
-        height: height,
-        child: StreamBuilder<List<Map<String, dynamic>>>(
-          stream: _requests,
-          builder:
-              (
-                BuildContext context,
-                AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-              ) {
-                if (snapshot.hasError) {
-                  return _ErrorNotice(
-                    message: '分享申請讀取失敗，請再試一次',
-                    onRetry: () => setState(() => _requests = _openStream()),
-                  );
-                }
-                final Map<String, dynamic>? request = _currentRequest(
-                  snapshot.data ?? const <Map<String, dynamic>>[],
-                );
-                _rememberAccount(request);
-                return _sheet(request);
-              },
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _requests,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
+            final Widget body;
+            if (snapshot.hasError) {
+              body = Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                child: _ErrorNotice(
+                  message: '分享申請讀取失敗，請再試一次',
+                  onRetry: () => setState(() => _requests = _openStream()),
+                ),
+              );
+            } else if (!snapshot.hasData) {
+              body = const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            } else {
+              final Map<String, dynamic>? request = _currentRequest(
+                snapshot.data ?? const <Map<String, dynamic>>[],
+              );
+              _rememberAccount(request);
+              body = _sheet(request);
+            }
+            return CustomScrollView(
+              shrinkWrap: true,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
+              slivers: <Widget>[
+                PinnedHeaderSliver(child: _header()),
+                SliverToBoxAdapter(child: body),
+              ],
+            );
+          },
+    );
+  }
+
+  Widget _header() {
+    final String room = widget.camera.roomName.trim().isEmpty
+        ? '房間'
+        : widget.camera.roomName.trim();
+    final String cameraName = widget.camera.name.trim().isEmpty
+        ? widget.camera.providerLabel
+        : widget.camera.name.trim();
+    return Material(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    room,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    cameraName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: '關閉',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close),
+            ),
+          ],
         ),
       ),
     );
@@ -340,46 +721,45 @@ class _ExternalRequestSheetState extends State<_ExternalRequestSheet> {
     final bool canReplace =
         status == cameraRequestInvited || status == cameraRequestConfirmed;
     final CameraBrand? brand = cameraBrandById(widget.camera.provider);
-    return Column(
-      children: <Widget>[
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: _scrollBody(
-              request: request,
-              status: status,
-              showForm: showForm,
-              canReplace: canReplace,
-              brand: brand,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _scrollBody(
+            request: request,
+            status: status,
+            showForm: showForm,
+            canReplace: canReplace,
+            brand: brand,
+          ),
+          if (_error != null) ...<Widget>[
+            const SizedBox(height: 8),
+            CameraRequestFailureBanner(message: _error!),
+          ],
+          if (showForm && brand != null) ...<Widget>[
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _submitting
+                  ? null
+                  : () => _submit(replacing: canReplace),
+              child: Text(_submitting ? '送出中' : '送出申請'),
             ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              if (_error != null) CameraRequestFailureBanner(message: _error!),
-              if (showForm && brand != null)
-                FilledButton(
-                  onPressed: _submitting
-                      ? null
-                      : () => _submit(replacing: canReplace),
-                  child: Text(_submitting ? '送出中' : '送出申請'),
-                ),
-              if (!showForm && status == cameraRequestInvited)
-                FilledButton(
-                  onPressed: _submitting
-                      ? null
-                      : () {
-                          _confirmWatching((request['id'] ?? '').toString());
-                        },
-                  child: const Text('已可觀看'),
-                ),
-            ],
-          ),
-        ),
-      ],
+          ],
+          if (!showForm && status == cameraRequestInvited) ...<Widget>[
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _submitting
+                  ? null
+                  : () {
+                      _confirmWatching((request['id'] ?? '').toString());
+                    },
+              child: const Text('已可觀看'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -667,10 +1047,11 @@ class _ErrorNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Text(message),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         OutlinedButton(onPressed: onRetry, child: const Text('重試')),
       ],
     );

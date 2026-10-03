@@ -1,10 +1,11 @@
 // 檔案名稱：functions/cameras/camera_access_sync.js
-// 功能說明：退房、換房、設備移房或停用時，依最新申請狀態同步分享待辦。
+// 功能說明：退房、換房、設備移房或停用時同步分享待辦，並更新房間攝影機訊號。
 
 const admin = require("firebase-admin");
 const {
   onDocumentDeleted,
   onDocumentUpdated,
+  onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
 const {normalizeString} = require("../daycare/daycare_utils");
 const policy = require("./camera_access_policy");
@@ -161,6 +162,57 @@ exports.syncCameraAccessOnDeviceDeleted = onDocumentDeleted(
           shopCameraOn: true,
         };
       });
+    },
+);
+
+/**
+ * 只遞增房間 cameraRevision。不寫回設備，避免觸發器循環。
+ * 房間不存在就略過，不建立空房間。重複事件再加一也只表示要重查。
+ * @param {string} shopId 店家
+ * @param {Array<string>} roomIds 房間文件 ID
+ * @return {Promise<void>}
+ */
+async function bumpCameraRevision(shopId, roomIds) {
+  const unique = [];
+  for (const roomId of roomIds) {
+    const id = normalizeString(roomId);
+    if (id && !unique.includes(id)) {
+      unique.push(id);
+    }
+  }
+  if (!shopId || !unique.length) {
+    return;
+  }
+  const firestore = admin.firestore();
+  for (const roomId of unique) {
+    const ref = firestore.collection("shops").doc(shopId)
+        .collection("rooms").doc(roomId);
+    await firestore.runTransaction(async (transaction) => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists) {
+        return;
+      }
+      transaction.set(ref, {
+        cameraRevision: admin.firestore.FieldValue.increment(1),
+      }, {merge: true});
+    });
+  }
+}
+
+exports.syncCameraRoomSignal = onDocumentWritten(
+    {document: "shops/{shopId}/devices/{deviceId}", region},
+    async (event) => {
+      if (!event.data) {
+        return;
+      }
+      const before = event.data.before.exists ?
+        (event.data.before.data() || null) :
+        null;
+      const after = event.data.after.exists ?
+        (event.data.after.data() || null) :
+        null;
+      const roomIds = policy.cameraSignalRoomIds(before, after);
+      await bumpCameraRevision(event.params.shopId, roomIds);
     },
 );
 

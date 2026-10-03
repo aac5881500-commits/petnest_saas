@@ -1,6 +1,8 @@
 // 檔案名稱：lib/features/shop/widgets/camera/shop_camera_access_panel.dart
 // 功能說明：店主查看並處理外部品牌分享申請。進行中即時更新，已結束分頁載入。
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,206 +10,397 @@ import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/camera_access_policy.dart';
 import 'package:petnest_saas/core/models/camera_brand.dart';
 import 'package:petnest_saas/core/services/camera_access_service.dart';
+import 'package:petnest_saas/core/services/shop_task_center_service.dart';
 import 'package:petnest_saas/features/booking/widgets/camera_brand_launch.dart';
 
 class ShopCameraAccessPanel extends StatefulWidget {
-  const ShopCameraAccessPanel({super.key, required this.shopId});
+  const ShopCameraAccessPanel({
+    super.key,
+    required this.shopId,
+    this.focusRequestId,
+    this.initialFilter,
+  });
 
   final String shopId;
+  final String? focusRequestId;
+  final String? initialFilter;
 
   @override
   State<ShopCameraAccessPanel> createState() => _ShopCameraAccessPanelState();
 }
 
 class _ShopCameraAccessPanelState extends State<ShopCameraAccessPanel> {
-  String _filter = cameraRequestFilterAll;
+  static const String _filterOpen = 'open';
+  late String _filter;
   String? _busyId;
   int _closedLimit = 20;
-  late Stream<QuerySnapshot<Map<String, dynamic>>> _active;
-  late Stream<QuerySnapshot<Map<String, dynamic>>> _closed;
+  int _activeGeneration = 0;
+  int _closedGeneration = 0;
+  bool _closedStarted = false;
+  bool _focusScrolled = false;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>? _activeDocs;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>? _closedDocs;
+  String _activeErrorCode = '';
+  String _closedErrorCode = '';
+  bool _activeLoading = true;
+  bool _closedLoading = false;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _activeSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _closedSub;
+  final Map<String, GlobalKey> _cardKeys = <String, GlobalKey>{};
+
+  bool get _wantsClosed {
+    return _filter == cameraRequestClosed || _filter == cameraRequestFilterAll;
+  }
 
   @override
   void initState() {
     super.initState();
-    _bind(active: true, closed: true);
-  }
-
-  void _bind({required bool active, required bool closed}) {
-    if (active) {
-      _active = CameraAccessService.instance.watchShopActiveRequests(
-        widget.shopId,
-      );
-    }
-    if (closed) {
-      _closed = CameraAccessService.instance.watchShopClosedRequests(
-        widget.shopId,
-        limit: _closedLimit,
-      );
+    final String initial = (widget.initialFilter ?? '').trim();
+    _filter = initial.isEmpty ? _filterOpen : initial;
+    _listenActive();
+    if (_wantsClosed) {
+      _listenClosed();
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _active,
-      builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> activeSnap,
-          ) {
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _closed,
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                    closedSnap,
-                  ) {
-                    if (activeSnap.hasError || closedSnap.hasError) {
-                      return _Message(
-                        title: '分享申請讀取失敗',
-                        message: '請確認你有管理攝影機權限後再試。',
-                        onRetry: () =>
-                            setState(() => _bind(active: true, closed: true)),
-                      );
-                    }
-                    if (!activeSnap.hasData || !closedSnap.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                    activeDocs = activeSnap.data!.docs;
-                    final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                    closedDocs = closedSnap.data!.docs;
-                    final int pendingCount = activeDocs
-                        .where(
-                          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-                              (doc.data()['status'] ?? '').toString() ==
-                              cameraRequestPending,
-                        )
-                        .length;
-                    final int revokeCount = activeDocs
-                        .where(
-                          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-                              (doc.data()['status'] ?? '').toString() ==
-                              cameraRequestRevocationPending,
-                        )
-                        .length;
-                    final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                    source = _filter == cameraRequestClosed
-                        ? closedDocs
-                        : (_filter == cameraRequestFilterAll
-                              ? <QueryDocumentSnapshot<Map<String, dynamic>>>[
-                                  ...activeDocs,
-                                  ...closedDocs,
-                                ]
-                              : activeDocs);
-                    final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                    visible = source.where((
-                      QueryDocumentSnapshot<Map<String, dynamic>> doc,
-                    ) {
-                      return cameraRequestMatchesFilter(
-                        (doc.data()['status'] ?? '').toString(),
-                        _filter,
-                      );
-                    }).toList();
-                    visible.sort(_newestFirst);
-                    return LayoutBuilder(
-                      builder:
-                          (BuildContext context, BoxConstraints constraints) {
-                            final bool desktop = constraints.maxWidth >= 900;
-                            return ListView(
-                              padding: EdgeInsets.fromLTRB(
-                                desktop ? 24 : 16,
-                                12,
-                                desktop ? 24 : 16,
-                                24,
-                              ),
-                              children: <Widget>[
-                                Text(
-                                  '待處理 $pendingCount　待取消分享 $revokeCount',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'PetNest 關閉入口不會自動移除原廠 App 的觀看權限，請至原廠 App 取消分享。',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    height: 1.4,
-                                    color: Color(0xFF92400E),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: <Widget>[
-                                    _chip('全部', cameraRequestFilterAll),
-                                    _chip(
-                                      '待處理 $pendingCount',
-                                      cameraRequestPending,
-                                    ),
-                                    _chip('需補資料', cameraRequestNeedsInfo),
-                                    _chip('已發送邀請', cameraRequestInvited),
-                                    _chip('已確認可觀看', cameraRequestConfirmed),
-                                    _chip(
-                                      '待取消分享 $revokeCount',
-                                      cameraRequestRevocationPending,
-                                    ),
-                                    _chip('已結束', cameraRequestClosed),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                if (visible.isEmpty)
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 24),
-                                    child: Text('此狀態目前沒有申請'),
-                                  )
-                                else
-                                  ...visible.map((
-                                    QueryDocumentSnapshot<Map<String, dynamic>>
-                                    doc,
-                                  ) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _RequestCard(
-                                        data: doc.data(),
-                                        busy: _busyId == doc.id,
-                                        onAction:
-                                            (String action, String reason) {
-                                              return _run(
-                                                doc.id,
-                                                action,
-                                                reason,
-                                              );
-                                            },
-                                      ),
-                                    );
-                                  }),
-                                if (_filter == cameraRequestFilterAll ||
-                                    _filter == cameraRequestClosed)
-                                  if (closedDocs.length >= _closedLimit)
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: TextButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            _closedLimit += 20;
-                                            _bind(active: false, closed: true);
-                                          });
-                                        },
-                                        child: const Text('載入更多已結束紀錄'),
-                                      ),
-                                    ),
-                              ],
-                            );
-                          },
-                    );
-                  },
-            );
+  void didUpdateWidget(ShopCameraAccessPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _activeDocs = null;
+      _closedDocs = null;
+      _closedStarted = false;
+      _focusScrolled = false;
+      _listenActive();
+      if (_wantsClosed) {
+        _listenClosed();
+      } else {
+        _closedGeneration++;
+        _closedSub?.cancel();
+        _closedSub = null;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _activeGeneration++;
+    _closedGeneration++;
+    _activeSub?.cancel();
+    _closedSub?.cancel();
+    super.dispose();
+  }
+
+  void _listenActive() {
+    final int generation = ++_activeGeneration;
+    _activeSub?.cancel();
+    _activeLoading = true;
+    _activeErrorCode = '';
+    _activeSub = CameraAccessService.instance
+        .watchShopActiveRequests(widget.shopId)
+        .listen(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) {
+            if (!mounted || generation != _activeGeneration) {
+              return;
+            }
+            setState(() {
+              _activeDocs = snapshot.docs;
+              _activeLoading = false;
+              _activeErrorCode = '';
+            });
+            _revealFocus();
           },
+          onError: (Object error) {
+            if (!mounted || generation != _activeGeneration) {
+              return;
+            }
+            final String code = firebaseFailureCode(error);
+            debugPrint(
+              'watchShopActiveRequests code=$code shopId=${widget.shopId} '
+              'source=camera_access_requests.active',
+            );
+            setState(() {
+              _activeLoading = false;
+              _activeErrorCode = code;
+            });
+          },
+        );
+  }
+
+  void _listenClosed() {
+    final int generation = ++_closedGeneration;
+    _closedStarted = true;
+    _closedSub?.cancel();
+    _closedLoading = true;
+    _closedErrorCode = '';
+    _closedSub = CameraAccessService.instance
+        .watchShopClosedRequests(widget.shopId, limit: _closedLimit)
+        .listen(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) {
+            if (!mounted || generation != _closedGeneration) {
+              return;
+            }
+            setState(() {
+              _closedDocs = snapshot.docs;
+              _closedLoading = false;
+              _closedErrorCode = '';
+            });
+            _revealFocus();
+          },
+          onError: (Object error) {
+            if (!mounted || generation != _closedGeneration) {
+              return;
+            }
+            final String code = firebaseFailureCode(error);
+            debugPrint(
+              'watchShopClosedRequests code=$code shopId=${widget.shopId} '
+              'source=camera_access_requests.closed limit=$_closedLimit',
+            );
+            setState(() {
+              _closedLoading = false;
+              _closedErrorCode = code;
+            });
+          },
+        );
+  }
+
+  void _selectFilter(String value) {
+    setState(() => _filter = value);
+    if (_wantsClosed && !_closedStarted) {
+      _listenClosed();
+    }
+  }
+
+  void _revealFocus() {
+    final String requestId = (widget.focusRequestId ?? '').trim();
+    if (requestId.isEmpty || _focusScrolled) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _focusScrolled) {
+        return;
+      }
+      final BuildContext? target = _cardKeys[requestId]?.currentContext;
+      if (target == null) {
+        return;
+      }
+      _focusScrolled = true;
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.2,
+        duration: const Duration(milliseconds: 200),
+      );
+    });
+  }
+
+  GlobalKey _keyFor(String id) {
+    return _cardKeys.putIfAbsent(id, GlobalKey.new);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> activeDocs =
+        _activeDocs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> closedDocs =
+        _closedDocs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final int pendingCount = _activeDocs == null
+        ? 0
+        : activeDocs
+              .where(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    (doc.data()['status'] ?? '').toString() ==
+                    cameraRequestPending,
+              )
+              .length;
+    final int revokeCount = _activeDocs == null
+        ? 0
+        : activeDocs
+              .where(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    (doc.data()['status'] ?? '').toString() ==
+                    cameraRequestRevocationPending,
+              )
+              .length;
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool desktop = constraints.maxWidth >= 900;
+        return ListView(
+          padding: EdgeInsets.fromLTRB(
+            desktop ? 24 : 16,
+            12,
+            desktop ? 24 : 16,
+            24,
+          ),
+          children: <Widget>[
+            Text(
+              _activeLoading
+                  ? '進行中的申請讀取中'
+                  : (_activeErrorCode.isNotEmpty
+                        ? '進行中的申請暫時無法計數'
+                        : '待邀請 $pendingCount　待取消分享 $revokeCount'),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'PetNest 標記處理狀態不會自動變更原廠 App 的觀看權限，邀請與取消仍需在原廠 App 手動完成。',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Color(0xFF92400E),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _chip('進行中', _filterOpen),
+                _chip('全部', cameraRequestFilterAll),
+                _chip(
+                  _activeDocs == null ? '待邀請' : '待邀請 $pendingCount',
+                  cameraRequestPending,
+                ),
+                _chip('需補資料', cameraRequestNeedsInfo),
+                _chip('已發送邀請', cameraRequestInvited),
+                _chip('已確認可觀看', cameraRequestConfirmed),
+                _chip(
+                  _activeDocs == null ? '待取消分享' : '待取消分享 $revokeCount',
+                  cameraRequestRevocationPending,
+                ),
+                _chip('已結束', cameraRequestClosed),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_filter == cameraRequestFilterAll) ...<Widget>[
+              const Text('進行中', style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              ..._activeSection(activeDocs),
+              const SizedBox(height: 16),
+              Text(
+                '已載入的歷史紀錄（最近 $_closedLimit 筆，不是全部已結束申請）',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              ..._closedSection(closedDocs),
+            ] else if (_filter == cameraRequestClosed)
+              ..._closedSection(closedDocs)
+            else if (_filter == _filterOpen)
+              ..._activeSection(activeDocs)
+            else
+              ..._activeSection(
+                activeDocs.where((
+                  QueryDocumentSnapshot<Map<String, dynamic>> doc,
+                ) {
+                  return (doc.data()['status'] ?? '').toString() == _filter;
+                }).toList(),
+              ),
+          ],
+        );
+      },
     );
+  }
+
+  List<Widget> _activeSection(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    if (_activeLoading && _activeDocs == null) {
+      return const <Widget>[
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+    if (_activeErrorCode.isNotEmpty) {
+      return <Widget>[
+        _Message(
+          title: '進行中的申請讀取失敗',
+          message: cameraAccessQueryErrorMessage(
+            code: _activeErrorCode,
+            source: '進行中的分享申請',
+          ),
+          onRetry: () => setState(_listenActive),
+        ),
+      ];
+    }
+    return _cards(docs, emptyText: '此狀態目前沒有進行中的申請');
+  }
+
+  List<Widget> _closedSection(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    if (!_closedStarted || _closedLoading && _closedDocs == null) {
+      return const <Widget>[
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+    if (_closedErrorCode.isNotEmpty) {
+      return <Widget>[
+        _Message(
+          title: '已結束紀錄讀取失敗',
+          message: cameraAccessQueryErrorMessage(
+            code: _closedErrorCode,
+            source: '已結束的分享申請',
+          ),
+          onRetry: () => setState(_listenClosed),
+        ),
+      ];
+    }
+    final List<Widget> cards = _cards(docs, emptyText: '目前沒有已載入的結束紀錄');
+    if (docs.length >= _closedLimit) {
+      cards.add(
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () {
+              setState(() {
+                _closedLimit += 20;
+              });
+              _listenClosed();
+            },
+            child: const Text('載入更多已結束紀錄'),
+          ),
+        ),
+      );
+    }
+    return cards;
+  }
+
+  List<Widget> _cards(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs, {
+    required String emptyText,
+  }) {
+    if (docs.isEmpty) {
+      return <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text(emptyText),
+        ),
+      ];
+    }
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> visible =
+        List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(docs)
+          ..sort(_newestFirst);
+    return visible.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+      final String focusId = (widget.focusRequestId ?? '').trim();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: KeyedSubtree(
+          key: _keyFor(doc.id),
+          child: _RequestCard(
+            data: doc.data(),
+            busy: _busyId == doc.id,
+            highlighted: focusId.isNotEmpty && focusId == doc.id,
+            onAction: (String action, String reason) {
+              return _run(doc.id, action, reason);
+            },
+          ),
+        ),
+      );
+    }).toList();
   }
 
   Widget _chip(String label, String value) {
@@ -216,7 +409,7 @@ class _ShopCameraAccessPanelState extends State<ShopCameraAccessPanel> {
       selected: _filter == value,
       showCheckmark: false,
       visualDensity: VisualDensity.compact,
-      onSelected: (_) => setState(() => _filter = value),
+      onSelected: (_) => _selectFilter(value),
     );
   }
 
@@ -265,10 +458,12 @@ class _RequestCard extends StatelessWidget {
     required this.data,
     required this.busy,
     required this.onAction,
+    this.highlighted = false,
   });
 
   final Map<String, dynamic> data;
   final bool busy;
+  final bool highlighted;
   final Future<void> Function(String action, String reason) onAction;
 
   @override
@@ -284,7 +479,7 @@ class _RequestCard extends StatelessWidget {
       (data['revocationReason'] ?? data['closeReason'] ?? '').toString(),
     );
     return Material(
-      color: Colors.white,
+      color: highlighted ? const Color(0xFFFFF7ED) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE5E7EB)),

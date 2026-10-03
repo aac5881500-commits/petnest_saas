@@ -1022,3 +1022,4 @@ exports.syncCameraAccessOnDevice = cameraAccessSync.syncCameraAccessOnDevice;
 exports.syncCameraAccessOnDeviceDeleted =
   cameraAccessSync.syncCameraAccessOnDeviceDeleted;
 exports.syncCameraAccessOnShop = cameraAccessSync.syncCameraAccessOnShop;
+exports.syncCameraRoomSignal = cameraAccessSync.syncCameraRoomSignal;

@@ -21,11 +21,18 @@ import '../../../core/services/daily_care_daycare_access.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_record_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
-import '../../../core/services/camera_access_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
 import '../widgets/customer_camera_entry.dart';
 import 'customer_daily_care_photo_page.dart';
+
+class DailyCareCustomerPreviewCopy {
+  DailyCareCustomerPreviewCopy._();
+
+  static const String title = '顧客端預覽';
+  static const String hint = '此畫面模擬顧客目前看到的回報';
+  static const String pending = '預覽中・尚未完成';
+}
 
 class CustomerDailyCarePage extends StatefulWidget {
   const CustomerDailyCarePage({
@@ -355,6 +362,8 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                         return _journalScaffold(
                           setting: setting,
                           shopName: shopName,
+                          previewPending:
+                              record == null || record.completedAt == null,
                           child: _journalRenderer(
                             setting: setting,
                             stay: stay,
@@ -384,38 +393,40 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     required DailyCareSettingModel setting,
     required Widget child,
     String shopName = '',
+    bool previewPending = false,
   }) {
     return DailyCareJournalScaffold(
       setting: setting,
       shopName: shopName,
-      banner: widget.previewMode ? _previewBanner() : null,
+      titleOverride: widget.previewMode
+          ? DailyCareCustomerPreviewCopy.title
+          : null,
+      banner: widget.previewMode
+          ? _previewBanner(pending: previewPending)
+          : null,
       body: child,
     );
   }
 
-  Widget _previewBanner() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F1F8),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFB7D0E5)),
-      ),
-      child: const Row(
+  Widget _previewBanner({required bool pending}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      child: Column(
         children: <Widget>[
-          Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF3D6F9F)),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '店家預覽・此畫面為客戶看到的內容',
+          if (pending)
+            const Text(
+              DailyCareCustomerPreviewCopy.pending,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF3D6F9F),
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF8D6E63),
               ),
             ),
+          const Text(
+            DailyCareCustomerPreviewCopy.hint,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Color(0xFF8A7A6C)),
           ),
         ],
       ),
@@ -551,6 +562,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
         fallbackRoomName: widget.roomName,
         showPhotoSection: false,
         shopName: shopName,
+        showShopHeading: widget.previewMode,
         shopLogoUrl: shopLogoUrl,
         isDaycare: isDaycare,
         offerName: offerName,
@@ -612,6 +624,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
               photosBoundToSelectedRecord: true,
               showPhotoSection: true,
               shopName: shopName,
+              showShopHeading: widget.previewMode,
               shopLogoUrl: shopLogoUrl,
               isDaycare: isDaycare,
               offerName: offerName,
@@ -660,7 +673,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
           )
         : const SizedBox.shrink();
 
-    return _CameraAwareServiceRow(
+    return CustomerCameraServiceButtons(
       bookingId: widget.bookingId,
       previewMode: widget.previewMode,
       photoButton: showPhotos ? photoButton : null,
@@ -792,65 +805,6 @@ class _EmptyCareView extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CameraAwareServiceRow extends StatelessWidget {
-  const _CameraAwareServiceRow({
-    required this.bookingId,
-    required this.previewMode,
-    required this.photoButton,
-  });
-
-  final String bookingId;
-  final bool previewMode;
-  final Widget? photoButton;
-
-  @override
-  Widget build(BuildContext context) {
-    if (previewMode) {
-      return _buttons(camera: null);
-    }
-    return CustomerCameraGate(
-      bookingId: bookingId,
-      builder: (BuildContext context, CustomerCameraGateState state) {
-        final CustomerRoomCameraResult? result = state.result;
-        Widget? camera;
-        if (result != null && result.isError) {
-          camera = OutlinedButton.icon(
-            onPressed: state.retry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('重新讀取攝影機'),
-          );
-        } else if (result != null && result.isReady) {
-          camera = OutlinedButton.icon(
-            onPressed: () => state.open(context),
-            icon: const Icon(Icons.videocam_outlined),
-            label: const Text('觀看攝影機'),
-          );
-        }
-        return _buttons(camera: camera);
-      },
-    );
-  }
-
-  Widget _buttons({required Widget? camera}) {
-    if (photoButton == null && camera == null) {
-      return const SizedBox.shrink();
-    }
-    if (photoButton == null) {
-      return SizedBox(width: double.infinity, child: camera);
-    }
-    if (camera == null) {
-      return SizedBox(width: double.infinity, child: photoButton);
-    }
-    return Row(
-      children: <Widget>[
-        Expanded(child: photoButton!),
-        const SizedBox(width: 10),
-        Expanded(child: camera),
-      ],
     );
   }
 }

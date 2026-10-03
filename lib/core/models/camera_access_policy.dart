@@ -338,6 +338,26 @@ Map<String, dynamic>? commitCameraSyncWrite(
   return write;
 }
 
+/// 店家讀取分享申請失敗時，依 Firebase code 分開說明。
+/// 不把索引或網路問題寫成權限不足。
+String cameraAccessQueryErrorMessage({
+  required String code,
+  required String source,
+}) {
+  switch (code) {
+    case 'permission-denied':
+      return '沒有管理攝影機權限，無法讀取$source。';
+    case 'failed-precondition':
+      return '$source查詢尚未就緒，請先部署對應索引後再試。';
+    case 'unavailable':
+    case 'deadline-exceeded':
+    case 'network-request-failed':
+      return '網路不穩，$source讀取失敗，請再試一次。';
+    default:
+      return '$source讀取失敗（$code），請再試一次。';
+  }
+}
+
 String cameraRequestStatusLabel(String status) {
   switch (status) {
     case cameraRequestPending:

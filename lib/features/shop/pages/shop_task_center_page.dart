@@ -1,12 +1,12 @@
 // 檔案名稱：lib/features/shop/pages/shop_task_center_page.dart
 // 功能說明：全部待辦頁（由待辦中心「查看全部待辦」進入）
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/shop_permission_keys.dart';
-import '../../../core/services/shop_service.dart';
+import '../../../core/models/shop_task_item.dart';
+import '../../../core/services/shop_task_center_service.dart';
 import '../../../core/widgets/shop_task_center_panel.dart';
+import 'shop_camera_access_page.dart';
 
 class ShopTaskCenterPage extends StatefulWidget {
   const ShopTaskCenterPage({super.key, required this.shopId});
@@ -18,58 +18,56 @@ class ShopTaskCenterPage extends StatefulWidget {
 }
 
 class _ShopTaskCenterPageState extends State<ShopTaskCenterPage> {
-  Map<String, dynamic>? _memberData;
-  int _reloadKey = 0;
+  ShopTaskAccess? _access;
+  int _generation = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadMember();
+    _loadAccess();
   }
 
-  Future<void> _loadMember() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return;
+  @override
+  void didUpdateWidget(ShopTaskCenterPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _access = null;
+      _loadAccess();
     }
-    final Map<String, dynamic>? member = await ShopService.instance
-        .getUserMemberInShop(shopId: widget.shopId, uid: user.uid);
-    if (!mounted) {
+  }
+
+  Future<void> _loadAccess() async {
+    final int generation = ++_generation;
+    final ShopTaskAccess access = await ShopTaskCenterService.instance
+        .loadAccess(widget.shopId);
+    if (!mounted || generation != _generation) {
       return;
     }
     setState(() {
-      _memberData = member;
+      _access = access;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool canViewBookings = ShopService.instance.hasPermission(
-      _memberData,
-      ShopPermissionKeys.manageBookings,
-    );
-    final bool canFillDailyCare = ShopService.instance.hasPermission(
-      _memberData,
-      ShopPermissionKeys.manageRoomDashboard,
-    );
-
+    final ShopTaskAccess? access = _access;
     return Scaffold(
       appBar: AppBar(title: const Text('全部待辦')),
-      body: SingleChildScrollView(
-        child: ShopTaskCenterPanel(
-          key: ValueKey<int>(_reloadKey),
-          shopId: widget.shopId,
-          canViewBookings: canViewBookings,
-          canFillDailyCare: canFillDailyCare,
-          showViewAll: false,
-          closeBeforeOpen: false,
-          onRetry: () {
-            setState(() {
-              _reloadKey++;
-            });
-          },
-        ),
-      ),
+      body: access == null
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: ShopTaskCenterPanel(
+                shopId: widget.shopId,
+                canViewBookings: access.canViewBookings,
+                canFillDailyCare: access.canFillDailyCare,
+                canManageDevices: access.canManageDevices,
+                showViewAll: false,
+                closeBeforeOpen: false,
+                onOpenCamera: (ShopTaskItem item) {
+                  openShopCameraAccessRequest(context, item);
+                },
+              ),
+            ),
     );
   }
 }
