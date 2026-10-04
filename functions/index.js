@@ -930,6 +930,12 @@ exports.returnBookingInventory =
 
 exports.createStayBooking =
   require("./bookings/create_stay_booking").createStayBooking;
+exports.getStayAvailability =
+  require("./bookings/get_stay_availability").getStayAvailability;
+exports.getCampaignUsage =
+  require("./bookings/campaign_usage").getCampaignUsage;
+exports.releaseCampaignUsageOnBooking =
+  require("./bookings/campaign_usage").releaseCampaignUsageOnBooking;
 exports.manageStayInventory =
   require("./bookings/create_stay_booking").manageStayInventory;
 exports.reconcileStayRoomCalendar =
@@ -940,6 +946,10 @@ exports.reconcileStayRoomCalendar =
  */
 exports.createDaycareBooking =
   require("./daycare/create_daycare_booking").createDaycareBooking;
+exports.getDaycareAvailability =
+  require("./daycare/get_daycare_availability").getDaycareAvailability;
+exports.releaseDaycareCapacityOnBooking =
+  require("./daycare/daycare_capacity").releaseDaycareCapacityOnBooking;
 
 /**
  * 🐾 臨托訂單狀態與價格操作

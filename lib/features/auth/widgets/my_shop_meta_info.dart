@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_info.dart';
 
 class MyShopMetaInfo extends StatelessWidget {
   const MyShopMetaInfo({
@@ -15,6 +16,10 @@ class MyShopMetaInfo extends StatelessWidget {
     required this.licenseNumber,
     required this.taxId,
     required this.updatedAt,
+    required this.city,
+    required this.district,
+    required this.shopId,
+    this.businessType = '',
   });
 
   final List<String> enabledModules;
@@ -24,6 +29,10 @@ class MyShopMetaInfo extends StatelessWidget {
   final String licenseNumber;
   final String taxId;
   final dynamic updatedAt;
+  final String city;
+  final String district;
+  final String shopId;
+  final String businessType;
 
   String _moduleLabel(String value) {
     switch (value) {
@@ -52,8 +61,13 @@ class MyShopMetaInfo extends StatelessWidget {
         .map(_moduleLabel)
         .toList();
 
-    if (modules.isEmpty) return '尚未開啟';
-
+    if (modules.isEmpty) {
+      return businessType.trim().isEmpty ? '尚未開啟' : businessType.trim();
+    }
+    final String type = businessType.trim();
+    if (type.isNotEmpty && !modules.contains(type)) {
+      return <String>[type, ...modules].join('、');
+    }
     return modules.join('、');
   }
 
@@ -63,6 +77,21 @@ class MyShopMetaInfo extends StatelessWidget {
     }
 
     return '$openTime - $closeTime';
+  }
+
+  String get _placeText {
+    final String left = city.trim();
+    final String right = district.trim();
+    if (left.isEmpty && right.isEmpty) {
+      return '尚未設定';
+    }
+    if (left.isEmpty) {
+      return right;
+    }
+    if (right.isEmpty) {
+      return left;
+    }
+    return '$left・$right';
   }
 
   String _formatUpdatedAt(dynamic value) {
@@ -91,90 +120,87 @@ class MyShopMetaInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final Color publicTone = isPublic
+        ? (colors.brightness == Brightness.dark
+              ? const Color(0xFF81C784)
+              : const Color(0xFF2E7D32))
+        : colors.onSurfaceVariant;
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final List<Widget> leading = <Widget>[
+          _MetaRow(
+            icon: Icons.schedule_outlined,
+            label: '營業時間',
+            value: _businessTimeText,
+          ),
+          _MetaRow(
+            icon: Icons.pets_outlined,
+            label: '服務項目',
+            value: _serviceText,
+          ),
+          _MetaRow(
+            icon: Icons.visibility_outlined,
+            label: '公開狀態',
+            value: isPublic ? '公開中' : '未公開',
+            valueColor: publicTone,
+          ),
+          _MetaRow(
+            icon: Icons.location_on_outlined,
+            label: '地址',
+            value: _placeText,
+          ),
+        ];
+        final List<Widget> trailing = <Widget>[
+          _MetaRow(
+            icon: Icons.badge_outlined,
+            label: '店家字號',
+            value: licenseNumber.isEmpty ? '尚未設定' : licenseNumber,
+          ),
+          _MetaRow(
+            icon: Icons.receipt_long_outlined,
+            label: '統一編號',
+            value: taxId.isEmpty ? '尚未設定' : taxId,
+          ),
+          _MetaRow(
+            icon: Icons.update_outlined,
+            label: '最後更新',
+            value: _formatUpdatedAt(updatedAt),
+          ),
+          const SizedBox(height: 8),
+          MyShopIdLine(shopId: shopId),
+        ];
+        if (constraints.maxWidth >= 700) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
               Expanded(
-                child: _MetaBox(
-                  icon: Icons.extension,
-                  label: '服務類型',
-                  value: _serviceText,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: leading,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 28),
               Expanded(
-                child: _MetaBox(
-                  icon: Icons.visibility,
-                  label: '公開狀態',
-                  value: isPublic ? '公開中' : '未公開',
-                  valueColor: isPublic
-                      ? Colors.green.shade700
-                      : Colors.grey.shade700,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: trailing,
                 ),
               ),
             ],
-          ),
-
-          const SizedBox(height: 6),
-
-          Row(
-            children: [
-              Expanded(
-                child: _MetaBox(
-                  icon: Icons.schedule,
-                  label: '營業時間',
-                  value: _businessTimeText,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetaBox(
-                  icon: Icons.update,
-                  label: '最後更新',
-                  value: _formatUpdatedAt(updatedAt),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 6),
-
-          Row(
-            children: [
-              Expanded(
-                child: _MetaBox(
-                  icon: Icons.verified,
-                  label: '店家字號',
-                  value: licenseNumber.isEmpty ? '尚未設定' : licenseNumber,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetaBox(
-                  icon: Icons.receipt_long,
-                  label: '統一編號',
-                  value: taxId.isEmpty ? '尚未設定' : taxId,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[...leading, ...trailing],
+        );
+      },
     );
   }
 }
 
-class _MetaBox extends StatelessWidget {
-  const _MetaBox({
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({
     required this.icon,
     required this.label,
     required this.value,
@@ -188,43 +214,49 @@ class _MetaBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 56),
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: Colors.grey.shade600),
-              const SizedBox(width: 5),
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final TextTheme text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: colors.outlineVariant.withValues(alpha: 0.28),
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(icon, size: 18, color: colors.onSurfaceVariant),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      label,
+                      style: text.labelMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: text.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: valueColor ?? colors.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 4),
-
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: valueColor ?? Colors.grey.shade900,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

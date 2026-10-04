@@ -31,6 +31,10 @@ const {
   releaseOccupancyDocs,
   writeHoldEntries,
 } = require("./daycare_occupancy");
+const {
+  commitDailyCapacityRelease,
+  readDailyCapacityRelease,
+} = require("./daycare_capacity");
 const {syncBookingPoints} = require("../points/sync_booking_points");
 const {
   prepareDaycareSupplyDeduct,
@@ -756,6 +760,13 @@ exports.manageDaycareBooking = onCall(
           )) {
             throw new HttpsError("failed-precondition", "目前狀態不可取消");
           }
+          const capacityRelease = await readDailyCapacityRelease(
+              transaction, firestore, {
+                ...current,
+                id: bookingId,
+                bookingId,
+              },
+          );
           let supplyPrepared = {skip: true, lines: []};
           if (shouldReturnDaycareSupplies(current)) {
             supplyPrepared = await prepareDaycareSupplyReturn(transaction, {
@@ -774,6 +785,7 @@ exports.manageDaycareBooking = onCall(
               transaction, holdRef, holdSnap, holdBooking,
           );
           commitPreparedConsumption(transaction, supplyPrepared, uid);
+          commitDailyCapacityRelease(transaction, capacityRelease);
           transaction.update(bookingRef, cancelUpdates);
         });
         await syncBookingPoints(firestore, {

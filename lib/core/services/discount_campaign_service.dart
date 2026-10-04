@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/discount_campaign_model.dart';
@@ -97,6 +98,7 @@ class DiscountCampaignService {
     Map<String, int> usage = const <String, int>{};
     bool enabledReady = false;
     bool usageReady = false;
+    bool usageFailed = false;
 
     void emit() {
       if (controller.isClosed || !enabledReady || !usageReady) {
@@ -104,8 +106,20 @@ class DiscountCampaignService {
       }
       final DateTime now = DateTime.now();
       final List<DiscountCampaignModel> publicCampaigns = enabled
+          .where((DiscountCampaignModel campaign) {
+            if (!campaign.hasTotalUsageLimit) {
+              return true;
+            }
+            if (usageFailed || !usage.containsKey(campaign.id)) {
+              return false;
+            }
+            return true;
+          })
           .map((DiscountCampaignModel campaign) {
-            return campaign.copyWith(usedCount: usage[campaign.id] ?? 0);
+            final int used = campaign.hasTotalUsageLimit
+                ? usage[campaign.id]!
+                : (usage[campaign.id] ?? 0);
+            return campaign.copyWith(usedCount: used);
           })
           .where((DiscountCampaignModel campaign) {
             return DiscountCampaignCalculator.isCampaignCurrentlyActive(
@@ -127,13 +141,19 @@ class DiscountCampaignService {
         }, onError: controller.addError);
 
     final StreamSubscription<Map<String, int>> usageSub =
-        streamCampaignTotalUsage(shopId: normalizedShopId).listen((
-          Map<String, int> next,
-        ) {
-          usage = next;
-          usageReady = true;
-          emit();
-        }, onError: controller.addError);
+        streamCampaignTotalUsage(shopId: normalizedShopId).listen(
+          (Map<String, int> next) {
+            usage = next;
+            usageReady = true;
+            emit();
+          },
+          onError: (Object _, StackTrace _) {
+            usageFailed = true;
+            usage = const <String, int>{};
+            usageReady = true;
+            emit();
+          },
+        );
 
     controller.onCancel = () async {
       await enabledSub.cancel();
@@ -171,8 +191,13 @@ class DiscountCampaignService {
             id: document.id,
             data: document.data(),
           );
-
-          return campaign.copyWith(usedCount: totalUsage[campaign.id] ?? 0);
+          if (campaign.hasTotalUsageLimit &&
+              !totalUsage.containsKey(campaign.id)) {
+            return campaign.copyWith(usedCount: campaign.totalUsageLimit);
+          }
+          return campaign.copyWith(
+            usedCount: totalUsage[campaign.id] ?? 0,
+          );
         })
         .where((DiscountCampaignModel campaign) {
           return !campaign.isUsageLimitReached;
@@ -319,40 +344,33 @@ class DiscountCampaignService {
       return const <String, int>{};
     }
 
-    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
-        .collection('bookings')
-        .where('shopId', isEqualTo: normalizedShopId)
-        .get();
-
+    final HttpsCallableResult<dynamic> result =
+        await FirebaseFunctions.instanceFor(region: 'asia-east1')
+            .httpsCallable('getCampaignUsage')
+            .call(<String, dynamic>{'shopId': normalizedShopId});
+    final Object? raw = result.data;
+    if (raw is! Map) {
+      throw StateError('暫時無法取得活動資訊');
+    }
+    final Object? rows = raw['campaigns'];
+    if (rows is! List) {
+      throw StateError('暫時無法取得活動資訊');
+    }
     final Map<String, int> usage = <String, int>{};
-
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> document
-        in snapshot.docs) {
-      final Map<String, dynamic> data = document.data();
-
-      final String status = (data['status'] ?? '').toString();
-
-      final bool isValidBookingStatus =
-          status == 'pending' ||
-          status == 'confirmed' ||
-          status == 'checked_in' ||
-          status == 'completed';
-
-      if (!isValidBookingStatus) {
+    for (final Object? row in rows) {
+      if (row is! Map) {
         continue;
       }
-
-      final String campaignId = (data['discountCampaignId'] ?? '')
-          .toString()
-          .trim();
-
+      final String campaignId = (row['campaignId'] ?? '').toString().trim();
       if (campaignId.isEmpty) {
         continue;
       }
-
-      usage[campaignId] = (usage[campaignId] ?? 0) + 1;
+      final Object? used = row['usedCount'];
+      if (used is! num) {
+        throw StateError('暫時無法取得活動資訊');
+      }
+      usage[campaignId] = used.toInt();
     }
-
     return usage;
   }
 
@@ -370,42 +388,9 @@ class DiscountCampaignService {
       return Stream<Map<String, int>>.value(const <String, int>{});
     }
 
-    return _firestore
-        .collection('bookings')
-        .where('shopId', isEqualTo: normalizedShopId)
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-          final Map<String, int> usage = <String, int>{};
-
-          for (final QueryDocumentSnapshot<Map<String, dynamic>> document
-              in snapshot.docs) {
-            final Map<String, dynamic> data = document.data();
-
-            final String status = (data['status'] ?? '').toString();
-
-            final bool isValidBookingStatus =
-                status == 'pending' ||
-                status == 'confirmed' ||
-                status == 'checked_in' ||
-                status == 'completed';
-
-            if (!isValidBookingStatus) {
-              continue;
-            }
-
-            final String campaignId = (data['discountCampaignId'] ?? '')
-                .toString()
-                .trim();
-
-            if (campaignId.isEmpty) {
-              continue;
-            }
-
-            usage[campaignId] = (usage[campaignId] ?? 0) + 1;
-          }
-
-          return usage;
-        });
+    return Stream<Map<String, int>>.fromFuture(
+      getCampaignTotalUsage(shopId: normalizedShopId),
+    );
   }
 
   /// 取得單一優惠活動

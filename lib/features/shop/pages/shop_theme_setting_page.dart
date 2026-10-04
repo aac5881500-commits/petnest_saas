@@ -2,11 +2,19 @@
 // 功能說明：設定首頁版型、主題顏色、卡片與圖示樣式
 // 🎨 店家前台外觀設定頁
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
+import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -14,6 +22,7 @@ import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
@@ -28,6 +37,14 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_edito
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_settings_card.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/about_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_appearance_tabs.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/faq_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/policy_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/review_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/news_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/quick_booking_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/environment_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/room_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_store_card.dart';
 
@@ -91,6 +108,24 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   StoreBrandStyle _brandStyle = const StoreBrandStyle();
   List<String> _homeSectionOrder = HomeSectionOrder.normalize(null);
   HomeRoomSectionSetting _roomSection = const HomeRoomSectionSetting();
+  HomeEnvironmentSectionSetting _environmentSection =
+      const HomeEnvironmentSectionSetting();
+  HomeAboutSectionSetting _aboutSection = const HomeAboutSectionSetting();
+  HomeNewsSectionSetting _newsSection = const HomeNewsSectionSetting();
+  HomeQuickBookingSectionSetting _quickBookingSection =
+      const HomeQuickBookingSectionSetting();
+  HomeInformationSectionsSetting _informationSections =
+      const HomeInformationSectionsSetting();
+  int _environmentFocusToken = 0;
+  int _aboutFocusToken = 0;
+  int _newsFocusToken = 0;
+  int _quickBookingFocusToken = 0;
+  StreamSubscription<DaycareSettingsModel>? _daycareSettingsSub;
+  DaycareSettingsModel? _daycareSettings;
+  int _policyFocusToken = 0;
+  int _faqFocusToken = 0;
+  int _reviewFocusToken = 0;
+  final GlobalKey _appearanceTabBarKey = GlobalKey();
   String? _selectedRoomTypeId;
   int _roomFocusToken = 0;
   HomeTextStyleModel _modernBannerTitleStyle = const HomeTextStyleModel(
@@ -177,9 +212,20 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(
+      length: ModernHomeAppearanceTabs.length,
+      vsync: this,
+    );
     _tabController.addListener(_onTabChanged);
     _bindModernDraftListeners();
+    _daycareSettingsSub = DaycareSettingsService.instance
+        .stream(widget.shopId)
+        .listen((DaycareSettingsModel settings) {
+          if (!mounted) {
+            return;
+          }
+          setState(() => _daycareSettings = settings);
+        }, onError: (Object _) {});
     _loadSettings();
   }
 
@@ -188,9 +234,45 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       return;
     }
     setState(() {
-      if (_tabController.index == 2 && _selectedLayout == 'modern') {
+      if (_tabController.index == ModernHomeAppearanceTabs.rooms &&
+          _selectedLayout == 'modern') {
         _selectedHomeSection = 'rooms';
         _roomFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.facilities &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'facilities';
+        _environmentFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.about &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'about';
+        _aboutFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.news &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'announcements';
+        _newsFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.quickBooking &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'quickBooking';
+        _quickBookingFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.policy &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'policy';
+        _policyFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.faq &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'faq';
+        _faqFocusToken++;
+      }
+      if (_tabController.index == ModernHomeAppearanceTabs.reviews &&
+          _selectedLayout == 'modern') {
+        _selectedHomeSection = 'reviews';
+        _reviewFocusToken++;
       }
     });
   }
@@ -220,6 +302,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   @override
   void dispose() {
+    _daycareSettingsSub?.cancel();
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     for (final TextEditingController controller in <TextEditingController>[
@@ -269,6 +352,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       ..._brandStyle.toMap(),
       'homeSectionOrder': _homeSectionOrder,
       'roomSection': _roomSection.toMap(),
+      'environmentSection': _environmentSection.toMap(),
+      'aboutSection': _aboutSection.toMap(),
+      'newsSection': _newsSection.toMap(),
+      'quickBookingSection': _quickBookingSection.toMap(),
+      'informationSections': _informationSections.toMap(),
       ..._draftStoreHomeSetting.toMap(),
       ..._navigationConfig.toMap(),
     };
@@ -578,6 +666,21 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _roomSection = HomeRoomSectionSetting.fromMap(
           modernAppearance['roomSection'],
         );
+        _environmentSection = HomeEnvironmentSectionSetting.fromMap(
+          modernAppearance['environmentSection'],
+        );
+        _aboutSection = HomeAboutSectionSetting.fromMap(
+          modernAppearance['aboutSection'],
+        );
+        _newsSection = HomeNewsSectionSetting.fromMap(
+          modernAppearance['newsSection'],
+        );
+        _quickBookingSection = HomeQuickBookingSectionSetting.fromMap(
+          modernAppearance['quickBookingSection'],
+        );
+        _informationSections = HomeInformationSectionsSetting.fromMap(
+          modernAppearance['informationSections'],
+        );
         _modernBannerPreviewImageUrl = _firstActiveBannerUrl(shopData);
         _brandStyle = StoreBrandStyle.fromMap(
           modernAppearance,
@@ -784,6 +887,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 ..._brandStyle.toMap(),
                 'homeSectionOrder': _homeSectionOrder,
                 'roomSection': _roomSection.toMap(),
+                'environmentSection': _environmentSection.toMap(),
+                'aboutSection': _aboutSection.toMap(),
+                'newsSection': _newsSection.toMap(),
+                'quickBookingSection': _quickBookingSection.toMap(),
+                'informationSections': _informationSections.toMap(),
 
                 ..._draftStoreHomeSetting.toMap(),
                 ..._navigationConfig.toMap(),
@@ -865,7 +973,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final bool desktopModern =
         MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
-    final bool pinSaveOnEditor = desktopModern && _tabController.index != 4;
+    final bool pinSaveOnEditor =
+        desktopModern &&
+        _tabController.index != ModernHomeAppearanceTabs.features;
     return PopScope(
       canPop: !_hasUnsaved,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -880,19 +990,31 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           title: const Text('前台外觀設定'),
           backgroundColor: const Color(0xFFFFFCF7),
           surfaceTintColor: Colors.transparent,
-          bottom: TabBar(
-            controller: _tabController,
-            isScrollable: MediaQuery.sizeOf(context).width < 760,
-            tabAlignment: MediaQuery.sizeOf(context).width < 760
-                ? TabAlignment.start
-                : TabAlignment.fill,
-            tabs: const [
-              Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
-              Tab(icon: Icon(Icons.color_lens_outlined), text: '首頁色彩'),
-              Tab(icon: Icon(Icons.bedroom_parent_outlined), text: '房型展示'),
-              Tab(icon: Icon(Icons.menu_rounded), text: '導覽設定'),
-              Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
-            ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(72),
+            child: Listener(
+              onPointerSignal: _onAppearanceTabSignal,
+              child: TabBar(
+                key: _appearanceTabBarKey,
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: const [
+                  Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
+                  Tab(icon: Icon(Icons.color_lens_outlined), text: '首頁色彩'),
+                  Tab(icon: Icon(Icons.bedroom_parent_outlined), text: '房型展示'),
+                  Tab(icon: Icon(Icons.yard_outlined), text: '環境展示'),
+                  Tab(icon: Icon(Icons.favorite_border), text: '關於我們'),
+                  Tab(icon: Icon(Icons.campaign_outlined), text: '消息展示'),
+                  Tab(icon: Icon(Icons.event_available_outlined), text: '快速預約'),
+                  Tab(icon: Icon(Icons.description_outlined), text: '入住須知'),
+                  Tab(icon: Icon(Icons.quiz_outlined), text: '常見問題'),
+                  Tab(icon: Icon(Icons.star_outline), text: '顧客評價'),
+                  Tab(icon: Icon(Icons.menu_rounded), text: '導覽設定'),
+                  Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
+                ],
+              ),
+            ),
           ),
         ),
         body: TabBarView(
@@ -902,6 +1024,13 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             _buildAppearancePane(desktopModern),
             _buildColorPane(desktopModern),
             _buildRoomPane(desktopModern),
+            _buildEnvironmentPane(desktopModern),
+            _buildAboutPane(desktopModern),
+            _buildNewsPane(desktopModern),
+            _buildQuickBookingPane(desktopModern),
+            _buildPolicyPane(desktopModern),
+            _buildFaqPane(desktopModern),
+            _buildReviewPane(desktopModern),
             _buildNavigationPane(desktopModern),
 
             Scrollbar(
@@ -1161,6 +1290,296 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
+  Widget _buildEnvironmentPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: const <Widget>[
+          Text('環境展示只套用在新版前台。請先在外觀設定改用新版首頁。', style: TextStyle(height: 1.4)),
+        ],
+      );
+    }
+    final Widget settings = EnvironmentSectionSettingsPanel(
+      setting: _environmentSection,
+      theme: _modernTheme,
+      onChanged: (HomeEnvironmentSectionSetting value) {
+        setState(() {
+          _environmentSection = value;
+          _appearanceDirty = true;
+        });
+      },
+    );
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: 'environmentDesktop',
+                focusSectionId: 'facilities',
+                focusSectionToken: _environmentFocusToken,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _openEnvironmentSectionPreview,
+              icon: const Icon(Icons.smartphone_outlined),
+              label: const Text('預覽環境區塊'),
+            ),
+          ),
+        ),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  void _openEnvironmentSectionPreview() {
+    setState(() => _environmentFocusToken++);
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('預覽環境區塊'),
+              leading: const CloseButton(),
+            ),
+            body: _homeCanvasPreview(
+              showCaption: false,
+              canvasMode: 'environmentDialog',
+              focusSectionId: 'facilities',
+              focusSectionToken: _environmentFocusToken,
+              embeddedAdminPreview: false,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAboutPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: const <Widget>[
+          Text(
+            '關於我們首頁區塊只套用在新版前台。請先在外觀設定改用新版首頁。',
+            style: TextStyle(height: 1.4),
+          ),
+        ],
+      );
+    }
+    final Map<String, dynamic> intro = _loadedShop['environmentIntro'] is Map
+        ? Map<String, dynamic>.from(_loadedShop['environmentIntro'] as Map)
+        : <String, dynamic>{};
+    final Widget settings = AboutSectionSettingsPanel(
+      setting: _aboutSection,
+      theme: _modernTheme,
+      imageChoices: HomeAboutSectionSetting.imageChoices(
+        shop: _loadedShop,
+        environmentIntro: intro,
+      ),
+      onChanged: (HomeAboutSectionSetting value) {
+        setState(() {
+          _aboutSection = value;
+          _appearanceDirty = true;
+        });
+      },
+    );
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: 'aboutDesktop',
+                focusSectionId: 'about',
+                focusSectionToken: _aboutFocusToken,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _openAboutSectionPreview,
+              icon: const Icon(Icons.smartphone_outlined),
+              label: const Text('預覽關於我們'),
+            ),
+          ),
+        ),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  Widget _buildNewsPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: const <Widget>[
+          Text(
+            '最新消息首頁區塊只套用在新版前台。請先在外觀設定改用新版首頁。',
+            style: TextStyle(height: 1.4),
+          ),
+        ],
+      );
+    }
+    final Widget settings = NewsSectionSettingsPanel(
+      setting: _newsSection,
+      theme: _modernTheme,
+      locked: _loadedShop['showAnnouncementSection'] == false,
+      onOpenFeatures: () {
+        _tabController.animateTo(ModernHomeAppearanceTabs.features);
+      },
+      onChanged: (HomeNewsSectionSetting value) {
+        setState(() {
+          _newsSection = value;
+          _appearanceDirty = true;
+        });
+      },
+    );
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: 'newsDesktop',
+                focusSectionId: 'announcements',
+                focusSectionToken: _newsFocusToken,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _openNewsSectionPreview,
+              icon: const Icon(Icons.smartphone_outlined),
+              label: const Text('預覽最新消息'),
+            ),
+          ),
+        ),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  void _openNewsSectionPreview() {
+    setState(() => _newsFocusToken++);
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('預覽最新消息'),
+              leading: const CloseButton(),
+            ),
+            body: _homeCanvasPreview(
+              showCaption: false,
+              canvasMode: 'newsDialog',
+              focusSectionId: 'announcements',
+              focusSectionToken: _newsFocusToken,
+              embeddedAdminPreview: false,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openAboutSectionPreview() {
+    setState(() => _aboutFocusToken++);
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('預覽關於我們'),
+              leading: const CloseButton(),
+            ),
+            body: _homeCanvasPreview(
+              showCaption: false,
+              canvasMode: 'aboutDialog',
+              focusSectionId: 'about',
+              focusSectionToken: _aboutFocusToken,
+              embeddedAdminPreview: false,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _openRoomManagement() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -1293,6 +1712,250 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
+  void _onAppearanceTabSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) {
+      return;
+    }
+    final BuildContext? root = _appearanceTabBarKey.currentContext;
+    if (root == null) {
+      return;
+    }
+    ScrollableState? scrollable;
+    void visit(Element element) {
+      if (scrollable != null) {
+        return;
+      }
+      if (element is StatefulElement && element.state is ScrollableState) {
+        scrollable = element.state as ScrollableState;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    root.visitChildElements(visit);
+    final ScrollPosition? position = scrollable?.position;
+    if (position == null || !position.hasContentDimensions) {
+      return;
+    }
+    final double delta = event.scrollDelta.dx.abs() > event.scrollDelta.dy.abs()
+        ? event.scrollDelta.dx
+        : event.scrollDelta.dy;
+    if (delta == 0) {
+      return;
+    }
+    position.jumpTo(
+      (position.pixels + delta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
+  bool get _accommodationAvailable => _loadedShop['bookingEnabled'] != false;
+
+  bool get _daycareAvailable => DaycareSettingsService.instance
+      .isEnabledForShop(shop: _loadedShop, settings: _daycareSettings);
+
+  Widget _buildQuickBookingPane(bool desktopModern) {
+    return _sectionEditorPane(
+      desktopModern: desktopModern,
+      classicMessage: '快速預約首頁區塊只套用在新版前台。請先在外觀設定改用新版首頁。',
+      previewLabel: '預覽快速預約',
+      focusSectionId: 'quickBooking',
+      focusSectionToken: _quickBookingFocusToken,
+      canvasMode: 'quickBooking',
+      settings: QuickBookingSectionSettingsPanel(
+        setting: _quickBookingSection,
+        theme: _modernTheme,
+        accommodationAvailable: _accommodationAvailable,
+        daycareAvailable: _daycareAvailable,
+        onChanged: (HomeQuickBookingSectionSetting value) {
+          setState(() {
+            _quickBookingSection = value;
+            _appearanceDirty = true;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildPolicyPane(bool desktopModern) {
+    return _sectionEditorPane(
+      desktopModern: desktopModern,
+      classicMessage: '入住須知首頁區塊只套用在新版前台。請先在外觀設定改用新版首頁。',
+      previewLabel: '預覽入住須知',
+      focusSectionId: 'policy',
+      focusSectionToken: _policyFocusToken,
+      canvasMode: 'policy',
+      settings: PolicySectionSettingsPanel(
+        setting: _informationSections,
+        theme: _modernTheme,
+        onChanged: (HomeInformationSectionsSetting value) {
+          setState(() {
+            _informationSections = value;
+            _appearanceDirty = true;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildFaqPane(bool desktopModern) {
+    return _sectionEditorPane(
+      desktopModern: desktopModern,
+      classicMessage: '常見問題首頁區塊只套用在新版前台。請先在外觀設定改用新版首頁。',
+      previewLabel: '預覽常見問題',
+      focusSectionId: 'faq',
+      focusSectionToken: _faqFocusToken,
+      canvasMode: 'faq',
+      settings: FaqSectionSettingsPanel(
+        setting: _informationSections,
+        theme: _modernTheme,
+        locked: _loadedShop['showFaqSection'] == false,
+        onOpenFeatures: () {
+          _tabController.animateTo(ModernHomeAppearanceTabs.features);
+        },
+        onChanged: (HomeInformationSectionsSetting value) {
+          setState(() {
+            _informationSections = value;
+            _appearanceDirty = true;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildReviewPane(bool desktopModern) {
+    return _sectionEditorPane(
+      desktopModern: desktopModern,
+      classicMessage: '顧客評價首頁區塊只套用在新版前台。請先在外觀設定改用新版首頁。',
+      previewLabel: '預覽顧客評價',
+      focusSectionId: 'reviews',
+      focusSectionToken: _reviewFocusToken,
+      canvasMode: 'reviews',
+      settings: ReviewSectionSettingsPanel(
+        setting: _informationSections,
+        theme: _modernTheme,
+        onChanged: (HomeInformationSectionsSetting value) {
+          setState(() {
+            _informationSections = value;
+            _appearanceDirty = true;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _sectionEditorPane({
+    required bool desktopModern,
+    required String classicMessage,
+    required String previewLabel,
+    required String focusSectionId,
+    required int focusSectionToken,
+    required String canvasMode,
+    required Widget settings,
+  }) {
+    if (_selectedLayout != 'modern') {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: <Widget>[
+          Text(classicMessage, style: const TextStyle(height: 1.4)),
+        ],
+      );
+    }
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 452,
+              child: _homeCanvasPreview(
+                showCaption: true,
+                canvasMode: '${canvasMode}Desktop',
+                focusSectionId: focusSectionId,
+                focusSectionToken: focusSectionToken,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => _openSectionPreview(
+                title: previewLabel,
+                focusSectionId: focusSectionId,
+                canvasMode: canvasMode,
+              ),
+              icon: const Icon(Icons.smartphone_outlined),
+              label: Text(previewLabel),
+            ),
+          ),
+        ),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  void _openSectionPreview({
+    required String title,
+    required String focusSectionId,
+    required String canvasMode,
+  }) {
+    setState(() {
+      if (focusSectionId == 'quickBooking') {
+        _quickBookingFocusToken++;
+      } else if (focusSectionId == 'policy') {
+        _policyFocusToken++;
+      } else if (focusSectionId == 'faq') {
+        _faqFocusToken++;
+      } else if (focusSectionId == 'reviews') {
+        _reviewFocusToken++;
+      }
+    });
+    final int token = switch (focusSectionId) {
+      'quickBooking' => _quickBookingFocusToken,
+      'faq' => _faqFocusToken,
+      'reviews' => _reviewFocusToken,
+      _ => _policyFocusToken,
+    };
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: Text(title), leading: const CloseButton()),
+            body: _homeCanvasPreview(
+              showCaption: false,
+              canvasMode: '${canvasMode}Dialog',
+              focusSectionId: focusSectionId,
+              focusSectionToken: token,
+              embeddedAdminPreview: false,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildNavigationPane(bool desktopModern) {
     if (_selectedLayout != 'modern') {
       return ListView(
@@ -1412,14 +2075,31 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
 
   void _selectHomeSection(String sectionId) {
-    if (sectionId == 'rooms') {
-      if (_tabController.index != 2) {
-        _tabController.animateTo(2);
+    final int? tab = ModernHomeAppearanceTabs.sectionTab(sectionId);
+    if (tab != null) {
+      setState(() {
+        _selectedHomeSection = sectionId;
+        if (sectionId == 'policy') {
+          _policyFocusToken++;
+        } else if (sectionId == 'faq') {
+          _faqFocusToken++;
+        } else if (sectionId == 'reviews') {
+          _reviewFocusToken++;
+        } else if (sectionId == 'rooms') {
+          _roomFocusToken++;
+        } else if (sectionId == 'facilities') {
+          _environmentFocusToken++;
+        } else if (sectionId == 'about') {
+          _aboutFocusToken++;
+        } else if (sectionId == 'announcements') {
+          _newsFocusToken++;
+        } else if (sectionId == 'quickBooking') {
+          _quickBookingFocusToken++;
+        }
+      });
+      if (_tabController.index != tab) {
+        _tabController.animateTo(tab);
       }
-      if (_selectedHomeSection == 'rooms') {
-        return;
-      }
-      setState(() => _selectedHomeSection = 'rooms');
       return;
     }
     if (_selectedHomeSection == sectionId) {
@@ -1472,8 +2152,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         return '住宿日誌';
       case 'services':
         return '住宿服務';
-      case 'reviews':
-        return '顧客評價';
       case 'footer':
         return '店家資訊';
       default:
@@ -1487,7 +2165,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       case 'announcements':
       case 'dailyCare':
       case 'services':
-      case 'reviews':
       case 'footer':
         return true;
       default:

@@ -1,0 +1,9 @@
+{
+  "name": "firestore-rules-tests",
+  "private": true,
+  "description": "Loads firestore.rules in the Firestore emulator. Not a substitute string check.",
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.6.0"
+  }
+}

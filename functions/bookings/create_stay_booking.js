@@ -38,6 +38,15 @@ const {
   prepareSpendDeduct,
   commitSpendDeduct,
 } = require("../points/sync_booking_points");
+const {
+  quoteAccommodationCampaign,
+} = require("../daycare/discount_campaign");
+const {
+  commitCampaignUsageReserve,
+  readCampaignForUse,
+  readCampaignUsageReserve,
+  readCampaignUsedCount,
+} = require("./campaign_usage");
 const {computeEarnPoints} = require("../points/booking_points");
 const {
   resolveDailyCareEntitlement,
@@ -45,6 +54,11 @@ const {
   STAY_PAID_ID,
 } = require("../daily_care/daily_care_entitlement");
 
+/**
+ * @param {Object} booking
+ * @param {Object} data
+ * @return {string}
+ */
 function requestedStayCareAddonId(booking, data) {
   const fromField = normalizeString(
       (booking && booking.dailyCareAddonId) ||
@@ -245,6 +259,109 @@ function deleteOwnedCalendarDocs(transaction, reads, bookingId) {
   });
 }
 
+/**
+ * 客戶指定的活動由後端重算。沒有活動時清掉客戶自填折扣。
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} input
+ * @return {Promise<Object|null>}
+ */
+async function resolveStayCampaign(firestore, input) {
+  const booking = input.booking || {};
+  const campaignId = normalizeString(booking.discountCampaignId);
+  const clientDiscount = toInt(booking.discountAmount, 0);
+  if (!campaignId) {
+    booking.discountAmount = 0;
+    booking.discountCampaignId = "";
+    booking.discountCampaignName = "";
+    booking.discountUsedNights = 0;
+    booking.discountValue = 0;
+    booking.discountBase = 0;
+    booking.totalPrice = Math.max(0, toInt(booking.totalPrice, 0) +
+      clientDiscount);
+    return null;
+  }
+  const snap = await firestore.collection("shops").doc(input.shopId)
+      .collection("discount_campaigns").doc(campaignId).get();
+  if (!snap.exists) {
+    throw new HttpsError("failed-precondition", "找不到優惠活動");
+  }
+  const data = snap.data() || {};
+  const campaign = {
+    id: snap.id,
+    ...data,
+    startAt: toDate(data.startAt),
+    endAt: toDate(data.endAt),
+    stayStartAt: toDate(data.stayStartAt),
+    stayEndAt: toDate(data.stayEndAt),
+    createdAt: toDate(data.createdAt) || new Date(0),
+    usedCount: await readCampaignUsedCount(
+        firestore, input.shopId, snap.id,
+    ),
+  };
+  if (toInt(booking.couponDiscountAmount, 0) > 0 &&
+      campaign.allowCouponTogether !== true) {
+    throw new HttpsError("failed-precondition", "此優惠活動不可與優惠券併用");
+  }
+  const memberCampaignUsage = {};
+  const memberCampaignUsedNights = {};
+  let isFirstBooking = true;
+  let memberJoinedAt = null;
+  if (input.userId) {
+    const usedSnap = await firestore.collection("bookings")
+        .where("shopId", "==", input.shopId)
+        .where("userId", "==", input.userId).get();
+    usedSnap.docs.forEach((doc) => {
+      const row = doc.data() || {};
+      const status = normalizeString(row.status);
+      const valid = status === "pending" || status === "confirmed" ||
+        status === "checked_in" || status === "completed";
+      if (!valid) {
+        return;
+      }
+      isFirstBooking = false;
+      const cid = normalizeString(row.discountCampaignId);
+      if (!cid) {
+        return;
+      }
+      memberCampaignUsage[cid] = (memberCampaignUsage[cid] || 0) + 1;
+      memberCampaignUsedNights[cid] =
+        (memberCampaignUsedNights[cid] || 0) + toInt(row.discountUsedNights, 0);
+    });
+    const memberSnap = await firestore.collection("shops").doc(input.shopId)
+        .collection("members").doc(input.userId).get();
+    memberJoinedAt = toDate((memberSnap.data() || {}).createdAt);
+  }
+  const quote = quoteAccommodationCampaign(campaign, {
+    checkInDate: input.startDate,
+    checkOutDate: input.endDate,
+    roomTypeId: input.roomTypeId,
+    roomAmount: toInt(booking.roomSubtotal, 0),
+    petAmount: toInt(booking.extraPetTotal, 0),
+    extraServiceAmount: 0,
+    isFirstBooking,
+    memberJoinedAt,
+    memberCampaignUsage,
+    memberCampaignUsedNights,
+    hasVerifiedGoogleReview: false,
+  }, new Date());
+  if (!quote) {
+    throw new HttpsError("failed-precondition", "此優惠活動目前無法使用");
+  }
+  const serverDiscount = toInt(quote.discountAmount, 0);
+  booking.totalPrice = Math.max(0, toInt(booking.totalPrice, 0) +
+    clientDiscount - serverDiscount);
+  booking.discountAmount = serverDiscount;
+  booking.discountCampaignId = campaign.id;
+  booking.discountCampaignName = normalizeString(campaign.name);
+  booking.discountCampaignType = normalizeString(campaign.type);
+  booking.discountValueType = normalizeString(campaign.valueType);
+  booking.discountValue = campaign.discountValue || 0;
+  booking.discountUsedNights = quote.discountUsedNights || 0;
+  booking.discountBase = quote.discountBaseAmount || 0;
+  booking.allowCouponTogether = campaign.allowCouponTogether === true;
+  return campaign;
+}
+
 exports.createStayBooking = onCall(
     {region: "asia-east1"},
     async (request) => {
@@ -281,10 +398,25 @@ exports.createStayBooking = onCall(
         firestore.collection("bookings").doc();
       const existing = await bookingRef.get();
       if (existing.exists) {
+        const existingData = existing.data() || {};
+        if (normalizeString(existingData.shopId) !== shopId) {
+          throw new HttpsError("permission-denied", "沒有權限使用此訂單");
+        }
+        if (!isStaff && normalizeString(existingData.userId) !== uid) {
+          throw new HttpsError("permission-denied", "沒有權限使用此訂單");
+        }
         return {bookingId: bookingRef.id, reused: true};
       }
       const booking = data.booking && typeof data.booking === "object" ?
         data.booking : {};
+      const stayCampaign = await resolveStayCampaign(firestore, {
+        shopId,
+        userId,
+        roomTypeId,
+        startDate,
+        endDate,
+        booking,
+      });
       const pointSettingSnap = await firestore.collection("shops").doc(shopId)
           .collection("settings").doc("points").get();
       const pointSetting = pointSettingSnap.data() || {};
@@ -343,6 +475,24 @@ exports.createStayBooking = onCall(
               },
           );
           const payableAfterCoupon = stayPayableAfterCoupon;
+          let campaignPlan = null;
+          if (stayCampaign) {
+            const freshCampaign = await readCampaignForUse(
+                transaction,
+                firestore,
+                shopId,
+                stayCampaign.id,
+                new Date(),
+            );
+            campaignPlan = await readCampaignUsageReserve(
+                transaction, firestore, {
+                  shopId,
+                  campaignId: freshCampaign.id,
+                  bookingId: bookingRef.id,
+                  limit: freshCampaign.totalUsageLimit,
+                },
+            );
+          }
           const spendPlan = await prepareSpendDeduct(transaction, {
             firestore,
             shopId,
@@ -359,6 +509,7 @@ exports.createStayBooking = onCall(
             operatorUid: uid,
           });
           const bookingCode = await generateBookingCode(transaction, shopId);
+          commitCampaignUsageReserve(transaction, firestore, campaignPlan);
           commitSpendDeduct(transaction, spendPlan);
           states.forEach((state) => commitRoomTypeHold(transaction, state));
           const depositExpireAt = toDate(booking.depositExpireAt);

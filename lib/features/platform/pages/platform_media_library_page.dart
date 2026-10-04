@@ -129,7 +129,8 @@ class _PlatformMediaLibraryBodyState extends State<_PlatformMediaLibraryBody> {
       ),
       body: Column(
         children: <Widget>[
-          Padding(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SegmentedButton<String>(
               showSelectedIcon: false,
@@ -145,6 +146,10 @@ class _PlatformMediaLibraryBodyState extends State<_PlatformMediaLibraryBody> {
                 ButtonSegment<String>(
                   value: PlatformMediaCategories.dailyCareIcon,
                   label: Text('小圖示'),
+                ),
+                ButtonSegment<String>(
+                  value: PlatformMediaCategories.shopHouse,
+                  label: Text('店家小屋'),
                 ),
               ],
               selected: <String>{_category},
@@ -304,7 +309,11 @@ class _AssetCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(PlatformMediaCategories.label(asset.category)),
+                  Text(
+                    asset.category == PlatformMediaCategories.shopHouse
+                        ? '使用位置：\n${ShopHousePlacements.usageText(asset.placements)}'
+                        : PlatformMediaCategories.label(asset.category),
+                  ),
                   Text('$sizeLabel$bytesLabel'),
                   Text('排序 ${asset.sortOrder}'),
                   Text(asset.enabled ? '啟用中' : '已停用'),
@@ -351,6 +360,7 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
   late final TextEditingController _sort;
   late String _category;
   late bool _enabled;
+  late Set<String> _placements;
   Uint8List? _bytes;
   String _contentType = 'image/jpeg';
   int _width = 0;
@@ -365,6 +375,7 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
     _sort = TextEditingController(text: '${asset?.sortOrder ?? 0}');
     _category = asset?.category ?? widget.defaultCategory;
     _enabled = asset?.enabled ?? true;
+    _placements = <String>{...?asset?.placements};
     _width = asset?.width ?? 0;
     _height = asset?.height ?? 0;
   }
@@ -419,6 +430,10 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
     });
     try {
       final int sortOrder = int.tryParse(_sort.text.trim()) ?? 0;
+      final List<String> placements =
+          _category == PlatformMediaCategories.shopHouse
+          ? _placements.toList()
+          : const <String>[];
       if (widget.asset == null) {
         if (_bytes == null) {
           throw ArgumentError('請先選擇圖片');
@@ -428,6 +443,7 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
           contentType: _contentType,
           name: _name.text,
           category: _category,
+          placements: placements,
           sortOrder: sortOrder,
           enabled: _enabled,
           width: _width,
@@ -438,6 +454,7 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
           id: widget.asset!.id,
           name: _name.text,
           category: _category,
+          placements: placements,
           sortOrder: sortOrder,
           enabled: _enabled,
           bytes: _bytes,
@@ -495,7 +512,8 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '僅 JPG、PNG、WEBP，最大 5 MB。\n'
-                  '${PlatformMediaCategories.hint(_category)}；比例為建議與裁切提示，不符仍可上傳。'
+                  '${_category == PlatformMediaCategories.shopHouse ? ShopHousePlacements.known.where(_placements.contains).map(ShopHousePlacements.hint).where((String line) => line.isNotEmpty).join('\n') : PlatformMediaCategories.hint(_category)}'
+                  '；比例為建議與裁切提示，不符仍可上傳。'
                   '${_category == PlatformMediaCategories.dailyCareIcon ? '\n建議尺寸：256 × 256\n建議格式：透明背景 PNG 或 WebP\n四周請保留安全空間' : ''}',
                   style: TextStyle(
                     fontSize: 12.5,
@@ -536,6 +554,33 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
                   });
                 },
               ),
+              if (_category == PlatformMediaCategories.shopHouse) ...<Widget>[
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '允許使用區域',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                for (final String placement in ShopHousePlacements.known)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(ShopHousePlacements.label(placement)),
+                    value: _placements.contains(placement),
+                    onChanged: (bool? checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _placements.add(placement);
+                        } else {
+                          _placements.remove(placement);
+                        }
+                      });
+                    },
+                  ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _sort,

@@ -7,7 +7,7 @@ import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
-import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
 
 class ShopRoomService {
@@ -576,98 +576,65 @@ class ShopRoomService {
     required String shopId,
     required DateTime startDate,
     required DateTime endDate,
+    int petCount = 0,
   }) async {
-    final roomTypesSnapshot = await roomTypesRef(shopId).get();
-    final roomTypes = roomTypesSnapshot.docs;
-
-    final roomsSnapshot = await roomsRef(shopId).get();
-    final List<Map<String, dynamic>> allRooms = roomsSnapshot.docs
-        .map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-              <String, dynamic>{'id': doc.id, ...doc.data()},
-        )
-        .toList();
-
-    final stayDates = <String>[];
-    DateTime cursor = DailyCareDateHelper.calendarDateInTaipei(startDate);
-    final DateTime stayEnd = DailyCareDateHelper.calendarDateInTaipei(endDate);
-    while (cursor.isBefore(stayEnd)) {
-      stayDates.add(formatDateKey(cursor));
-      cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
+    final List<Map<String, dynamic>> roomTypes = await getRoomTypes(shopId);
+    final DateTime checkIn = DailyCareDateHelper.calendarDateInTaipei(
+      startDate,
+    );
+    final DateTime checkOut = DailyCareDateHelper.calendarDateInTaipei(
+      endDate,
+    );
+    final Map<String, dynamic> availability =
+        await StayBookingFunctionService.instance.getAvailability(
+          shopId: shopId,
+          startDate: formatDateKey(checkIn),
+          endDate: formatDateKey(checkOut),
+          petCount: petCount,
+        );
+    final Object? rawTypes = availability['roomTypes'];
+    if (rawTypes is! List) {
+      throw const StayBookingFunctionException(
+        StayBookingFunctionService.availabilityUnavailable,
+      );
     }
-    final bookingSnapshot = await _firestore
-        .collection('bookings')
-        .where('shopId', isEqualTo: shopId)
-        .where('status', whereIn: DaycareOccupancyService.activeStatuses)
-        .get();
-    final List<Map<String, dynamic>> bookings = bookingSnapshot.docs
-        .map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-              <String, dynamic>{'id': doc.id, ...doc.data()},
-        )
-        .toList();
-    final QuerySnapshot<Map<String, dynamic>> occSnap = await _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('room_occupancies')
-        .where('status', isEqualTo: 'active')
-        .get();
-    final List<Map<String, dynamic>> occupancies = occSnap.docs
-        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data())
-        .toList();
-    final QuerySnapshot<Map<String, dynamic>> calendarSnap =
-        await roomCalendarRef(shopId).get();
-    final List<Map<String, dynamic>> calendarEntries = calendarSnap.docs
-        .map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-              <String, dynamic>{'id': doc.id, ...doc.data()},
-        )
-        .toList();
-
-    final result = <Map<String, dynamic>>[];
-
-    for (final typeDoc in roomTypes) {
-      final type = typeDoc.data();
-      final typeId = typeDoc.id;
-      int minAvailableRooms = 999999;
-      for (final date in stayDates) {
-        final DateTime day = DateTime.parse(date);
-        final DaycareRoomRemaining computed =
-            DaycareOccupancyService.remainingRoomsResultFromData(
-              rooms: allRooms,
-              bookings: bookings,
-              occupancies: occupancies,
-              calendarEntries: calendarEntries,
-              roomTypeId: typeId,
-              startAt: day,
-              endAt: day.add(const Duration(days: 1)),
-              dateKey: date,
-            );
-        if (computed.remaining < minAvailableRooms) {
-          minAvailableRooms = computed.remaining;
-        }
+    final Map<String, int> remainingByType = <String, int>{};
+    for (final Object? row in rawTypes) {
+      if (row is! Map) {
+        continue;
       }
-      if (minAvailableRooms == 999999) {
-        minAvailableRooms = 0;
+      final String roomTypeId = (row['roomTypeId'] ?? '').toString();
+      final Object? rawRemaining = row['remaining'];
+      if (roomTypeId.isEmpty || rawRemaining is! num || rawRemaining < 0) {
+        throw const StayBookingFunctionException(
+          StayBookingFunctionService.availabilityUnavailable,
+        );
       }
+      remainingByType[roomTypeId] = rawRemaining.toInt();
+    }
 
-      result.add({
+    return roomTypes.map((Map<String, dynamic> type) {
+      final String typeId = (type['id'] ?? type['roomTypeId'] ?? '').toString();
+      if (!remainingByType.containsKey(typeId)) {
+        throw const StayBookingFunctionException(
+          StayBookingFunctionService.availabilityUnavailable,
+        );
+      }
+      return <String, dynamic>{
         'roomTypeId': typeId,
         'name': type['name'],
         'price': type['price'],
         'capacity': type['capacity'],
-        'availableRooms': minAvailableRooms,
-        'images': type['images'] ?? [],
+        'availableRooms': remainingByType[typeId],
+        'images': type['images'] ?? <dynamic>[],
         'description': type['description'] ?? '',
-        'features': type['features'] ?? [],
+        'features': type['features'] ?? <dynamic>[],
         'extraPrice': type['extraPrice'] ?? 0,
         'width': type['width'] ?? 0,
         'depth': type['depth'] ?? 0,
         'height': type['height'] ?? 0,
-      });
-    }
-
-    return result;
+      };
+    }).toList();
   }
 
   int calculateRoomPrice({

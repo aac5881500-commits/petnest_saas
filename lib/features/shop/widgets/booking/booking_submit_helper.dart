@@ -31,9 +31,13 @@ class BookingSubmitHelper {
   }) async {
     if (selectedPetIds.isEmpty) return;
 
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
     final snapshot = await FirebaseFirestore.instance
         .collection('bookings')
         .where('shopId', isEqualTo: shopId)
+        .where('userId', isEqualTo: uid)
         .where('petIds', arrayContainsAny: selectedPetIds)
         .where('status', whereIn: ['pending', 'confirmed', 'checked_in'])
         .get();

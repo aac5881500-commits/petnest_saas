@@ -113,7 +113,20 @@ class DaycareRoomTypeCatalog {
     int? dailyRemaining,
     DateTime? startAt,
     DateTime? endAt,
+    bool secureCustomer = false,
+    bool availabilityUnknown = false,
   }) async {
+    if (secureCustomer) {
+      return _loadForCustomer(
+        shopId: shopId,
+        settings: settings,
+        petCount: petCount,
+        dailyRemaining: dailyRemaining,
+        startAt: startAt,
+        endAt: endAt,
+        availabilityUnknown: availabilityUnknown,
+      );
+    }
     if (settings.roomTypes.isEmpty) {
       return const <DaycareRoomTypeOption>[];
     }
@@ -136,12 +149,24 @@ class DaycareRoomTypeCatalog {
         .doc(shopId)
         .collection('rooms')
         .get();
-    final QuerySnapshot<Map<String, dynamic>> bookingSnap =
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .where('shopId', isEqualTo: shopId)
-            .where('status', whereIn: DaycareOccupancyService.activeStatuses)
-            .get();
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingDocs =
+        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    try {
+      bookingDocs =
+          (await FirebaseFirestore.instance
+                  .collection('bookings')
+                  .where('shopId', isEqualTo: shopId)
+                  .where(
+                    'status',
+                    whereIn: DaycareOccupancyService.activeStatuses,
+                  )
+                  .get())
+              .docs;
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') {
+        rethrow;
+      }
+    }
     final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
         .instance
         .collection('shops')
@@ -159,7 +184,7 @@ class DaycareRoomTypeCatalog {
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
-    final List<Map<String, dynamic>> bookings = bookingSnap.docs
+    final List<Map<String, dynamic>> bookings = bookingDocs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
               <String, dynamic>{'id': doc.id, ...doc.data()},
@@ -244,6 +269,132 @@ class DaycareRoomTypeCatalog {
             );
         remainingRooms = computed.remaining;
         zeroReason = computed.zeroReason;
+      }
+      out.add(
+        evaluate(
+          setting: setting,
+          name: (type?['name'] ?? id).toString(),
+          petCount: petCount,
+          dailyRemaining: dailyRemaining,
+          remainingRooms: remainingRooms,
+          zeroReason: zeroReason,
+          timesComplete: timesComplete,
+          estimateAmount: estimate,
+          overtimeSummary: overtimeSummary,
+          typeExists: type != null || hasRooms,
+          isRoomBased: settings.isRoomBased,
+          roomCapacity: roomCapacityOf(type, rooms, canonicalId, id),
+        ),
+      );
+    }
+    return out;
+  }
+
+  static Future<List<DaycareRoomTypeOption>> _loadForCustomer({
+    required String shopId,
+    required DaycareSettingsModel settings,
+    required int petCount,
+    int? dailyRemaining,
+    DateTime? startAt,
+    DateTime? endAt,
+    required bool availabilityUnknown,
+  }) async {
+    if (settings.roomTypes.isEmpty) {
+      return const <DaycareRoomTypeOption>[];
+    }
+    final QuerySnapshot<Map<String, dynamic>> typeSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_types')
+        .get();
+    final Map<String, Map<String, dynamic>> types =
+        <String, Map<String, dynamic>>{
+          for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+              in typeSnap.docs)
+            doc.id: doc.data(),
+        };
+    final QuerySnapshot<Map<String, dynamic>> roomSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('rooms')
+        .get();
+    final List<Map<String, dynamic>> rooms = roomSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+    final bool timesComplete = startAt != null && endAt != null;
+    final Map<String, int> roomRemaining = <String, int>{};
+    bool unknown = availabilityUnknown;
+    if (!unknown && timesComplete) {
+      try {
+        final DaycareAvailabilitySnapshot snapshot =
+            await DaycareOccupancyService.instance.customerAvailability(
+              shopId: shopId,
+              dates: <DateTime>[startAt],
+              startAt: startAt,
+              endAt: endAt,
+              petCount: petCount,
+            );
+        for (final DaycareRoomAvailability room in snapshot.roomTypes) {
+          roomRemaining[room.roomTypeId] = room.remaining;
+        }
+      } on DaycareAvailabilityException {
+        unknown = true;
+      }
+    }
+    final List<DaycareRoomTypeOption> out = <DaycareRoomTypeOption>[];
+    for (final DaycareRoomTypeSetting setting in settings.roomTypes) {
+      final String id = setting.roomTypeId.trim();
+      if (id.isEmpty) {
+        continue;
+      }
+      final Map<String, dynamic>? type = resolveRoomTypeDoc(types, id);
+      final String canonicalId = canonicalRoomTypeId(types, id);
+      final bool hasRooms = rooms.any(
+        (Map<String, dynamic> room) => DaycareOccupancyService.roomMatchesType(
+          room,
+          canonicalId,
+          alternateTypeId: id,
+        ),
+      );
+      int estimate = 0;
+      String overtimeSummary = '';
+      if (timesComplete) {
+        final DaycareRoomQuote roomQuote = DaycarePricingService.instance
+            .quoteRoom(
+              roomSetting: setting,
+              startAt: startAt,
+              endAt: endAt,
+              petCount: petCount < 1 ? 1 : petCount,
+            );
+        estimate = roomQuote.cappedRoomAmount;
+        overtimeSummary = DaycarePricingService.instance.overtimeRuleSummary(
+          settings: settings,
+          roomSetting: setting,
+        );
+      }
+      int? remainingRooms;
+      String zeroReason = '';
+      if (unknown && timesComplete) {
+        remainingRooms = 0;
+        zeroReason = '暫時無法取得剩餘名額';
+      } else if (timesComplete) {
+        final int? fromServer =
+            roomRemaining[canonicalId] ?? roomRemaining[id];
+        final int roomsLeft = fromServer ?? 0;
+        final int shown = dailyRemaining != null &&
+                dailyRemaining >= 0 &&
+                dailyRemaining < roomsLeft
+            ? dailyRemaining
+            : roomsLeft;
+        remainingRooms = shown;
+        if (fromServer == null) {
+          zeroReason = '暫時無法取得剩餘名額';
+        }
       }
       out.add(
         evaluate(

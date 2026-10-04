@@ -21,6 +21,7 @@ class DaycareCalendarHelper {
     required DaycareSettingsModel settings,
     required DateTime firstDate,
     required DateTime lastDate,
+    bool secureCustomer = false,
   }) async {
     final DateTime start = DateTime(
       firstDate.year,
@@ -34,8 +35,35 @@ class DaycareCalendarHelper {
           start: start,
           end: end,
         );
-    final Map<String, int> usedPets = await DaycareOccupancyService.instance
-        .usedPetsByDate(shopId: shopId, start: start, end: end);
+    final Map<String, DaycareAvailabilityDay> secureDays =
+        <String, DaycareAvailabilityDay>{};
+    final Map<String, int> usedPets;
+    if (secureCustomer) {
+      final List<DateTime> dates = <DateTime>[];
+      DateTime cursorDay = start;
+      while (!cursorDay.isAfter(end)) {
+        dates.add(cursorDay);
+        cursorDay = cursorDay.add(const Duration(days: 1));
+      }
+      final DaycareAvailabilitySnapshot snapshot =
+          await DaycareOccupancyService.instance.customerAvailability(
+            shopId: shopId,
+            dates: dates,
+          );
+      for (final DaycareAvailabilityDay day in snapshot.days) {
+        secureDays[day.date] = day;
+      }
+      usedPets = <String, int>{
+        for (final DaycareAvailabilityDay day in snapshot.days)
+          day.date: day.occupied,
+      };
+    } else {
+      usedPets = await DaycareOccupancyService.instance.usedPetsByDate(
+        shopId: shopId,
+        start: start,
+        end: end,
+      );
+    }
 
     final Set<String> extraClosed = <String>{};
     final Set<String> extraOpen = <String>{};
@@ -56,10 +84,16 @@ class DaycareCalendarHelper {
         override: override,
       );
       final int used = usedPets[key] ?? 0;
-      final int left = dailyMax <= 0
-          ? 999999
-          : (dailyMax - used).clamp(0, dailyMax);
-      remainingPetsMap[key] = dailyMax <= 0 ? -1 : left;
+      final DaycareAvailabilityDay? secure = secureDays[key];
+      if (secureCustomer && secure == null) {
+        throw const DaycareAvailabilityException('暫時無法取得剩餘名額');
+      }
+      final int left = secure != null
+          ? (secure.unlimited ? 999999 : (secure.remaining ?? 0))
+          : (dailyMax <= 0 ? 999999 : (dailyMax - used).clamp(0, dailyMax));
+      remainingPetsMap[key] = secure != null
+          ? (secure.unlimited ? -1 : left)
+          : (dailyMax <= 0 ? -1 : left);
       final bool available =
           await DaycareDateAvailability.isDaycareDateAvailable(
             shopId: shopId,
@@ -97,6 +131,7 @@ class DaycareCalendarHelper {
       specialOpenDateKeys: const <String>{},
       remainingPetsMap: remainingPetsMap,
       markFullRoomsUnbookable: false,
+      skipRoomInventory: true,
     );
   }
 }

@@ -103,61 +103,52 @@ class ShopFaqPage extends StatelessWidget {
                   final question = data['question']?.toString() ?? '未命名問題';
                   final answer = data['answer']?.toString() ?? '';
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Material(
                       color: theme.cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: theme.cardBorderColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                      child: ExpansionTile(
+                        initiallyExpanded: false,
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          16,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.help_outline,
-                              color: theme.primaryColor,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                question,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: theme.textColor,
-                                ),
-                              ),
-                            ),
-                          ],
+                        iconColor: theme.primaryColor,
+                        collapsedIconColor: theme.primaryColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: theme.cardBorderColor),
                         ),
-
-                        const SizedBox(height: 12),
-
-                        Divider(height: 1, color: theme.cardBorderColor),
-
-                        const SizedBox(height: 12),
-
-                        Text(
-                          answer.isEmpty ? '尚未填寫回答' : answer,
+                        collapsedShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: theme.cardBorderColor),
+                        ),
+                        title: Text(
+                          question,
                           style: TextStyle(
-                            fontSize: 14,
-                            height: 1.7,
-                            color: theme.textColor.withValues(alpha: 0.75),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: theme.textColor,
                           ),
                         ),
-                      ],
+                        children: <Widget>[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              answer.isEmpty ? '尚未填寫回答' : answer,
+                              style: TextStyle(
+                                fontSize: 14,
+                                height: 1.7,
+                                color: theme.textColor.withValues(alpha: 0.75),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },

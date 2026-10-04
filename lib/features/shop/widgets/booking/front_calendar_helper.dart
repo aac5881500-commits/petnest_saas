@@ -21,6 +21,7 @@ class FrontCalendarHelper {
     Set<String> extraFullDateKeys = const <String>{},
     Set<String> specialOpenDateKeys = const <String>{},
     Map<String, int> remainingPetsMap = const <String, int>{},
+    bool skipRoomInventory = false,
   }) async {
     if (kDebugMode) {
       print('🔥 抓資料了：$firstDate ~ $lastDate');
@@ -38,17 +39,20 @@ class FrontCalendarHelper {
     final Map<String, int> remainingRoomsMap = {};
     final Set<String> unbookableDateKeys = {};
 
-    final roomsSnapshot = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(shopId)
-        .collection('rooms')
-        .get();
+    final bool loadInventory = !skipRoomInventory;
+    final roomsSnapshot = loadInventory
+        ? await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('rooms')
+              .get()
+        : null;
 
     // 🔥 依房型統計可用房間數
     final Map<String, int> totalRoomsByRoomType = {};
     final List<Map<String, dynamic>> rooms = <Map<String, dynamic>>[];
 
-    for (final roomDoc in roomsSnapshot.docs) {
+    for (final roomDoc in roomsSnapshot?.docs ?? const []) {
       final room = roomDoc.data();
       final roomTypeId = (room['roomTypeId'] ?? '').toString();
       rooms.add(<String, dynamic>{'id': roomDoc.id, ...room});
@@ -60,44 +64,68 @@ class FrontCalendarHelper {
           (totalRoomsByRoomType[roomTypeId] ?? 0) + 1;
     }
 
-    final calendarSnapshot = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(shopId)
-        .collection('room_calendar')
-        .get();
+    final calendarSnapshot = loadInventory
+        ? await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('room_calendar')
+              .get()
+        : null;
 
     DateTime cursor = DateTime(firstDate.year, firstDate.month, firstDate.day);
 
     final last = DateTime(lastDate.year, lastDate.month, lastDate.day);
 
-    final QuerySnapshot<Map<String, dynamic>> bookingSnap =
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .where('shopId', isEqualTo: shopId)
-            .where('status', whereIn: DaycareOccupancyService.activeStatuses)
-            .get();
-    final List<Map<String, dynamic>> bookings = bookingSnap.docs
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingDocs =
+        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    if (loadInventory) {
+      try {
+        bookingDocs =
+            (await FirebaseFirestore.instance
+                    .collection('bookings')
+                    .where('shopId', isEqualTo: shopId)
+                    .where(
+                      'status',
+                      whereIn: DaycareOccupancyService.activeStatuses,
+                    )
+                    .get())
+                .docs;
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied') {
+          rethrow;
+        }
+      }
+    }
+    final List<Map<String, dynamic>> bookings = bookingDocs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
-    final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
-        .instance
-        .collection('shops')
-        .doc(shopId)
-        .collection('room_occupancies')
-        .where('status', isEqualTo: 'active')
-        .get();
-    final List<Map<String, dynamic>> occupancies = occSnap.docs
-        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data())
-        .toList();
-    final List<Map<String, dynamic>> calendarEntries = calendarSnapshot.docs
-        .map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-              <String, dynamic>{'id': doc.id, ...doc.data()},
-        )
-        .toList();
+    final QuerySnapshot<Map<String, dynamic>>? occSnap = loadInventory
+        ? await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('room_occupancies')
+              .where('status', isEqualTo: 'active')
+              .get()
+        : null;
+    final List<Map<String, dynamic>> occupancies = occSnap == null
+        ? <Map<String, dynamic>>[]
+        : occSnap.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    doc.data(),
+              )
+              .toList();
+    final List<Map<String, dynamic>> calendarEntries = calendarSnapshot == null
+        ? <Map<String, dynamic>>[]
+        : calendarSnapshot.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    <String, dynamic>{'id': doc.id, ...doc.data()},
+              )
+              .toList();
 
     while (!cursor.isAfter(last)) {
       final key = ShopService.instance.formatDateKey(cursor);

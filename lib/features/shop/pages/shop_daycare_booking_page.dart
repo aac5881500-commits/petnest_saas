@@ -130,6 +130,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   Set<String> _addonPetErrors = <String>{};
   bool _submitting = false;
   int? _remaining;
+  bool _availabilityUnknown = false;
   bool _isBlacklisted = false;
   DaycareDateOverrideModel? _dateOverride;
   int _step = 1;
@@ -402,9 +403,11 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             shopId: widget.shopId,
             settings: widget.settings,
             petCount: _selectedPetIds.length,
-            dailyRemaining: null,
+            dailyRemaining: _availabilityUnknown ? null : _remaining,
             startAt: _startAt,
             endAt: _endAt,
+            secureCustomer: true,
+            availabilityUnknown: _availabilityUnknown,
           );
       if (!mounted) {
         return;
@@ -436,28 +439,38 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       settings: widget.settings,
       override: _dateOverride,
     );
-    if (!widget.settings.showRemainingSlots || dailyMax <= 0) {
+    if (dailyMax <= 0) {
       if (mounted) {
-        setState(() => _remaining = dailyMax <= 0 ? -1 : _remaining);
+        setState(() {
+          _remaining = -1;
+          _availabilityUnknown = false;
+        });
       }
       await _refreshRoomOptions();
       await _loadExtras();
       return;
     }
-    int? left = _remaining;
-    if (widget.settings.showRemainingSlots) {
-      left = await DaycareOccupancyService.instance.remainingPets(
+    try {
+      final int left = await DaycareOccupancyService.instance.remainingPets(
         shopId: widget.shopId,
         serviceDate: _date!,
-        dailyMaxPets: DaycareDateAvailability.dailyMaxPets(
-          settings: widget.settings,
-          override: _dateOverride,
-        ),
+        dailyMaxPets: dailyMax,
       );
       if (!mounted) {
         return;
       }
-      setState(() => _remaining = left);
+      setState(() {
+        _remaining = left;
+        _availabilityUnknown = false;
+      });
+    } on DaycareAvailabilityException {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _remaining = null;
+        _availabilityUnknown = true;
+      });
     }
     await _refreshRoomOptions();
     await _loadExtras();
@@ -869,6 +882,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       settings: widget.settings,
       firstDate: monthStart,
       lastDate: monthEnd,
+      secureCustomer: true,
     );
 
     await showDialog<void>(
@@ -906,6 +920,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                                           settings: widget.settings,
                                           firstDate: monthStart,
                                           lastDate: monthEnd,
+                                          secureCustomer: true,
                                         );
                                   });
                                   setInnerState(() {});
@@ -957,6 +972,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                               newMonth.month + 1,
                               0,
                             ),
+                            secureCustomer: true,
                           );
                         });
                         setInnerState(() {});
@@ -2017,15 +2033,31 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         ),
         const SizedBox(height: 8),
         if (plans.isEmpty) const Text('目前沒有可預約的安親方案'),
+        if (_availabilityUnknown)
+          const Text('暫時無法取得剩餘名額'),
+        if (!_availabilityUnknown &&
+            widget.settings.showRemainingSlots &&
+            _remaining != null &&
+            _remaining! >= 0 &&
+            _remaining! < 999999)
+          Text(_remaining == 0 ? '當日名額已滿' : '當日剩餘 $_remaining 名'),
         ...plans.map((DaycarePlanModel plan) {
           final bool selected = _plan?.id == plan.id;
+          final bool quotaOpen = !_availabilityUnknown &&
+              (_remaining == null ||
+                  _remaining! < 0 ||
+                  _remaining! >= _selectedPetIds.length);
           return DaycareOfferCard(
             theme: theme,
             title: plan.name,
             lines: plan.customerSummaryLines,
             selected: selected,
-            enabled: plan.enabled,
-            blockedReason: plan.enabled ? null : '方案未啟用',
+            enabled: plan.enabled && quotaOpen,
+            blockedReason: !plan.enabled
+                ? '方案未啟用'
+                : (_availabilityUnknown
+                    ? '暫時無法取得剩餘名額'
+                    : (quotaOpen ? null : '當日名額已滿')),
             onTap: () => setState(() {
               _plan = plan;
               _selectedDailyCareAddonId = null;
@@ -2051,6 +2083,14 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           ),
         ),
         const SizedBox(height: 8),
+        if (_availabilityUnknown)
+          const Text('暫時無法取得剩餘名額'),
+        if (!_availabilityUnknown &&
+            widget.settings.showRemainingSlots &&
+            _remaining != null &&
+            _remaining! >= 0 &&
+            _remaining! < 999999)
+          Text(_remaining == 0 ? '當日名額已滿' : '當日剩餘 $_remaining 名'),
         if (_roomOptions.isEmpty) const Text('尚未設定安親房型'),
         ..._roomOptions.map((DaycareRoomTypeOption option) {
           final bool petsReady = _selectedPetIds.isNotEmpty;

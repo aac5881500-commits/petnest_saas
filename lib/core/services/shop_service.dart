@@ -447,6 +447,7 @@ class ShopService {
         /// 平台首頁「我的店家卡片」專用圖片
         'platformHomeCoverUrl': shopData['platformHomeCoverUrl'] ?? '',
         'platformHomeLogoUrl': shopData['platformHomeLogoUrl'] ?? '',
+        'houseAppearance': shopData['houseAppearance'] ?? <String, dynamic>{},
 
         'city': shopData['city'] ?? '',
         'district': shopData['district'] ?? '',
@@ -1229,11 +1230,13 @@ class ShopService {
     required String shopId,
     required DateTime startDate,
     required DateTime endDate,
+    int petCount = 0,
   }) async {
     return ShopRoomService.instance.getAvailableRoomTypes(
       shopId: shopId,
       startDate: startDate,
       endDate: endDate,
+      petCount: petCount,
     );
   }
 

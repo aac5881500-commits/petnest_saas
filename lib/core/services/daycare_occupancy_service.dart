@@ -2,10 +2,12 @@
 // 功能說明：前台剩餘名額預覽：同時看住宿日期占用與臨托時段
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
+import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 
@@ -65,6 +67,59 @@ class DaycareRoomRemaining {
   int get vacantCount => remaining;
 
   bool get oversold => remaining <= 0 && createdCount > 0;
+}
+
+class DaycareAvailabilityException implements Exception {
+  const DaycareAvailabilityException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class DaycareAvailabilityDay {
+  const DaycareAvailabilityDay({
+    required this.date,
+    required this.capacity,
+    required this.occupied,
+    required this.remaining,
+    required this.available,
+    required this.unlimited,
+  });
+
+  final String date;
+  final int capacity;
+  final int occupied;
+  final int? remaining;
+  final bool available;
+  final bool unlimited;
+}
+
+class DaycareRoomAvailability {
+  const DaycareRoomAvailability({
+    required this.roomTypeId,
+    required this.capacity,
+    required this.occupied,
+    required this.remaining,
+    required this.available,
+  });
+
+  final String roomTypeId;
+  final int capacity;
+  final int occupied;
+  final int remaining;
+  final bool available;
+}
+
+class DaycareAvailabilitySnapshot {
+  const DaycareAvailabilitySnapshot({
+    required this.days,
+    required this.roomTypes,
+  });
+
+  final List<DaycareAvailabilityDay> days;
+  final List<DaycareRoomAvailability> roomTypes;
 }
 
 class DaycareOccupancyService {
@@ -246,6 +301,109 @@ class DaycareOccupancyService {
     return FirebaseFirestore.instance.collection('bookings');
   }
 
+  /// 顧客不能讀整店訂單。店家查詢失敗時回空，避免前台月曆整頁 permission-denied。
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _bookingDocs(
+    Query<Map<String, dynamic>> query,
+  ) async {
+    try {
+      return (await query.get()).docs;
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        return <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      }
+      rethrow;
+    }
+  }
+
+  /// 顧客只能拿到聚合名額。查不到就丟出錯誤，不能把占用量當成 0。
+  Future<DaycareAvailabilitySnapshot> customerAvailability({
+    required String shopId,
+    required List<DateTime> dates,
+    DateTime? startAt,
+    DateTime? endAt,
+    int petCount = 0,
+  }) async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      throw const DaycareAvailabilityException('請先登入後再查看剩餘名額');
+    }
+    final List<String> keys = dates
+        .map(_dateKey)
+        .where((String key) => key.isNotEmpty)
+        .toSet()
+        .toList();
+    if (keys.isEmpty || keys.length > 31) {
+      throw const DaycareAvailabilityException('暫時無法取得剩餘名額');
+    }
+    try {
+      final Map<String, dynamic> raw = await DaycareFunctionService.instance
+          .getAvailability(
+            shopId: shopId,
+            dates: keys,
+            startAt: startAt,
+            endAt: endAt,
+            petCount: petCount,
+          );
+      return _snapshotFrom(raw);
+    } on DaycareAvailabilityException {
+      rethrow;
+    } catch (error) {
+      throw DaycareAvailabilityException(
+        DaycareFunctionException.from(error),
+      );
+    }
+  }
+
+  DaycareAvailabilitySnapshot _snapshotFrom(Map<String, dynamic> raw) {
+    final List<dynamic> dayRows = raw['days'] is List
+        ? raw['days'] as List<dynamic>
+        : const <dynamic>[];
+    final List<dynamic> roomRows = raw['roomTypes'] is List
+        ? raw['roomTypes'] as List<dynamic>
+        : const <dynamic>[];
+    return DaycareAvailabilitySnapshot(
+      days: dayRows.map((dynamic row) {
+        final Map<String, dynamic> data = row is Map
+            ? Map<String, dynamic>.from(row)
+            : <String, dynamic>{};
+        final bool unlimited = data['unlimited'] == true;
+        final int? remaining = unlimited ? null : _intOrNull(data['remaining']);
+        return DaycareAvailabilityDay(
+          date: (data['date'] ?? '').toString(),
+          capacity: _intOrNull(data['capacity']) ?? 0,
+          occupied: _intOrNull(data['occupied']) ?? 0,
+          remaining: remaining,
+          available: data['available'] == true,
+          unlimited: unlimited,
+        );
+      }).toList(),
+      roomTypes: roomRows.map((dynamic row) {
+        final Map<String, dynamic> data = row is Map
+            ? Map<String, dynamic>.from(row)
+            : <String, dynamic>{};
+        return DaycareRoomAvailability(
+          roomTypeId: (data['roomTypeId'] ?? '').toString(),
+          capacity: _intOrNull(data['capacity']) ?? 0,
+          occupied: _intOrNull(data['occupied']) ?? 0,
+          remaining: _intOrNull(data['remaining']) ?? 0,
+          available: data['available'] == true,
+        );
+      }).toList(),
+    );
+  }
+
+  int? _intOrNull(dynamic raw) {
+    if (raw == null) {
+      return null;
+    }
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is num) {
+      return raw.round();
+    }
+    return int.tryParse(raw.toString());
+  }
+
   Future<int> remainingPets({
     required String shopId,
     required DateTime serviceDate,
@@ -260,26 +418,25 @@ class DaycareOccupancyService {
       serviceDate.month,
       serviceDate.day,
     );
-    final QuerySnapshot<Map<String, dynamic>> snap = await _bookings()
-        .where('shopId', isEqualTo: shopId)
-        .where('bookingKind', isEqualTo: BookingKind.daycare)
-        .where('serviceDate', isEqualTo: _dateKey(day))
-        .get();
-    int used = 0;
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snap.docs) {
-      if (doc.id == excludeBookingId) {
-        continue;
+    final DaycareAvailabilitySnapshot snapshot = await customerAvailability(
+      shopId: shopId,
+      dates: <DateTime>[day],
+    );
+    final String key = _dateKey(day);
+    DaycareAvailabilityDay? match;
+    for (final DaycareAvailabilityDay item in snapshot.days) {
+      if (item.date == key) {
+        match = item;
+        break;
       }
-      final Map<String, dynamic> data = doc.data();
-      if (!occupiesInventory(data)) {
-        continue;
-      }
-      final List<dynamic> pets = data['petIds'] is List
-          ? data['petIds'] as List<dynamic>
-          : const <dynamic>[];
-      used += pets.isEmpty ? 1 : pets.length;
     }
-    return (dailyMaxPets - used).clamp(0, dailyMaxPets);
+    if (match == null) {
+      throw const DaycareAvailabilityException('暫時無法取得剩餘名額');
+    }
+    if (match.unlimited || match.remaining == null) {
+      return 999999;
+    }
+    return match.remaining!;
   }
 
   Future<Map<String, int>> usedPetsByDate({
@@ -291,14 +448,16 @@ class DaycareOccupancyService {
       DateTime(start.year, start.month, start.day),
     );
     final String endKey = _dateKey(DateTime(end.year, end.month, end.day));
-    final QuerySnapshot<Map<String, dynamic>> snap = await _bookings()
-        .where('shopId', isEqualTo: shopId)
-        .where('bookingKind', isEqualTo: BookingKind.daycare)
-        .where('serviceDate', isGreaterThanOrEqualTo: startKey)
-        .where('serviceDate', isLessThanOrEqualTo: endKey)
-        .get();
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+        await _bookingDocs(
+          _bookings()
+              .where('shopId', isEqualTo: shopId)
+              .where('bookingKind', isEqualTo: BookingKind.daycare)
+              .where('serviceDate', isGreaterThanOrEqualTo: startKey)
+              .where('serviceDate', isLessThanOrEqualTo: endKey),
+        );
     final Map<String, int> used = <String, int>{};
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snap.docs) {
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in docs) {
       final Map<String, dynamic> data = doc.data();
       if (!occupiesInventory(data)) {
         continue;
@@ -325,8 +484,13 @@ class DaycareOccupancyService {
     if (petIds.isEmpty) {
       return false;
     }
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) {
+      return false;
+    }
     final QuerySnapshot<Map<String, dynamic>> snap = await _bookings()
         .where('shopId', isEqualTo: shopId)
+        .where('userId', isEqualTo: uid)
         .where('status', whereIn: activeStatuses)
         .get();
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snap.docs) {
@@ -381,10 +545,12 @@ class DaycareOccupancyService {
         .collection('rooms')
         .where('roomTypeId', isEqualTo: roomTypeId)
         .get();
-    final QuerySnapshot<Map<String, dynamic>> bookingSnap = await _bookings()
-        .where('shopId', isEqualTo: shopId)
-        .where('status', whereIn: activeStatuses)
-        .get();
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingDocs =
+        await _bookingDocs(
+          _bookings()
+              .where('shopId', isEqualTo: shopId)
+              .where('status', whereIn: activeStatuses),
+        );
     final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
         .instance
         .collection('shops')
@@ -424,7 +590,7 @@ class DaycareOccupancyService {
         });
       }
     }
-    final List<Map<String, dynamic>> bookings = bookingSnap.docs
+    final List<Map<String, dynamic>> bookings = bookingDocs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
               <String, dynamic>{'id': doc.id, ...doc.data()},
@@ -517,10 +683,12 @@ class DaycareOccupancyService {
         .doc(shopId)
         .collection('room_types')
         .get();
-    final QuerySnapshot<Map<String, dynamic>> bookingSnap = await _bookings()
-        .where('shopId', isEqualTo: shopId)
-        .where('status', whereIn: activeStatuses)
-        .get();
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingDocs =
+        await _bookingDocs(
+          _bookings()
+              .where('shopId', isEqualTo: shopId)
+              .where('status', whereIn: activeStatuses),
+        );
     final Map<String, Map<String, dynamic>> types =
         <String, Map<String, dynamic>>{
           for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
@@ -630,7 +798,7 @@ class DaycareOccupancyService {
         }
       }
       for (final QueryDocumentSnapshot<Map<String, dynamic>> bookingDoc
-          in bookingSnap.docs) {
+          in bookingDocs) {
         if (bookingDoc.id == excludeBookingId) {
           continue;
         }

@@ -57,7 +57,12 @@ const {
   assertRoomTypeCapacity,
   loadRoomTypeHoldState,
   commitRoomTypeHold,
+  petSlotsOf,
 } = require("./daycare_occupancy");
+const {
+  commitDailyCapacityReserve,
+  readDailyCapacityReserve,
+} = require("./daycare_capacity");
 const {
   validateAndNormalizeBookingSubmitAnswers,
   validateAndNormalizeAdminCreateAnswers,
@@ -70,6 +75,12 @@ const {
 } = require("../points/sync_booking_points");
 const {calculateDaycareSurcharge} = require("./special_date_surcharge");
 const {findBestDaycareCampaign} = require("./discount_campaign");
+const {
+  attachTotalUsage,
+  commitCampaignUsageReserve,
+  readCampaignForUse,
+  readCampaignUsageReserve,
+} = require("../bookings/campaign_usage");
 const {capSpend, canSpend, pointsBalance, computeEarnPoints} =
   require("../points/booking_points");
 const {
@@ -570,6 +581,7 @@ async function createDaycareBookingBody(params) {
             createdAt: toDate(data.createdAt) || new Date(0),
           };
         });
+        await attachTotalUsage(firestore, shopId, campaigns);
         const memberCampaignUsage = {};
         let isFirstBooking = true;
         let memberJoinedAt = null;
@@ -978,6 +990,20 @@ async function createDaycareBookingBody(params) {
           if (again.exists) {
             return;
           }
+          const capacityPlan = await readDailyCapacityReserve(
+              transaction, firestore, {
+                shopId,
+                dateKey: serviceDateKey(startAt),
+                bookingId: bookingRef.id,
+                requestedPets: petSlotsOf({petIds}),
+              },
+          );
+          if (!capacityPlan.ok) {
+            throw new HttpsError(
+                capacityPlan.code || "resource-exhausted",
+                capacityPlan.reason,
+            );
+          }
           if (couponRef) {
             const couponInTx = await transaction.get(couponRef);
             if (!couponInTx.exists) {
@@ -1019,7 +1045,26 @@ async function createDaycareBookingBody(params) {
             note: "預約加購扣庫存",
             lines: buildDaycareAddonDeductLines(addonSnapshot, catalogDoc),
           });
+          let campaignPlan = null;
+          if (discountCampaignId) {
+            const freshCampaign = await readCampaignForUse(
+                transaction,
+                firestore,
+                shopId,
+                discountCampaignId,
+                new Date(),
+            );
+            campaignPlan = await readCampaignUsageReserve(
+                transaction, firestore, {
+                  shopId,
+                  campaignId: freshCampaign.id,
+                  bookingId: bookingRef.id,
+                  limit: freshCampaign.totalUsageLimit,
+                },
+            );
+          }
           const bookingCode = await generateBookingCode(transaction, shopId);
+          commitCampaignUsageReserve(transaction, firestore, campaignPlan);
           commitSpendDeduct(transaction, spendPlan);
           pointAmount = spendPlan.pointAmount || 0;
           pointsUsed = spendPlan.pointsUsed || 0;
@@ -1036,6 +1081,7 @@ async function createDaycareBookingBody(params) {
           if (holdState) {
             commitRoomTypeHold(transaction, holdState);
           }
+          commitDailyCapacityReserve(transaction, capacityPlan);
           transaction.set(bookingRef, {
             requestId: requestId || bookingRef.id,
             bookingId: bookingRef.id,

@@ -149,8 +149,19 @@ function calculateAmount(campaign, base) {
   return Math.round(amount);
 }
 
+function totalUsageOk(campaign) {
+  const limit = toInt(campaign.totalUsageLimit, 0);
+  if (limit <= 0) {
+    return true;
+  }
+  return toInt(campaign.usedCount, 0) < limit;
+}
+
 function calculateCampaign(campaign, input, now) {
   if (!campaign || campaign.enabled !== true) {
+    return null;
+  }
+  if (!totalUsageOk(campaign)) {
     return null;
   }
   if (!appliesTo(campaign, "daycare")) {
@@ -188,9 +199,189 @@ function findBestDaycareCampaign({campaigns, input, now}) {
   return results[0] || null;
 }
 
+function dateKey(value) {
+  const day = dateOnly(value);
+  const y = String(day.getFullYear());
+  const m = String(day.getMonth() + 1).padStart(2, "0");
+  const d = String(day.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function onOrAfter(first, second) {
+  return dateKey(first) >= dateKey(second);
+}
+
+function onOrBefore(first, second) {
+  return dateKey(first) <= dateKey(second);
+}
+
+function remainingNewMemberNights(campaign, input) {
+  const total = toInt(campaign.newMemberDiscountNights, 0);
+  if (total <= 0) {
+    return 0;
+  }
+  const used = toInt((input.memberCampaignUsedNights || {})[campaign.id], 0);
+  return Math.max(0, total - Math.max(0, used));
+}
+
+function memberJoinedOk(campaign, input) {
+  if (campaign.newMemberEligibilityMode === "noPreviousBooking") {
+    return input.isFirstBooking === true;
+  }
+  if (!input.memberJoinedAt || !campaign.createdAt) {
+    return false;
+  }
+  return new Date(input.memberJoinedAt) >= new Date(campaign.createdAt);
+}
+
+function accommodationTypeOk(campaign, input) {
+  switch (campaign.type) {
+    case "longStay":
+      return toInt(campaign.minimumNights, 0) > 0 &&
+        nights(input) >= toInt(campaign.minimumNights, 0);
+    case "newMember":
+      return remainingNewMemberNights(campaign, input) > 0 &&
+        (toInt((input.memberCampaignUsedNights || {})[campaign.id], 0) > 0 ||
+          memberJoinedOk(campaign, input));
+    case "googleReview":
+      return input.hasVerifiedGoogleReview === true;
+    case "stayDate":
+      return matchesStayDate(campaign, input);
+    case "roomType": {
+      const ids = Array.isArray(campaign.roomTypeIds) ?
+        campaign.roomTypeIds : [];
+      if (!ids.includes(input.roomTypeId)) {
+        return false;
+      }
+      if (campaign.limitStayDate !== true) {
+        return true;
+      }
+      if (!campaign.stayStartAt || !campaign.stayEndAt) {
+        return false;
+      }
+      const stayEnd = dateOnly(campaign.stayEndAt);
+      stayEnd.setHours(23, 59, 59, 999);
+      return onOrAfter(input.checkInDate, campaign.stayStartAt) &&
+        dateOnly(input.checkOutDate) <= stayEnd;
+    }
+    case "minimumAmount": {
+      const total = toInt(input.roomAmount) + toInt(input.petAmount) +
+        toInt(input.extraServiceAmount);
+      return toInt(campaign.minimumAmount) > 0 &&
+        total >= toInt(campaign.minimumAmount);
+    }
+    case "limitedTime":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function accommodationMemberOk(campaign, input) {
+  if (campaign.type === "newMember") {
+    return remainingNewMemberNights(campaign, input) > 0;
+  }
+  const limit = toInt(campaign.memberUsageLimit, 1);
+  if (limit <= 0) {
+    return true;
+  }
+  const used = toInt((input.memberCampaignUsage || {})[campaign.id], 0);
+  return used < limit;
+}
+
+/**
+ * 住宿套用客戶指定的活動。金額以後端為準，不讀客戶 discountAmount。
+ * 不符合時回傳 null。
+ * @param {Object} campaign
+ * @param {Object} input
+ * @param {Date} now
+ * @return {Object|null}
+ */
+function quoteAccommodationCampaign(campaign, input, now) {
+  if (!campaign || campaign.enabled !== true) {
+    return null;
+  }
+  if (!totalUsageOk(campaign)) {
+    return null;
+  }
+  if (!appliesTo(campaign, "accommodation")) {
+    return null;
+  }
+  const when = now || new Date();
+  if (!withinPeriod(campaign, when)) {
+    return null;
+  }
+  if (!accommodationMemberOk(campaign, input)) {
+    return null;
+  }
+  if (!accommodationTypeOk(campaign, input)) {
+    return null;
+  }
+  const stayNights = nights(input);
+  let discountUsedNights = 0;
+  let base = discountBase(campaign, input);
+  if (campaign.type === "newMember") {
+    const remaining = remainingNewMemberNights(campaign, input);
+    discountUsedNights = Math.min(stayNights, remaining);
+    if (discountUsedNights <= 0 || stayNights <= 0) {
+      return null;
+    }
+    base = (toInt(input.roomAmount) / stayNights) * discountUsedNights;
+  }
+  if (campaign.type === "stayDate" &&
+      (campaign.dateMatchType || "matchingStayDates") === "matchingStayDates") {
+    if (!campaign.startAt || !campaign.endAt || stayNights <= 0) {
+      return null;
+    }
+    let matching = 0;
+    const cursor = dateOnly(input.checkInDate);
+    const end = dateOnly(input.checkOutDate);
+    const start = dateOnly(campaign.startAt);
+    const last = dateOnly(campaign.endAt);
+    while (cursor < end) {
+      if (onOrAfter(cursor, start) && onOrBefore(cursor, last)) {
+        matching += 1;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    if (matching <= 0) {
+      return null;
+    }
+    base = (toInt(input.roomAmount) / stayNights) * matching;
+  }
+  if (base <= 0) {
+    return null;
+  }
+  const priced = {
+    ...campaign,
+    discountValue: campaign.type === "newMember" &&
+      discountUsedNights > 0 &&
+      campaign.valueType !== "percent" ?
+      Number(campaign.discountValue || 0) * discountUsedNights :
+      campaign.discountValue,
+  };
+  const discountAmount = calculateAmount(priced, base);
+  if (discountAmount <= 0) {
+    return null;
+  }
+  return {
+    campaign,
+    discountAmount,
+    discountBaseAmount: base,
+    discountUsedNights,
+  };
+}
+
+function isOrderWindowOpen(campaign, now) {
+  return withinPeriod(campaign, now || new Date());
+}
+
 module.exports = {
   parseApplicableServices,
   findBestDaycareCampaign,
   calculateCampaign,
+  quoteAccommodationCampaign,
+  isOrderWindowOpen,
+  totalUsageOk,
   nights,
 };

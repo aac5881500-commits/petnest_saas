@@ -2,6 +2,7 @@
 // 功能說明：讀取店家資料，顯示適合手機的緊湊型頂部與 Banner
 // ✨ 店家新版前台首頁 Beta
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,23 +14,41 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_bottom_nav
 import 'package:petnest_saas/features/shop/widgets/modern_home/shop_menu_button.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
 import 'package:petnest_saas/core/models/home_banner_display.dart';
+import 'package:petnest_saas/core/models/discount_campaign_model.dart';
+import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
+import 'package:petnest_saas/core/models/review_model.dart';
+import 'package:petnest_saas/core/services/discount_campaign_service.dart';
+import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/shop/widgets/modern_home/editable_home_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_layout_canvas.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_about_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_faq_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_news_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_policy_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_flow.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_span.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_editor_overlay.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_banner_carousel.dart';
-import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_environment_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_room_section.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_quick_booking_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_shop_footer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_review_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_staying_daily_care_section.dart';
@@ -125,6 +144,33 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   late final Stream<Map<String, dynamic>?> _shopStream;
   late final Stream<List<Map<String, dynamic>>> _roomTypesStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _announcementsStream;
+  late final Stream<List<DiscountCampaignModel>> _campaignsStream;
+  late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+  _announcementsSub;
+  late final StreamSubscription<List<DiscountCampaignModel>> _campaignsSub;
+  List<Map<String, dynamic>> _publishedNotices = const <Map<String, dynamic>>[];
+  List<DiscountCampaignModel> _publicCampaigns =
+      const <DiscountCampaignModel>[];
+  bool _noticesReady = false;
+  bool _campaignsReady = false;
+  bool _noticesFailed = false;
+  bool _campaignsFailed = false;
+  late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
+  _policySub;
+  late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>> _faqsSub;
+  late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+  _reviewsSub;
+  Map<String, dynamic>? _policyDoc;
+  List<Map<String, dynamic>> _publishedFaqs = const <Map<String, dynamic>>[];
+  List<ReviewModel> _publicReviews = const <ReviewModel>[];
+  bool _policyReady = false;
+  bool _faqsReady = false;
+  bool _reviewsReady = false;
+  bool _policyFailed = false;
+  bool _faqsFailed = false;
+  bool _reviewsFailed = false;
+  late final StreamSubscription<DaycareSettingsModel> _daycareSettingsSub;
+  DaycareSettingsModel? _daycareSettings;
   final ScrollController _homeScroll = ScrollController();
   final ValueNotifier<Rect?> _menuRect = ValueNotifier<Rect?>(null);
   final ValueNotifier<Rect?> _contactRect = ValueNotifier<Rect?>(null);
@@ -142,6 +188,154 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         .collection('announcements')
         .where('isPublished', isEqualTo: true)
         .snapshots();
+    _campaignsStream = DiscountCampaignService.instance.streamPublicCampaigns(
+      widget.shopId,
+    );
+    _announcementsSub = _announcementsStream.listen(
+      (QuerySnapshot<Map<String, dynamic>> snapshot) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _noticesReady = true;
+          _noticesFailed = false;
+          _publishedNotices = snapshot.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    <String, dynamic>{...doc.data(), 'id': doc.id},
+              )
+              .toList();
+        });
+      },
+      onError: (Object _) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _noticesReady = true;
+          _noticesFailed = true;
+          _publishedNotices = const <Map<String, dynamic>>[];
+        });
+      },
+    );
+    _campaignsSub = _campaignsStream.listen(
+      (List<DiscountCampaignModel> campaigns) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _campaignsReady = true;
+          _campaignsFailed = false;
+          _publicCampaigns = campaigns;
+        });
+      },
+      onError: (Object _) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _campaignsReady = true;
+          _campaignsFailed = true;
+          _publicCampaigns = const <DiscountCampaignModel>[];
+        });
+      },
+    );
+    _policySub = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('policies')
+        .doc('checkin_policy')
+        .snapshots()
+        .listen(
+          (DocumentSnapshot<Map<String, dynamic>> snapshot) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _policyReady = true;
+              _policyFailed = false;
+              _policyDoc = snapshot.data();
+            });
+          },
+          onError: (Object _) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _policyReady = true;
+              _policyFailed = true;
+              _policyDoc = null;
+            });
+          },
+        );
+    _faqsSub = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('faqs')
+        .where('isPublished', isEqualTo: true)
+        .snapshots()
+        .listen(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _faqsReady = true;
+              _faqsFailed = false;
+              _publishedFaqs = snapshot.docs
+                  .map(
+                    (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                        <String, dynamic>{...doc.data(), 'id': doc.id},
+                  )
+                  .toList();
+            });
+          },
+          onError: (Object _) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _faqsReady = true;
+              _faqsFailed = true;
+              _publishedFaqs = const <Map<String, dynamic>>[];
+            });
+          },
+        );
+    _reviewsSub = FirebaseFirestore.instance
+        .collection('reviews')
+        .where('shopId', isEqualTo: widget.shopId)
+        .where('status', isEqualTo: 'visible')
+        .snapshots()
+        .listen(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _reviewsReady = true;
+              _reviewsFailed = false;
+              _publicReviews = snapshot.docs.map(ReviewModel.fromDoc).toList();
+            });
+          },
+          onError: (Object _) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _reviewsReady = true;
+              _reviewsFailed = true;
+              _publicReviews = const <ReviewModel>[];
+            });
+          },
+        );
+    _daycareSettingsSub = DaycareSettingsService.instance
+        .stream(widget.shopId)
+        .listen((DaycareSettingsModel settings) {
+          if (!mounted) {
+            return;
+          }
+          setState(() => _daycareSettings = settings);
+        }, onError: (Object _) {});
     _loadAdminAccess();
   }
 
@@ -162,6 +356,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
 
   @override
   void dispose() {
+    _announcementsSub.cancel();
+    _campaignsSub.cancel();
+    _policySub.cancel();
+    _faqsSub.cancel();
+    _reviewsSub.cancel();
+    _daycareSettingsSub.cancel();
     _homeScroll.dispose();
     _menuRect.dispose();
     _contactRect.dispose();
@@ -478,10 +678,91 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
         final HomeRoomSectionSetting roomSection =
             HomeRoomSectionSetting.fromMap(modernAppearance['roomSection']);
-        final bool showAnnouncements = shop['showAnnouncementSection'] != false;
+        final HomeEnvironmentSectionSetting environmentSection =
+            HomeEnvironmentSectionSetting.fromMap(
+              modernAppearance['environmentSection'],
+            );
+        final bool environmentVisible = environmentSection.showsOnHome(
+          hasFacilities: ModernHomeEnvironmentSection.facilitiesFor(
+            facilityKeys,
+          ).isNotEmpty,
+        );
+        final HomeAboutSectionSetting aboutSection =
+            HomeAboutSectionSetting.fromMap(modernAppearance['aboutSection']);
+        final bool aboutVisible = aboutSection.showsOnHome;
+        final HomeNewsSectionSetting newsSection =
+            HomeNewsSectionSetting.fromMap(modernAppearance['newsSection']);
+        final List<HomeNewsItem> newsItems = mergeHomeNews(
+          source: newsSection.source,
+          notices: HomeNewsItem.noticesFromMaps(_publishedNotices),
+          campaigns: _publicCampaigns.map(HomeNewsItem.campaign).toList(),
+        );
+        final HomeNewsSectionPhase newsPhase = resolveHomeNewsPhase(
+          featureEnabled: shop['showAnnouncementSection'] != false,
+          editorPreview: widget.layoutCanvas || widget.isPreview,
+          source: newsSection.source,
+          load: HomeNewsLoadState(
+            noticesReady: _noticesReady,
+            campaignsReady: _campaignsReady,
+            noticesFailed: _noticesFailed,
+            campaignsFailed: _campaignsFailed,
+          ),
+          hasItems: newsItems.isNotEmpty,
+        );
+        final bool showAnnouncements = homeNewsOccupiesSection(newsPhase);
+        final HomeInformationSectionsSetting informationSections =
+            HomeInformationSectionsSetting.fromMap(
+              modernAppearance['informationSections'],
+            );
+        final bool editorPreview = widget.layoutCanvas || widget.isPreview;
+        final HomePolicySnapshot policySnapshot = readHomePolicySnapshot(
+          _policyDoc,
+        );
+        final List<HomeFaqItem> faqItems = homeFaqsFromMaps(_publishedFaqs);
+        final List<ReviewModel> reviewItems = sortPublicReviews(_publicReviews);
+        final HomeInfoSectionPhase policyPhase = resolveHomeInfoPhase(
+          showOnHome: informationSections.policy.showOnHome,
+          editorPreview: editorPreview,
+          ready: _policyReady,
+          failed: _policyFailed,
+          hasContent: policySnapshot.hasContent,
+        );
+        final HomeInfoSectionPhase faqPhase = resolveHomeInfoPhase(
+          showOnHome: informationSections.faq.showOnHome,
+          editorPreview: editorPreview,
+          featureEnabled: shop['showFaqSection'] != false,
+          ready: _faqsReady,
+          failed: _faqsFailed,
+          hasContent: faqItems.isNotEmpty,
+        );
+        final HomeInfoSectionPhase reviewPhase = resolveHomeInfoPhase(
+          showOnHome: informationSections.reviews.showOnHome,
+          editorPreview: editorPreview,
+          ready: _reviewsReady,
+          failed: _reviewsFailed,
+          hasContent: reviewItems.isNotEmpty,
+        );
+        final HomeQuickBookingSectionSetting quickBookingSection =
+            HomeQuickBookingSectionSetting.fromMap(
+              modernAppearance['quickBookingSection'],
+            );
+        final bool accommodationAvailable = shop['bookingEnabled'] != false;
+        final bool daycareAvailable = DaycareSettingsService.instance
+            .isEnabledForShop(shop: shop, settings: _daycareSettings);
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
           showAnnouncements: showAnnouncements,
+          showAbout: aboutVisible,
+          showPolicy: homeInfoOccupiesSection(policyPhase),
+          showFaq: homeInfoOccupiesSection(faqPhase),
+          showReviews: homeInfoOccupiesSection(reviewPhase),
+          showFacilities: environmentVisible,
+          showQuickBooking: homeQuickBookingVisible(
+            setting: quickBookingSection,
+            editorPreview: editorPreview,
+            accommodationAvailable: accommodationAvailable,
+            daycareAvailable: daycareAvailable,
+          ),
         );
         Widget sectionBody(String sectionId) {
           return _homeSection(
@@ -498,6 +779,36 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             frameSetting: bannerFrameSetting,
             useBottomBar: useBottomBar,
             roomSection: roomSection,
+            environmentIntro: environmentIntro,
+            environmentSection: environmentSection,
+            aboutSection: aboutSection,
+            newsSection: newsSection,
+            newsItems: newsItems,
+            newsPhase: newsPhase,
+            informationSections: informationSections,
+            policySnapshot: policySnapshot,
+            faqItems: faqItems,
+            reviewItems: reviewItems,
+            policyPhase: policyPhase,
+            faqPhase: faqPhase,
+            reviewPhase: reviewPhase,
+            showEnvironmentService: !environmentVisible,
+            showAboutService: stayServiceShowsAbout(aboutSection),
+            quickBookingSection: quickBookingSection,
+            accommodationAvailable: accommodationAvailable,
+            daycareAvailable: daycareAvailable,
+          );
+        }
+
+        HomeSectionSpan spanOf(String sectionId) {
+          return homeSectionSpan(
+            sectionId: sectionId,
+            rooms: roomSection,
+            environment: environmentSection,
+            about: aboutSection,
+            news: newsSection,
+            information: informationSections,
+            quickBooking: quickBookingSection,
           );
         }
 
@@ -512,6 +823,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             useBottomBar: useBottomBar,
             sectionOrder: sectionOrder,
             visibleSectionIds: visibleSections,
+            spanOf: spanOf,
             buildSection: sectionBody,
           );
         }
@@ -662,18 +974,14 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                                     : 12,
                               ),
                               children: <Widget>[
-                                for (final String sectionId
-                                    in visibleSections) ...<Widget>[
-                                  sectionBody(sectionId),
-                                  if (HomeSectionOrder.gapAfter(sectionId) > 0)
-                                    SizedBox(
-                                      height: HomeSectionOrder.gapAfter(
-                                        sectionId,
-                                      ),
-                                    ),
-                                ],
+                                ...buildHomeSectionRows(
+                                  sectionIds: visibleSections,
+                                  spanOf: spanOf,
+                                  gap: constraints.maxWidth < 760 ? 8 : 10,
+                                  itemBuilder: sectionBody,
+                                ),
                                 if (useBottomBar) ...<Widget>[
-                                  const SizedBox(height: 18),
+                                  const SizedBox(height: 8),
                                   sectionBody('shopInfo'),
                                 ],
                               ],
@@ -721,17 +1029,21 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   Widget _buildStayServiceSection(
     Map<String, dynamic> shop, {
     required HomeThemeModel theme,
+    required bool showEnvironmentEntry,
+    required bool showAboutEntry,
+    required HomeInformationSectionsSetting information,
   }) {
     final showCamera = shop['showCameraSection'] != false;
 
     final services = <Map<String, dynamic>>[
-      {
-        'icon': Icons.home_outlined,
-        'title': '環境介紹',
-        'onTap': () {
-          _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
+      if (showEnvironmentEntry)
+        {
+          'icon': Icons.home_outlined,
+          'title': '環境介紹',
+          'onTap': () {
+            _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
+          },
         },
-      },
       {
         'icon': Icons.bedroom_parent_outlined,
         'title': '全部房型',
@@ -739,19 +1051,20 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
         },
       },
-      {
-        'icon': Icons.description_outlined,
-        'title': '入住須知',
-        'onTap': () {
-          _openPage(
-            ShopPolicyViewPage(
-              shopId: widget.shopId,
-              theme: theme,
-              readOnly: true,
-            ),
-          );
+      if (showPolicyServiceEntry(information.policy))
+        {
+          'icon': Icons.description_outlined,
+          'title': '入住須知',
+          'onTap': () {
+            _openPage(
+              ShopPolicyViewPage(
+                shopId: widget.shopId,
+                theme: theme,
+                readOnly: true,
+              ),
+            );
+          },
         },
-      },
       if (showCamera)
         {
           'icon': Icons.videocam_outlined,
@@ -762,21 +1075,26 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             ).showSnackBar(const SnackBar(content: Text('攝影機需於入住期間開放')));
           },
         },
-      {
-        'icon': Icons.favorite_border_rounded,
-        'title': '關於我們',
-        'onTap': () {
-          _openPage(ShopAboutPage(shopId: widget.shopId, theme: theme));
+      if (showAboutEntry)
+        {
+          'icon': Icons.favorite_border_rounded,
+          'title': '關於我們',
+          'onTap': () {
+            _openPage(ShopAboutPage(shopId: widget.shopId, theme: theme));
+          },
         },
-      },
-      {
-        'icon': Icons.star_border_rounded,
-        'title': '評價專區',
-        'onTap': () {
-          _openPage(ShopReviewListPage(shopId: widget.shopId, theme: theme));
+      if (showReviewServiceEntry(information.reviews))
+        {
+          'icon': Icons.star_border_rounded,
+          'title': '評價專區',
+          'onTap': () {
+            _openPage(ShopReviewListPage(shopId: widget.shopId, theme: theme));
+          },
         },
-      },
-      if (shop['showFaqSection'] != false)
+      if (showFaqServiceEntry(
+        information.faq,
+        featureEnabled: shop['showFaqSection'] != false,
+      ))
         {
           'icon': Icons.help_outline_rounded,
           'title': '常見問題',
@@ -946,6 +1264,24 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required ModernBannerFrameSetting frameSetting,
     required bool useBottomBar,
     required HomeRoomSectionSetting roomSection,
+    required Map<String, dynamic> environmentIntro,
+    required HomeEnvironmentSectionSetting environmentSection,
+    required HomeAboutSectionSetting aboutSection,
+    required HomeNewsSectionSetting newsSection,
+    required List<HomeNewsItem> newsItems,
+    required HomeNewsSectionPhase newsPhase,
+    required HomeInformationSectionsSetting informationSections,
+    required HomePolicySnapshot policySnapshot,
+    required List<HomeFaqItem> faqItems,
+    required List<ReviewModel> reviewItems,
+    required HomeInfoSectionPhase policyPhase,
+    required HomeInfoSectionPhase faqPhase,
+    required HomeInfoSectionPhase reviewPhase,
+    required bool showEnvironmentService,
+    required bool showAboutService,
+    required HomeQuickBookingSectionSetting quickBookingSection,
+    required bool accommodationAvailable,
+    required bool daycareAvailable,
   }) {
     switch (sectionId) {
       case 'header':
@@ -972,13 +1308,47 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           theme: theme,
           frameSetting: frameSetting,
         );
-      case 'facilities':
-        return _buildEnvironmentFeatureSection(
-          facilityKeys: facilityKeys,
+      case 'about':
+        return ModernHomeAboutSection(
           theme: theme,
+          setting: aboutSection,
+          shop: shop,
+          environmentIntro: environmentIntro,
+          shopName: shopName,
+          logoUrl: logoUrl,
+          preview: widget.layoutCanvas || widget.isPreview,
+          onOpen: () {
+            _openPage(ShopAboutPage(shopId: widget.shopId, theme: theme));
+          },
+        );
+      case 'facilities':
+        return ModernHomeEnvironmentSection(
+          theme: theme,
+          setting: environmentSection,
+          environmentIntro: environmentIntro,
+          facilityKeys: facilityKeys,
+          preview: widget.layoutCanvas || widget.isPreview,
+          onOpen: () {
+            _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
+          },
         );
       case 'announcements':
-        return _buildLatestAnnouncementSection(theme: theme);
+        return ModernHomeNewsSection(
+          theme: theme,
+          setting: newsSection,
+          items: newsItems,
+          phase: newsPhase,
+          preview: widget.layoutCanvas || widget.isPreview,
+          onOpen: (ShopAnnouncementSection section) {
+            _openPage(
+              ShopAnnouncementPage(
+                shopId: widget.shopId,
+                theme: theme,
+                initialSection: section,
+              ),
+            );
+          },
+        );
       case 'dailyCare':
         return ModernStayingDailyCareSection(
           shopId: widget.shopId,
@@ -1002,16 +1372,86 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           setting: storeHomeSetting,
         );
       case 'services':
-        return _buildStayServiceSection(shop, theme: theme);
+        return _buildStayServiceSection(
+          shop,
+          theme: theme,
+          showEnvironmentEntry: showEnvironmentService,
+          showAboutEntry: showAboutService,
+          information: informationSections,
+        );
+      case 'policy':
+        return ModernHomePolicySection(
+          theme: theme,
+          setting: informationSections.policy,
+          snapshot: policySnapshot,
+          phase: policyPhase,
+          onOpen: (String serviceType) {
+            _openPage(
+              ShopPolicyViewPage(
+                shopId: widget.shopId,
+                theme: theme,
+                readOnly: true,
+                serviceType: serviceType,
+              ),
+            );
+          },
+        );
+      case 'faq':
+        return ModernHomeFaqSection(
+          theme: theme,
+          setting: informationSections.faq,
+          items: faqItems,
+          phase: faqPhase,
+          onOpen: () {
+            _openPage(ShopFaqPage(shopId: widget.shopId, theme: theme));
+          },
+        );
+      case 'quickBooking':
+        return ModernHomeQuickBookingSection(
+          theme: theme,
+          setting: quickBookingSection,
+          accommodationAvailable: accommodationAvailable,
+          daycareAvailable: daycareAvailable,
+          preview: widget.layoutCanvas || widget.isPreview,
+          onOpenAutomatic: () {
+            _openPage(
+              ShopBookingEntryPage(
+                shopId: widget.shopId,
+                theme: theme,
+                useModernDrawer: true,
+              ),
+            );
+          },
+          onOpenAccommodation: () {
+            _openPage(
+              ShopBookingEntryPage(
+                shopId: widget.shopId,
+                theme: theme,
+                useModernDrawer: true,
+                initialService: BookingEntryInitialService.accommodation,
+              ),
+            );
+          },
+          onOpenDaycare: () {
+            _openPage(
+              ShopBookingEntryPage(
+                shopId: widget.shopId,
+                theme: theme,
+                useModernDrawer: true,
+                initialService: BookingEntryInitialService.daycare,
+              ),
+            );
+          },
+        );
       case 'reviews':
         return ModernReviewSection(
-          shopId: widget.shopId,
-          primaryColor: theme.primaryColor,
-          darkTextColor: theme.textColor,
-          secondaryTextColor: theme.secondaryTextColor,
-          cardColor: theme.cardColor,
-          borderColor: theme.cardBorderColor,
           theme: theme,
+          setting: informationSections.reviews,
+          reviews: reviewItems,
+          phase: reviewPhase,
+          onOpen: () {
+            _openPage(ShopReviewListPage(shopId: widget.shopId, theme: theme));
+          },
         );
       case 'shopInfo':
         return _shopInfoPanel(shop: shop, shopName: shopName, theme: theme);
@@ -1030,6 +1470,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required bool useBottomBar,
     required List<String> sectionOrder,
     required List<String> visibleSectionIds,
+    required HomeSectionSpan Function(String sectionId) spanOf,
     required Widget Function(String sectionId) buildSection,
   }) {
     return Scaffold(
@@ -1055,10 +1496,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          _HomeLayoutCanvas(
+          HomeLayoutCanvas(
             background: theme.backgroundColor,
             sectionIds: visibleSectionIds,
             sectionOrder: sectionOrder,
+            spanOf: spanOf,
             pinFooter: !useBottomBar,
             shopInfo: useBottomBar ? buildSection('shopInfo') : null,
             bottomInset: useBottomBar
@@ -1213,550 +1655,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 useModernDrawer: true,
               );
             },
-    );
-  }
-
-  Widget _buildEnvironmentFeatureSection({
-    required List<String> facilityKeys,
-    required HomeThemeModel theme,
-  }) {
-    if (facilityKeys.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final selectedFacilities = environmentFacilityOptions.where((item) {
-      final key = (item['key'] ?? '').toString();
-      return facilityKeys.contains(key);
-    }).toList();
-
-    if (selectedFacilities.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    void openEnvironmentPage() {
-      _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
-    }
-
-    return SizedBox(
-      height: 82,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.zero,
-        itemCount: selectedFacilities.length + 1,
-        separatorBuilder: (context, index) {
-          return const SizedBox(width: 8);
-        },
-        itemBuilder: (context, index) {
-          final isLastButton = index == selectedFacilities.length;
-
-          if (isLastButton) {
-            return InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: openEnvironmentPage,
-              child: Container(
-                width: 72,
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: theme.cardBorderColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.025),
-                      blurRadius: 7,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.keyboard_double_arrow_right_rounded,
-                      size: 32,
-                      color: theme.primaryColor,
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      '環境介紹',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: theme.textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final facility = selectedFacilities[index];
-
-          final title = (facility['title'] ?? '照護設備').toString().trim();
-
-          final icon = facility['icon'] is IconData
-              ? facility['icon'] as IconData
-              : Icons.pets_outlined;
-
-          return InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: openEnvironmentPage,
-            child: Container(
-              width: 72,
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: theme.cardBorderColor),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.025),
-                    blurRadius: 7,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 31,
-                    height: 31,
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, size: 16, color: theme.primaryColor),
-                  ),
-
-                  const SizedBox(height: 7),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      height: 1,
-                      fontWeight: FontWeight.w800,
-                      color: theme.textColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildLatestAnnouncementSection({required HomeThemeModel theme}) {
-    void openAnnouncementPage() {
-      _openPage(ShopAnnouncementPage(shopId: widget.shopId, theme: theme));
-    }
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _announcementsStream,
-      builder: (context, snapshot) {
-        String title = '目前尚無公告';
-        String type = 'normal';
-        bool hasAnnouncement = false;
-
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final docs = snapshot.data!.docs.toList();
-
-          docs.sort((a, b) {
-            final aData = a.data();
-            final bData = b.data();
-
-            final aPinned = aData['isPinned'] == true;
-            final bPinned = bData['isPinned'] == true;
-
-            if (aPinned != bPinned) {
-              return aPinned ? -1 : 1;
-            }
-
-            final aTime = aData['createdAt'];
-            final bTime = bData['createdAt'];
-
-            if (aTime is Timestamp && bTime is Timestamp) {
-              return bTime.compareTo(aTime);
-            }
-
-            return 0;
-          });
-
-          final announcement = docs.first.data();
-
-          title = (announcement['title'] ?? '未命名公告').toString().trim();
-          type = (announcement['type'] ?? 'normal').toString();
-          hasAnnouncement = true;
-        }
-
-        return InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: openAnnouncementPage,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: theme.cardBorderColor),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.025),
-                  blurRadius: 7,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _announcementIcon(type),
-                    size: 18,
-                    color: theme.primaryColor,
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '最新公告',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          color: theme.textColor,
-                        ),
-                      ),
-
-                      const SizedBox(height: 3),
-
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          height: 1.2,
-                          color: hasAnnouncement
-                              ? theme.secondaryTextColor
-                              : theme.textColor.withValues(alpha: 0.45),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 6),
-
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: theme.primaryColor,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  IconData _announcementIcon(String type) {
-    switch (type) {
-      case 'important':
-        return Icons.priority_high_rounded;
-      case 'business_hours':
-        return Icons.schedule_rounded;
-      case 'promotion':
-        return Icons.local_offer_outlined;
-      case 'checkin_notice':
-        return Icons.notifications_active_outlined;
-      default:
-        return Icons.campaign_outlined;
-    }
-  }
-}
-
-class _HomeLayoutCanvas extends StatefulWidget {
-  const _HomeLayoutCanvas({
-    required this.background,
-    required this.sectionIds,
-    required this.sectionOrder,
-    required this.pinFooter,
-    required this.shopInfo,
-    required this.bottomInset,
-    required this.selectedSectionId,
-    required this.onSelectSection,
-    required this.onSectionOrderChanged,
-    required this.focusSectionId,
-    required this.focusSectionToken,
-    required this.buildSection,
-  });
-
-  final Color background;
-  final List<String> sectionIds;
-  final List<String> sectionOrder;
-  final bool pinFooter;
-  final Widget? shopInfo;
-  final double bottomInset;
-  final String? selectedSectionId;
-  final ValueChanged<String>? onSelectSection;
-  final ValueChanged<List<String>>? onSectionOrderChanged;
-  final String? focusSectionId;
-  final int focusSectionToken;
-  final Widget Function(String sectionId) buildSection;
-
-  @override
-  State<_HomeLayoutCanvas> createState() => _HomeLayoutCanvasState();
-}
-
-class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
-  final ScrollController _scrollController = ScrollController();
-  final Map<String, GlobalKey> _anchors = <String, GlobalKey>{};
-
-  @override
-  void initState() {
-    super.initState();
-    _scheduleSectionFocus();
-  }
-
-  @override
-  void didUpdateWidget(_HomeLayoutCanvas oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.focusSectionToken != oldWidget.focusSectionToken ||
-        widget.focusSectionId != oldWidget.focusSectionId) {
-      _scheduleSectionFocus();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  GlobalKey _anchor(String sectionId) {
-    return _anchors.putIfAbsent(sectionId, GlobalKey.new);
-  }
-
-  void _scheduleSectionFocus() {
-    final String? sectionId = widget.focusSectionId;
-    if (sectionId == null || sectionId.isEmpty) {
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      _revealSection(sectionId, allowJump: true);
-    });
-  }
-
-  void _revealSection(String sectionId, {required bool allowJump}) {
-    final BuildContext? target = _anchor(sectionId).currentContext;
-    if (target != null) {
-      Scrollable.ensureVisible(
-        target,
-        alignment: 0.08,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOut,
-      );
-      return;
-    }
-    if (!allowJump || !_scrollController.hasClients) {
-      return;
-    }
-    final int index = widget.sectionIds.indexOf(sectionId);
-    if (index < 0) {
-      return;
-    }
-    final double offset = (index * 180.0).clamp(
-      0.0,
-      _scrollController.position.maxScrollExtent,
-    );
-    _scrollController.jumpTo(offset);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      _revealSection(sectionId, allowJump: false);
-    });
-  }
-
-  Widget _fixedSection(String sectionId) {
-    return EditableHomeSection(
-      key: ValueKey<String>(sectionId),
-      sectionId: sectionId,
-      selected: widget.selectedSectionId == sectionId,
-      onSelect: () => widget.onSelectSection?.call(sectionId),
-      child: KeyedSubtree(
-        key: _anchor(sectionId),
-        child: widget.buildSection(sectionId),
-      ),
-    );
-  }
-
-  Widget _orderedSection(String sectionId, int index) {
-    final double gap = HomeSectionOrder.gapAfter(sectionId);
-    return EditableHomeSection(
-      key: ValueKey<String>(sectionId),
-      sectionId: sectionId,
-      selected: widget.selectedSectionId == sectionId,
-      onSelect: () => widget.onSelectSection?.call(sectionId),
-      child: KeyedSubtree(
-        key: _anchor(sectionId),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            Padding(
-              padding: EdgeInsets.only(bottom: gap),
-              child: widget.buildSection(sectionId),
-            ),
-            if (sectionId == 'banners' || sectionId == 'rooms')
-              _sectionDragHandle(
-                index: index,
-                sectionId: sectionId,
-                tooltip: sectionId == 'rooms' ? '拖曳整個房型介紹區塊' : '拖曳整個海報區塊',
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionDragHandle({
-    required int index,
-    required String sectionId,
-    required String tooltip,
-  }) {
-    final bool touch =
-        Theme.of(context).platform == TargetPlatform.iOS ||
-        Theme.of(context).platform == TargetPlatform.android;
-    final Widget handle = Tooltip(
-      message: tooltip,
-      child: Material(
-        key: Key('home-section-drag-$sectionId'),
-        color: Colors.white.withValues(alpha: 0.94),
-        elevation: 2,
-        borderRadius: BorderRadius.circular(8),
-        child: const Padding(
-          padding: EdgeInsets.all(4),
-          child: Icon(
-            Icons.drag_indicator_rounded,
-            size: 20,
-            color: Color(0xFF475569),
-          ),
-        ),
-      ),
-    );
-    return Positioned(
-      top: 4,
-      right: 4,
-      child: touch
-          ? ReorderableDelayedDragStartListener(index: index, child: handle)
-          : ReorderableDragStartListener(index: index, child: handle),
-    );
-  }
-
-  void _onReorder(int oldIndex, int newIndex) {
-    final String? moved = oldIndex >= 0 && oldIndex < widget.sectionIds.length
-        ? widget.sectionIds[oldIndex]
-        : null;
-    final List<String> next = HomeSectionOrder.reorderVisible(
-      saved: widget.sectionOrder,
-      visible: widget.sectionIds,
-      oldIndex: oldIndex,
-      newIndex: newIndex,
-    );
-    if (!_sameOrder(next, widget.sectionOrder)) {
-      widget.onSectionOrderChanged?.call(next);
-    }
-    if (moved != null) {
-      widget.onSelectSection?.call(moved);
-    }
-  }
-
-  bool _sameOrder(List<String> left, List<String> right) {
-    if (left.length != right.length) {
-      return false;
-    }
-    for (int index = 0; index < left.length; index++) {
-      if (left[index] != right[index]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: widget.background,
-      child: Column(
-        children: <Widget>[
-          _fixedSection('header'),
-          Expanded(
-            child: ReorderableListView.builder(
-              scrollController: _scrollController,
-              primary: false,
-              buildDefaultDragHandles: false,
-              physics: const ClampingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(12, 5, 12, widget.bottomInset),
-              itemCount: widget.sectionIds.length,
-              onReorder: _onReorder,
-              proxyDecorator:
-                  (Widget child, int index, Animation<double> animation) {
-                    return AnimatedBuilder(
-                      animation: animation,
-                      builder: (BuildContext context, Widget? lifted) {
-                        final double elevation = Tween<double>(
-                          begin: 0,
-                          end: 8,
-                        ).evaluate(animation);
-                        return Material(
-                          elevation: elevation,
-                          color: Colors.transparent,
-                          shadowColor: Colors.black26,
-                          child: lifted,
-                        );
-                      },
-                      child: child,
-                    );
-                  },
-              footer: widget.shopInfo == null
-                  ? null
-                  : Padding(
-                      padding: const EdgeInsets.only(top: 18),
-                      child: widget.shopInfo,
-                    ),
-              itemBuilder: (BuildContext context, int index) {
-                return _orderedSection(widget.sectionIds[index], index);
-              },
-            ),
-          ),
-          if (widget.pinFooter) _fixedSection('footer'),
-        ],
-      ),
     );
   }
 }

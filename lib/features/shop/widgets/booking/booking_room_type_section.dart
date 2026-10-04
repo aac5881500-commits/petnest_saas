@@ -45,7 +45,8 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
     final bool datesChanged =
         oldWidget.shopId != widget.shopId ||
         oldWidget.startDate != widget.startDate ||
-        oldWidget.endDate != widget.endDate;
+        oldWidget.endDate != widget.endDate ||
+        oldWidget.selectedPetIds.length != widget.selectedPetIds.length;
     if (datesChanged) {
       _roomsFuture = _createRoomsFuture();
     }
@@ -60,6 +61,7 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
       shopId: widget.shopId,
       startDate: widget.startDate!,
       endDate: widget.endDate!,
+      petCount: widget.selectedPetIds.length,
     );
   }
 
@@ -101,6 +103,17 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
               return const Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return const Text(
+                '暫時無法取得房間剩餘狀態',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
               );
             }
 

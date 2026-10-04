@@ -1002,15 +1002,12 @@ void main() {
         final Size card = tester.getSize(
           find.byKey(const Key('home-room-simple')),
         );
+        expect(card.width, greaterThan(width * 0.8));
         if (size == HomeRoomSimpleCardSizes.small) {
-          expect(card.width, lessThanOrEqualTo(200));
-          expect(card.width, lessThan(width));
           expect(
             tester.getTopLeft(find.byKey(const Key('home-room-simple'))).dx,
             lessThan(40),
           );
-        } else {
-          expect(card.width, greaterThan(width * 0.8));
         }
         if (size == HomeRoomSimpleCardSizes.wide) {
           wideHeight = card.height;

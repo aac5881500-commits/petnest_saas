@@ -53,6 +53,7 @@ import 'package:petnest_saas/core/models/coupon_template_model.dart';
 import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import '../../../core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 
 class ShopBookingPage extends StatefulWidget {
   const ShopBookingPage({
@@ -1279,12 +1280,65 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     required Map<String, dynamic> shop,
     required DateTime firstDate,
     required DateTime lastDate,
-  }) {
+  }) async {
+    final List<String> dates = <String>[];
+    DateTime cursor = _dateOnly(firstDate);
+    final DateTime last = _dateOnly(lastDate);
+    while (!cursor.isAfter(last)) {
+      dates.add(_formatDate(cursor));
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    final Map<String, dynamic> availability =
+        await StayBookingFunctionService.instance.getAvailability(
+          shopId: widget.shopId,
+          dates: dates,
+        );
+    final Object? rawDays = availability['dates'];
+    if (rawDays is! List) {
+      throw const StayBookingFunctionException(
+        StayBookingFunctionService.availabilityUnavailable,
+      );
+    }
+    final Map<String, int> remainingRoomsMap = <String, int>{};
+    final Set<String> fullDateKeys = <String>{};
+    for (final Object? row in rawDays) {
+      if (row is! Map) {
+        throw const StayBookingFunctionException(
+          StayBookingFunctionService.availabilityUnavailable,
+        );
+      }
+      final String key = (row['date'] ?? '').toString();
+      final Object? rawRemaining = row['remaining'];
+      if (key.isEmpty || rawRemaining is! num) {
+        throw const StayBookingFunctionException(
+          StayBookingFunctionService.availabilityUnavailable,
+        );
+      }
+      final int remaining = rawRemaining.toInt();
+      if (remaining < 0) {
+        throw const StayBookingFunctionException(
+          StayBookingFunctionService.availabilityUnavailable,
+        );
+      }
+      remainingRoomsMap[key] = remaining;
+      if (remaining <= 0 || row['available'] == false) {
+        fullDateKeys.add(key);
+      }
+    }
+    if (remainingRoomsMap.length != dates.length) {
+      throw const StayBookingFunctionException(
+        StayBookingFunctionService.availabilityUnavailable,
+      );
+    }
     return FrontCalendarHelper.buildPayload(
       shopId: widget.shopId,
       shop: shop,
       firstDate: firstDate,
       lastDate: lastDate,
+      skipRoomInventory: true,
+      remainingPetsMap: remainingRoomsMap,
+      extraFullDateKeys: fullDateKeys,
+      markFullRoomsUnbookable: false,
     );
   }
 
@@ -1849,7 +1903,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                 }
 
                 if (snapshot.hasError) {
-                  return Center(child: Text('日曆載入失敗：${snapshot.error}'));
+                  return const Center(
+                    child: Text(
+                      StayBookingFunctionService.availabilityUnavailable,
+                    ),
+                  );
                 }
 
                 if (!snapshot.hasData) {

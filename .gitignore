@@ -32,11 +32,19 @@ ios/Runner/GoogleService-Info.plist
 .vscode/
 
 # =========================
+# Node / npm
+# =========================
+node_modules/
+
+# =========================
 # Generated / temporary files
 # =========================
 *.log
 *.tmp
 *.lock
+
+# Firebase emulator / hosting cache
+.firebase/
 
 # Firebase deploy debug
 firebase-debug.log

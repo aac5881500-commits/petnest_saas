@@ -4,13 +4,17 @@ class HomeSectionOrder {
 
   static const List<String> defaultOrder = <String>[
     'banners',
+    'quickBooking',
     'facilities',
     'announcements',
     'dailyCare',
     'rooms',
     'featured',
     'storeEntrance',
+    'about',
     'services',
+    'policy',
+    'faq',
     'reviews',
   ];
 
@@ -60,9 +64,33 @@ class HomeSectionOrder {
   static List<String> visible(
     List<String> order, {
     required bool showAnnouncements,
+    bool showAbout = true,
+    bool showPolicy = false,
+    bool showFaq = false,
+    bool showReviews = true,
+    bool showFacilities = true,
+    bool showQuickBooking = false,
   }) {
     return order.where((String id) {
       if (id == 'announcements' && !showAnnouncements) {
+        return false;
+      }
+      if (id == 'facilities' && !showFacilities) {
+        return false;
+      }
+      if (id == 'about' && !showAbout) {
+        return false;
+      }
+      if (id == 'policy' && !showPolicy) {
+        return false;
+      }
+      if (id == 'faq' && !showFaq) {
+        return false;
+      }
+      if (id == 'reviews' && !showReviews) {
+        return false;
+      }
+      if (id == 'quickBooking' && !showQuickBooking) {
         return false;
       }
       return defaultOrder.contains(id);
@@ -102,22 +130,6 @@ class HomeSectionOrder {
       }
       return queue.removeAt(0);
     }).toList();
-  }
-
-  static double gapAfter(String sectionId) {
-    switch (sectionId) {
-      case 'banners':
-        return 10;
-      case 'facilities':
-        return 12;
-      case 'announcements':
-        return 16;
-      case 'rooms':
-      case 'services':
-        return 18;
-      default:
-        return 0;
-    }
   }
 }
 

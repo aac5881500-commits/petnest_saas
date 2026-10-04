@@ -67,6 +67,37 @@ class PlatformMediaLibraryService {
     });
   }
 
+  /// 只查某個小屋區域。不讀整座圖庫，也不清掉每日照護的快取。
+  Stream<List<PlatformMediaAsset>> streamEnabledForPlacement(String placement) {
+    final String key = placement.trim();
+    if (!ShopHousePlacements.known.contains(key)) {
+      return Stream<List<PlatformMediaAsset>>.value(
+        const <PlatformMediaAsset>[],
+      );
+    }
+    return _col
+        .where('enabled', isEqualTo: true)
+        .where('placements', arrayContains: key)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final List<PlatformMediaAsset> list = snapshot.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    PlatformMediaAsset.fromMap(doc.id, doc.data()),
+              )
+              .where(
+                (PlatformMediaAsset asset) =>
+                    asset.enabled && asset.allowsPlacement(key),
+              )
+              .toList();
+          _sort(list);
+          for (final PlatformMediaAsset asset in list) {
+            _enabledCache[asset.id] = asset;
+          }
+          return list;
+        });
+  }
+
   Stream<List<PlatformMediaAsset>> streamAllAssets([String? category]) {
     return _col.snapshots().map((QuerySnapshot<Map<String, dynamic>> snapshot) {
       final List<PlatformMediaAsset> list = snapshot.docs
@@ -119,6 +150,7 @@ class PlatformMediaLibraryService {
     bool enabled = true,
     int width = 0,
     int height = 0,
+    List<String> placements = const <String>[],
   }) async {
     _assertImage(bytes, contentType);
     final String normalizedName = name.trim();
@@ -129,6 +161,10 @@ class PlatformMediaLibraryService {
     if (normalizedCategory.isEmpty) {
       throw ArgumentError('請選擇分類');
     }
+    final List<String> normalizedPlacements = normalizePlacements(
+      normalizedCategory,
+      placements,
+    );
 
     final DocumentReference<Map<String, dynamic>> doc = _col.doc();
     final String extension = _extensionFor(contentType);
@@ -144,6 +180,7 @@ class PlatformMediaLibraryService {
       final Map<String, dynamic> data = <String, dynamic>{
         'name': normalizedName,
         'category': normalizedCategory,
+        'placements': normalizedPlacements,
         'imageUrl': imageUrl,
         'thumbnailUrl': imageUrl,
         'storagePath': storagePath,
@@ -181,6 +218,7 @@ class PlatformMediaLibraryService {
     String? contentType,
     int? width,
     int? height,
+    List<String>? placements,
   }) async {
     final String key = id.trim();
     if (key.isEmpty) {
@@ -222,11 +260,16 @@ class PlatformMediaLibraryService {
         fileBytes = bytes.lengthInBytes;
       }
 
+      final String nextCategory = (category ?? old.category).trim();
+      final List<String>? nextPlacements = placements == null
+          ? null
+          : normalizePlacements(nextCategory, placements);
       await _col.doc(key).update(<String, dynamic>{
         if (name != null) 'name': name.trim(),
-        if (category != null) 'category': category.trim(),
-        if (sortOrder != null) 'sortOrder': sortOrder,
-        if (enabled != null) 'enabled': enabled,
+        'category': ?category?.trim(),
+        'placements': ?nextPlacements,
+        'sortOrder': ?sortOrder,
+        'enabled': ?enabled,
         'imageUrl': imageUrl,
         'thumbnailUrl': thumbnailUrl,
         'storagePath': storagePath,
@@ -273,6 +316,23 @@ class PlatformMediaLibraryService {
         await _storage.ref().child(storagePath.trim()).delete();
       } catch (_) {}
     }
+  }
+
+  static List<String> normalizePlacements(String category, List<String> raw) {
+    if (category != PlatformMediaCategories.shopHouse) {
+      return const <String>[];
+    }
+    final List<String> result = <String>[];
+    for (final String item in raw) {
+      final String key = item.trim();
+      if (ShopHousePlacements.known.contains(key) && !result.contains(key)) {
+        result.add(key);
+      }
+    }
+    if (result.isEmpty) {
+      throw ArgumentError('請至少選擇一個使用區域');
+    }
+    return result;
   }
 
   static List<PlatformMediaAsset> _filterCategory(

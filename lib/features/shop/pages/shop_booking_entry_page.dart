@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/shop/pages/shop_booking_entry_page.dart
-// 功能說明：前台預約入口：貓咪旅店＋臨托同時開啟時，先選兩張大型服務卡片
+// 功能說明：前台預約入口：住宿與安親同時開啟時，先選兩張大型服務卡片
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +15,50 @@ import 'package:petnest_saas/features/shop/pages/shop_daycare_booking_page.dart'
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_entry_service_card.dart';
 
+enum BookingEntryInitialService { automatic, accommodation, daycare }
+
+enum BookingEntryDestination { chooser, accommodation, daycare, paused }
+
+/// 依入口類型與真正的服務開關決定要進選擇頁、住宿、安親或暫停提示。
+BookingEntryDestination resolveBookingEntry({
+  required BookingEntryInitialService initialService,
+  required bool accommodationOn,
+  required bool daycareOn,
+}) {
+  switch (initialService) {
+    case BookingEntryInitialService.accommodation:
+      return accommodationOn
+          ? BookingEntryDestination.accommodation
+          : BookingEntryDestination.paused;
+    case BookingEntryInitialService.daycare:
+      return daycareOn
+          ? BookingEntryDestination.daycare
+          : BookingEntryDestination.paused;
+    case BookingEntryInitialService.automatic:
+      if (accommodationOn && daycareOn) {
+        return BookingEntryDestination.chooser;
+      }
+      if (accommodationOn) {
+        return BookingEntryDestination.accommodation;
+      }
+      if (daycareOn) {
+        return BookingEntryDestination.daycare;
+      }
+      return BookingEntryDestination.paused;
+  }
+}
+
+String bookingEntryPausedMessage(BookingEntryInitialService initialService) {
+  switch (initialService) {
+    case BookingEntryInitialService.accommodation:
+      return '目前暫停住宿預約';
+    case BookingEntryInitialService.daycare:
+      return '目前暫停安親預約';
+    case BookingEntryInitialService.automatic:
+      return '目前暫停開放預約';
+  }
+}
+
 class ShopBookingEntryPage extends StatelessWidget {
   const ShopBookingEntryPage({
     super.key,
@@ -22,14 +66,14 @@ class ShopBookingEntryPage extends StatelessWidget {
     this.preSelectedRoomType,
     this.theme = HomeThemeModel.classicDefault,
     this.useModernDrawer = false,
-    this.initialDaycare = false,
+    this.initialService = BookingEntryInitialService.automatic,
   });
 
   final String shopId;
   final Map<String, dynamic>? preSelectedRoomType;
   final HomeThemeModel theme;
   final bool useModernDrawer;
-  final bool initialDaycare;
+  final BookingEntryInitialService initialService;
 
   /// 住宿條款只在進入住宿流程時要求，不擋「我要預約」入口卡片。
   static Future<bool> ensureAccommodationPolicy({
@@ -85,6 +129,14 @@ class ShopBookingEntryPage extends StatelessWidget {
     bool useModernDrawer = false,
     bool replaceCurrent = false,
   }) async {
+    final bool accepted = await ensureAccommodationPolicy(
+      context: context,
+      shopId: shopId,
+      theme: theme,
+    );
+    if (!accepted || !context.mounted) {
+      return;
+    }
     final MaterialPageRoute<void> route = MaterialPageRoute<void>(
       builder: (_) => ShopBookingPage(
         shopId: shopId,
@@ -124,9 +176,22 @@ class ShopBookingEntryPage extends StatelessWidget {
                     final Map<String, dynamic> shop =
                         shopSnap.data ?? const <String, dynamic>{};
                     final DaycareSettingsModel settings = settingSnap.data!;
+                    final bool accommodationOn =
+                        shop['bookingEnabled'] != false;
                     final bool daycareOn = DaycareSettingsService.instance
                         .isEnabledForShop(shop: shop, settings: settings);
-                    if (!daycareOn) {
+                    final BookingEntryDestination destination =
+                        resolveBookingEntry(
+                          initialService: initialService,
+                          accommodationOn: accommodationOn,
+                          daycareOn: daycareOn,
+                        );
+                    if (destination == BookingEntryDestination.paused) {
+                      return _BookingPausedNotice(
+                        message: bookingEntryPausedMessage(initialService),
+                      );
+                    }
+                    if (destination == BookingEntryDestination.accommodation) {
                       return _GatedStayBooking(
                         shopId: shopId,
                         preSelectedRoomType: preSelectedRoomType,
@@ -134,7 +199,7 @@ class ShopBookingEntryPage extends StatelessWidget {
                         useModernDrawer: useModernDrawer,
                       );
                     }
-                    if (initialDaycare) {
+                    if (destination == BookingEntryDestination.daycare) {
                       return ShopDaycareBookingPage(
                         shopId: shopId,
                         settings: settings,
@@ -228,6 +293,35 @@ class ShopBookingEntryPage extends StatelessWidget {
                   },
             );
           },
+    );
+  }
+}
+
+class _BookingPausedNotice extends StatelessWidget {
+  const _BookingPausedNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('我要預約')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.maybePop(context),
+                child: const Text('返回'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

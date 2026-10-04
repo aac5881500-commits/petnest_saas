@@ -22,14 +22,34 @@ service firebase.storage {
         );
     }
 
+    function shopMemberDoc(shopId) {
+      return /databases/(default)/documents/shop_members/$(shopId + '_' + request.auth.uid);
+    }
+
+    function isShopOwner(shopId) {
+      return isShopMember(shopId)
+        && firestore.get(shopMemberDoc(shopId)).data.role == 'owner';
+    }
+
     function isShopOwnerUid(shopId) {
       return signedIn()
-        && firestore.exists(
-          /databases/(default)/documents/shops/$(shopId)
-        )
+        && firestore.exists(/databases/(default)/documents/shops/$(shopId))
         && firestore.get(
           /databases/(default)/documents/shops/$(shopId)
         ).data.ownerUid == request.auth.uid;
+    }
+
+    // 與 Firestore hasShopPermissionKey 相同：店主或 permissions[key] == true。
+    function hasShopPermission(shopId, permissionKey) {
+      return isRootAdmin()
+        || isShopOwnerUid(shopId)
+        || isShopOwner(shopId)
+        || (
+          isShopMember(shopId)
+          && firestore.get(shopMemberDoc(shopId)).data.keys().hasAny(['permissions'])
+          && firestore.get(shopMemberDoc(shopId)).data.permissions is map
+          && firestore.get(shopMemberDoc(shopId)).data.permissions.get(permissionKey, false) == true
+        );
     }
 
     function isImage() {
@@ -37,16 +57,17 @@ service firebase.storage {
     }
 
     function isUnder5MB() {
-  return request.resource.size <= 5 * 1024 * 1024;
-}
+      return request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    function isUnder6MB() {
+      return request.resource.size < 6 * 1024 * 1024;
+    }
 
     function platformUserPath() {
       return /databases/(default)/documents/platform_users/$(request.auth.uid);
     }
 
-    // 與 PlatformAdminService.adminHasPermission / 平台後台畫面相同：
-    // 來源為 platform_users/{uid}（不是 platform_admins / user_profiles）
-    // 欄位：enabled、role、permissions[]
     function isEnabledPlatformUserData(data) {
       return !data.keys().hasAny(['enabled']) || data.enabled == true;
     }
@@ -78,59 +99,285 @@ service firebase.storage {
         || request.resource.contentType.matches('image/webp.*');
     }
 
-    // 🐾 會員寵物照片：pets/{uid}/{petId}.jpg
-    match /pets/{uid}/{fileName} {
-  allow read: if signedIn()
-  && (
-    request.auth.uid == uid ||
-    isRootAdmin()
-  );
-
-  allow write: if signedIn()
-    && request.auth.uid == uid
-    && request.resource.contentType == 'image/jpeg'
-    && request.resource.size < 6 * 1024 * 1024;
-}
-
-    // 🏪 店家所有圖片：shops/{shopId}/...
-    // 包含：
-    // shops/{shopId}/logo.jpg
-    // shops/{shopId}/banner_xxx.jpg
-    // shops/{shopId}/room_types/{roomTypeId}/xxx.jpg
-    // shops/{shopId}/platform_home_cover/xxx.jpg
-    // shops/{shopId}/platform_home_logo/xxx.jpg
-    // shops/{shopId}/point_rewards/{rewardId}/product_image.*
-    // shops/{shopId}/inventory/{itemId}/cover.jpg
-    // shops/{shopId}/store/{productId}/cover.jpg
-    // shops/{shopId}/store/banners/{bannerId}/...
-    // shops/{shopId}/booking_entry/accommodation/cover.jpg
-    // shops/{shopId}/booking_entry/daycare/cover.jpg
-    // shops/{shopId}/pre_arrival_guides/{serviceType}/{fileId}.jpg
-    match /shops/{shopId}/pre_arrival_guides/{serviceType}/{fileName} {
-      allow read: if true;
-      allow create, update: if (isShopMember(shopId) || isRootAdmin())
-        && (serviceType == 'accommodation' || serviceType == 'daycare')
-        && isImage()
-        && isUnder5MB();
-      allow delete: if isShopMember(shopId) || isRootAdmin();
+    function bookingDoc(bookingId) {
+      return firestore.get(
+        /databases/(default)/documents/bookings/$(bookingId)
+      ).data;
     }
 
-    match /shops/{shopId}/{allPaths=**} {
-  allow read: if true;
+    function bookingExists(bookingId) {
+      return firestore.exists(
+        /databases/(default)/documents/bookings/$(bookingId)
+      );
+    }
 
-  // 新增或更換圖片：
-  // 必須是店家成員或平台管理員，
-  // 並限制為圖片且最大 5 MB。
-  allow create, update: if (isShopMember(shopId) || isRootAdmin())
-    && isImage()
-    && isUnder5MB();
+    function canReadBookingFile(bookingId) {
+      return signedIn()
+        && bookingExists(bookingId)
+        && (
+          isRootAdmin()
+          || bookingDoc(bookingId).userId == request.auth.uid
+          || isShopMember(bookingDoc(bookingId).shopId)
+          || isShopOwnerUid(bookingDoc(bookingId).shopId)
+        );
+    }
 
-  // 刪除圖片時 request.resource 不存在，
-  // 因此不能再檢查 contentType 或 size。
-  allow delete: if isShopMember(shopId) || isRootAdmin();
-}
+    function dailyCareBooking(bookingId) {
+      return bookingDoc(bookingId);
+    }
 
-    // 💬 店家聊天圖片：shop_chat/{shopId}/{customerUid}/{messageId}/image.jpg
+    function dailyCareWritable(shopId, bookingId) {
+      return bookingExists(bookingId)
+        && dailyCareBooking(bookingId).shopId == shopId
+        && dailyCareBooking(bookingId).status == 'checked_in'
+        && dailyCareBooking(bookingId).status != 'checked_out'
+        && dailyCareBooking(bookingId).status != 'completed'
+        && dailyCareBooking(bookingId).status != 'cancelled'
+        && dailyCareBooking(bookingId).settlementConfirmed != true
+        && !('settledAt' in dailyCareBooking(bookingId)
+          && dailyCareBooking(bookingId).settledAt != null);
+    }
+
+    function canWriteDailyCare(shopId) {
+      return isRootAdmin()
+        || hasShopPermission(shopId, 'manage_room_dashboard')
+        || hasShopPermission(shopId, 'manage_daycare_bookings')
+        || hasShopPermission(shopId, 'manage_bookings');
+    }
+
+    function dailyCareCustomerCanRead(shopId, bookingId, photoId) {
+      return bookingExists(bookingId)
+        && dailyCareBooking(bookingId).shopId == shopId
+        && dailyCareBooking(bookingId).userId is string
+        && dailyCareBooking(bookingId).userId.size() > 0
+        && dailyCareBooking(bookingId).userId == request.auth.uid
+        && (
+          !firestore.exists(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          )
+          ||
+          !('expiresAt' in firestore.get(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          ).data)
+          ||
+          firestore.get(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          ).data.expiresAt == null
+          ||
+          request.time < firestore.get(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          ).data.expiresAt
+        );
+    }
+
+    function canReadDailyCarePreview(shopId, bookingId, photoId) {
+      return signedIn()
+        && (
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+          || dailyCareCustomerCanRead(shopId, bookingId, photoId)
+        );
+    }
+
+    // 🐾 會員頭像與寵物照片：pets/{uid}/{fileName}
+    // App 上傳前已轉成 JPEG。寵物既有上限是小於 6MB，頭像 App 自己先擋 5MB。
+    match /pets/{uid}/{fileName} {
+      allow read: if signedIn()
+        && (
+          request.auth.uid == uid
+          || isRootAdmin()
+        );
+
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.contentType == 'image/jpeg'
+        && isUnder6MB();
+
+      allow delete: if signedIn()
+        && request.auth.uid == uid;
+    }
+
+    // 公開店家素材。只列出前台實際使用的路徑，不開放 shops/{shopId}/**。
+    function allowPublicImageWrite(shopId) {
+      return signedIn() && isImage() && isUnder5MB();
+    }
+
+    function isShopLogoOrBanner(fileName) {
+      return fileName == 'logo.jpg' || fileName.matches('banner_.*');
+    }
+
+    match /shops/{shopId}/{fileName} {
+      allow read: if isShopLogoOrBanner(fileName);
+      allow create, update: if isShopLogoOrBanner(fileName)
+        && allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'edit_media');
+      allow delete: if isShopLogoOrBanner(fileName)
+        && hasShopPermission(shopId, 'edit_media');
+    }
+
+    match /shops/{shopId}/platform_home_cover/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'edit_media');
+      allow delete: if hasShopPermission(shopId, 'edit_media');
+    }
+
+    match /shops/{shopId}/platform_home_logo/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'edit_media');
+      allow delete: if hasShopPermission(shopId, 'edit_media');
+    }
+
+    match /shops/{shopId}/environment/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_environment')
+          || hasShopPermission(shopId, 'manage_frontend_content')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_environment')
+        || hasShopPermission(shopId, 'manage_frontend_content');
+    }
+
+    match /shops/{shopId}/about/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_about')
+          || hasShopPermission(shopId, 'manage_frontend_content')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_about')
+        || hasShopPermission(shopId, 'manage_frontend_content');
+    }
+
+    match /shops/{shopId}/room_types/{roomTypeId}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'manage_room_types');
+      allow delete: if hasShopPermission(shopId, 'manage_room_types');
+    }
+
+    match /shops/{shopId}/home/banners/{bannerId}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_frontend_content')
+          || hasShopPermission(shopId, 'edit_media')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_frontend_content')
+        || hasShopPermission(shopId, 'edit_media');
+    }
+
+    // 首頁海報原圖：shops/{shopId}/home/banners/{bannerId}/p_{時間}/cover.jpg
+    match /shops/{shopId}/home/banners/{bannerId}/{versionFolder}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_frontend_content')
+          || hasShopPermission(shopId, 'edit_media')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_frontend_content')
+        || hasShopPermission(shopId, 'edit_media');
+    }
+
+    // 首頁商城入口背景：shops/{shopId}/home/store_entry_card/p_{時間}/cover.jpg
+    match /shops/{shopId}/home/store_entry_card/{versionFolder}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_frontend_content')
+          || hasShopPermission(shopId, 'edit_media')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_frontend_content')
+        || hasShopPermission(shopId, 'edit_media');
+    }
+
+    match /shops/{shopId}/store/banners/{bannerId}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_store_products')
+          || hasShopPermission(shopId, 'manage_store_settings')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_store_products')
+        || hasShopPermission(shopId, 'manage_store_settings');
+    }
+
+    // 商城海報原圖：shops/{shopId}/store/banners/{bannerId}/p_{時間}/cover.jpg
+    match /shops/{shopId}/store/banners/{bannerId}/{versionFolder}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_store_products')
+          || hasShopPermission(shopId, 'manage_store_settings')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_store_products')
+        || hasShopPermission(shopId, 'manage_store_settings');
+    }
+
+    match /shops/{shopId}/store/{productId}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'manage_store_products');
+      allow delete: if hasShopPermission(shopId, 'manage_store_products');
+    }
+
+    match /shops/{shopId}/inventory/{itemId}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'manage_inventory');
+      allow delete: if hasShopPermission(shopId, 'manage_inventory');
+    }
+
+    match /shops/{shopId}/point_rewards/{rewardId}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && hasShopPermission(shopId, 'manage_member_points');
+      allow delete: if hasShopPermission(shopId, 'manage_member_points');
+    }
+
+    match /shops/{shopId}/booking_entry/{kind}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_frontend_content')
+          || hasShopPermission(shopId, 'manage_booking_settings')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_frontend_content')
+        || hasShopPermission(shopId, 'manage_booking_settings');
+    }
+
+    match /shops/{shopId}/pre_arrival_guides/{serviceType}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (serviceType == 'accommodation' || serviceType == 'daycare')
+        && (
+          hasShopPermission(shopId, 'manage_frontend_content')
+          || hasShopPermission(shopId, 'manage_booking_settings')
+          || hasShopPermission(shopId, 'manage_policy')
+        );
+      allow delete: if (serviceType == 'accommodation' || serviceType == 'daycare')
+        && (
+          hasShopPermission(shopId, 'manage_frontend_content')
+          || hasShopPermission(shopId, 'manage_booking_settings')
+          || hasShopPermission(shopId, 'manage_policy')
+        );
+    }
+
+    // 日誌卡片背景是店家素材，不是顧客或寵物照片。
+    match /shops/{shopId}/daily_care/settings/{folder}/{fileName} {
+      allow read: if true;
+      allow create, update: if allowPublicImageWrite(shopId)
+        && (
+          hasShopPermission(shopId, 'manage_daycare_settings')
+          || hasShopPermission(shopId, 'manage_frontend_content')
+        );
+      allow delete: if hasShopPermission(shopId, 'manage_daycare_settings')
+        || hasShopPermission(shopId, 'manage_frontend_content');
+    }
+
     match /shop_chat/{shopId}/{customerUid}/{allPaths=**} {
       allow read: if signedIn()
         && (
@@ -159,264 +406,162 @@ service firebase.storage {
         );
     }
 
-// 📸 客戶上傳匯款證明
-match /booking_images/{bookingId}/{fileName} {
+    match /booking_images/{bookingId}/{fileName} {
+      allow read: if canReadBookingFile(bookingId);
 
-  allow read: if signedIn()
-    && (
-      isRootAdmin() ||
-      firestore.get(
-        /databases/(default)/documents/bookings/$(bookingId)
-      ).data.userId == request.auth.uid ||
-      isShopMember(
-        firestore.get(
-          /databases/(default)/documents/bookings/$(bookingId)
-        ).data.shopId
-      )
-    );
+      allow create, update: if canReadBookingFile(bookingId)
+        && isImage()
+        && isUnder5MB();
 
-  allow write: if signedIn()
-    && isImage()
-    && isUnder5MB()
-    && (
-      isRootAdmin() ||
-      firestore.get(
-        /databases/(default)/documents/bookings/$(bookingId)
-      ).data.userId == request.auth.uid ||
-      isShopMember(
-        firestore.get(
-          /databases/(default)/documents/bookings/$(bookingId)
-        ).data.shopId
-      )
-    );
-}
-
-// ⭐ 評價照片
-match /review_images/{bookingId}/{fileName} {
-
-  allow read: if true;
-
-  allow write: if signedIn()
-    && isImage()
-    && isUnder5MB()
-    && (
-      isRootAdmin() ||
-      firestore.get(
-        /databases/(default)/documents/bookings/$(bookingId)
-      ).data.userId == request.auth.uid
-    );
-}
-
-// 📸 店家退房額外費用照片
-match /booking_extra_charges/{bookingId}/{fileName} {
-  allow read: if signedIn()
-  && (
-    isRootAdmin() ||
-    firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.userId == request.auth.uid ||
-    isShopMember(
-      firestore.get(
-        /databases/(default)/documents/bookings/$(bookingId)
-      ).data.shopId
-    )
-  );
-
-  allow write: if signedIn()
-    && isImage()
-    && isUnder5MB()
-    && (
-      isRootAdmin() ||
-      isShopMember(
-        firestore.get(
-          /databases/(default)/documents/bookings/$(bookingId)
-        ).data.shopId
-      )
-    );
-}
-
-// 📮 店主聯絡平台附件
-match /platform_contact_requests/{requestId}/{fileName} {
-  allow read: if signedIn()
-  && (
-    isRootAdmin() ||
-    isShopMember(
-      firestore.get(
-        /databases/(default)/documents/platform_contact_requests/$(requestId)
-      ).data.shopId
-    )
-  );
-
-  allow write: if signedIn()
-    && isImage()
-    && isUnder5MB()
-    && (
-      isRootAdmin() ||
-      isShopMember(
-        firestore.get(
-          /databases/(default)/documents/platform_contact_requests/$(requestId)
-        ).data.shopId
-      )
-    );
+      allow delete: if canReadBookingFile(bookingId);
     }
 
-    function dailyCareBooking(bookingId) {
-      return firestore.get(
-        /databases/(default)/documents/bookings/$(bookingId)
-      ).data;
-    }
+    match /review_images/{bookingId}/{fileName} {
+      allow read: if true;
 
-    function dailyCareWritable(shopId, bookingId) {
-      return firestore.exists(
-          /databases/(default)/documents/bookings/$(bookingId)
-        )
-        && dailyCareBooking(bookingId).shopId == shopId
-        && dailyCareBooking(bookingId).status == 'checked_in'
-        && dailyCareBooking(bookingId).status != 'checked_out'
-        && dailyCareBooking(bookingId).status != 'completed'
-        && dailyCareBooking(bookingId).status != 'cancelled'
-        && dailyCareBooking(bookingId).settlementConfirmed != true
-        && !('settledAt' in dailyCareBooking(bookingId)
-          && dailyCareBooking(bookingId).settledAt != null);
-    }
-
-    function dailyCareCustomerCanRead(shopId, bookingId, photoId) {
-      return firestore.exists(
-          /databases/(default)/documents/bookings/$(bookingId)
-        )
-        && dailyCareBooking(bookingId).shopId == shopId
-        && dailyCareBooking(bookingId).userId is string
-        && dailyCareBooking(bookingId).userId.size() > 0
-        && dailyCareBooking(bookingId).userId == request.auth.uid
-        && (
-          !firestore.exists(
-            /databases/(default)/documents/daily_care_photos/$(photoId)
-          )
-          ||
-          !('expiresAt' in firestore.get(
-            /databases/(default)/documents/daily_care_photos/$(photoId)
-          ).data)
-          ||
-          firestore.get(
-            /databases/(default)/documents/daily_care_photos/$(photoId)
-          ).data.expiresAt == null
-          ||
-          request.time < firestore.get(
-            /databases/(default)/documents/daily_care_photos/$(photoId)
-          ).data.expiresAt
-        );
-    }
-
-    // ✅ 店家認證／平台公開申請照片
-    match /shop_verify_requests/{shopId}/{folderName}/{fileName} {
-      allow read: if signedIn()
-        && (
-          isRootAdmin() ||
-          isShopMember(shopId)
-        );
-
-      allow write: if signedIn()
+      allow create, update: if signedIn()
         && isImage()
         && isUnder5MB()
         && (
-          isRootAdmin() ||
-          isShopMember(shopId)
+          isRootAdmin()
+          || (
+            bookingExists(bookingId)
+            && bookingDoc(bookingId).userId == request.auth.uid
+          )
+        );
+
+      allow delete: if signedIn()
+        && (
+          isRootAdmin()
+          || (
+            bookingExists(bookingId)
+            && bookingDoc(bookingId).userId == request.auth.uid
+          )
         );
     }
-// ============================================================
-// 📷 每日照護照片
-// 路徑：
-// daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/...
-//
-// preview.jpg：
-// - 店家 / Root Admin 可讀
-// - 該訂單會員可讀
-//
-// download.jpg：
-// - 目前先只允許店家 / Root Admin 讀取
-// - 後續再加入 completed + 下載期限判斷
-//
-// 上傳 / 修改：
-// - 僅店家 / Root Admin
-// - 訂單必須 checked_in
-// ============================================================
 
-// 👁 Preview 小圖
-match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/preview.jpg {
+    match /booking_extra_charges/{bookingId}/{fileName} {
+      allow read: if canReadBookingFile(bookingId);
 
-  allow read: if signedIn()
-    && (
-      isRootAdmin()
-      ||
-      isShopMember(shopId)
-      ||
-      (
-        dailyCareCustomerCanRead(shopId, bookingId, photoId)
-      )
-    );
+      allow create, update: if signedIn()
+        && isImage()
+        && isUnder5MB()
+        && bookingExists(bookingId)
+        && (
+          isRootAdmin()
+          || isShopMember(bookingDoc(bookingId).shopId)
+          || isShopOwnerUid(bookingDoc(bookingId).shopId)
+        );
 
-  allow create, update: if signedIn()
-    && (
-      isRootAdmin()
-      || isShopMember(shopId)
-    )
-    && dailyCareWritable(shopId, bookingId)
-    && isImage()
-    && isUnder5MB();
+      allow delete: if signedIn()
+        && bookingExists(bookingId)
+        && (
+          isRootAdmin()
+          || isShopMember(bookingDoc(bookingId).shopId)
+          || isShopOwnerUid(bookingDoc(bookingId).shopId)
+        );
+    }
 
-  allow delete: if signedIn()
-    && (
-      isRootAdmin()
-      || isShopMember(shopId)
-    )
-    && dailyCareWritable(shopId, bookingId);
-}
+    match /platform_contact_requests/{requestId}/{fileName} {
+      allow read: if signedIn()
+        && (
+          isRootAdmin()
+          || isShopMember(
+            firestore.get(
+              /databases/(default)/documents/platform_contact_requests/$(requestId)
+            ).data.shopId
+          )
+        );
 
-// 📥 高清下載圖
-match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/download.jpg {
+      allow create, update: if signedIn()
+        && isImage()
+        && isUnder5MB()
+        && (
+          isRootAdmin()
+          || isShopMember(
+            firestore.get(
+              /databases/(default)/documents/platform_contact_requests/$(requestId)
+            ).data.shopId
+          )
+        );
 
-// 店家 / Root Admin 可讀；
-// 訂單會員只有完成退房且仍在下載期限內才可讀。
-allow read: if signedIn()
-&& (
-  isRootAdmin()
-  ||
-  isShopMember(shopId)
-  ||
-  (
-    dailyCareCustomerCanRead(shopId, bookingId, photoId)
-    &&
-    firestore.exists(
-      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
-    )
-    &&
-    firestore.get(
-      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
-    ).data.bookingId == bookingId
-    &&
-    firestore.get(
-      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
-    ).data.shopId == shopId
-  )
-);
-  allow create, update: if signedIn()
-    && (
-      isRootAdmin()
-      || isShopMember(shopId)
-    )
-    && dailyCareWritable(shopId, bookingId)
-    && isImage()
-    && isUnder5MB();
+      allow delete: if signedIn()
+        && (
+          isRootAdmin()
+          || isShopMember(
+            firestore.get(
+              /databases/(default)/documents/platform_contact_requests/$(requestId)
+            ).data.shopId
+          )
+        );
+    }
 
-  allow delete: if signedIn()
-    && (
-      isRootAdmin()
-      || isShopMember(shopId)
-    )
-    && dailyCareWritable(shopId, bookingId);
-}
+    match /shop_verify_requests/{shopId}/{folderName}/{fileName} {
+      allow read: if signedIn()
+        && (
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+        );
 
-    // 🖼 平台外觀圖庫：platform/media_library/{assetId}/original.*
+      allow create, update: if signedIn()
+        && isImage()
+        && isUnder5MB()
+        && (
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+        );
+
+      allow delete: if signedIn()
+        && (
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+        );
+    }
+
+    match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/preview.jpg {
+      allow read: if canReadDailyCarePreview(shopId, bookingId, photoId);
+
+      allow create, update: if canWriteDailyCare(shopId)
+        && dailyCareWritable(shopId, bookingId)
+        && isImage()
+        && isUnder5MB();
+
+      allow delete: if canWriteDailyCare(shopId)
+        && dailyCareWritable(shopId, bookingId);
+    }
+
+    match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/download.jpg {
+      allow read: if signedIn()
+        && (
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+          || (
+            dailyCareCustomerCanRead(shopId, bookingId, photoId)
+            && firestore.exists(
+              /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+            )
+            && firestore.get(
+              /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+            ).data.bookingId == bookingId
+            && firestore.get(
+              /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+            ).data.shopId == shopId
+          )
+        );
+
+      allow create, update: if canWriteDailyCare(shopId)
+        && dailyCareWritable(shopId, bookingId)
+        && isImage()
+        && isUnder5MB();
+
+      allow delete: if canWriteDailyCare(shopId)
+        && dailyCareWritable(shopId, bookingId);
+    }
+
     match /platform/media_library/{assetId}/{fileName} {
       allow read: if signedIn() && (
         canManagePlatformMedia()
@@ -435,7 +580,6 @@ allow read: if signedIn()
       allow delete: if canManagePlatformMedia();
     }
 
-    // 🚫 其他 Storage 路徑全部拒絕
     match /{allPaths=**} {
       allow read, write: if false;
     }

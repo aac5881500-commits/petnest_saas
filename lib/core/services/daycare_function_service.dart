@@ -60,6 +60,24 @@ class DaycareFunctionService {
     }
   }
 
+  Future<Map<String, dynamic>> getAvailability({
+    required String shopId,
+    required List<String> dates,
+    DateTime? startAt,
+    DateTime? endAt,
+    int petCount = 0,
+    String roomTypeId = '',
+  }) {
+    return _call('getDaycareAvailability', <String, dynamic>{
+      'shopId': shopId,
+      'dates': dates,
+      if (startAt != null) 'startAt': startAt.toUtc().toIso8601String(),
+      if (endAt != null) 'endAt': endAt.toUtc().toIso8601String(),
+      if (petCount > 0) 'petCount': petCount,
+      if (roomTypeId.trim().isNotEmpty) 'roomTypeId': roomTypeId.trim(),
+    });
+  }
+
   Future<Map<String, dynamic>> createBooking(Map<String, dynamic> data) {
     try {
       CallablePayload.assertValid(data);

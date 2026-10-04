@@ -72,6 +72,7 @@ void main() {
       HomeSectionOrder.visible(
         saved,
         showAnnouncements: true,
+        showQuickBooking: true,
       ).indexOf('announcements'),
       slot,
     );
@@ -87,11 +88,14 @@ void main() {
   testWidgets('banner carousel has no review badge and sections stack', (
     WidgetTester tester,
   ) async {
+    final int announcementIndex = HomeSectionOrder.defaultOrder.indexOf(
+      'announcements',
+    );
     final List<String> moved = HomeSectionOrder.reorderVisible(
       saved: HomeSectionOrder.normalize(null),
       visible: HomeSectionOrder.defaultOrder,
       oldIndex: 0,
-      newIndex: 3,
+      newIndex: announcementIndex + 1,
     );
     await tester.pumpWidget(
       MaterialApp(

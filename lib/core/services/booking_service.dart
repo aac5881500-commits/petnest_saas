@@ -621,7 +621,6 @@ class BookingService {
 
     await docRef.update({
       'status': 'cancelled',
-      'assignStatus': data['assignStatus'] ?? 'unassigned',
       'cancelReason': cancelReason,
       'cancelBy': cancelBy,
       'cancelledAt': FieldValue.serverTimestamp(),

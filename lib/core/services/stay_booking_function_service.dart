@@ -64,6 +64,30 @@ class StayBookingFunctionService {
     }
   }
 
+  static const String availabilityUnavailable = '暫時無法取得房間剩餘狀態';
+
+  Future<Map<String, dynamic>> getAvailability({
+    required String shopId,
+    List<String> dates = const <String>[],
+    String startDate = '',
+    String endDate = '',
+    int petCount = 0,
+    String roomTypeId = '',
+  }) async {
+    try {
+      return await _call('getStayAvailability', <String, dynamic>{
+        'shopId': shopId,
+        if (dates.isNotEmpty) 'dates': dates,
+        if (startDate.isNotEmpty) 'startDate': startDate,
+        if (endDate.isNotEmpty) 'endDate': endDate,
+        if (petCount > 0) 'petCount': petCount,
+        if (roomTypeId.trim().isNotEmpty) 'roomTypeId': roomTypeId.trim(),
+      });
+    } on StayBookingFunctionException {
+      throw const StayBookingFunctionException(availabilityUnavailable);
+    }
+  }
+
   Future<String> createStayBooking({
     required String shopId,
     required String roomTypeId,

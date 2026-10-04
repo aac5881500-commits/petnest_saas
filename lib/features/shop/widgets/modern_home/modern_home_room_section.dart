@@ -3,6 +3,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_entry_card.dart';
 
 /// 新版首頁房型展示。正式前台與外觀預覽共用這一個元件。
 class ModernHomeRoomSection extends StatelessWidget {
@@ -291,201 +292,17 @@ class ModernHomeRoomSection extends StatelessWidget {
   }
 
   Widget _simpleEntry() {
-    final String size = HomeRoomSimpleCardSizes.migrate(
-      setting.simple.cardSize,
-    );
-    if (size == HomeRoomSimpleCardSizes.small) {
-      return LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double parent = constraints.maxWidth.isFinite
-              ? constraints.maxWidth
-              : 320;
-          double width = parent * 0.5;
-          if (width > 200) {
-            width = 200;
-          }
-          if (width > parent) {
-            width = parent;
-          }
-          return Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: width,
-              child: _simpleShell(child: _simpleSmallEntry()),
-            ),
-          );
-        },
-      );
-    }
-    return _simpleShell(
-      child: size == HomeRoomSimpleCardSizes.single
-          ? _simpleSingleEntry()
-          : _simpleWideEntry(),
-    );
-  }
-
-  Widget _simpleShell({required Widget child}) {
-    final Color fill = switch (setting.simple.surface) {
-      HomeRoomSimpleSurfaces.transparent => Colors.transparent,
-      HomeRoomSimpleSurfaces.outlined => theme.backgroundColor,
-      _ => theme.cardColor,
-    };
-    final Border? border =
-        setting.simple.surface == HomeRoomSimpleSurfaces.transparent
-        ? null
-        : Border.all(color: theme.cardBorderColor);
-    return Material(
-      color: fill,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        key: const Key('home-room-simple'),
-        borderRadius: BorderRadius.circular(14),
-        onTap: _openAll,
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: border,
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-
-  Widget _simpleIconBox({double box = 40, double icon = 22}) {
-    return Container(
-      width: box,
-      height: box,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(
-        _simpleIcon(setting.simple.icon),
-        color: theme.primaryColor,
-        size: icon,
-      ),
-    );
-  }
-
-  Widget _simpleTitle({int maxLines = 2, double fontSize = 15}) {
-    return Text(
-      _title,
-      maxLines: maxLines,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: fontSize,
-        height: 1.2,
-        fontWeight: FontWeight.w800,
-        color: theme.textColor,
-      ),
-    );
-  }
-
-  Widget _simpleSubtitle({required int maxLines}) {
-    if (!setting.simple.showSubtitle) {
-      return const SizedBox.shrink();
-    }
-    return Text(
-      setting.simple.subtitle,
-      maxLines: maxLines,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 12,
-        height: 1.2,
-        color: theme.secondaryTextColor,
-      ),
-    );
-  }
-
-  Widget _simpleSmallEntry() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _simpleIconBox(box: 32, icon: 18),
-          const SizedBox(height: 8),
-          _simpleTitle(fontSize: 13),
-          if (setting.simple.showSubtitle) ...<Widget>[
-            const SizedBox(height: 2),
-            _simpleSubtitle(maxLines: 2),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _simpleSingleEntry() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              _simpleIconBox(),
-              const SizedBox(width: 12),
-              Expanded(child: _simpleTitle()),
-            ],
-          ),
-          if (setting.simple.showSubtitle) ...<Widget>[
-            const SizedBox(height: 6),
-            _simpleSubtitle(maxLines: 2),
-          ],
-          const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Flexible(
-                child: Text(
-                  '查看全部房型',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.2,
-                    fontWeight: FontWeight.w800,
-                    color: theme.primaryColor,
-                  ),
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: theme.primaryColor,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _simpleWideEntry() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Row(
-        children: <Widget>[
-          _simpleIconBox(),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                _simpleTitle(),
-                if (setting.simple.showSubtitle) ...<Widget>[
-                  const SizedBox(height: 2),
-                  _simpleSubtitle(maxLines: 1),
-                ],
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_right_rounded, color: theme.primaryColor),
-        ],
-      ),
+    return ModernHomeEntryCard(
+      cardKey: const Key('home-room-simple'),
+      theme: theme,
+      title: _title,
+      subtitle: setting.simple.subtitle,
+      showSubtitle: setting.simple.showSubtitle,
+      cardSize: setting.simple.cardSize,
+      surface: setting.simple.surface,
+      icon: _simpleIcon(setting.simple.icon),
+      actionLabel: '查看全部房型',
+      onTap: _openAll,
     );
   }
 

@@ -192,6 +192,76 @@ function hasShopPermissionKey(shopId, key) {
     );
 }
 
+// 讀取某店訂單：正式成員文件，或 shops.ownerUid 後援。不是任何登入者。
+// 只代表 read，不代表 create / update / delete。
+function canReadShopBookings(shopId) {
+  return isShopMember(shopId) || isShopOwnerUid(shopId);
+}
+
+// 管理某店訂單：正式權限鍵 manage_bookings。
+// owner（成員 role 或 shops.ownerUid）與根管理員可管理自己的店。
+// staff / manager 只有 permissions.manage_bookings == true 才可以。
+function canManageShopBookings(shopId) {
+  return isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_bookings');
+}
+
+// 房務日曆是店內營運資料。顧客改走 getStayAvailability，不能直接讀。
+function canReadRoomCalendar(shopId) {
+  return isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_room_dashboard')
+    || hasShopPermissionKey(shopId, 'manage_rooms')
+    || hasShopPermissionKey(shopId, 'manage_bookings')
+    || hasShopPermissionKey(shopId, 'manage_daycare_bookings');
+}
+
+function canWriteRoomCalendar(shopId) {
+  return isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_room_dashboard')
+    || hasShopPermissionKey(shopId, 'manage_rooms')
+    || hasShopPermissionKey(shopId, 'manage_bookings');
+}
+
+// 修改全平台訂單。可看全平台（view_shops 等）不等於可改。
+function canManageAllBookings() {
+  return isRootAdmin()
+    || (
+      isEnabledPlatformUser()
+      && get(
+        /databases/$(database)/documents/platform_users/$(request.auth.uid)
+      ).data.role == 'super_admin'
+    )
+    || hasPlatformPermission('all');
+}
+
+// 跨店讀訂單：根管理員、super_admin，或既有平台權限。店主／店員不在此列。
+function canReadAllBookings() {
+  return isRootAdmin()
+    || (
+      isEnabledPlatformUser()
+      && get(
+        /databases/$(database)/documents/platform_users/$(request.auth.uid)
+      ).data.role == 'super_admin'
+    )
+    || hasPlatformPermission('all')
+    || hasPlatformPermission('view_shops')
+    || hasPlatformPermission('manage_shop_status')
+    || hasPlatformPermission('view_platform_members')
+    || hasPlatformPermission('manage_platform_members');
+}
+
+// 管理邀請：owner、根管理員，或具 manage_members 的成員。普通 staff 不行。
+function canManageShopInvites(shopId) {
+  return hasShopPermissionKey(shopId, 'manage_members');
+}
+
+// 邀請文件 id 為 {shopId}_{emailKey}，與接受邀請時的寫入路徑相同。
+function inviteDoc(shopId, emailKey) {
+  return get(
+    /databases/$(database)/documents/shop_member_invites/$(shopId + '_' + emailKey)
+  ).data;
+}
+
 function canViewStoreOrders(shopId) {
   return hasShopPermissionKey(shopId, 'view_store_orders')
     || hasShopPermissionKey(shopId, 'manage_store_orders');
@@ -376,7 +446,16 @@ match /shop_members/{memberId} {
   request.resource.data.shopId is string &&
   request.resource.data.uid == request.auth.uid &&
   request.resource.data.emailKey is string &&
-  exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.resource.data.emailKey))
+  request.auth.token.email is string &&
+  request.resource.data.emailKey == request.auth.token.email.lower() &&
+  memberId == request.resource.data.shopId + '_' + request.auth.uid &&
+  request.resource.data.role in ['owner', 'manager', 'staff'] &&
+  exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.resource.data.emailKey)) &&
+  inviteDoc(request.resource.data.shopId, request.resource.data.emailKey).status == 'pending' &&
+  inviteDoc(request.resource.data.shopId, request.resource.data.emailKey).shopId == request.resource.data.shopId &&
+  inviteDoc(request.resource.data.shopId, request.resource.data.emailKey).emailKey == request.resource.data.emailKey &&
+  inviteDoc(request.resource.data.shopId, request.resource.data.emailKey).role == request.resource.data.role &&
+  inviteDoc(request.resource.data.shopId, request.resource.data.emailKey).permissions == request.resource.data.permissions
 )
   );
 
@@ -389,7 +468,18 @@ match /shop_members/{memberId} {
 
     // ✉️ 員工邀請
 match /shop_member_invites/{inviteId} {
-  allow read: if signedIn();
+  allow read: if signedIn() && (
+    isRootAdmin()
+    || (
+      resource.data.shopId is string
+      && canManageShopInvites(resource.data.shopId)
+    )
+    || (
+      resource.data.emailKey is string
+      && request.auth.token.email is string
+      && resource.data.emailKey == request.auth.token.email.lower()
+    )
+  );
 
   allow create: if signedIn() &&
     (
@@ -464,6 +554,7 @@ allow update: if signedIn() &&
       'logoUrl',
       'platformHomeCoverUrl',
       'platformHomeLogoUrl',
+      'houseAppearance',
       'environmentIntro',
 
       'aboutTitle',
@@ -711,10 +802,10 @@ match /camera_access_slots/{slotId} {
   allow read, write: if false;
 }
 
-// 📅 房務日曆
+// 📅 房務日曆：只給本店房務／訂單管理。匿名與顧客不可讀。
 match /room_calendar/{calendarId} {
-  allow read: if true;
-  allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+  allow read: if canReadRoomCalendar(shopId);
+  allow create, update, delete: if canWriteRoomCalendar(shopId);
 }
       // ➕ 加購
       match /addons/{addonId} {
@@ -2112,6 +2203,23 @@ allow update: if
         allow delete: if false;
       }
 
+      match /daycare_capacity/{dateKey} {
+        allow read, write: if false;
+
+        match /reservations/{bookingId} {
+          allow read, write: if false;
+        }
+      }
+
+      // 優惠使用次數只由 Cloud Functions 維護。客戶改走 getCampaignUsage。
+      match /campaign_usage/{campaignId} {
+        allow read, write: if false;
+
+        match /reservations/{bookingId} {
+          allow read, write: if false;
+        }
+      }
+
       // 🧳 入住前準備（不是條款）
       match /pre_arrival_guides/{serviceType} {
         allow read: if
@@ -2568,7 +2676,143 @@ match /reviews/{reviewId} {
 // 📦 訂單
 match /bookings/{bookingId} {
 
-allow read: if signedIn();
+function shopBookingUpdateAllowed() {
+  let shopId = resource.data.shopId;
+  let keys = request.resource.data.diff(resource.data).affectedKeys();
+  let identityOk = request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.userId == resource.data.userId
+    && (
+      resource.data.keys().hasAny(['source'])
+        ? request.resource.data.source == resource.data.source
+        : !request.resource.data.keys().hasAny(['source'])
+    )
+    && (
+      resource.data.keys().hasAny(['createdAt'])
+        ? request.resource.data.createdAt == resource.data.createdAt
+        : !request.resource.data.keys().hasAny(['createdAt'])
+    )
+    && (
+      resource.data.keys().hasAny(['bookingKind'])
+        ? request.resource.data.bookingKind == resource.data.bookingKind
+        : !request.resource.data.keys().hasAny(['bookingKind'])
+    );
+  let manage = shopId is string
+    && identityOk
+    && (
+      canManageShopBookings(shopId) || canManageAllBookings()
+    );
+  let confirmStatus = resource.data.status in ['pending', 'pending_confirmation', 'unpaid']
+    && request.resource.data.status == 'confirmed'
+    && keys.hasOnly(['status', 'updatedAt']);
+  let checkIn = resource.data.status == 'confirmed'
+    && request.resource.data.status == 'checked_in'
+    && keys.hasOnly(['status', 'checkInAt', 'updatedAt']);
+  let cancel = resource.data.status in ['pending', 'pending_confirmation', 'unpaid', 'confirmed']
+    && request.resource.data.status == 'cancelled'
+    && keys.hasAny(['cancelBy'])
+    && request.resource.data.cancelBy == 'admin'
+    && keys.hasOnly([
+      'status',
+      'cancelReason',
+      'cancelBy',
+      'cancelledAt',
+      'updatedAt'
+    ]);
+  let confirmDeposit = keys.hasAny(['depositStatus'])
+    && request.resource.data.depositStatus == 'confirmed'
+    && keys.hasAny(['depositPaid'])
+    && request.resource.data.depositPaid == true
+    && keys.hasAny(['paymentStatus'])
+    && request.resource.data.paymentStatus in ['unpaid', 'partial', 'paid']
+    && keys.hasOnly([
+      'depositPaid',
+      'depositStatus',
+      'depositPaidAt',
+      'paidAmount',
+      'remainingAmount',
+      'paymentStatus',
+      'updatedAt',
+      'status',
+      'confirmedAt'
+    ])
+    && (
+      !keys.hasAny(['status'])
+      || (
+        resource.data.status in ['pending', 'pending_confirmation', 'unpaid']
+        && request.resource.data.status == 'confirmed'
+      )
+    );
+  let forms = keys.hasOnly([
+    'adminCustomFormAnswers',
+    'adminPetFormAnswersByPetId',
+    'updatedAt'
+  ]);
+  let contact = keys.hasOnly([
+    'customerName',
+    'customerPhone',
+    'customerAddress',
+    'customer',
+    'emergencyContact',
+    'updatedAt'
+  ]);
+  return (manage && (
+      confirmStatus || checkIn || cancel || confirmDeposit || forms || contact
+      || (
+        keys.hasAny(['lastMessageSenderType'])
+        && request.resource.data.lastMessageSenderType == 'shop'
+        && keys.hasOnly([
+          'lastMessageText',
+          'lastMessageSenderType',
+          'lastMessageAt',
+          'updatedAt',
+          'customerUnreadMessageCount'
+        ])
+      )
+      || (
+        keys.hasAny(['shopUnreadMessageCount'])
+        && request.resource.data.shopUnreadMessageCount == 0
+        && keys.hasOnly(['shopUnreadMessageCount', 'updatedAt'])
+      )
+    ))
+    || (
+      forms
+      && shopId is string
+      && identityOk
+      && hasShopPermissionKey(shopId, 'manage_daycare_bookings')
+    )
+    || (
+      shopId is string
+      && identityOk
+      && (
+        (
+          keys.hasAny(['lastMessageSenderType'])
+          && request.resource.data.lastMessageSenderType == 'shop'
+          && keys.hasOnly([
+            'lastMessageText',
+            'lastMessageSenderType',
+            'lastMessageAt',
+            'updatedAt',
+            'customerUnreadMessageCount'
+          ])
+        )
+        || (
+          keys.hasAny(['shopUnreadMessageCount'])
+          && request.resource.data.shopUnreadMessageCount == 0
+          && keys.hasOnly(['shopUnreadMessageCount', 'updatedAt'])
+        )
+      )
+      && hasShopPermissionKey(shopId, 'manage_chat')
+    );
+}
+
+allow read: if signedIn() && (
+  (
+    resource.data.userId is string &&
+    resource.data.userId == request.auth.uid
+  )
+  || canReadShopBookings(resource.data.shopId)
+  || canReadAllBookings()
+);
 
 allow create: if signedIn()
   &&
@@ -2576,68 +2820,80 @@ allow create: if signedIn()
   &&
   request.resource.data.status == 'pending'
   &&
-  (
-    request.resource.data.userId == request.auth.uid
-    ||
-    (
-      request.resource.data.source == 'admin'
-      &&
-      isShopMember(request.resource.data.shopId)
-    )
-    ||
-    isRootAdmin()
-  );
+  request.resource.data.source != 'admin'
+  &&
+  request.resource.data.userId == request.auth.uid;
 
 allow update: if signedIn() &&
   (
-    isShopMember(resource.data.shopId) ||
-    isRootAdmin() ||
-
     (
       resource.data.userId == request.auth.uid &&
       resource.data.status == 'completed' &&
       !(resource.data.reviewed == true) &&
       request.resource.data.reviewed == true &&
       request.resource.data.reviewId is string &&
-      request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'reviewed',
         'reviewId',
         'updatedAt'
       ])
     ) ||
 
-  (
-  resource.data.userId == request.auth.uid
-  &&
-  request.resource.data.diff(resource.data).changedKeys().hasOnly([
-    'status',
-    'cancelReason',
-    'cancelBy',
-    'cancelledAt',
-    'updatedAt',
-    'transferImageUrl',
-    'transferImagePath',
-    'transferLast5',
-    'depositStatus',
-    'depositSubmittedAt',
-    'depositExpired',
-    'assignStatus',
-    'payAmountType',
-    'paymentMethod',
-    'paymentChoiceChangedAt'
-  ])
-)
+    (
+      resource.data.userId == request.auth.uid &&
+      resource.data.status in ['pending', 'unpaid'] &&
+      request.resource.data.status == 'cancelled' &&
+      request.resource.data.cancelBy in ['customer', 'system'] &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status',
+        'cancelReason',
+        'cancelBy',
+        'cancelledAt',
+        'updatedAt',
+        'depositExpired'
+      ]) &&
+      (
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['depositExpired'])
+        || request.resource.data.depositExpired == true
+      )
+    ) ||
+
+    (
+      resource.data.userId == request.auth.uid &&
+      resource.data.status == 'cancelled' &&
+      request.resource.data.diff(resource.data).affectedKeys().hasAny(['depositExpired']) &&
+      request.resource.data.depositExpired == true &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'depositExpired'
+      ])
+    ) ||
+
+    (
+      resource.data.userId == request.auth.uid &&
+      request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastMessageSenderType']) &&
+      request.resource.data.lastMessageSenderType == 'customer' &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'lastMessageText',
+        'lastMessageSenderType',
+        'lastMessageAt',
+        'updatedAt',
+        'shopUnreadMessageCount'
+      ])
+    ) ||
+
+    (
+      resource.data.userId == request.auth.uid &&
+      request.resource.data.diff(resource.data).affectedKeys().hasAny(['customerUnreadMessageCount']) &&
+      request.resource.data.customerUnreadMessageCount == 0 &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'customerUnreadMessageCount',
+        'updatedAt'
+      ])
+    ) ||
+    shopBookingUpdateAllowed()
   );
 
-allow delete: if signedIn() &&
-  (
-    isRootAdmin() ||
-    (
-      resource.data.shopId is string &&
-      isShopMember(resource.data.shopId) &&
-      resource.data.status == 'cancelled'
-    )
-  );
+allow delete: if false;
 
   match /messages/{messageId} {
 

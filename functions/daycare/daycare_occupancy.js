@@ -888,14 +888,16 @@ async function assertRoomTypeCapacity(firestore, params) {
     roomTypeCapacity: toInt(params.roomTypeCapacity, 0),
     dateKey,
   });
+  const summary = publicRoomTypeSummary(computed, roomTypeId);
   if (computed.remaining <= 0) {
     return {
       ok: false,
       reason: computed.zeroReason || ROOM_TYPE_SOLD_OUT,
       remaining: 0,
+      summary,
     };
   }
-  return {ok: true, reason: "", remaining: computed.remaining};
+  return {ok: true, reason: "", remaining: computed.remaining, summary};
 }
 
 /**
@@ -1400,6 +1402,186 @@ async function releaseOccupancies(firestore, transaction, shopId, bookingId) {
   releaseOccupancyDocs(transaction, snap.docs);
 }
 
+/**
+ * 一張安親訂單占用的寵物名額。有 petIds 就按隻數，沒有才退回 pets，再沒有算 1。
+ * @param {Object} data
+ * @return {number}
+ */
+function petSlotsOf(data) {
+  const booking = data || {};
+  const ids = Array.isArray(booking.petIds) ?
+    booking.petIds.map((id) => normalizeString(id)).filter(Boolean) : [];
+  if (ids.length > 0) {
+    return ids.length;
+  }
+  if (Array.isArray(booking.pets) && booking.pets.length > 0) {
+    return booking.pets.length;
+  }
+  return 1;
+}
+
+/**
+ * 安親服務日。已寫入的 serviceDate 依字面日期，不另做時區換日。
+ * @param {Object} data
+ * @return {string}
+ */
+function bookingServiceDate(data) {
+  const booking = data || {};
+  const explicit = normalizeString(booking.serviceDate);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(explicit)) {
+    return explicit;
+  }
+  const start = toDate(booking.scheduledStartAt) || toDate(booking.startDate);
+  return start ? serviceDateKey(start) : "";
+}
+
+/**
+ * 同一店、同一服務日、仍占用庫存的安親寵物數。不含住宿、不含已取消。
+ * @param {Array<Object>} bookings
+ * @param {Object} params
+ * @return {number}
+ */
+function occupiedPetsForDate(bookings, params) {
+  const shopId = normalizeString(params.shopId);
+  const serviceDate = normalizeString(params.serviceDate);
+  const excludeBookingId = normalizeString(params.excludeBookingId);
+  let occupied = 0;
+  (Array.isArray(bookings) ? bookings : []).forEach((booking) => {
+    const row = booking || {};
+    const bookingId = normalizeString(row.id || row.bookingId);
+    if (excludeBookingId && bookingId === excludeBookingId) {
+      return;
+    }
+    const rowShop = normalizeString(row.shopId);
+    if (shopId && rowShop && rowShop !== shopId) {
+      return;
+    }
+    if (!occupiesInventory(row)) {
+      return;
+    }
+    if (resolveBookingKind(row) !== BOOKING_KIND_DAYCARE) {
+      return;
+    }
+    if (bookingServiceDate(row) !== serviceDate) {
+      return;
+    }
+    occupied += petSlotsOf(row);
+  });
+  return occupied;
+}
+
+/**
+ * dailyMaxPets <= 0 代表沒有每日寵物上限，與前台現況一致。
+ * @param {Object} params
+ * @return {Object}
+ */
+function dailyPetAvailability(params) {
+  const capacity = toInt(params.capacity, 0);
+  const occupied = Math.max(0, toInt(params.occupied, 0));
+  if (capacity <= 0) {
+    return {
+      capacity: 0,
+      occupied,
+      remaining: null,
+      available: true,
+      unlimited: true,
+    };
+  }
+  const remaining = Math.max(0, capacity - occupied);
+  return {
+    capacity,
+    occupied,
+    remaining,
+    available: remaining > 0,
+    unlimited: false,
+  };
+}
+
+/**
+ * @param {Object} params
+ * @return {Object}
+ */
+function dailyPetCapacityAllows(params) {
+  const additionalPets = Math.max(0, toInt(params.additionalPets, 0));
+  const current = dailyPetAvailability({
+    capacity: params.capacity,
+    occupied: params.occupied,
+  });
+  if (current.unlimited) {
+    return {...current, ok: true, reason: ""};
+  }
+  if (additionalPets > current.remaining) {
+    return {...current, ok: false, reason: "當日安親名額不足"};
+  }
+  return {...current, ok: true, reason: ""};
+}
+
+/**
+ * 房型可賣結果只留聚合數字，不帶房間或訂單。
+ * @param {Object} computed
+ * @param {string} roomTypeId
+ * @return {Object}
+ */
+function publicRoomTypeSummary(computed, roomTypeId) {
+  const row = computed || {};
+  const capacity = Math.max(0, toInt(row.freeCount, 0));
+  const remaining = Math.max(0, toInt(row.remaining, 0));
+  const occupied = Math.max(0, capacity - remaining);
+  return {
+    roomTypeId: normalizeString(roomTypeId),
+    capacity,
+    occupied,
+    remaining,
+    available: remaining > 0,
+  };
+}
+
+/**
+ * @param {function(FirebaseFirestore.Query): Promise} getQuery
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {string} shopId
+ * @return {Promise<Array<Object>>}
+ */
+async function loadActiveShopBookings(getQuery, firestore, shopId) {
+  const snap = await getQuery(firestore.collection("bookings")
+      .where("shopId", "==", shopId)
+      .where("status", "in", ACTIVE_STATUSES));
+  return snap.docs.map((doc) => {
+    return {id: doc.id, ...(doc.data() || {})};
+  });
+}
+
+/**
+ * 建立訂單最終驗證用。dailyMaxPets <= 0 不擋。
+ * @param {function(FirebaseFirestore.Query): Promise} getQuery
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} params
+ * @return {Promise<Object>}
+ */
+async function assertDailyPetCapacity(getQuery, firestore, params) {
+  const capacity = toInt(params.dailyMaxPets, 0);
+  if (capacity <= 0) {
+    return dailyPetCapacityAllows({
+      capacity: 0,
+      occupied: 0,
+      additionalPets: params.additionalPets,
+    });
+  }
+  const bookings = await loadActiveShopBookings(
+      getQuery, firestore, params.shopId,
+  );
+  const occupied = occupiedPetsForDate(bookings, {
+    shopId: params.shopId,
+    serviceDate: params.serviceDate,
+    excludeBookingId: params.excludeBookingId,
+  });
+  return dailyPetCapacityAllows({
+    capacity,
+    occupied,
+    additionalPets: params.additionalPets,
+  });
+}
+
 module.exports = {
   CHECKOUT_CLEANING_STATUS,
   occupiesInventory,
@@ -1417,6 +1599,14 @@ module.exports = {
   taipeiDateKey,
   assertAvailable,
   assertRoomTypeCapacity,
+  petSlotsOf,
+  bookingServiceDate,
+  occupiedPetsForDate,
+  dailyPetAvailability,
+  dailyPetCapacityAllows,
+  publicRoomTypeSummary,
+  loadActiveShopBookings,
+  assertDailyPetCapacity,
   remainingRoomsFromData,
   roomUnavailable,
   roomPermanentStatus,

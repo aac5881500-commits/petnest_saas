@@ -161,12 +161,15 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            average.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              color: widget.theme.textColor,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              average.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.w900,
+                                color: widget.theme.textColor,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 4),

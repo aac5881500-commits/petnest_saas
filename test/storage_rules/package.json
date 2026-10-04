@@ -1,0 +1,9 @@
+{
+  "name": "storage-rules-tests",
+  "private": true,
+  "description": "Loads storage.rules in the Storage emulator.",
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.6.0"
+  }
+}

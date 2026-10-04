@@ -1,6 +1,7 @@
 // 檔案名稱：lib/features/shop/widgets/platform_media_asset_picker.dart
 // 功能說明：店主從平台圖庫選取已啟用素材；小圖示用 contain＋棋盤格，不提供上傳。
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/models/platform_media_asset.dart';
@@ -13,6 +14,17 @@ class PlatformMediaAssetPickerLabels {
   static const String emptyGeneral = '目前沒有可選用的圖庫圖片';
   static const String loadError = '圖庫讀取失敗';
   static const String retry = '重新讀取';
+}
+
+class PlatformMediaPick {
+  const PlatformMediaPick.asset(this.asset) : usePlatformDefault = false;
+
+  const PlatformMediaPick.platformDefault()
+    : asset = null,
+      usePlatformDefault = true;
+
+  final PlatformMediaAsset? asset;
+  final bool usePlatformDefault;
 }
 
 Future<PlatformMediaAsset?> showPlatformMediaAssetPicker({
@@ -39,11 +51,54 @@ Future<PlatformMediaAsset?> showPlatformMediaAssetPicker({
   );
 }
 
+Future<PlatformMediaPick?> showShopHouseAssetPicker({
+  required BuildContext context,
+  required String placement,
+  required String title,
+  String selectedId = '',
+  @visibleForTesting List<PlatformMediaAsset>? assetsOverride,
+  @visibleForTesting Object? errorOverride,
+  @visibleForTesting ImageProvider Function(String url)? imageProviderBuilder,
+}) {
+  final PlatformMediaAssetPickerSheet sheet = PlatformMediaAssetPickerSheet(
+    category: PlatformMediaCategories.shopHouse,
+    placement: placement,
+    title: title,
+    selectedId: selectedId,
+    confirmSelection: true,
+    includePlatformDefault: true,
+    assetsOverride: assetsOverride,
+    errorOverride: errorOverride,
+    imageProviderBuilder: imageProviderBuilder,
+  );
+  final Size size = MediaQuery.sizeOf(context);
+  if (size.width >= 700) {
+    return showDialog<PlatformMediaPick>(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: SizedBox(width: 760, height: size.height * 0.8, child: sheet),
+        );
+      },
+    );
+  }
+  return showModalBottomSheet<PlatformMediaPick>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (BuildContext context) => sheet,
+  );
+}
+
 class PlatformMediaAssetPickerSheet extends StatefulWidget {
   const PlatformMediaAssetPickerSheet({
     super.key,
     required this.category,
     this.selectedId = '',
+    this.placement = '',
+    this.title = '',
+    this.confirmSelection = false,
+    this.includePlatformDefault = false,
     this.assetsOverride,
     this.errorOverride,
     this.imageProviderBuilder,
@@ -51,6 +106,10 @@ class PlatformMediaAssetPickerSheet extends StatefulWidget {
 
   final String category;
   final String selectedId;
+  final String placement;
+  final String title;
+  final bool confirmSelection;
+  final bool includePlatformDefault;
   final List<PlatformMediaAsset>? assetsOverride;
   final Object? errorOverride;
   final ImageProvider Function(String url)? imageProviderBuilder;
@@ -63,44 +122,102 @@ class PlatformMediaAssetPickerSheet extends StatefulWidget {
 class _PlatformMediaAssetPickerSheetState
     extends State<PlatformMediaAssetPickerSheet> {
   int _retry = 0;
+  late String _pendingId;
+  List<PlatformMediaAsset> _visible = const <PlatformMediaAsset>[];
+  Object? _loggedError;
 
-  bool get _isIcon => widget.category == PlatformMediaCategories.dailyCareIcon;
+  bool get _isIcon =>
+      widget.placement.isEmpty &&
+      widget.category == PlatformMediaCategories.dailyCareIcon;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingId = widget.selectedId;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final double height = MediaQuery.sizeOf(context).height * 0.72;
+    final double factor = widget.confirmSelection ? 0.8 : 0.72;
+    final double preferred = MediaQuery.sizeOf(context).height * factor;
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      child: SizedBox(
-        height: height,
-        child: Column(
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      PlatformMediaCategories.label(widget.category),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double height =
+              constraints.maxHeight.isFinite &&
+                  constraints.maxHeight < preferred
+              ? constraints.maxHeight
+              : preferred;
+          return SizedBox(
+            height: height,
+            child: Column(
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          widget.title.trim().isEmpty
+                              ? PlatformMediaCategories.label(widget.category)
+                              : widget.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
-                    ),
+                      IconButton(
+                        tooltip: '關閉',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    tooltip: '關閉',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
+                ),
+                Expanded(child: _buildBody()),
+                if (widget.confirmSelection) _confirmBar(),
+              ],
             ),
-            Expanded(child: _buildBody()),
-          ],
-        ),
+          );
+        },
       ),
     );
+  }
+
+  Widget _confirmBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(onPressed: _apply, child: const Text('套用')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _apply() {
+    if (_pendingId.isEmpty) {
+      Navigator.pop(context, const PlatformMediaPick.platformDefault());
+      return;
+    }
+    for (final PlatformMediaAsset asset in _visible) {
+      if (asset.id == _pendingId) {
+        Navigator.pop(context, PlatformMediaPick.asset(asset));
+        return;
+      }
+    }
+    Navigator.pop(context, const PlatformMediaPick.platformDefault());
   }
 
   Widget _buildBody() {
@@ -108,19 +225,25 @@ class _PlatformMediaAssetPickerSheetState
       return _ErrorPane(onRetry: _retryLoad);
     }
     if (widget.assetsOverride != null) {
-      return _buildGrid(widget.assetsOverride!);
+      return _buildGrid(_filterPlacement(widget.assetsOverride!));
     }
+    final Stream<List<PlatformMediaAsset>> stream = widget.placement.isEmpty
+        ? PlatformMediaLibraryService.instance.streamEnabledAssets(
+            widget.category,
+          )
+        : PlatformMediaLibraryService.instance.streamEnabledForPlacement(
+            widget.placement,
+          );
     return StreamBuilder<List<PlatformMediaAsset>>(
       key: ValueKey<int>(_retry),
-      stream: PlatformMediaLibraryService.instance.streamEnabledAssets(
-        widget.category,
-      ),
+      stream: stream,
       builder:
           (
             BuildContext context,
             AsyncSnapshot<List<PlatformMediaAsset>> snapshot,
           ) {
             if (snapshot.hasError) {
+              _logLoadError(snapshot.error);
               return _ErrorPane(onRetry: _retryLoad);
             }
             if (snapshot.connectionState == ConnectionState.waiting &&
@@ -132,8 +255,20 @@ class _PlatformMediaAssetPickerSheetState
     );
   }
 
+  List<PlatformMediaAsset> _filterPlacement(List<PlatformMediaAsset> assets) {
+    if (widget.placement.isEmpty) {
+      return assets;
+    }
+    return assets
+        .where(
+          (PlatformMediaAsset asset) => asset.allowsPlacement(widget.placement),
+        )
+        .toList();
+  }
+
   Widget _buildGrid(List<PlatformMediaAsset> assets) {
-    if (assets.isEmpty) {
+    _visible = assets;
+    if (assets.isEmpty && !widget.includePlatformDefault) {
       return Center(
         child: Text(
           _isIcon
@@ -143,20 +278,42 @@ class _PlatformMediaAssetPickerSheetState
         ),
       );
     }
+    final int extra = widget.includePlatformDefault ? 1 : 0;
+    final bool narrow = MediaQuery.sizeOf(context).width < 700;
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: _isIcon ? 120 : 180,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: _isIcon ? 0.78 : 0.82,
-      ),
-      itemCount: assets.length,
+      gridDelegate: widget.confirmSelection
+          ? SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: narrow ? 2 : 4,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.82,
+            )
+          : SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: _isIcon ? 120 : 180,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: _isIcon ? 0.78 : 0.82,
+            ),
+      itemCount: assets.length + extra,
       itemBuilder: (BuildContext context, int index) {
-        final PlatformMediaAsset asset = assets[index];
-        final bool selected = asset.id == widget.selectedId;
+        if (widget.includePlatformDefault && index == 0) {
+          return _defaultTile();
+        }
+        final PlatformMediaAsset asset = assets[index - extra];
+        final bool selected = widget.confirmSelection
+            ? asset.id == _pendingId
+            : asset.id == widget.selectedId;
         return InkWell(
-          onTap: () => Navigator.pop(context, asset),
+          onTap: () {
+            if (!widget.confirmSelection) {
+              Navigator.pop(context, asset);
+              return;
+            }
+            setState(() {
+              _pendingId = asset.id;
+            });
+          },
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
@@ -219,6 +376,48 @@ class _PlatformMediaAssetPickerSheetState
     );
   }
 
+  Widget _defaultTile() {
+    final bool selected = _pendingId.isEmpty;
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _pendingId = '';
+        });
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? colors.primary : Colors.black12,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(Icons.cottage_outlined, color: colors.primary),
+            const SizedBox(height: 8),
+            const Text(
+              'PetNest 預設',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+            if (selected)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF1565C0),
+                  size: 18,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _assetImage(PlatformMediaAsset asset) {
     final String url = asset.thumbnailUrl.isEmpty
         ? asset.imageUrl
@@ -240,7 +439,16 @@ class _PlatformMediaAssetPickerSheetState
     );
   }
 
+  void _logLoadError(Object? error) {
+    if (!kDebugMode || identical(_loggedError, error)) {
+      return;
+    }
+    _loggedError = error;
+    debugPrint('PlatformMediaAssetPicker load error:\n$error');
+  }
+
   void _retryLoad() {
+    _loggedError = null;
     setState(() {
       _retry += 1;
     });
