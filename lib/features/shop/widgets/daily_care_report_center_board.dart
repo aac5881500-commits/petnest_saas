@@ -22,6 +22,7 @@ import '../../../core/services/daily_care_record_service.dart';
 import '../../../core/services/daily_care_report_eligibility.dart';
 import '../../../core/services/daycare_function_service.dart';
 import '../../../core/services/daily_care_report_export_service.dart';
+import '../../booking/pages/care_statistics_page.dart';
 import '../../room/daily_care_record_edit_launcher.dart';
 import '../../room/widgets/daily_care_record_editor.dart';
 import 'daily_care_session_actions.dart';
@@ -1520,6 +1521,14 @@ class _SessionMiniCard extends StatelessWidget {
               child: DailyCareSessionActionButtons(
                 completed: done,
                 onPreview: () => openDailyCareCustomerPreview(context, session),
+                onStatistics: () => openCareStatisticsPage(
+                  context,
+                  shopId: session.shopId,
+                  bookingId: session.bookingId,
+                  isAdmin: true,
+                  useShopQuery: true,
+                  sourceCollection: session.sourceCollection,
+                ),
                 onShare: () {
                   shareDailyCareSession(
                     context: context,
@@ -2817,6 +2826,16 @@ class _QuickPreviewState extends State<_QuickPreview> {
         onPreview: _generating
             ? null
             : () => openDailyCareCustomerPreview(context, item),
+        onStatistics: _generating
+            ? null
+            : () => openCareStatisticsPage(
+                context,
+                shopId: item.shopId,
+                bookingId: item.bookingId,
+                isAdmin: true,
+                useShopQuery: true,
+                sourceCollection: item.sourceCollection,
+              ),
         onShare: () => _generate(
           bundle: bundle,
           onlyDate: item.recordDate,

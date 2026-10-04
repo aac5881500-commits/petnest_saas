@@ -50,30 +50,43 @@ class RoomSectionLayoutPreview extends StatelessWidget {
   Widget _horizontal() {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double card = constraints.maxWidth * 0.42;
-        return ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.centerLeft,
-            minWidth: 0,
-            maxWidth: constraints.maxWidth * 1.5,
-            child: Row(
-              children: <Widget>[
-                SizedBox(
-                  width: card,
-                  child: _block(height: double.infinity),
+        final double width = constraints.maxWidth;
+        final double height = constraints.maxHeight;
+        if (!width.isFinite || !height.isFinite || width <= 0 || height <= 0) {
+          return const SizedBox.shrink();
+        }
+        final double gap = (width * 0.035).clamp(0, 6);
+        final double rest = width - gap * 2;
+        if (rest <= 0) {
+          return const SizedBox.shrink();
+        }
+        // Two full cards share the row; the third is the same card width
+        // but only its left edge stays inside the remaining slot.
+        final double card = rest / 2.35;
+        final double peek = rest - card * 2;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Row(
+            children: <Widget>[
+              Expanded(child: _block(height: height)),
+              SizedBox(width: gap),
+              Expanded(child: _block(height: height)),
+              SizedBox(width: gap),
+              SizedBox(
+                width: peek,
+                height: height,
+                child: ClipRect(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: card,
+                      height: height,
+                      child: _block(height: height),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 6),
-                SizedBox(
-                  width: card,
-                  child: _block(height: double.infinity),
-                ),
-                const SizedBox(width: 6),
-                SizedBox(
-                  width: card,
-                  child: _block(height: double.infinity),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },

@@ -24,6 +24,7 @@ import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
 import '../widgets/customer_camera_entry.dart';
+import 'care_statistics_page.dart';
 import 'customer_daily_care_photo_page.dart';
 
 class DailyCareCustomerPreviewCopy {
@@ -401,10 +402,36 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
       titleOverride: widget.previewMode
           ? DailyCareCustomerPreviewCopy.title
           : null,
+      actions: <Widget>[_statisticsAction(context)],
       banner: widget.previewMode
           ? _previewBanner(pending: previewPending)
           : null,
       body: child,
+    );
+  }
+
+  Widget _statisticsAction(BuildContext context) {
+    final bool narrow = MediaQuery.sizeOf(context).width < 430;
+    return TextButton.icon(
+      key: const ValueKey<String>('daily-care-open-statistics'),
+      onPressed: () {
+        openCareStatisticsPage(
+          context,
+          shopId: widget.shopId,
+          bookingId: widget.bookingId,
+          useShopQuery: widget.previewMode,
+        );
+      },
+      style: TextButton.styleFrom(
+        foregroundColor: DailyCareJournalThemeTokens.primary,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+      icon: const Icon(Icons.pie_chart_outline_rounded, size: 18),
+      label: Text(
+        narrow ? '統計' : '照護統計',
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
     );
   }
 

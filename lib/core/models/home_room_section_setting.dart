@@ -80,12 +80,56 @@ class HomeRoomImageHeights {
         return 176;
     }
   }
+
+  /// 單卡比小卡完整，但不高到像海報。沿用大卡圖片高度的三段設定。
+  static double singlePixels(String value) {
+    switch (value) {
+      case compact:
+        return 120;
+      case tall:
+        return 160;
+      default:
+        return 140;
+    }
+  }
 }
 
 class HomeRoomAllRoomsPlacements {
   static const String titleRight = 'titleRight';
   static const String endCard = 'endCard';
   static const List<String> all = <String>[titleRight, endCard];
+}
+
+class HomeRoomSimpleCardSizes {
+  static const String small = 'small';
+  static const String single = 'single';
+  static const String wide = 'wide';
+  static const List<String> all = <String>[small, single, wide];
+
+  static String label(String value) {
+    switch (migrate(value)) {
+      case small:
+        return '小卡';
+      case single:
+        return '單卡';
+      default:
+        return '長卡';
+    }
+  }
+
+  /// 沒有欄位、空白或不認識的值都維持目前的滿寬長卡。
+  static String migrate(Object? raw) {
+    switch (raw?.toString().trim()) {
+      case small:
+        return small;
+      case single:
+        return single;
+      case wide:
+        return wide;
+      default:
+        return wide;
+    }
+  }
 }
 
 class HomeRoomSimpleIcons {
@@ -131,9 +175,48 @@ class HomeRoomMixedTextPlacements {
 }
 
 class HomeRoomCardSizes {
-  static const String full = 'full';
+  static const String small = 'small';
+  static const String single = 'single';
+  static const String wide = 'wide';
+
+  /// 舊資料。讀取時轉成 [small]。
   static const String half = 'half';
-  static const List<String> all = <String>[full, half];
+
+  /// 舊資料。舊版滿寬卡是直式（圖在上、文字在下），讀取時轉成 [single]。
+  static const String full = 'full';
+
+  static const List<String> all = <String>[small, single, wide];
+
+  static String label(String value) {
+    switch (migrate(value)) {
+      case single:
+        return '單卡';
+      case wide:
+        return '長卡';
+      default:
+        return '小卡';
+    }
+  }
+
+  static String migrate(Object? raw) {
+    switch (raw?.toString().trim()) {
+      case half:
+      case small:
+        return small;
+      case full:
+      case single:
+        return single;
+      case wide:
+        return wide;
+      default:
+        return small;
+    }
+  }
+
+  static bool occupiesOwnRow(String value) {
+    final String size = migrate(value);
+    return size == single || size == wide;
+  }
 }
 
 class HomeRoomCompactSetting {
@@ -196,24 +279,28 @@ class HomeRoomSimpleSetting {
     this.showSubtitle = true,
     this.icon = HomeRoomSimpleIcons.bed,
     this.surface = HomeRoomSimpleSurfaces.filled,
+    this.cardSize = HomeRoomSimpleCardSizes.wide,
   });
 
   final String subtitle;
   final bool showSubtitle;
   final String icon;
   final String surface;
+  final String cardSize;
 
   HomeRoomSimpleSetting copyWith({
     String? subtitle,
     bool? showSubtitle,
     String? icon,
     String? surface,
+    String? cardSize,
   }) {
     return HomeRoomSimpleSetting(
       subtitle: subtitle ?? this.subtitle,
       showSubtitle: showSubtitle ?? this.showSubtitle,
       icon: icon ?? this.icon,
       surface: surface ?? this.surface,
+      cardSize: cardSize ?? this.cardSize,
     );
   }
 
@@ -223,6 +310,7 @@ class HomeRoomSimpleSetting {
       'showSubtitle': showSubtitle,
       'icon': icon,
       'surface': surface,
+      'cardSize': HomeRoomSimpleCardSizes.migrate(cardSize),
     };
   }
 
@@ -247,6 +335,7 @@ class HomeRoomSimpleSetting {
         HomeRoomSimpleSurfaces.all,
         HomeRoomSimpleSurfaces.filled,
       ),
+      cardSize: HomeRoomSimpleCardSizes.migrate(map['cardSize']),
     );
   }
 }
@@ -256,7 +345,7 @@ class HomeRoomMixedSetting {
     this.textPlacement = HomeRoomMixedTextPlacements.below,
     this.largeImageHeight = HomeRoomImageHeights.standard,
     this.smallImageHeight = HomeRoomImageHeights.standard,
-    this.defaultCardSize = HomeRoomCardSizes.half,
+    this.defaultCardSize = HomeRoomCardSizes.small,
     this.itemSizes = const <String, String>{},
   });
 
@@ -264,18 +353,15 @@ class HomeRoomMixedSetting {
   final String largeImageHeight;
   final String smallImageHeight;
 
-  /// 沒有個別尺寸的房型用這個尺寸。一排一張的舊資料會讀成 full。
+  /// 沒有個別尺寸的房型用這個尺寸。舊的一排一張會讀成 single。
   final String defaultCardSize;
   final Map<String, String> itemSizes;
 
   String sizeOf(String roomTypeId) {
-    final String? chosen = itemSizes[roomTypeId];
-    if (chosen == HomeRoomCardSizes.full || chosen == HomeRoomCardSizes.half) {
-      return chosen!;
+    if (itemSizes.containsKey(roomTypeId)) {
+      return HomeRoomCardSizes.migrate(itemSizes[roomTypeId]);
     }
-    return defaultCardSize == HomeRoomCardSizes.full
-        ? HomeRoomCardSizes.full
-        : HomeRoomCardSizes.half;
+    return HomeRoomCardSizes.migrate(defaultCardSize);
   }
 
   HomeRoomMixedSetting copyWith({
@@ -299,8 +385,12 @@ class HomeRoomMixedSetting {
       'textPlacement': textPlacement,
       'largeImageHeight': largeImageHeight,
       'smallImageHeight': smallImageHeight,
-      'defaultCardSize': defaultCardSize,
-      'itemSizes': itemSizes,
+      'defaultCardSize': HomeRoomCardSizes.migrate(defaultCardSize),
+      'itemSizes': <String, String>{
+        for (final MapEntry<String, String> entry in itemSizes.entries)
+          if (entry.key.trim().isNotEmpty)
+            entry.key.trim(): HomeRoomCardSizes.migrate(entry.value),
+      },
     };
   }
 
@@ -325,11 +415,7 @@ class HomeRoomMixedSetting {
         HomeRoomImageHeights.all,
         HomeRoomImageHeights.standard,
       ),
-      defaultCardSize: _choice(
-        map['defaultCardSize'],
-        HomeRoomCardSizes.all,
-        HomeRoomCardSizes.half,
-      ),
+      defaultCardSize: HomeRoomCardSizes.migrate(map['defaultCardSize']),
       itemSizes: _itemSizes(map['itemSizes']),
     );
   }
@@ -337,16 +423,21 @@ class HomeRoomMixedSetting {
 
 /// 一列裡的房型卡或「查看全部房型」補位。
 class HomeRoomSlot {
-  const HomeRoomSlot.room(this.roomTypeId, {required this.fullWidth})
-    : allRooms = false;
+  const HomeRoomSlot.room(
+    this.roomTypeId, {
+    required this.fullWidth,
+    this.size = HomeRoomCardSizes.small,
+  }) : allRooms = false;
 
   const HomeRoomSlot.allRooms({required this.fullWidth})
     : roomTypeId = null,
-      allRooms = true;
+      allRooms = true,
+      size = HomeRoomCardSizes.small;
 
   final String? roomTypeId;
   final bool allRooms;
   final bool fullWidth;
+  final String size;
 }
 
 class HomeRoomSectionSetting {
@@ -481,12 +572,12 @@ class HomeRoomSectionSetting {
         smallImageHeight: compact.imageHeight,
         largeImageHeight: compact.imageHeight,
         defaultCardSize: legacyFullRow
-            ? HomeRoomCardSizes.full
-            : HomeRoomCardSizes.half,
+            ? HomeRoomCardSizes.single
+            : HomeRoomCardSizes.small,
       );
     }
     if (legacyFullRow) {
-      return mixed.copyWith(defaultCardSize: HomeRoomCardSizes.full);
+      return mixed.copyWith(defaultCardSize: HomeRoomCardSizes.single);
     }
     return mixed;
   }
@@ -672,7 +763,7 @@ class HomeRoomSectionSetting {
     return rows;
   }
 
-  /// 大卡自己一排。小卡兩張一排。落單小卡只在啟用全部房型卡時補一次右側入口。
+  /// 小卡兩張一排。單卡與長卡各自一排。落單小卡只在啟用全部房型卡時補一次右側入口。
   static List<List<HomeRoomSlot>> mixedRows({
     required List<String> roomIds,
     required String Function(String id) sizeOf,
@@ -690,18 +781,31 @@ class HomeRoomSectionSetting {
       if (fillWithAllRooms && !usedAllRooms) {
         usedAllRooms = true;
         rows.add(<HomeRoomSlot>[
-          HomeRoomSlot.room(pending, fullWidth: false),
+          HomeRoomSlot.room(
+            pending,
+            fullWidth: false,
+            size: HomeRoomCardSizes.small,
+          ),
           const HomeRoomSlot.allRooms(fullWidth: false),
         ]);
         return;
       }
-      rows.add(<HomeRoomSlot>[HomeRoomSlot.room(pending, fullWidth: false)]);
+      rows.add(<HomeRoomSlot>[
+        HomeRoomSlot.room(
+          pending,
+          fullWidth: false,
+          size: HomeRoomCardSizes.small,
+        ),
+      ]);
     }
 
     for (final String id in roomIds) {
-      if (sizeOf(id) == HomeRoomCardSizes.full) {
+      final String size = HomeRoomCardSizes.migrate(sizeOf(id));
+      if (HomeRoomCardSizes.occupiesOwnRow(size)) {
         flushPending();
-        rows.add(<HomeRoomSlot>[HomeRoomSlot.room(id, fullWidth: true)]);
+        rows.add(<HomeRoomSlot>[
+          HomeRoomSlot.room(id, fullWidth: true, size: size),
+        ]);
         continue;
       }
       if (pendingHalf == null) {
@@ -709,8 +813,12 @@ class HomeRoomSectionSetting {
         continue;
       }
       rows.add(<HomeRoomSlot>[
-        HomeRoomSlot.room(pendingHalf, fullWidth: false),
-        HomeRoomSlot.room(id, fullWidth: false),
+        HomeRoomSlot.room(
+          pendingHalf,
+          fullWidth: false,
+          size: HomeRoomCardSizes.small,
+        ),
+        HomeRoomSlot.room(id, fullWidth: false, size: HomeRoomCardSizes.small),
       ]);
       pendingHalf = null;
     }
@@ -762,10 +870,10 @@ Map<String, String> _itemSizes(Object? raw) {
   raw.forEach((dynamic key, dynamic value) {
     final String id = key.toString().trim();
     final String size = value?.toString().trim() ?? '';
-    if (id.isEmpty || !HomeRoomCardSizes.all.contains(size)) {
+    if (id.isEmpty || size.isEmpty) {
       return;
     }
-    sizes[id] = size;
+    sizes[id] = HomeRoomCardSizes.migrate(size);
   });
   return sizes;
 }

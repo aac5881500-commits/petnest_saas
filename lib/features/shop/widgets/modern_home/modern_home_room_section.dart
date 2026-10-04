@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -138,38 +140,51 @@ class ModernHomeRoomSection extends StatelessWidget {
             imageHeight + 18 + (setting.showPrice ? 40 : 24) * textScale;
         return SizedBox(
           height: cardHeight,
-          child: ListView.separated(
-            key: const Key('home-room-scroll'),
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            primary: false,
-            itemCount: ids.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (BuildContext context, int index) {
-              if (index == ids.length) {
-                return SizedBox(
-                  width: 88,
-                  child: _allRoomsCard(
-                    fullWidth: false,
-                    imageHeight: imageHeight,
-                  ),
-                );
-              }
-              final String id = ids[index];
-              final Map<String, dynamic>? room = rooms[id];
-              if (room == null) {
-                return const SizedBox.shrink();
-              }
-              return SizedBox(
-                width: cardWidth,
-                child: _roomCard(
-                  room: room,
-                  roomTypeId: id,
-                  imageHeight: imageHeight,
-                  overlay: false,
-                ),
-              );
-            },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.grab,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: const <PointerDeviceKind>{
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.stylus,
+                  PointerDeviceKind.trackpad,
+                },
+              ),
+              child: ListView.separated(
+                key: const Key('home-room-scroll'),
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                primary: false,
+                itemCount: ids.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (BuildContext context, int index) {
+                  if (index == ids.length) {
+                    return SizedBox(
+                      width: 88,
+                      child: _allRoomsCard(
+                        fullWidth: false,
+                        imageHeight: imageHeight,
+                      ),
+                    );
+                  }
+                  final String id = ids[index];
+                  final Map<String, dynamic>? room = rooms[id];
+                  if (room == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return SizedBox(
+                    width: cardWidth,
+                    child: _roomCard(
+                      room: room,
+                      roomTypeId: id,
+                      imageHeight: imageHeight,
+                      overlay: false,
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         );
       },
@@ -201,8 +216,8 @@ class ModernHomeRoomSection extends StatelessWidget {
             rows[index],
             rooms,
             imageHeightFor: (HomeRoomSlot slot) {
-              if (slot.fullWidth) {
-                return HomeRoomImageHeights.largePixels(
+              if (slot.size == HomeRoomCardSizes.single) {
+                return HomeRoomImageHeights.singlePixels(
                   setting.mixed.largeImageHeight,
                 );
               }
@@ -269,11 +284,47 @@ class ModernHomeRoomSection extends StatelessWidget {
       room: room,
       roomTypeId: slot.roomTypeId!,
       imageHeight: imageHeight,
-      overlay: overlay,
+      overlay: overlay && slot.size != HomeRoomCardSizes.wide,
+      layoutSize: slot.size,
+      nameMaxLines: 2,
     );
   }
 
   Widget _simpleEntry() {
+    final String size = HomeRoomSimpleCardSizes.migrate(
+      setting.simple.cardSize,
+    );
+    if (size == HomeRoomSimpleCardSizes.small) {
+      return LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double parent = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : 320;
+          double width = parent * 0.5;
+          if (width > 200) {
+            width = 200;
+          }
+          if (width > parent) {
+            width = parent;
+          }
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: width,
+              child: _simpleShell(child: _simpleSmallEntry()),
+            ),
+          );
+        },
+      );
+    }
+    return _simpleShell(
+      child: size == HomeRoomSimpleCardSizes.single
+          ? _simpleSingleEntry()
+          : _simpleWideEntry(),
+    );
+  }
+
+  Widget _simpleShell({required Widget child}) {
     final Color fill = switch (setting.simple.surface) {
       HomeRoomSimpleSurfaces.transparent => Colors.transparent,
       HomeRoomSimpleSurfaces.outlined => theme.backgroundColor,
@@ -295,61 +346,145 @@ class ModernHomeRoomSection extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: border,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _simpleIcon(setting.simple.icon),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _simpleIconBox({double box = 40, double icon = 22}) {
+    return Container(
+      width: box,
+      height: box,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: theme.primaryColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        _simpleIcon(setting.simple.icon),
+        color: theme.primaryColor,
+        size: icon,
+      ),
+    );
+  }
+
+  Widget _simpleTitle({int maxLines = 2, double fontSize = 15}) {
+    return Text(
+      _title,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: fontSize,
+        height: 1.2,
+        fontWeight: FontWeight.w800,
+        color: theme.textColor,
+      ),
+    );
+  }
+
+  Widget _simpleSubtitle({required int maxLines}) {
+    if (!setting.simple.showSubtitle) {
+      return const SizedBox.shrink();
+    }
+    return Text(
+      setting.simple.subtitle,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        height: 1.2,
+        color: theme.secondaryTextColor,
+      ),
+    );
+  }
+
+  Widget _simpleSmallEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _simpleIconBox(box: 32, icon: 18),
+          const SizedBox(height: 8),
+          _simpleTitle(fontSize: 13),
+          if (setting.simple.showSubtitle) ...<Widget>[
+            const SizedBox(height: 2),
+            _simpleSubtitle(maxLines: 2),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _simpleSingleEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              _simpleIconBox(),
+              const SizedBox(width: 12),
+              Expanded(child: _simpleTitle()),
+            ],
+          ),
+          if (setting.simple.showSubtitle) ...<Widget>[
+            const SizedBox(height: 6),
+            _simpleSubtitle(maxLines: 2),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Flexible(
+                child: Text(
+                  '查看全部房型',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
                     color: theme.primaryColor,
-                    size: 22,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        _title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 15,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          color: theme.textColor,
-                        ),
-                      ),
-                      if (setting.simple.showSubtitle) ...<Widget>[
-                        const SizedBox(height: 2),
-                        Text(
-                          setting.simple.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.2,
-                            color: theme.secondaryTextColor,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded, color: theme.primaryColor),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: theme.primaryColor,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _simpleWideEntry() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: <Widget>[
+          _simpleIconBox(),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _simpleTitle(),
+                if (setting.simple.showSubtitle) ...<Widget>[
+                  const SizedBox(height: 2),
+                  _simpleSubtitle(maxLines: 1),
+                ],
               ],
             ),
           ),
-        ),
+          Icon(Icons.chevron_right_rounded, color: theme.primaryColor),
+        ],
       ),
     );
   }
@@ -359,11 +494,14 @@ class ModernHomeRoomSection extends StatelessWidget {
     required String roomTypeId,
     required double imageHeight,
     required bool overlay,
+    String? layoutSize,
+    int nameMaxLines = 1,
   }) {
     final String name = (room['name'] ?? '未命名房型').toString().trim();
     final String imageUrl = _firstImage(room);
     final bool selected = selectedRoomTypeId == roomTypeId;
     final String price = HomeRoomSectionSetting.priceLabel(room['price']);
+    final bool wide = layoutSize == HomeRoomCardSizes.wide;
     return Material(
       color: theme.cardColor,
       borderRadius: BorderRadius.circular(14),
@@ -385,12 +523,20 @@ class ModernHomeRoomSection extends StatelessWidget {
               width: selected ? 2 : 1,
             ),
           ),
-          child: overlay
+          child: wide
+              ? _wideCard(
+                  roomTypeId: roomTypeId,
+                  name: name,
+                  price: price,
+                  imageUrl: imageUrl,
+                )
+              : overlay
               ? _overlayCard(
                   name: name,
                   price: price,
                   imageUrl: imageUrl,
                   imageHeight: imageHeight,
+                  nameMaxLines: nameMaxLines,
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -402,7 +548,12 @@ class ModernHomeRoomSection extends StatelessWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-                      child: _caption(name: name, price: price, onImage: false),
+                      child: _caption(
+                        name: name,
+                        price: price,
+                        onImage: false,
+                        nameMaxLines: nameMaxLines,
+                      ),
                     ),
                   ],
                 ),
@@ -411,11 +562,91 @@ class ModernHomeRoomSection extends StatelessWidget {
     );
   }
 
+  Widget _wideCard({
+    required String roomTypeId,
+    required String name,
+    required String price,
+    required String imageUrl,
+  }) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 320;
+        double imageWidth = maxWidth * 0.36;
+        if (imageWidth > 136) {
+          imageWidth = 136;
+        }
+        if (imageWidth > maxWidth * 0.46) {
+          imageWidth = maxWidth * 0.46;
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            SizedBox(
+              width: imageWidth,
+              child: HomeRoomCover(
+                imageUrl: imageUrl,
+                height: 108,
+                theme: theme,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(13),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    _caption(
+                      name: name,
+                      price: price,
+                      onImage: false,
+                      nameMaxLines: 2,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            '查看房型',
+                            key: Key('home-room-wide-hint-$roomTypeId'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.2,
+                              fontWeight: FontWeight.w700,
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: theme.primaryColor,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _overlayCard({
     required String name,
     required String price,
     required String imageUrl,
     required double imageHeight,
+    int nameMaxLines = 1,
   }) {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
@@ -443,7 +674,12 @@ class ModernHomeRoomSection extends StatelessWidget {
               left: 8,
               right: 8,
               bottom: 8,
-              child: _caption(name: name, price: price, onImage: true),
+              child: _caption(
+                name: name,
+                price: price,
+                onImage: true,
+                nameMaxLines: nameMaxLines,
+              ),
             ),
           ],
         ),
@@ -455,6 +691,7 @@ class ModernHomeRoomSection extends StatelessWidget {
     required String name,
     required String price,
     required bool onImage,
+    int nameMaxLines = 1,
   }) {
     final Color nameColor = onImage ? Colors.white : theme.textColor;
     final Color priceColor = onImage ? Colors.white : theme.primaryColor;
@@ -467,7 +704,7 @@ class ModernHomeRoomSection extends StatelessWidget {
       children: <Widget>[
         Text(
           name.isEmpty ? '未命名房型' : name,
-          maxLines: 1,
+          maxLines: nameMaxLines,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 13,
@@ -630,12 +867,18 @@ class HomeRoomCover extends StatelessWidget {
     required this.height,
     required this.theme,
     this.imageProvider,
+    this.borderRadius = _topRadius,
   });
 
   final String imageUrl;
   final double height;
   final HomeThemeModel theme;
   final ImageProvider<Object>? imageProvider;
+  final BorderRadius borderRadius;
+
+  static const BorderRadius _topRadius = BorderRadius.vertical(
+    top: Radius.circular(13),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -644,7 +887,7 @@ class HomeRoomCover extends StatelessWidget {
       height: height,
       width: double.infinity,
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+        borderRadius: borderRadius,
         child: provider != null
             ? Image(
                 image: provider,

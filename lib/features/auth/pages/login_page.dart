@@ -32,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   String? _error;
   bool _rememberEmail = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -166,181 +167,402 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final TextTheme text = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('登入')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double minHeight = constraints.maxHeight - 40;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: minHeight < 0 ? 0 : minHeight,
+                ),
+                child: Align(
+                  alignment: const Alignment(0, -0.18),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _brandHeader(colors, text),
+                        const SizedBox(height: 22),
+                        _loginCard(colors, text),
+                        const SizedBox(height: 18),
+                        _qrEntry(colors, text),
+                      ],
+                    ),
                   ),
                 ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
-                const SizedBox(height: 12),
+  Widget _brandHeader(ColorScheme colors, TextTheme text) {
+    return Column(
+      children: <Widget>[
+        Text(
+          'PetNest',
+          textAlign: TextAlign.center,
+          style: text.headlineMedium?.copyWith(
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+            color: colors.primary,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '毛孩旅宿，從這裡開始',
+          textAlign: TextAlign.center,
+          style: text.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '登入後即可管理預約與毛孩資料',
+          textAlign: TextAlign.center,
+          style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
 
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: '密碼',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                CheckboxListTile(
-                  title: const Text('記住帳號'),
-                  value: _rememberEmail,
-                  onChanged: (value) {
+  Widget _loginCard(ColorScheme colors, TextTheme text) {
+    return Card(
+      elevation: 1,
+      shadowColor: colors.shadow.withValues(alpha: 0.12),
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              '歡迎回來',
+              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '登入你的 PetNest 帳號',
+              style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autocorrect: false,
+              decoration: _fieldDecoration(
+                colors: colors,
+                label: 'Email',
+                hint: 'example@email.com',
+                icon: Icons.email_outlined,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              onSubmitted: _loading ? null : (_) => _login(),
+              decoration: _fieldDecoration(
+                colors: colors,
+                label: '密碼',
+                icon: Icons.lock_outline,
+                suffix: IconButton(
+                  tooltip: _obscurePassword ? '顯示密碼' : '隱藏密碼',
+                  onPressed: () {
                     setState(() {
-                      _rememberEmail = value ?? false;
+                      _obscurePassword = !_obscurePassword;
                     });
                   },
-                ),
-
-                if (_error != null)
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
-
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _login,
-                    child: Text(_loading ? '登入中...' : '登入'),
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
                   ),
                 ),
-                const SizedBox(height: 18),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(color: Theme.of(context).dividerColor),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        '其他登入方式',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(color: Theme.of(context).dividerColor),
-                    ),
-                  ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Checkbox(
+                    value: _rememberEmail,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _rememberEmail = value ?? false;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _rememberEmail = !_rememberEmail;
+                      });
+                    },
+                    child: Text('記住帳號', style: text.bodyMedium),
+                  ),
+                ],
+              ),
+            ),
+            if (_error != null) ...<Widget>[
+              const SizedBox(height: 8),
+              _errorNotice(colors, text),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 54,
+              child: FilledButton(
+                onPressed: _loading ? null : _login,
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                 ),
-
-                const SizedBox(height: 16),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Tooltip(
-                      message: '使用 Google 登入',
-                      child: InkWell(
-                        onTap: _loading ? null : _googleLogin,
-                        borderRadius: BorderRadius.circular(28),
-                        child: Container(
-                          width: 52,
-                          height: 52,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Theme.of(context).colorScheme.surface,
-                            border: Border.all(
-                              color: Theme.of(context).dividerColor,
-                            ),
-                          ),
-                          child: const Text(
-                            'G',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF4285F4),
-                            ),
-                          ),
+                child: _loading
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: colors.onPrimary,
+                        ),
+                      )
+                    : const Text(
+                        '登入',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: <Widget>[
+                Expanded(child: Divider(color: colors.outlineVariant)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    '其他登入方式',
+                    style: text.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
-
-                    const SizedBox(width: 18),
-
-                    Tooltip(
-                      message: 'Apple 登入即將開放',
-                      child: Container(
-                        width: 52,
-                        height: 52,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: 0.55),
-                          border: Border.all(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.apple,
-                          size: 25,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.35),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-
-                const SizedBox(height: 16),
-
+                Expanded(child: Divider(color: colors.outlineVariant)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                _googleButton(colors),
+                const SizedBox(width: 14),
+                _appleButton(colors),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[
+                Text(
+                  '還沒有帳號？',
+                  style: text.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
                 TextButton(
                   onPressed: _loading
                       ? null
                       : () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
+                            MaterialPageRoute<void>(
                               builder: (_) => const RegisterPage(),
                             ),
                           );
                         },
-                  child: const Text('還沒有帳號？前往註冊'),
+                  child: const Text('建立帳號'),
                 ),
-                const SizedBox(height: 12),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.qr_code_scanner),
-                    label: const Text('掃描店家 QRCode'),
-                    onPressed: _loading
-                        ? null
-                        : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ShopQrScanPage(),
-                              ),
-                            );
-                          },
+  InputDecoration _fieldDecoration({
+    required ColorScheme colors,
+    required String label,
+    required IconData icon,
+    String? hint,
+    Widget? suffix,
+  }) {
+    final OutlineInputBorder border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: BorderSide(color: colors.outlineVariant),
+    );
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon),
+      suffixIcon: suffix,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      constraints: const BoxConstraints(minHeight: 54),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: colors.primary, width: 1.4),
+      ),
+    );
+  }
+
+  Widget _errorNotice(ColorScheme colors, TextTheme text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.errorContainer,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.error_outline, size: 18, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _error ?? '',
+              style: text.bodyMedium?.copyWith(
+                color: colors.error,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _googleButton(ColorScheme colors) {
+    return Tooltip(
+      message: '使用 Google 登入',
+      child: InkWell(
+        onTap: _loading ? null : _googleLogin,
+        borderRadius: BorderRadius.circular(26),
+        child: Container(
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: colors.surface,
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: const Text(
+            'G',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF4285F4),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _appleButton(ColorScheme colors) {
+    return Tooltip(
+      message: 'Apple 登入即將開放',
+      child: Container(
+        width: 52,
+        height: 52,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        child: Icon(
+          Icons.apple,
+          size: 25,
+          color: colors.onSurface.withValues(alpha: 0.35),
+        ),
+      ),
+    );
+  }
+
+  Widget _qrEntry(ColorScheme colors, TextTheme text) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          '已經有店家的 QR Code？',
+          textAlign: TextAlign.center,
+          style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 50,
+          child: OutlinedButton(
+            onPressed: _loading
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ShopQrScanPage(),
+                      ),
+                    );
+                  },
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              side: BorderSide(color: colors.outlineVariant),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(Icons.qr_code_scanner, size: 20, color: colors.primary),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    '掃描 QR Code 前往店家',
+                    overflow: TextOverflow.ellipsis,
+                    style: text.labelLarge?.copyWith(color: colors.primary),
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

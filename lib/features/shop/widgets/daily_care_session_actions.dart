@@ -24,54 +24,114 @@ class DailyCareSessionActionButtons extends StatelessWidget {
     required this.completed,
     required this.onPreview,
     required this.onShare,
+    this.onStatistics,
   });
 
   final bool completed;
   final VoidCallback? onPreview;
   final VoidCallback? onShare;
+  final VoidCallback? onStatistics;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: OutlinedButton(
-            key: const ValueKey<String>('daily-care-customer-preview'),
-            onPressed: onPreview,
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text(
-              '顧客端預覽',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton(
-            key: const ValueKey<String>('daily-care-share-session'),
-            onPressed: completed ? onShare : null,
-            style: FilledButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text(
-              '分享本場',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12),
-            ),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final Widget preview = _outlined(
+          label: '顧客端預覽',
+          buttonKey: 'daily-care-customer-preview',
+          onPressed: onPreview,
+        );
+        final Widget statistics = _outlined(
+          label: '照護統計',
+          buttonKey: 'daily-care-open-statistics',
+          onPressed: onStatistics,
+          icon: Icons.pie_chart_outline_rounded,
+        );
+        final Widget share = _filled(
+          label: '分享本場',
+          buttonKey: 'daily-care-share-session',
+          onPressed: completed ? onShare : null,
+        );
+        if (constraints.maxWidth < 300) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              preview,
+              const SizedBox(height: 8),
+              statistics,
+              const SizedBox(height: 8),
+              share,
+            ],
+          );
+        }
+        return Row(
+          children: <Widget>[
+            Expanded(child: preview),
+            const SizedBox(width: 8),
+            Expanded(child: statistics),
+            const SizedBox(width: 8),
+            Expanded(child: share),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _outlined({
+    required String label,
+    required String buttonKey,
+    required VoidCallback? onPressed,
+    IconData? icon,
+  }) {
+    final ButtonStyle style = OutlinedButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      minimumSize: const Size(0, 40),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+    final Text labelText = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 13),
+    );
+    if (icon == null) {
+      return OutlinedButton(
+        key: ValueKey<String>(buttonKey),
+        onPressed: onPressed,
+        style: style,
+        child: labelText,
+      );
+    }
+    return OutlinedButton.icon(
+      key: ValueKey<String>(buttonKey),
+      onPressed: onPressed,
+      style: style,
+      icon: Icon(icon, size: 16),
+      label: labelText,
+    );
+  }
+
+  Widget _filled({
+    required String label,
+    required String buttonKey,
+    required VoidCallback? onPressed,
+  }) {
+    return FilledButton(
+      key: ValueKey<String>(buttonKey),
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(0, 40),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13),
+      ),
     );
   }
 }

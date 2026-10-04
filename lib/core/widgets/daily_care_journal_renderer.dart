@@ -64,6 +64,7 @@ class DailyCareJournalScaffold extends StatelessWidget {
     this.titleOverride,
     this.banner,
     this.leading,
+    this.actions,
   });
 
   final DailyCareSettingModel setting;
@@ -72,6 +73,7 @@ class DailyCareJournalScaffold extends StatelessWidget {
   final String? titleOverride;
   final Widget? banner;
   final Widget? leading;
+  final List<Widget>? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +91,7 @@ class DailyCareJournalScaffold extends StatelessWidget {
             systemOverlayStyle: overlay,
             centerTitle: true,
             leading: leading,
+            actions: actions,
             title: Text(
               (titleOverride ?? shopName).trim(),
               maxLines: 1,

@@ -447,6 +447,7 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     expect(find.text('顧客端預覽'), findsOneWidget);
+    expect(find.text('照護統計'), findsOneWidget);
     expect(find.text('分享本場'), findsOneWidget);
 
     final FilledButton share = tester.widget<FilledButton>(

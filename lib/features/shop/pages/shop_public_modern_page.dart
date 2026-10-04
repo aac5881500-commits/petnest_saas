@@ -1632,29 +1632,11 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
               padding: EdgeInsets.only(bottom: gap),
               child: widget.buildSection(sectionId),
             ),
-            if (sectionId == 'banners')
-              Positioned(
-                top: 4,
-                right: 4,
-                child: ReorderableDragStartListener(
-                  index: index,
-                  child: Tooltip(
-                    message: '拖曳整個海報區塊',
-                    child: Material(
-                      color: Colors.white.withValues(alpha: 0.94),
-                      elevation: 2,
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.drag_indicator_rounded,
-                          size: 20,
-                          color: Color(0xFF475569),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+            if (sectionId == 'banners' || sectionId == 'rooms')
+              _sectionDragHandle(
+                index: index,
+                sectionId: sectionId,
+                tooltip: sectionId == 'rooms' ? '拖曳整個房型介紹區塊' : '拖曳整個海報區塊',
               ),
           ],
         ),
@@ -1662,17 +1644,56 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
     );
   }
 
+  Widget _sectionDragHandle({
+    required int index,
+    required String sectionId,
+    required String tooltip,
+  }) {
+    final bool touch =
+        Theme.of(context).platform == TargetPlatform.iOS ||
+        Theme.of(context).platform == TargetPlatform.android;
+    final Widget handle = Tooltip(
+      message: tooltip,
+      child: Material(
+        key: Key('home-section-drag-$sectionId'),
+        color: Colors.white.withValues(alpha: 0.94),
+        elevation: 2,
+        borderRadius: BorderRadius.circular(8),
+        child: const Padding(
+          padding: EdgeInsets.all(4),
+          child: Icon(
+            Icons.drag_indicator_rounded,
+            size: 20,
+            color: Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+    return Positioned(
+      top: 4,
+      right: 4,
+      child: touch
+          ? ReorderableDelayedDragStartListener(index: index, child: handle)
+          : ReorderableDragStartListener(index: index, child: handle),
+    );
+  }
+
   void _onReorder(int oldIndex, int newIndex) {
+    final String? moved = oldIndex >= 0 && oldIndex < widget.sectionIds.length
+        ? widget.sectionIds[oldIndex]
+        : null;
     final List<String> next = HomeSectionOrder.reorderVisible(
       saved: widget.sectionOrder,
       visible: widget.sectionIds,
       oldIndex: oldIndex,
       newIndex: newIndex,
     );
-    if (_sameOrder(next, widget.sectionOrder)) {
-      return;
+    if (!_sameOrder(next, widget.sectionOrder)) {
+      widget.onSectionOrderChanged?.call(next);
     }
-    widget.onSectionOrderChanged?.call(next);
+    if (moved != null) {
+      widget.onSelectSection?.call(moved);
+    }
   }
 
   bool _sameOrder(List<String> left, List<String> right) {
@@ -1703,9 +1724,6 @@ class _HomeLayoutCanvasState extends State<_HomeLayoutCanvas> {
               padding: EdgeInsets.fromLTRB(12, 5, 12, widget.bottomInset),
               itemCount: widget.sectionIds.length,
               onReorder: _onReorder,
-              onReorderEnd: (_) {
-                widget.onSelectSection?.call('banners');
-              },
               proxyDecorator:
                   (Widget child, int index, Animation<double> animation) {
                     return AnimatedBuilder(

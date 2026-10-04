@@ -86,6 +86,9 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
     if (_subtitleController.text != widget.setting.simple.subtitle) {
       _subtitleController.text = widget.setting.simple.subtitle;
     }
+    if (_orderLocked && _pane == 1) {
+      _pane = 0;
+    }
   }
 
   @override
@@ -97,6 +100,9 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
   }
 
   List<Map<String, dynamic>> get _catalog => widget.rooms ?? _rooms;
+
+  Set<String> get _catalogIds =>
+      HomeRoomSectionSetting.knownIds(_catalog).toSet();
 
   Map<String, Map<String, dynamic>> get _byId {
     final Map<String, Map<String, dynamic>> rooms =
@@ -116,6 +122,7 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final int pane = _orderLocked && _pane == 1 ? 0 : _pane;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -138,7 +145,7 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
             ),
           ),
         Expanded(
-          child: switch (_pane) {
+          child: switch (pane) {
             1 => _orderPane(),
             2 => _detailPane(),
             _ => _layoutPane(),
@@ -148,7 +155,11 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
     );
   }
 
+  bool get _orderLocked =>
+      widget.setting.layout == HomeRoomSectionLayouts.simpleEntry;
+
   Widget _panePicker() {
+    const Color lockedColor = Color(0xFF9CA3AF);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         return SingleChildScrollView(
@@ -158,26 +169,36 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: SegmentedButton<int>(
               showSelectedIcon: false,
-              segments: const <ButtonSegment<int>>[
-                ButtonSegment<int>(
+              style: SegmentedButton.styleFrom(
+                disabledForegroundColor: lockedColor,
+                disabledBackgroundColor: const Color(0xFFF3F4F6),
+              ),
+              segments: <ButtonSegment<int>>[
+                const ButtonSegment<int>(
                   value: 0,
                   label: Text('版型'),
                   icon: Icon(Icons.dashboard_customize_outlined),
                 ),
                 ButtonSegment<int>(
                   value: 1,
-                  label: Text('房型排序'),
-                  icon: Icon(Icons.swap_vert_rounded),
+                  enabled: !_orderLocked,
+                  tooltip: _orderLocked ? '簡約入口不顯示個別房型，無需設定排序' : null,
+                  label: const Text('房型排序'),
+                  icon: const Icon(Icons.swap_vert_rounded),
                 ),
-                ButtonSegment<int>(
+                const ButtonSegment<int>(
                   value: 2,
                   label: Text('顯示細節'),
                   icon: Icon(Icons.tune),
                 ),
               ],
-              selected: <int>{_pane},
+              selected: <int>{_orderLocked && _pane == 1 ? 0 : _pane},
               onSelectionChanged: (Set<int> value) {
-                setState(() => _pane = value.first);
+                final int next = value.first;
+                if (next == 1 && _orderLocked) {
+                  return;
+                }
+                setState(() => _pane = next);
               },
             ),
           ),
@@ -197,7 +218,7 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
         ),
         _choice(
           layout: HomeRoomSectionLayouts.cardGrid,
-          description: '預設一排兩張，也可將指定房型改成滿版大卡並自由排序。',
+          description: '預設一排兩張小卡，也可將指定房型改成單卡或長卡並自由排序。',
         ),
         _choice(
           layout: HomeRoomSectionLayouts.simpleEntry,
@@ -343,100 +364,113 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
         color: const Color(0xFF475569),
       ),
     );
+    final Widget identity = Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            _roomName(id),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          Text(
+            shown ? '顯示於首頁' : '首頁已隱藏',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+    final Widget visibility = Switch(
+      value: shown,
+      onChanged: (bool value) {
+        final List<String> hidden = List<String>.from(
+          widget.setting.hiddenRoomTypeIds,
+        );
+        if (value) {
+          hidden.remove(id);
+        } else if (!hidden.contains(id)) {
+          hidden.add(id);
+        }
+        _update(widget.setting.copyWith(hiddenRoomTypeIds: hidden));
+      },
+    );
     return Material(
       key: key,
       color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        child: Column(
-          children: <Widget>[
-            Row(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool wideSettings = constraints.maxWidth >= 560;
+            final Widget dragHandle = touch
+                ? ReorderableDelayedDragStartListener(
+                    index: index,
+                    child: handle,
+                  )
+                : ReorderableDragStartListener(index: index, child: handle);
+            final Widget summary = Row(
               children: <Widget>[
-                touch
-                    ? ReorderableDelayedDragStartListener(
-                        index: index,
-                        child: handle,
-                      )
-                    : ReorderableDragStartListener(index: index, child: handle),
+                dragHandle,
                 _thumb(room),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        _roomName(id),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      Text(
-                        shown ? '顯示於首頁' : '首頁已隱藏',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: shown,
-                  onChanged: (bool value) {
-                    final List<String> hidden = List<String>.from(
-                      widget.setting.hiddenRoomTypeIds,
-                    );
-                    if (value) {
-                      hidden.remove(id);
-                    } else if (!hidden.contains(id)) {
-                      hidden.add(id);
-                    }
-                    _update(widget.setting.copyWith(hiddenRoomTypeIds: hidden));
-                  },
-                ),
+                identity,
+                visibility,
+                if (mixed && wideSettings) ...<Widget>[
+                  const SizedBox(width: 8),
+                  _sizePicker(id),
+                ],
               ],
-            ),
-            if (mixed)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 44, top: 4),
-                  child: SegmentedButton<String>(
-                    showSelectedIcon: false,
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    segments: const <ButtonSegment<String>>[
-                      ButtonSegment<String>(
-                        value: HomeRoomCardSizes.full,
-                        label: Text('大卡'),
-                      ),
-                      ButtonSegment<String>(
-                        value: HomeRoomCardSizes.half,
-                        label: Text('小卡'),
-                      ),
-                    ],
-                    selected: <String>{widget.setting.mixed.sizeOf(id)},
-                    onSelectionChanged: (Set<String> value) {
-                      final Map<String, String> sizes =
-                          Map<String, String>.from(
-                            widget.setting.mixed.itemSizes,
-                          );
-                      sizes[id] = value.first;
-                      _update(
-                        widget.setting.copyWith(
-                          mixed: widget.setting.mixed.copyWith(
-                            itemSizes: sizes,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-          ],
+            );
+            if (!mixed || wideSettings) {
+              return summary;
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                summary,
+                const SizedBox(height: 6),
+                Align(alignment: Alignment.centerLeft, child: _sizePicker(id)),
+              ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _sizePicker(String id) {
+    return SegmentedButton<String>(
+      key: Key('room-size-$id'),
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      segments: <ButtonSegment<String>>[
+        for (final String size in HomeRoomCardSizes.all)
+          ButtonSegment<String>(
+            value: size,
+            label: Text(HomeRoomCardSizes.label(size)),
+          ),
+      ],
+      selected: <String>{widget.setting.mixed.sizeOf(id)},
+      onSelectionChanged: (Set<String> value) {
+        final Map<String, String> sizes = Map<String, String>.from(
+          widget.setting.mixed.itemSizes,
+        );
+        sizes[id] = value.first;
+        sizes.removeWhere(
+          (String roomId, String _) => !_catalogIds.contains(roomId),
+        );
+        _update(
+          widget.setting.copyWith(
+            mixed: widget.setting.mixed.copyWith(itemSizes: sizes),
+          ),
+        );
+      },
     );
   }
 
@@ -524,6 +558,29 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
               );
             },
           ),
+          _label('卡片規格'),
+          SegmentedButton<String>(
+            key: const Key('room-simple-card-size'),
+            showSelectedIcon: false,
+            segments: <ButtonSegment<String>>[
+              for (final String size in HomeRoomSimpleCardSizes.all)
+                ButtonSegment<String>(
+                  value: size,
+                  label: Text(HomeRoomSimpleCardSizes.label(size)),
+                ),
+            ],
+            selected: <String>{
+              HomeRoomSimpleCardSizes.migrate(widget.setting.simple.cardSize),
+            },
+            onSelectionChanged: (Set<String> value) {
+              _update(
+                widget.setting.copyWith(
+                  simple: widget.setting.simple.copyWith(cardSize: value.first),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
           _label('卡片樣式'),
           SegmentedButton<String>(
             showSelectedIcon: false,
@@ -590,7 +647,7 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
             },
           ),
           const SizedBox(height: 12),
-          _label('大卡圖片高度'),
+          _label('單卡圖片高度'),
           _heightPicker(
             selected: widget.setting.mixed.largeImageHeight,
             onChanged: (String value) {
