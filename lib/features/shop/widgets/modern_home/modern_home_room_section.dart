@@ -120,11 +120,143 @@ class ModernHomeRoomSection extends StatelessWidget {
     switch (setting.layout) {
       case HomeRoomSectionLayouts.simpleEntry:
         return _simpleEntry();
+      case HomeRoomSectionLayouts.featured:
+        return _featured(rooms);
       case HomeRoomSectionLayouts.cardGrid:
         return _cardGrid(rooms);
       default:
         return _horizontal(rooms);
     }
+  }
+
+  Widget _featured(Map<String, Map<String, dynamic>> rooms) {
+    final List<String> ids = setting.homeRoomIds(roomTypes);
+    final List<String> visible = ids.take(2).toList();
+    return Column(
+      key: const Key('home-room-featured'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (int index = 0; index < visible.length; index++) ...<Widget>[
+          if (index > 0) const SizedBox(height: 12),
+          _featuredRoom(
+            room: rooms[visible[index]]!,
+            roomTypeId: visible[index],
+            imageFirst: index.isEven,
+          ),
+        ],
+        if (ids.length > visible.length) ...<Widget>[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: _openAll,
+              child: Text(
+                '查看全部房型',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: theme.primaryColor,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _featuredRoom({
+    required Map<String, dynamic> room,
+    required String roomTypeId,
+    required bool imageFirst,
+  }) {
+    final String name = (room['name'] ?? '未命名房型').toString().trim();
+    final String imageUrl = _firstImage(room);
+    final String description = (room['description'] ?? '').toString().trim();
+    final String price = setting.showPrice
+        ? HomeRoomSectionSetting.priceLabel(room['price'])
+        : '';
+    final Widget photo = HomeRoomCover(
+      imageUrl: imageUrl,
+      height: imageFirst ? 188 : 132,
+      theme: theme,
+      borderRadius: BorderRadius.circular(16),
+    );
+    final Widget copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          name.isEmpty ? '未命名房型' : name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: imageFirst ? 20 : 16,
+            height: 1.25,
+            fontWeight: FontWeight.w800,
+            color: theme.textColor,
+          ),
+        ),
+        if (description.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+        ],
+        if (price.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          Text(
+            price,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: theme.primaryColor,
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          '查看房型',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: theme.primaryColor,
+          ),
+        ),
+      ],
+    );
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('home-room-featured-$roomTypeId'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          if (preview) {
+            onSelectRoomType?.call(roomTypeId);
+            return;
+          }
+          onOpenRoom?.call(room);
+        },
+        child: imageFirst
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[photo, const SizedBox(height: 10), copy],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(flex: 5, child: copy),
+                  const SizedBox(width: 12),
+                  Expanded(flex: 4, child: photo),
+                ],
+              ),
+      ),
+    );
   }
 
   Widget _horizontal(Map<String, Map<String, dynamic>> rooms) {

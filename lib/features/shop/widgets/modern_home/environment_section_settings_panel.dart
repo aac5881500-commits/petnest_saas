@@ -104,7 +104,10 @@ class _EnvironmentSectionSettingsPanelState
         _choice(
           layout: HomeEnvironmentLayouts.imageEntry,
           description: '用環境介紹已上傳的照片當首頁入口。',
-          recommended: true,
+        ),
+        _choice(
+          layout: HomeEnvironmentLayouts.editorial,
+          description: '照片與文字並排。沒有照片時改回入口卡，不會留白洞。',
         ),
       ],
     );

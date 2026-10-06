@@ -15,81 +15,70 @@ void main() {
     expect(shopTodaySubline(1, 0), '看看有哪些事情需要留意。');
   });
 
-  test('roof zone follows image ratio inside one shared range', () {
+  test('platform roof scales with the house and keeps image aspect', () {
+    const double imageWidth = 1200;
+    const double imageHeight = 480;
+    const double aspect = imageWidth / imageHeight;
+    for (final double houseWidth in <double>[390, 430, 1280, 1440, 1920]) {
+      final double height = ShopEntryPanel.platformRoofHeight(
+        roofWidth: houseWidth,
+        imageAspectRatio: aspect,
+      );
+      expect(height, houseWidth / aspect);
+      expect(height * aspect, closeTo(houseWidth, 0.001));
+    }
     expect(
-      ShopEntryPanel.roofZoneHeight(
-        availableWidth: 1120,
-        wide: true,
-        imageAspectRatio: 1120 / 150,
+      ShopEntryPanel.platformRoofHeight(
+        roofWidth: 1440,
+        imageAspectRatio: aspect,
       ),
-      closeTo(150, 0.01),
+      greaterThan(
+        ShopEntryPanel.platformRoofHeight(
+          roofWidth: 390,
+          imageAspectRatio: aspect,
+        ),
+      ),
     );
     expect(
-      ShopEntryPanel.roofZoneHeight(
-        availableWidth: 390,
-        wide: false,
-        imageAspectRatio: 390 / 108,
+      ShopEntryPanel.platformRoofHeight(
+        roofWidth: 800,
+        imageAspectRatio: 1600 / 400,
       ),
-      closeTo(108, 0.01),
-    );
-    expect(
-      ShopEntryPanel.roofZoneHeight(
-        availableWidth: 1120,
-        wide: true,
-        imageAspectRatio: 1.2,
+      ShopEntryPanel.platformRoofHeight(
+        roofWidth: 800,
+        imageAspectRatio: 800 / 200,
       ),
-      170,
     );
-    expect(
-      ShopEntryPanel.roofZoneHeight(
-        availableWidth: 360,
-        wide: false,
-        imageAspectRatio: 40,
-      ),
-      90,
-    );
-    final double fallbackMobile = ShopEntryPanel.roofZoneHeight(
-      availableWidth: 390,
-      wide: false,
-    );
-    final double fallbackDesktop = ShopEntryPanel.roofZoneHeight(
-      availableWidth: 1120,
-      wide: true,
-    );
-    expect(fallbackMobile, inInclusiveRange(90, 130));
-    expect(fallbackDesktop, inInclusiveRange(120, 170));
   });
 
-  test('roof fit scale widens a narrow roof without passing 1.6', () {
-    final double narrow = ShopEntryPanel.roofFitScaleX(
-      houseWidth: 1120,
-      roofHeight: 150,
-      imageAspectRatio: 3,
-      wide: true,
-    );
-    expect(narrow, ShopEntryPanel.maxRoofScaleX);
-    final double fitted = ShopEntryPanel.roofFitScaleX(
-      houseWidth: 1120,
-      roofHeight: 150,
-      imageAspectRatio: 1120 / 150,
-      wide: true,
-    );
-    expect(fitted, closeTo(1.03, 0.01));
-    final double mobile = ShopEntryPanel.roofFitScaleX(
-      houseWidth: 390,
-      roofHeight: 110,
-      imageAspectRatio: 2.4,
-      wide: false,
-    );
-    expect(mobile, inInclusiveRange(1, ShopEntryPanel.maxRoofScaleX));
+  test('roof slot follows the house, not the image', () {
     expect(
-      ShopEntryPanel.roofFitScaleX(
-        houseWidth: 1120,
-        roofHeight: 150,
-        imageAspectRatio: 0,
-        wide: true,
-      ),
-      1,
+      ShopEntryPanel.roofZoneHeight(availableWidth: 390, wide: false),
+      110,
+    );
+    expect(
+      ShopEntryPanel.roofZoneHeight(availableWidth: 1120, wide: true),
+      146,
+    );
+    expect(
+      ShopEntryPanel.roofZoneHeight(availableWidth: 1920, wide: true),
+      ShopEntryPanel.roofZoneHeight(availableWidth: 768, wide: true),
+    );
+    expect(
+      ShopEntryPanel.roofZoneHeight(availableWidth: 390, wide: false),
+      ShopEntryPanel.roofZoneHeight(availableWidth: 500, wide: false),
+    );
+    expect(
+      ShopEntryPanel.platformRoofHeight(roofWidth: 1120, imageAspectRatio: 4),
+      280,
+    );
+    expect(
+      ShopEntryPanel.platformRoofHeight(roofWidth: 390, imageAspectRatio: 3),
+      130,
+    );
+    expect(
+      ShopEntryPanel.platformRoofHeight(roofWidth: 1120, imageAspectRatio: 0),
+      0,
     );
   });
 
@@ -106,6 +95,8 @@ void main() {
       768,
       1024,
       1120,
+      1280,
+      1440,
       1366,
       1600,
       1920,

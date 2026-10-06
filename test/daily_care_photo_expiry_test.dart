@@ -126,8 +126,7 @@ void main() {
       photos: const <DailyCarePhotoModel>[],
       now: now,
     );
-    expect(expired.text, '照護照片保存期限已結束（文字照護紀錄仍會保留）。');
-    expect(expired.text.contains('紀錄'), isTrue);
+    expect(expired.text, '照片已到期清除');
   });
 
   test('分享圖小字只在接近期限時出現', () {

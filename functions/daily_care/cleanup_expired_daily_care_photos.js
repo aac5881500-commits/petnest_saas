@@ -19,9 +19,10 @@ const {
   actualServiceEnd,
   evaluateCleanupDecision,
   nextRetryAt,
+  resolveRetentionHours,
 } = require("./daily_care_expiry");
 const {
-  deletePhotoFilesAndDocs,
+  expireStoredPhoto,
   releaseReservation,
 } = require("./daily_care_photo_ops");
 
@@ -117,13 +118,19 @@ async function loadCleanupContext(firestore, downloadDoc) {
   };
 }
 
-async function processExpiredDownload(firestore, downloadDoc, now) {
+async function bookingReadyForCleanup(firestore, booking) {
+  const hours = await resolveRetentionHours(firestore, booking || {});
+  return {...(booking || {}), downloadHoursAfterCheckout: hours};
+}
+
+async function processExpiredDownload(firestore, downloadDoc, now, options) {
   const ref = downloadDoc.ref;
   const data = downloadDoc.data() || {};
   if (isRetryHeld(data, now)) {
     return {status: "held"};
   }
   const ctx = await loadCleanupContext(firestore, downloadDoc);
+  ctx.booking = await bookingReadyForCleanup(firestore, ctx.booking);
   const photoForCheck = ctx.photoExists ? ctx.photo : {
     shopId: ctx.download.shopId,
     bookingId: ctx.download.bookingId,
@@ -154,6 +161,7 @@ async function processExpiredDownload(firestore, downloadDoc, now) {
     return {status: "cleared", reason: decision.reason};
   }
   const freshCtx = await loadCleanupContext(firestore, downloadDoc);
+  freshCtx.booking = await bookingReadyForCleanup(firestore, freshCtx.booking);
   const fresh = evaluateCleanupDecision({
     bookingExists: freshCtx.bookingExists,
     booking: freshCtx.booking,
@@ -192,7 +200,7 @@ async function processExpiredDownload(firestore, downloadDoc, now) {
       freshCtx.photo.downloadStoragePath,
   };
   try {
-    await deletePhotoFilesAndDocs(firestore, downloadDoc.id, photo, true);
+    await expireStoredPhoto(firestore, downloadDoc.id, photo, options);
     return {status: "deleted"};
   } catch (error) {
     await markHold(ref, data, now, (error && error.message) || "刪除失敗");
@@ -253,7 +261,8 @@ async function cleanupExpiredBatch(firestore, options) {
     for (let i = 0; i < snap.docs.length; i++) {
       const doc = snap.docs[i];
       try {
-        const result = await processExpiredDownload(firestore, doc, nowDate);
+        const result = await processExpiredDownload(
+            firestore, doc, nowDate, options);
         if (result.status === "deleted") {
           stats.success += 1;
         } else if (result.status === "held") {

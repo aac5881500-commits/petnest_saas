@@ -206,6 +206,42 @@ class ModernStoreCardPositions {
   }
 }
 
+class ModernFeaturedProductLayouts {
+  static const String horizontal = 'horizontal';
+  static const String featured = 'featured';
+  static const String grid = 'grid';
+  static const List<String> all = <String>[horizontal, featured, grid];
+
+  static String label(String value) {
+    switch (value) {
+      case featured:
+        return '精選大卡';
+      case grid:
+        return '雙欄商品';
+      default:
+        return '橫向滑動';
+    }
+  }
+}
+
+class ModernStoreEntryLayouts {
+  static const String banner = 'banner';
+  static const String brand = 'brand';
+  static const String showcase = 'showcase';
+  static const List<String> all = <String>[banner, brand, showcase];
+
+  static String label(String value) {
+    switch (value) {
+      case brand:
+        return '品牌卡';
+      case showcase:
+        return '商品櫥窗';
+      default:
+        return '橫幅';
+    }
+  }
+}
+
 class ModernStoreHomeSetting {
   static const String defaultFeaturedTitle = '精選商品';
   static const String defaultBannerTitle = '寵物賣場';
@@ -215,6 +251,7 @@ class ModernStoreHomeSetting {
   const ModernStoreHomeSetting({
     this.showFeaturedProducts = true,
     this.featuredTitle = defaultFeaturedTitle,
+    this.featuredProductLayout = ModernFeaturedProductLayouts.horizontal,
     this.showStoreBanner = true,
     this.storeBannerTitle = defaultBannerTitle,
     this.storeBannerSubtitle = defaultBannerSubtitle,
@@ -229,10 +266,12 @@ class ModernStoreHomeSetting {
     this.storeBannerSubtitleColorPreset = ModernStoreCardTextColors.dark,
     this.storeBannerButtonColorPreset = ModernStoreCardButtonColors.brand,
     this.storeBannerContentPosition = ModernStoreCardPositions.centerLeft,
+    this.storeEntryLayout = ModernStoreEntryLayouts.banner,
   });
 
   final bool showFeaturedProducts;
   final String featuredTitle;
+  final String featuredProductLayout;
   final bool showStoreBanner;
   final String storeBannerTitle;
   final String storeBannerSubtitle;
@@ -247,6 +286,7 @@ class ModernStoreHomeSetting {
   final String storeBannerSubtitleColorPreset;
   final String storeBannerButtonColorPreset;
   final String storeBannerContentPosition;
+  final String storeEntryLayout;
 
   bool get hasBackgroundImage => storeBannerImageUrl.trim().isNotEmpty;
 
@@ -280,6 +320,11 @@ class ModernStoreHomeSetting {
       featuredTitle: _textOrDefault(
         map['featuredStoreTitle'],
         defaultFeaturedTitle,
+      ),
+      featuredProductLayout: pick(
+        ModernFeaturedProductLayouts.all,
+        map['featuredProductLayout'],
+        ModernFeaturedProductLayouts.horizontal,
       ),
       showStoreBanner: map['showStoreBanner'] != false,
       storeBannerTitle: _textOrDefault(
@@ -340,6 +385,11 @@ class ModernStoreHomeSetting {
         map['storeBannerContentPosition'],
         ModernStoreCardPositions.centerLeft,
       ),
+      storeEntryLayout: pick(
+        ModernStoreEntryLayouts.all,
+        map['storeEntryLayout'],
+        ModernStoreEntryLayouts.banner,
+      ),
     );
   }
 
@@ -347,6 +397,7 @@ class ModernStoreHomeSetting {
     return <String, dynamic>{
       'showFeaturedStoreProducts': showFeaturedProducts,
       'featuredStoreTitle': featuredTitle,
+      'featuredProductLayout': featuredProductLayout,
       'showStoreBanner': showStoreBanner,
       'storeBannerTitle': storeBannerTitle,
       'storeBannerSubtitle': storeBannerSubtitle,
@@ -361,12 +412,14 @@ class ModernStoreHomeSetting {
       'storeBannerSubtitleColorPreset': storeBannerSubtitleColorPreset,
       'storeBannerButtonColorPreset': storeBannerButtonColorPreset,
       'storeBannerContentPosition': storeBannerContentPosition,
+      'storeEntryLayout': storeEntryLayout,
     };
   }
 
   ModernStoreHomeSetting copyWith({
     bool? showFeaturedProducts,
     String? featuredTitle,
+    String? featuredProductLayout,
     bool? showStoreBanner,
     String? storeBannerTitle,
     String? storeBannerSubtitle,
@@ -381,10 +434,13 @@ class ModernStoreHomeSetting {
     String? storeBannerSubtitleColorPreset,
     String? storeBannerButtonColorPreset,
     String? storeBannerContentPosition,
+    String? storeEntryLayout,
   }) {
     return ModernStoreHomeSetting(
       showFeaturedProducts: showFeaturedProducts ?? this.showFeaturedProducts,
       featuredTitle: featuredTitle ?? this.featuredTitle,
+      featuredProductLayout:
+          featuredProductLayout ?? this.featuredProductLayout,
       showStoreBanner: showStoreBanner ?? this.showStoreBanner,
       storeBannerTitle: storeBannerTitle ?? this.storeBannerTitle,
       storeBannerSubtitle: storeBannerSubtitle ?? this.storeBannerSubtitle,
@@ -409,6 +465,7 @@ class ModernStoreHomeSetting {
           storeBannerButtonColorPreset ?? this.storeBannerButtonColorPreset,
       storeBannerContentPosition:
           storeBannerContentPosition ?? this.storeBannerContentPosition,
+      storeEntryLayout: storeEntryLayout ?? this.storeEntryLayout,
     );
   }
 

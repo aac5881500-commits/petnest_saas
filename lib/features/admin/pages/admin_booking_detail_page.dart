@@ -324,11 +324,13 @@ class AdminBookingDetailPage extends StatelessWidget {
                           child: AdminBookingStayMetaSection(data: data),
                         ),
                         AdminBookingDetailSection(
-                          title: '點數折抵',
+                          title: '點數',
+                          showHeading: false,
                           child: AdminBookingPointsCard(
                             shopId: shopId,
                             bookingId: bookingId,
                             booking: data,
+                            lookupMember: true,
                           ),
                         ),
                         AdminBookingDetailSection(

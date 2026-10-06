@@ -84,6 +84,14 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                     if (visible.isEmpty) {
                       return const SizedBox.shrink();
                     }
+                    final List<StoreProductModel> shown =
+                        switch (setting.featuredProductLayout) {
+                          ModernFeaturedProductLayouts.featured =>
+                            visible.take(3).toList(),
+                          ModernFeaturedProductLayouts.grid =>
+                            visible.take(4).toList(),
+                          _ => visible,
+                        };
 
                     return StoreEnabledPromotionsBuilder(
                       shopId: shopId,
@@ -142,42 +150,10 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                                     ],
                                   ),
                                   const SizedBox(height: 9),
-                                  SizedBox(
-                                    height: 198,
-                                    child: ListView.separated(
-                                      scrollDirection: Axis.horizontal,
-                                      physics: const BouncingScrollPhysics(),
-                                      itemCount: visible.length,
-                                      separatorBuilder: (_, _) =>
-                                          const SizedBox(width: 7),
-                                      itemBuilder:
-                                          (BuildContext context, int index) {
-                                            return _FeaturedProductCard(
-                                              product: visible[index],
-                                              priced: StorePricingService
-                                                  .instance
-                                                  .quoteProduct(
-                                                    product: visible[index],
-                                                    promotions: promotions,
-                                                  ),
-                                              theme: theme,
-                                              onTap: () {
-                                                Navigator.of(context).push(
-                                                  MaterialPageRoute<void>(
-                                                    builder: (_) =>
-                                                        StoreProductDetailPage(
-                                                          shopId: shopId,
-                                                          shop: shop,
-                                                          productId:
-                                                              visible[index].id,
-                                                          theme: theme,
-                                                        ),
-                                                  ),
-                                                );
-                                              },
-                                            );
-                                          },
-                                    ),
+                                  _productBody(
+                                    context: context,
+                                    shown: shown,
+                                    promotions: promotions,
                                   ),
                                 ],
                               ),
@@ -207,6 +183,97 @@ class FeaturedStoreProductsSection extends StatelessWidget {
       ),
     );
   }
+
+  void _openProduct(BuildContext context, StoreProductModel product) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StoreProductDetailPage(
+          shopId: shopId,
+          shop: shop,
+          productId: product.id,
+          theme: theme,
+        ),
+      ),
+    );
+  }
+
+  Widget _productBody({
+    required BuildContext context,
+    required List<StoreProductModel> shown,
+    required List<StorePromotionModel> promotions,
+  }) {
+    Widget card(
+      StoreProductModel product, {
+      double? width = 124,
+      double imageHeight = 108,
+    }) {
+      return _FeaturedProductCard(
+        product: product,
+        priced: StorePricingService.instance.quoteProduct(
+          product: product,
+          promotions: promotions,
+        ),
+        theme: theme,
+        width: width,
+        imageHeight: imageHeight,
+        onTap: () => _openProduct(context, product),
+      );
+    }
+
+    switch (setting.featuredProductLayout) {
+      case ModernFeaturedProductLayouts.featured:
+        final List<StoreProductModel> rest = shown.skip(1).take(2).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            card(shown.first, width: null, imageHeight: 148),
+            if (rest.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  for (int index = 0; index < rest.length; index++) ...<Widget>[
+                    if (index > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: card(rest[index], width: null, imageHeight: 96),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ],
+        );
+      case ModernFeaturedProductLayouts.grid:
+        return LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double width = (constraints.maxWidth - 8) / 2;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final StoreProductModel product in shown)
+                  SizedBox(
+                    width: width,
+                    child: card(product, width: width),
+                  ),
+              ],
+            );
+          },
+        );
+      default:
+        return SizedBox(
+          height: 198,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: shown.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 7),
+            itemBuilder: (BuildContext context, int index) {
+              return card(shown[index]);
+            },
+          ),
+        );
+    }
+  }
 }
 
 class _FeaturedProductCard extends StatelessWidget {
@@ -215,12 +282,16 @@ class _FeaturedProductCard extends StatelessWidget {
     required this.theme,
     required this.onTap,
     required this.priced,
+    this.width = 124,
+    this.imageHeight = 108,
   });
 
   final StoreProductModel product;
   final HomeThemeModel theme;
   final VoidCallback onTap;
   final StorePricedLine priced;
+  final double? width;
+  final double imageHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +304,7 @@ class _FeaturedProductCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
-          width: 124,
+          width: width,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: theme.cardBorderColor),
@@ -244,7 +315,7 @@ class _FeaturedProductCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 SizedBox(
-                  height: 108,
+                  height: imageHeight,
                   width: double.infinity,
                   child: Stack(
                     fit: StackFit.expand,

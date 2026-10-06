@@ -21,6 +21,36 @@ void main() {
       setting.storeBannerContentPosition,
       ModernStoreCardPositions.centerLeft,
     );
+    expect(
+      setting.featuredProductLayout,
+      ModernFeaturedProductLayouts.horizontal,
+    );
+    expect(setting.storeEntryLayout, ModernStoreEntryLayouts.banner);
+  });
+
+  test('版型調整不會清掉商城圖片與開關', () {
+    const ModernStoreHomeSetting original = ModernStoreHomeSetting(
+      storeBannerImageUrl: 'https://cdn.example/store.jpg',
+      storeBannerTitle: '毛孩選品',
+      showFeaturedProducts: true,
+      showStoreBanner: false,
+    );
+    final ModernStoreHomeSetting next = original.copyWith(
+      featuredProductLayout: ModernFeaturedProductLayouts.featured,
+      storeEntryLayout: ModernStoreEntryLayouts.brand,
+    );
+    expect(next.storeBannerImageUrl, original.storeBannerImageUrl);
+    expect(next.storeBannerTitle, '毛孩選品');
+    expect(next.showFeaturedProducts, isTrue);
+    expect(next.showStoreBanner, isFalse);
+    expect(
+      ModernStoreHomeSetting.fromMap(const <String, dynamic>{
+        'featuredProductLayout': 'nope',
+        'storeEntryLayout': 'missing',
+        'storeBannerImageUrl': 'https://cdn.example/store.jpg',
+      }).storeBannerImageUrl,
+      'https://cdn.example/store.jpg',
+    );
   });
 
   test('遮罩強度為三段', () {
@@ -67,6 +97,37 @@ void main() {
     expect(find.text('逛逛賣場'), findsOneWidget);
     expect(find.byType(Stack), findsWidgets);
     expect(find.byType(Positioned), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('品牌卡與商品櫥窗可以畫出來', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: <Widget>[
+              ModernHomeStoreCard(
+                theme: HomeThemeModel.modernDefault,
+                setting: ModernStoreHomeSetting(
+                  storeEntryLayout: ModernStoreEntryLayouts.brand,
+                  storeBannerTitle: '寵物選品',
+                ),
+              ),
+              ModernHomeStoreCard(
+                theme: HomeThemeModel.modernDefault,
+                setting: ModernStoreHomeSetting(
+                  storeEntryLayout: ModernStoreEntryLayouts.showcase,
+                ),
+                previewChrome: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('寵物選品'), findsOneWidget);
+    expect(find.byKey(const Key('store-entry-brand')), findsOneWidget);
+    expect(find.byKey(const Key('store-entry-showcase')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

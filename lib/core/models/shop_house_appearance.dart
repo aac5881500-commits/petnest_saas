@@ -74,79 +74,45 @@ class ShopHouseAppearance {
     }
   }
 
+  ShopHouseAppearance copyWith({
+    String? roofAssetId,
+    String? wallAssetId,
+    String? windowFrameAssetId,
+    String? decorationLeftAssetId,
+    String? decorationRightAssetId,
+    String? decorationTopAssetId,
+    String? baseAssetId,
+  }) {
+    return ShopHouseAppearance(
+      roofAssetId: roofAssetId ?? this.roofAssetId,
+      wallAssetId: wallAssetId ?? this.wallAssetId,
+      windowFrameAssetId: windowFrameAssetId ?? this.windowFrameAssetId,
+      decorationLeftAssetId:
+          decorationLeftAssetId ?? this.decorationLeftAssetId,
+      decorationRightAssetId:
+          decorationRightAssetId ?? this.decorationRightAssetId,
+      decorationTopAssetId: decorationTopAssetId ?? this.decorationTopAssetId,
+      baseAssetId: baseAssetId ?? this.baseAssetId,
+    );
+  }
+
   ShopHouseAppearance withPlacement(String placement, String assetId) {
     final String id = assetId.trim();
     switch (placement) {
       case ShopHousePlacements.roof:
-        return ShopHouseAppearance(
-          roofAssetId: id,
-          wallAssetId: wallAssetId,
-          windowFrameAssetId: windowFrameAssetId,
-          decorationLeftAssetId: decorationLeftAssetId,
-          decorationRightAssetId: decorationRightAssetId,
-          decorationTopAssetId: decorationTopAssetId,
-          baseAssetId: baseAssetId,
-        );
+        return copyWith(roofAssetId: id);
       case ShopHousePlacements.wall:
-        return ShopHouseAppearance(
-          roofAssetId: roofAssetId,
-          wallAssetId: id,
-          windowFrameAssetId: windowFrameAssetId,
-          decorationLeftAssetId: decorationLeftAssetId,
-          decorationRightAssetId: decorationRightAssetId,
-          decorationTopAssetId: decorationTopAssetId,
-          baseAssetId: baseAssetId,
-        );
+        return copyWith(wallAssetId: id);
       case ShopHousePlacements.windowFrame:
-        return ShopHouseAppearance(
-          roofAssetId: roofAssetId,
-          wallAssetId: wallAssetId,
-          windowFrameAssetId: id,
-          decorationLeftAssetId: decorationLeftAssetId,
-          decorationRightAssetId: decorationRightAssetId,
-          decorationTopAssetId: decorationTopAssetId,
-          baseAssetId: baseAssetId,
-        );
+        return copyWith(windowFrameAssetId: id);
       case ShopHousePlacements.decorationLeft:
-        return ShopHouseAppearance(
-          roofAssetId: roofAssetId,
-          wallAssetId: wallAssetId,
-          windowFrameAssetId: windowFrameAssetId,
-          decorationLeftAssetId: id,
-          decorationRightAssetId: decorationRightAssetId,
-          decorationTopAssetId: decorationTopAssetId,
-          baseAssetId: baseAssetId,
-        );
+        return copyWith(decorationLeftAssetId: id);
       case ShopHousePlacements.decorationRight:
-        return ShopHouseAppearance(
-          roofAssetId: roofAssetId,
-          wallAssetId: wallAssetId,
-          windowFrameAssetId: windowFrameAssetId,
-          decorationLeftAssetId: decorationLeftAssetId,
-          decorationRightAssetId: id,
-          decorationTopAssetId: decorationTopAssetId,
-          baseAssetId: baseAssetId,
-        );
+        return copyWith(decorationRightAssetId: id);
       case ShopHousePlacements.decorationTop:
-        return ShopHouseAppearance(
-          roofAssetId: roofAssetId,
-          wallAssetId: wallAssetId,
-          windowFrameAssetId: windowFrameAssetId,
-          decorationLeftAssetId: decorationLeftAssetId,
-          decorationRightAssetId: decorationRightAssetId,
-          decorationTopAssetId: id,
-          baseAssetId: baseAssetId,
-        );
+        return copyWith(decorationTopAssetId: id);
       case ShopHousePlacements.base:
-        return ShopHouseAppearance(
-          roofAssetId: roofAssetId,
-          wallAssetId: wallAssetId,
-          windowFrameAssetId: windowFrameAssetId,
-          decorationLeftAssetId: decorationLeftAssetId,
-          decorationRightAssetId: decorationRightAssetId,
-          decorationTopAssetId: decorationTopAssetId,
-          baseAssetId: id,
-        );
+        return copyWith(baseAssetId: id);
       default:
         return this;
     }

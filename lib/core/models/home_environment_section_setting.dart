@@ -3,10 +3,12 @@ class HomeEnvironmentLayouts {
   static const String facilityScroll = 'facilityScroll';
   static const String simpleEntry = 'simpleEntry';
   static const String imageEntry = 'imageEntry';
+  static const String editorial = 'editorial';
   static const List<String> all = <String>[
     facilityScroll,
     simpleEntry,
     imageEntry,
+    editorial,
   ];
 
   static String label(String value) {
@@ -15,6 +17,8 @@ class HomeEnvironmentLayouts {
         return '簡約入口';
       case imageEntry:
         return '環境照片卡';
+      case editorial:
+        return '圖文交錯';
       default:
         return '設備橫滑';
     }

@@ -70,9 +70,18 @@ class HomeSectionOrder {
     bool showReviews = true,
     bool showFacilities = true,
     bool showQuickBooking = false,
+    bool showServices = true,
+    bool showFeatured = true,
+    bool showStoreEntrance = true,
   }) {
     return order.where((String id) {
       if (id == 'announcements' && !showAnnouncements) {
+        return false;
+      }
+      if (id == 'featured' && !showFeatured) {
+        return false;
+      }
+      if (id == 'storeEntrance' && !showStoreEntrance) {
         return false;
       }
       if (id == 'facilities' && !showFacilities) {
@@ -91,6 +100,9 @@ class HomeSectionOrder {
         return false;
       }
       if (id == 'quickBooking' && !showQuickBooking) {
+        return false;
+      }
+      if (id == 'services' && !showServices) {
         return false;
       }
       return defaultOrder.contains(id);

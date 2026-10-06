@@ -11,7 +11,7 @@ const {
   capSpend,
   canIssueEarn,
   computeEarnPoints,
-  resolveFinalEarn,
+  planMemberEarnSync,
   channelOfBooking,
   isWalkInMember,
 } = require("./booking_points");
@@ -283,75 +283,80 @@ async function syncEarn(firestore, params) {
     preview: !eligible,
   });
   const adjusted = booking.rewardPointsAdjusted === true;
-  const target = resolveFinalEarn({
-    systemPoints,
-    eligible,
-    adjusted,
-    overridePoints: booking.rewardPointsFinal,
-  });
   const {pointRef, earnRef, bookingRef} =
     refsFor(firestore, shopId, userId, bookingId);
 
+  let issuedTarget = 0;
   await firestore.runTransaction(async (transaction) => {
     const logSnap = await transaction.get(earnRef);
-    const pointSnap = await transaction.get(pointRef);
+    const pointSnap = isAppMember ? await transaction.get(pointRef) : null;
     const already = issuedFromEarnLog(logSnap.exists ? logSnap.data() : null);
-    const delta = target - already;
-    if (delta === 0) {
-      transaction.update(bookingRef, {
-        rewardPointIssued: target > 0,
-        rewardPointAmount: target,
-        pointsIssued: target > 0,
-        pointsIssuedAmount: target,
-        rewardPointsSystem: systemPoints,
-        pointsEarnStatus: earnStatus(eligible, cancelled, target, adjusted),
-      });
+    const pointData = pointSnap && pointSnap.exists ? pointSnap.data() : {};
+    const plan = planMemberEarnSync({
+      isAppMember,
+      alreadyIssued: already,
+      balance: pointsBalance(pointData),
+      totalEarned: toInt(pointData.totalEarnedPoints, 0),
+      systemPoints,
+      eligible,
+      adjusted,
+      overridePoints: booking.rewardPointsFinal,
+    });
+    issuedTarget = plan.target;
+    const bookingPatch = {
+      rewardPointIssued: plan.target > 0,
+      rewardPointAmount: plan.target,
+      pointsIssued: plan.target > 0,
+      pointsIssuedAmount: plan.target,
+      rewardPointsSystem: isAppMember ? systemPoints : 0,
+      pointsEarnStatus: isAppMember ?
+        earnStatus(eligible, cancelled, plan.target, adjusted) :
+        "not_eligible",
+    };
+    if (!plan.writeMemberPoints) {
+      transaction.update(bookingRef, bookingPatch);
       return;
     }
-    const balance = pointsBalance(pointSnap.exists ? pointSnap.data() : {});
-    const current = Math.max(0, balance + delta);
     writeBalance(transaction, pointRef, {
       shopId,
       userId,
-      current,
-      totalEarned: Math.max(0, toInt(pointSnap.exists &&
-        pointSnap.data().totalEarnedPoints, 0) + delta),
-      totalUsed: toInt(pointSnap.exists &&
-        pointSnap.data().totalUsedPoints, 0),
-      lastEarned: delta > 0,
+      current: plan.current,
+      totalEarned: plan.totalEarned,
+      totalUsed: toInt(pointData.totalUsedPoints, 0),
+      lastEarned: plan.delta > 0,
     });
     transaction.set(earnRef, {
       shopId,
       userId,
       bookingId,
-      type: delta < 0 ? "bookingAdjusted" : "bookingEarned",
-      points: target,
-      pointsChange: target,
-      balanceBefore: balance,
-      balanceAfter: current,
+      type: plan.delta < 0 ? "bookingAdjusted" : "bookingEarned",
+      points: plan.target,
+      pointsChange: plan.target,
+      balanceBefore: pointsBalance(pointData),
+      balanceAfter: plan.current,
       reason: adjusted ? (booking.rewardPointsAdjustReason || "店員調整發點") :
         (isDaycare(booking) ? "完成安親獲得點數" : "完成住宿獲得點數"),
       operatorUid: params.operatorUid || "system",
       operatorEmail: params.operatorEmail || "",
       sourceId: bookingId,
-      revoked: target <= 0,
+      revoked: plan.target <= 0,
       createdAt: logSnap.exists ? logSnap.data().createdAt :
         admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});
     transaction.update(bookingRef, {
-      rewardPointIssued: target > 0,
-      rewardPointAmount: target,
+      ...bookingPatch,
       rewardPointIssuedAt: admin.firestore.FieldValue.serverTimestamp(),
-      pointsIssued: target > 0,
-      pointsIssuedAmount: target,
-      rewardPointsSystem: systemPoints,
-      pointsEarnStatus: target > 0 ?
+      pointsEarnStatus: plan.target > 0 ?
         (adjusted ? "issued_adjusted" : "issued") :
         (cancelled ? "adjusted_after_cancel" : "not_eligible"),
     });
   });
-  return {issued: target, systemPoints};
+  return {
+    issued: issuedTarget,
+    systemPoints,
+    skipped: isAppMember !== true,
+  };
 }
 
 function isDaycare(booking) {

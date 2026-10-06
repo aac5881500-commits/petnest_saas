@@ -224,6 +224,10 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
           layout: HomeRoomSectionLayouts.simpleEntry,
           description: '只留一張入口，不列出個別房型與價格。',
         ),
+        _choice(
+          layout: HomeRoomSectionLayouts.featured,
+          description: '第一間房型用大圖，下一間改成圖文交錯。',
+        ),
       ],
     );
   }

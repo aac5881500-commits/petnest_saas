@@ -769,18 +769,23 @@ class AdminBookingDetailSection extends StatelessWidget {
     required this.child,
     this.collapsible = false,
     this.initiallyExpanded = true,
+    this.showHeading = true,
   });
 
   final String title;
   final Widget child;
   final bool collapsible;
   final bool initiallyExpanded;
+  final bool showHeading;
 
   @override
   Widget build(BuildContext context) {
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     final bool phone = AdminBookingDetailScope.of(context).isPhone;
     final bool fold = collapsible && phone;
+    if (!showHeading) {
+      return child;
+    }
     if (!fold) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

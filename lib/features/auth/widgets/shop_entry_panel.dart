@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/auth/widgets/shop_entry_panel.dart
-// 功能說明：暖木小屋外框只負責裝飾，店家內容放在 child 裡。屋頂區佔有自己的高度，避免被父層裁切。
+// 功能說明：暖木小屋外框只負責裝飾，店家內容放在 child 裡。預設程式碼屋頂先單獨顯示；平台 Roof Skin 程式保留，骨架完成前先不疊上。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/platform_media_asset.dart';
@@ -9,6 +9,7 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_qr_link_card.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_stat_row.dart';
+import 'package:petnest_saas/features/auth/widgets/shop_house_roof_painter.dart';
 
 /// 第一套預設：暖木小屋。顏色集中在這裡，之後可整組換成平台外框。
 class _WarmWoodPalette {
@@ -102,51 +103,27 @@ class ShopEntryPanel extends StatelessWidget {
   final Future<Map<String, int>>? statsFuture;
   final String roofAssetId;
 
-  /// 屋頂區高度。有圖片比例時用寬度除以比例，再限制在屋頂區範圍內。
-  /// 沒有素材時使用同一個範圍裡的預設高度，不另做一套屋頂。
+  /// 標準屋頂槽高度。只看房子寬度是否有效，以及桌面／手機。
+  /// 這是沒有平台素材時，Flutter 預設屋頂使用的高度。
   static double roofZoneHeight({
     required double availableWidth,
     required bool wide,
-    double? imageAspectRatio,
   }) {
-    final double minHeight = wide ? 120 : 90;
-    final double maxHeight = wide ? 170 : 130;
-    final double aspect = imageAspectRatio ?? 0;
-    if (availableWidth <= 0 || aspect <= 0 || !aspect.isFinite) {
+    if (availableWidth <= 0) {
       return wide ? 146 : 110;
     }
-    return (availableWidth / aspect).clamp(minHeight, maxHeight);
+    return wide ? 146 : 110;
   }
 
-  /// 平台屋頂的水平放大。以完整 contain 後的寬度為準，把屋簷拉向房子兩側。
-  /// 超過 [maxRoofScaleX] 就停住，避免把窄圖拉到變形。
-  static const double maxRoofScaleX = 1.6;
-
-  static double roofFitScaleX({
-    required double houseWidth,
-    required double roofHeight,
+  /// 平台屋頂在 [roofWidth] 下的完整高度。只依原圖比例，不拉寬、不裁切。
+  static double platformRoofHeight({
+    required double roofWidth,
     required double imageAspectRatio,
-    required bool wide,
   }) {
-    if (houseWidth <= 0 ||
-        roofHeight <= 0 ||
-        imageAspectRatio <= 0 ||
-        !imageAspectRatio.isFinite) {
-      return 1;
+    if (roofWidth <= 0 || imageAspectRatio <= 0 || !imageAspectRatio.isFinite) {
+      return 0;
     }
-    final double slotAspect = houseWidth / roofHeight;
-    final double containedWidth = imageAspectRatio >= slotAspect
-        ? houseWidth
-        : roofHeight * imageAspectRatio;
-    if (containedWidth <= 0) {
-      return 1;
-    }
-    final double targetWidth = houseWidth * (wide ? 1.03 : 1.07);
-    final double needed = targetWidth / containedWidth;
-    if (needed <= 1) {
-      return 1;
-    }
-    return needed > maxRoofScaleX ? maxRoofScaleX : needed;
+    return roofWidth / imageAspectRatio;
   }
 
   /// PageView 需要明確高度。對齊整棟小屋，避免窄螢幕 overflow。
@@ -279,129 +256,159 @@ class _PetNestHouseShell extends StatefulWidget {
 }
 
 class _PetNestHouseShellState extends State<_PetNestHouseShell> {
-  bool _showPlatformRoof = false;
-  double? _roofAspect;
-
-  @override
-  void didUpdateWidget(covariant _PetNestHouseShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.roofAssetId != widget.roofAssetId) {
-      _showPlatformRoof = false;
-      _roofAspect = null;
-    }
-  }
-
-  void _onRoofVisible(bool visible) {
-    if (_showPlatformRoof == visible) {
-      return;
-    }
-    setState(() {
-      _showPlatformRoof = visible;
-    });
-  }
-
-  void _onRoofAspect(double? aspect) {
-    if (_roofAspect == aspect) {
-      return;
-    }
-    setState(() {
-      _roofAspect = aspect;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final bool dark =
+        Theme.of(context).colorScheme.brightness == Brightness.dark;
     final _WarmWoodPalette palette = _WarmWoodPalette.of(
       Theme.of(context).colorScheme,
     );
     final double wallInset = widget.wide ? 26 : 16;
-    final double overlap = 12;
     final double base = widget.wide ? 24 : 20;
-    final bool hasRoofId = widget.roofAssetId.trim().isNotEmpty;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double width = constraints.maxWidth.isFinite
+        final double houseWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : 0;
-        final double roof = ShopEntryPanel.roofZoneHeight(
-          availableWidth: width,
+        final _HouseRoofGeometry roof = _HouseRoofGeometry.of(
+          houseWidth: houseWidth,
           wide: widget.wide,
-          imageAspectRatio: _roofAspect,
         );
-        return Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            CustomPaint(
-              painter: _WarmWoodHousePainter(
-                palette: palette,
-                roofHeight: roof,
-                wallInset: wallInset,
-                eaveOverlap: overlap,
-                baseHeight: base,
-                paintRoof: !hasRoofId || !_showPlatformRoof,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  SizedBox(height: roof),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      wallInset + 18,
-                      4,
-                      wallInset + 18,
-                      base + 14,
-                    ),
-                    child: widget.child,
-                  ),
-                ],
-              ),
-            ),
-            // 裝飾層預留：wall、windowFrame、decorationLeft、decorationRight、
-            // decorationTop、base。這一輪只有 roof 接平台素材，其餘用 Flutter 骨架。
-            if (hasRoofId)
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: roof,
-                child: _PlatformRoofImage(
-                  assetId: widget.roofAssetId,
-                  wide: widget.wide,
-                  onVisible: _onRoofVisible,
-                  onAspect: _onRoofAspect,
+        // TODO: 小屋骨架完成後，平台圖庫改作裝飾素材，
+        // 再評估是否重新開放完整 Roof Skin。
+        assert(_platformRoofSkinStaysAvailable(widget.roofAssetId, roof));
+        return CustomPaint(
+          painter: _WarmWoodHousePainter(
+            palette: palette,
+            geometry: roof,
+            wallInset: wallInset,
+            baseHeight: base,
+            dark: dark,
+            paintRoof: true,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(height: roof.height, width: roof.width),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  wallInset + 18,
+                  4,
+                  wallInset + 18,
+                  base + 14,
                 ),
+                child: widget.child,
               ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _PlatformRoofImage extends StatefulWidget {
-  const _PlatformRoofImage({
+/// 預設屋頂與平台屋頂共用的寬度。
+/// 預設 Painter 的屋簷就畫在 HouseShell 左右邊緣，所以 roofWidth 等於房子寬度，
+/// 不再另外把圖片放大到房子外面。
+class _HouseRoofGeometry {
+  const _HouseRoofGeometry({
+    required this.width,
+    required this.height,
+    required this.left,
+    required this.top,
+    required this.eaveOverlap,
+    required this.ridgeY,
+    required this.eaveInset,
+    required this.lip,
+  });
+
+  final double width;
+  final double height;
+  final double left;
+  final double top;
+  final double eaveOverlap;
+  final double ridgeY;
+  final double eaveInset;
+  final double lip;
+
+  double get eaveY => height - eaveInset;
+
+  _HouseRoofGeometry atHeight(double slotHeight) {
+    return _HouseRoofGeometry(
+      width: width,
+      height: slotHeight,
+      left: left,
+      top: top,
+      eaveOverlap: eaveOverlap,
+      ridgeY: ridgeY,
+      eaveInset: eaveInset,
+      lip: lip,
+    );
+  }
+
+  static _HouseRoofGeometry of({
+    required double houseWidth,
+    required bool wide,
+  }) {
+    return _HouseRoofGeometry(
+      width: houseWidth,
+      height: ShopEntryPanel.roofZoneHeight(
+        availableWidth: houseWidth,
+        wide: wide,
+      ),
+      left: 0,
+      top: 0,
+      eaveOverlap: 12,
+      ridgeY: 4,
+      eaveInset: 10,
+      lip: 14,
+    );
+  }
+}
+
+/// 骨架完成前不把平台屋頂畫進 HouseShell，只保留建構路徑，避免之後重做。
+bool _platformRoofSkinStaysAvailable(String assetId, _HouseRoofGeometry roof) {
+  return _PlatformRoofSkin(
+        assetId: assetId,
+        roofWidth: roof.width,
+        reservedHeight: roof.height,
+        onVisible: (_) {},
+        onAspect: (_) {},
+      ).runtimeType ==
+      _PlatformRoofSkin;
+}
+
+/// 平台 Roof 素材規格：透明 PNG / WebP；左右屋簷應盡量貼近圖片左右邊界；
+/// 避免素材本身包含大量透明 padding。Flutter 不猜測透明像素邊界。
+class _PlatformRoofSkin extends StatefulWidget {
+  const _PlatformRoofSkin({
     required this.assetId,
-    required this.wide,
+    required this.roofWidth,
+    required this.reservedHeight,
     required this.onVisible,
     required this.onAspect,
   });
 
   final String assetId;
-  final bool wide;
+  final double roofWidth;
+  final double reservedHeight;
   final ValueChanged<bool> onVisible;
   final ValueChanged<double?> onAspect;
 
   @override
-  State<_PlatformRoofImage> createState() => _PlatformRoofImageState();
+  State<_PlatformRoofSkin> createState() => _PlatformRoofSkinState();
 }
 
-class _PlatformRoofImageState extends State<_PlatformRoofImage> {
+class _PlatformRoofSkinState extends State<_PlatformRoofSkin> {
   late Future<PlatformMediaAsset?> _future;
-  bool _reportedVisible = false;
+  bool? _reportedVisible;
   double? _reportedAspect;
   ImageStream? _stream;
   ImageStreamListener? _listener;
+  String _decodedUrl = '';
+  double? _aspectRatio;
+  bool _frameReady = false;
 
   @override
   void initState() {
@@ -410,19 +417,22 @@ class _PlatformRoofImageState extends State<_PlatformRoofImage> {
   }
 
   @override
-  void didUpdateWidget(covariant _PlatformRoofImage oldWidget) {
+  void didUpdateWidget(covariant _PlatformRoofSkin oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.assetId != widget.assetId) {
-      _reportedVisible = false;
+      _reportedVisible = null;
       _reportedAspect = null;
-      _stopListening();
+      _aspectRatio = null;
+      _frameReady = false;
+      _decodedUrl = '';
+      _stopImage();
       _future = _load();
     }
   }
 
   @override
   void dispose() {
-    _stopListening();
+    _stopImage();
     super.dispose();
   }
 
@@ -432,59 +442,66 @@ class _PlatformRoofImageState extends State<_PlatformRoofImage> {
     );
   }
 
-  void _stopListening() {
-    if (_stream != null && _listener != null) {
-      _stream!.removeListener(_listener!);
+  void _stopImage() {
+    final ImageStreamListener? listener = _listener;
+    if (_stream != null && listener != null) {
+      _stream!.removeListener(listener);
     }
     _stream = null;
     _listener = null;
   }
 
-  void _reportVisible(bool visible) {
-    if (_reportedVisible == visible) {
+  void _publish(bool visible, double? aspectRatio) {
+    if (_reportedVisible == visible && _reportedAspect == aspectRatio) {
       return;
     }
     _reportedVisible = visible;
+    _reportedAspect = aspectRatio;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
+      widget.onAspect(aspectRatio);
       widget.onVisible(visible);
     });
   }
 
-  void _reportAspect(double? aspect) {
-    if (_reportedAspect == aspect) {
+  void _decode(String url) {
+    if (_decodedUrl == url && _stream != null) {
       return;
     }
-    _reportedAspect = aspect;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      widget.onAspect(aspect);
-    });
-  }
-
-  void _listenForAspect(String url) {
-    if (_stream != null) {
-      return;
-    }
+    _stopImage();
+    _decodedUrl = url;
+    _aspectRatio = null;
+    _frameReady = false;
     final ImageStream stream = NetworkImage(
       url,
-    ).resolve(const ImageConfiguration());
+    ).resolve(ImageConfiguration.empty);
     final ImageStreamListener listener = ImageStreamListener(
       (ImageInfo info, bool _) {
-        final int width = info.image.width;
-        final int height = info.image.height;
-        if (width <= 0 || height <= 0) {
+        if (!mounted || _decodedUrl != url) {
           return;
         }
-        _reportAspect(width / height);
+        final int imageWidth = info.image.width;
+        final int imageHeight = info.image.height;
+        if (imageWidth <= 0 || imageHeight <= 0) {
+          _publish(false, null);
+          return;
+        }
+        setState(() {
+          _aspectRatio = imageWidth / imageHeight;
+          _frameReady = true;
+        });
       },
       onError: (Object _, StackTrace? _) {
-        _reportVisible(false);
-        _reportAspect(null);
+        if (!mounted || _decodedUrl != url) {
+          return;
+        }
+        setState(() {
+          _aspectRatio = null;
+          _frameReady = false;
+        });
+        _publish(false, null);
       },
     );
     stream.addListener(listener);
@@ -509,47 +526,53 @@ class _PlatformRoofImageState extends State<_PlatformRoofImage> {
                 !snapshot.hasData) {
               return const SizedBox.shrink();
             }
-            if (url.isEmpty || asset == null) {
-              _reportVisible(false);
-              _reportAspect(null);
+            if (url.isEmpty) {
+              _publish(false, null);
               return const SizedBox.shrink();
             }
-            final double metaAspect = asset.width > 0 && asset.height > 0
-                ? asset.width / asset.height
-                : 0;
-            if (metaAspect > 0) {
-              _reportAspect(metaAspect);
-            } else {
-              _listenForAspect(url);
+            if (_decodedUrl != url) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _decode(url);
+                }
+              });
             }
-            return _HouseRoofFit(
-              wide: widget.wide,
-              aspect: metaAspect > 0 ? metaAspect : (_reportedAspect ?? 0),
+            final double? aspectRatio = _aspectRatio;
+            final double roofWidth = widget.roofWidth;
+            if (!_frameReady ||
+                aspectRatio == null ||
+                aspectRatio <= 0 ||
+                roofWidth <= 0 ||
+                _decodedUrl != url) {
+              return const SizedBox.shrink();
+            }
+            final double roofHeight = ShopEntryPanel.platformRoofHeight(
+              roofWidth: roofWidth,
+              imageAspectRatio: aspectRatio,
+            );
+            final bool slotReady =
+                (widget.reservedHeight - roofHeight).abs() < 0.5;
+            _publish(true, aspectRatio);
+            if (!slotReady || roofHeight <= 0) {
+              return const SizedBox.shrink();
+            }
+            // 平台 Roof 素材規格：
+            // 透明 PNG / WebP；
+            // 左右屋簷應盡量貼近圖片左右邊界；
+            // 避免素材本身包含大量透明 padding。
+            // 程式依完整圖片比例顯示，不偵測透明像素邊界。
+            return Align(
+              alignment: Alignment.bottomCenter,
               child: Image.network(
                 url,
-                width: double.infinity,
-                height: double.infinity,
+                width: roofWidth,
                 fit: BoxFit.contain,
                 alignment: Alignment.bottomCenter,
                 filterQuality: FilterQuality.medium,
                 errorBuilder: (_, _, _) {
-                  _reportVisible(false);
-                  _reportAspect(null);
+                  _publish(false, null);
                   return const SizedBox.shrink();
                 },
-                frameBuilder:
-                    (
-                      BuildContext context,
-                      Widget child,
-                      int? frame,
-                      bool wasSynchronouslyLoaded,
-                    ) {
-                      if (frame != null || wasSynchronouslyLoaded) {
-                        _reportVisible(true);
-                        return child;
-                      }
-                      return const SizedBox.shrink();
-                    },
               ),
             );
           },
@@ -557,79 +580,28 @@ class _PlatformRoofImageState extends State<_PlatformRoofImage> {
   }
 }
 
-/// 平台屋頂裝飾層。完整顯示圖片，再以屋簷底邊為準水平拉寬。
-class _HouseRoofFit extends StatelessWidget {
-  const _HouseRoofFit({
-    required this.wide,
-    required this.aspect,
-    required this.child,
-  });
-
-  final bool wide;
-  final double aspect;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double houseWidth = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : 0;
-        final double roofHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
-            : 0;
-        final double scaleX = ShopEntryPanel.roofFitScaleX(
-          houseWidth: houseWidth,
-          roofHeight: roofHeight,
-          imageAspectRatio: aspect,
-          wide: wide,
-        );
-        final double overhang = wide ? 1.06 : 1.10;
-        return OverflowBox(
-          alignment: Alignment.bottomCenter,
-          minWidth: 0,
-          minHeight: 0,
-          maxWidth: houseWidth * overhang,
-          maxHeight: roofHeight,
-          child: Transform.scale(
-            scaleX: scaleX,
-            alignment: Alignment.bottomCenter,
-            filterQuality: FilterQuality.medium,
-            child: SizedBox(
-              width: houseWidth,
-              height: roofHeight,
-              child: child,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
 class _WarmWoodHousePainter extends CustomPainter {
   const _WarmWoodHousePainter({
     required this.palette,
-    required this.roofHeight,
+    required this.geometry,
     required this.wallInset,
-    required this.eaveOverlap,
     required this.baseHeight,
+    required this.dark,
     this.paintRoof = true,
   });
 
   final _WarmWoodPalette palette;
-  final double roofHeight;
+  final _HouseRoofGeometry geometry;
   final double wallInset;
-  final double eaveOverlap;
   final double baseHeight;
+  final bool dark;
   final bool paintRoof;
 
   @override
   void paint(Canvas canvas, Size size) {
     final double wallLeft = wallInset;
     final double wallRight = size.width - wallInset;
-    final double wallTop = roofHeight - eaveOverlap;
+    final double wallTop = geometry.height - geometry.eaveOverlap;
     final double wallBottom = size.height - baseHeight;
     final RRect wall = RRect.fromRectAndRadius(
       Rect.fromLTRB(wallLeft, wallTop, wallRight, wallBottom),
@@ -641,57 +613,82 @@ class _WarmWoodHousePainter extends CustomPainter {
         ..color = palette.roofEdge.withValues(alpha: 0.12)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
+    final double scale = warmWoodScale(size.width);
+    final Color wallTopColor = dark
+        ? const Color(0xFF3E342C)
+        : const Color(0xFFFFFCF8);
+    final Color wallBottomColor = dark
+        ? const Color(0xFF342C26)
+        : const Color(0xFFFFF8EF);
     final Paint wallPaint = Paint()
       ..shader = LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: <Color>[
-          Color.alphaBlend(palette.glow, palette.wall),
-          palette.wall,
-          Color.alphaBlend(palette.wallLight, palette.wall),
-        ],
-        stops: const <double>[0, 0.46, 1],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: <Color>[wallTopColor, wallBottomColor],
       ).createShader(wall.outerRect);
     canvas.drawRRect(wall, wallPaint);
-    canvas.drawRRect(
-      wall,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = palette.roofEdge.withValues(alpha: 0.22),
+    canvas.save();
+    canvas.clipRRect(wall);
+    final Rect eaveShade = Rect.fromLTRB(
+      wallLeft,
+      wallTop,
+      wallRight,
+      wallTop + (16 * scale).clamp(10, 18),
     );
-
-    if (paintRoof) {
-      const double lip = 14;
-      const double ridgeY = 4;
-      final double mid = size.width / 2;
-      final double eaveY = roofHeight - 10;
-      final Path roof = Path()
-        ..moveTo(0, eaveY)
-        ..lineTo(mid, ridgeY)
-        ..lineTo(size.width, eaveY)
-        ..lineTo(size.width, eaveY + lip)
-        ..lineTo(mid, ridgeY + lip + 6)
-        ..lineTo(0, eaveY + lip)
-        ..close();
-      canvas.drawPath(
-        roof,
-        Paint()
-          ..color = palette.roofEdge.withValues(alpha: 0.16)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    canvas.drawRect(
+      eaveShade,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            const Color(0xFF8C6844).withValues(alpha: dark ? 0.08 : 0.06),
+            const Color(0xFF8C6844).withValues(alpha: 0),
+          ],
+        ).createShader(eaveShade),
+    );
+    final double post = (4 * scale).clamp(2.6, 5).toDouble();
+    final Paint postPaint = Paint()
+      ..color = const Color(0xFFE4C79F).withValues(alpha: dark ? 0.28 : 0.72);
+    final double postTop = wallTop + 6;
+    final double postBottom = wallBottom - 6;
+    if (postBottom > postTop) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(
+            wallLeft + 1.5,
+            postTop,
+            wallLeft + 1.5 + post,
+            postBottom,
+          ),
+          Radius.circular(post / 2),
+        ),
+        postPaint,
       );
-      canvas.drawPath(roof, Paint()..color = palette.roof);
-      final Path eaveLip = Path()
-        ..moveTo(0, eaveY + lip - 6)
-        ..lineTo(mid, ridgeY + lip)
-        ..lineTo(size.width, eaveY + lip - 6)
-        ..lineTo(size.width, eaveY + lip)
-        ..lineTo(mid, ridgeY + lip + 6)
-        ..lineTo(0, eaveY + lip)
-        ..close();
-      canvas.drawPath(
-        eaveLip,
-        Paint()..color = palette.roofEdge.withValues(alpha: 0.88),
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(
+            wallRight - 1.5 - post,
+            postTop,
+            wallRight - 1.5,
+            postBottom,
+          ),
+          Radius.circular(post / 2),
+        ),
+        postPaint,
+      );
+    }
+    canvas.restore();
+
+    if (paintRoof && size.width > 1) {
+      paintWarmWoodHouseRoof(
+        canvas,
+        size,
+        wallLeft: wallLeft,
+        wallRight: wallRight,
+        wallTop: wallTop,
+        slotBottom: geometry.height,
+        dark: dark,
       );
     }
 
@@ -702,48 +699,52 @@ class _WarmWoodHousePainter extends CustomPainter {
       (wallRight + extra).clamp(0, size.width),
       size.height - 1,
     );
+    final RRect plinthRect = RRect.fromRectAndRadius(
+      plinth,
+      const Radius.circular(6),
+    );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        plinth.shift(const Offset(0, 2)),
-        const Radius.circular(6),
-      ),
+      plinthRect.shift(const Offset(0, 2)),
       Paint()
-        ..color = palette.roofEdge.withValues(alpha: 0.16)
+        ..color = const Color(0xFF8C6844).withValues(alpha: 0.14)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(plinth, const Radius.circular(6)),
-      Paint()..color = palette.base,
+      plinthRect,
+      Paint()..color = dark ? const Color(0xFF6B5340) : const Color(0xFFD9AD73),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTRB(plinth.left, plinth.top, plinth.right, plinth.top + 5),
+        Rect.fromLTRB(plinth.left, plinth.top, plinth.right, plinth.top + 4),
         const Radius.circular(4),
       ),
-      Paint()..color = Colors.white.withValues(alpha: 0.28),
+      Paint()..color = dark ? const Color(0xFF8D6A45) : const Color(0xFFE5C18F),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTRB(
           plinth.left,
-          plinth.bottom - 5,
+          plinth.bottom - 4,
           plinth.right,
           plinth.bottom,
         ),
         const Radius.circular(4),
       ),
-      Paint()..color = palette.roofEdge.withValues(alpha: 0.34),
+      Paint()
+        ..color = const Color(0xFF8C6844).withValues(alpha: dark ? 0.28 : 0.32),
     );
   }
 
   @override
   bool shouldRepaint(covariant _WarmWoodHousePainter oldDelegate) {
-    return oldDelegate.roofHeight != roofHeight ||
+    return oldDelegate.geometry.height != geometry.height ||
+        oldDelegate.geometry.width != geometry.width ||
+        oldDelegate.geometry.eaveOverlap != geometry.eaveOverlap ||
         oldDelegate.wallInset != wallInset ||
-        oldDelegate.eaveOverlap != eaveOverlap ||
         oldDelegate.baseHeight != baseHeight ||
         oldDelegate.palette != palette ||
-        oldDelegate.paintRoof != paintRoof;
+        oldDelegate.paintRoof != paintRoof ||
+        oldDelegate.dark != dark;
   }
 }
 
@@ -961,24 +962,20 @@ class _ShopWindow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final _WarmWoodPalette wood = _WarmWoodPalette.of(colors);
     final bool hasCover = coverUrl.trim().isNotEmpty;
     return Container(
       width: width,
       height: height,
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
-        color: wood.plaque,
+        color: const Color(0xFFF6E8D4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: wood.roofEdge.withValues(alpha: 0.55),
-          width: 1.4,
-        ),
+        border: Border.all(color: const Color(0xFFE4C79F), width: 1.6),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: wood.roofEdge.withValues(alpha: 0.16),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: const Color(0xFF8C6844).withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1110,6 +1107,16 @@ class _ShopWindow extends StatelessWidget {
                   ),
                 ),
               ),
+            const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  border: Border.fromBorderSide(
+                    BorderSide(color: Color(0x338C6844)),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

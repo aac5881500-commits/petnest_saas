@@ -4,10 +4,14 @@ class HomeQuickBookingLayouts {
   static const String compactCard = 'compactCard';
   static const String singleLine = 'singleLine';
   static const String serviceSplit = 'serviceSplit';
+  static const String heroCta = 'heroCta';
+  static const String spotlight = 'spotlight';
   static const List<String> all = <String>[
     compactCard,
     singleLine,
     serviceSplit,
+    heroCta,
+    spotlight,
   ];
 
   static String label(String value) {
@@ -16,6 +20,10 @@ class HomeQuickBookingLayouts {
         return '迷你入口';
       case singleLine:
         return '單行按鈕';
+      case heroCta:
+        return '大型服務入口';
+      case spotlight:
+        return '主視覺入口';
       default:
         return '服務選擇';
     }
@@ -27,6 +35,10 @@ class HomeQuickBookingLayouts {
         return '半寬小卡，可與其他小卡並排';
       case singleLine:
         return '整排預約入口，簡單不占空間';
+      case heroCta:
+        return '住宿與安親做成首頁最明顯的大按鈕';
+      case spotlight:
+        return '一張大型預約入口，不列出房型';
       default:
         return '住宿與安親分開顯示';
     }

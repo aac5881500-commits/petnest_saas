@@ -167,6 +167,9 @@ class _HomePageState extends State<HomePage> {
         shop['shopCode']?.toString().trim().isNotEmpty == true
         ? shop['shopCode'].toString()
         : shopId;
+    final ShopHouseAppearance appearance = ShopHouseAppearance.fromMap(
+      shop['houseAppearance'],
+    );
     return ShopEntryPanel(
       key: key,
       shopName: (shop['name'] ?? '未命名店家').toString(),
@@ -178,9 +181,7 @@ class _HomePageState extends State<HomePage> {
       role: _roleLabel(shop['role']?.toString() ?? ''),
       coverUrl: shop['platformHomeCoverUrl']?.toString() ?? '',
       logoUrl: shop['platformHomeLogoUrl']?.toString() ?? '',
-      roofAssetId: ShopHouseAppearance.fromMap(
-        shop['houseAppearance'],
-      ).roofAssetId,
+      roofAssetId: appearance.roofAssetId,
       isOpenNow: isShopOpenNow(
         isOpen: shop['isOpen'] == true,
         openTime: shop['openTime']?.toString() ?? '',

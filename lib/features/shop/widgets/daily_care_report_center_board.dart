@@ -2358,7 +2358,7 @@ DailyCarePhotoNotice buildPhotoNotice({
 }) {
   final DateTime current = now ?? DateTime.now();
   const DailyCarePhotoNotice ended = DailyCarePhotoNotice(
-    text: '照護照片保存期限已結束（文字照護紀錄仍會保留）。',
+    text: '照片已到期清除',
     warn: false,
   );
   final DateTime? expiresAt = _earliestExpiry(photos);

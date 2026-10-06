@@ -28,6 +28,7 @@ class DailyCarePhotoModel {
     this.uploadedByUid,
     this.uploadedByName,
     this.expiresAt,
+    this.photoCleanupStatus = '',
   });
 
   /// 照片文件 ID
@@ -82,10 +83,25 @@ class DailyCarePhotoModel {
   /// 建立時間
   final DateTime? createdAt;
 
-  /// 後端排程寫入的照片保存期限（服務結束後 24 小時）。
-  ///
-  /// 僅供 UI 顯示，不由前端建立或修改這個欄位。
+  /// 後端排程寫入的照片保存期限。
+  /// 小時數沿用店家 downloadHoursAfterCheckout，不另設刪除期限。
   final DateTime? expiresAt;
+
+  /// 後端清理完成後為 cleaned。網址已清空，不可再載入。
+  final String photoCleanupStatus;
+
+  /// 保存期限是否已經過去，或後端已清掉檔案。
+  bool get retentionEnded {
+    if (photoCleanupStatus == 'cleaned') {
+      return true;
+    }
+    return hasExpired();
+  }
+
+  /// 還能安全顯示的預覽網址。到期或已清理時不回傳網址。
+  bool get canDisplayPreview {
+    return previewUrl.trim().isNotEmpty && !retentionEnded;
+  }
 
   /// 保存期限是否已經過去。
   bool hasExpired({DateTime? now}) {
@@ -131,6 +147,7 @@ class DailyCarePhotoModel {
       uploadedByName: _readNullableString(map['uploadedByName']),
       createdAt: _readDateTime(map['createdAt']),
       expiresAt: _readDateTime(map['expiresAt']),
+      photoCleanupStatus: _readString(map['photoCleanupStatus']),
     );
   }
 
@@ -156,6 +173,7 @@ class DailyCarePhotoModel {
       'uploadedByName': uploadedByName,
       'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
       'expiresAt': expiresAt == null ? null : Timestamp.fromDate(expiresAt!),
+      'photoCleanupStatus': photoCleanupStatus,
     };
   }
 

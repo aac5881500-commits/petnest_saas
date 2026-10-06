@@ -510,10 +510,12 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             ),
             AdminBookingDetailSection(
               title: '點數',
+              showHeading: false,
               child: AdminBookingPointsCard(
                 shopId: widget.shopId,
                 bookingId: widget.bookingId,
                 booking: data,
+                lookupMember: true,
               ),
             ),
             AdminBookingDetailSection(

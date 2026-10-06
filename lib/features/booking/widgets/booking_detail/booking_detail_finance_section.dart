@@ -78,7 +78,7 @@ class BookingDetailFinanceSection extends StatefulWidget {
 
 class _BookingDetailFinanceSectionState
     extends State<BookingDetailFinanceSection> {
-  bool _detailsOpen = false;
+  bool _detailsOpen = true;
   bool _paymentsOpen = false;
   bool _extraOpen = false;
 
@@ -322,15 +322,18 @@ class _BookingDetailFinanceSectionState
     bool emphasize = false,
     Color? valueColor,
   }) {
+    final bool phone = MediaQuery.sizeOf(context).width < 600;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: <Widget>[
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                fontSize: BookingDetailUi.bodySize,
+                fontSize: phone
+                    ? BookingDetailUi.captionSize
+                    : BookingDetailUi.bodySize,
                 color: BookingDetailUi.of(context).muted,
               ),
             ),
@@ -341,7 +344,7 @@ class _BookingDetailFinanceSectionState
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: emphasize
-                    ? BookingDetailUi.moneySize
+                    ? (phone ? 22 : BookingDetailUi.moneySize)
                     : BookingDetailUi.bodySize,
                 fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
                 color: valueColor ?? BookingDetailUi.of(context).text,

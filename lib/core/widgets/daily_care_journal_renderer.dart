@@ -1766,6 +1766,27 @@ class _SessionPhotoCard extends StatelessWidget {
             : DailyCareJournalRenderer.emptyBookingPhotosLabel,
         style: TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.7)),
       );
+    } else if (photos.every(
+      (DailyCarePhotoModel photo) => photo.retentionEnded,
+    )) {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            '照片保存期限已結束',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '照護紀錄仍會保留，照片已依保存期限自動清除。',
+            style: TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.7)),
+          ),
+        ],
+      );
     } else {
       body = _PhotoLayout(photos: photos);
     }
@@ -1850,7 +1871,7 @@ class _PhotoLayout extends StatelessWidget {
   }
 
   void _preview(BuildContext context, DailyCarePhotoModel photo) {
-    if (photo.previewUrl.trim().isEmpty) {
+    if (!photo.canDisplayPreview) {
       return;
     }
     showDialog<void>(
@@ -1912,6 +1933,18 @@ class _PhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (photo.retentionEnded) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(8),
+          child: Text(
+            '照片保存期限已結束',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+    }
     final String url = photo.previewUrl.trim();
     return InkWell(
       borderRadius: BorderRadius.circular(12),

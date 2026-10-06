@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_appearance_preset.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
@@ -18,18 +19,17 @@ import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
-import 'package:petnest_saas/core/services/inventory_image_service.dart';
+import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
+import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
-import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/frontend_navigation_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settings_panel.dart';
@@ -38,6 +38,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_setti
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/about_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_appearance_preset_strip.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_appearance_tabs.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/faq_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/policy_section_settings_panel.dart';
@@ -46,7 +47,6 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/news_section_sett
 import 'package:petnest_saas/features/shop/widgets/modern_home/quick_booking_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/environment_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/room_section_settings_panel.dart';
-import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_store_card.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
   const ShopThemeSettingPage({super.key, required this.shopId});
@@ -93,12 +93,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   String _storeCardSubtitleColorPreset = ModernStoreCardTextColors.dark;
   String _storeCardButtonColorPreset = ModernStoreCardButtonColors.brand;
   String _storeCardContentPosition = ModernStoreCardPositions.centerLeft;
+  String _featuredProductLayout = ModernFeaturedProductLayouts.horizontal;
+  String _storeEntryLayout = ModernStoreEntryLayouts.banner;
+  String _loadedFeaturedProductLayout = ModernFeaturedProductLayouts.horizontal;
+  String _loadedStoreEntryLayout = ModernStoreEntryLayouts.banner;
   String _committedStoreCardImageUrl = '';
   String _committedStoreCardImagePath = '';
-  String _pendingStoreCardImageUrl = '';
-  String _pendingStoreCardImagePath = '';
-  bool _removeStoreCardImage = false;
-  bool _uploadingStoreCardImage = false;
   String _selectedLayout = 'classic';
   String _selectedTheme = 'warmOrange';
   String _selectedBackground = 'warmWhite';
@@ -178,6 +178,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   bool _isSaving = false;
   bool _isLoading = true;
   bool _appearanceDirty = false;
+  String? _appearancePresetId;
+  String? _browsingPresetId;
+  bool _showStayServiceStrip = true;
   Map<String, dynamic> _loadedShop = <String, dynamic>{};
   FrontendNavigationConfig _navigationConfig =
       FrontendNavigationConfig.defaults();
@@ -330,7 +333,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _colorScroll.dispose();
     _navigationScroll.dispose();
     _featureScroll.dispose();
-    _discardPendingStoreCardImage();
     super.dispose();
   }
 
@@ -357,6 +359,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       'newsSection': _newsSection.toMap(),
       'quickBookingSection': _quickBookingSection.toMap(),
       'informationSections': _informationSections.toMap(),
+      homeAppearancePresetIdKey: ?_appearancePresetId,
+      'showStayServiceStrip': _showStayServiceStrip,
       ..._draftStoreHomeSetting.toMap(),
       ..._navigationConfig.toMap(),
     };
@@ -376,32 +380,13 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     return '已啟用・$_enabledHomeBannerCount 張海報・$width／$height';
   }
 
-  HomeThemeModel get _shopThemeForStore {
-    if (_selectedLayout == 'modern') {
-      return _modernTheme;
-    }
-    return HomeThemeModel.fromClassicSettings(
-      rawData: <String, String>{
-        'theme': _selectedTheme,
-        'background': _selectedBackground,
-      },
-    );
-  }
-
   ModernStoreHomeSetting get _draftStoreHomeSetting {
-    final String imageUrl = _removeStoreCardImage
-        ? ''
-        : (_pendingStoreCardImageUrl.isNotEmpty
-              ? _pendingStoreCardImageUrl
-              : _committedStoreCardImageUrl);
-    final String imagePath = _removeStoreCardImage
-        ? ''
-        : (_pendingStoreCardImagePath.isNotEmpty
-              ? _pendingStoreCardImagePath
-              : _committedStoreCardImagePath);
+    final String imageUrl = _committedStoreCardImageUrl;
+    final String imagePath = _committedStoreCardImagePath;
     return ModernStoreHomeSetting(
       showFeaturedProducts: _showFeaturedStoreProducts,
       featuredTitle: _featuredStoreTitleController.text.trim(),
+      featuredProductLayout: _featuredProductLayout,
       showStoreBanner: _showStoreBanner,
       storeBannerTitle: _storeBannerTitleController.text.trim(),
       storeBannerSubtitle: _storeBannerSubtitleController.text.trim(),
@@ -416,93 +401,58 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       storeBannerSubtitleColorPreset: _storeCardSubtitleColorPreset,
       storeBannerButtonColorPreset: _storeCardButtonColorPreset,
       storeBannerContentPosition: _storeCardContentPosition,
+      storeEntryLayout: _storeEntryLayout,
     );
   }
 
-  Future<void> _discardPendingStoreCardImage() async {
-    final String path = _pendingStoreCardImagePath.trim();
-    final String url = _pendingStoreCardImageUrl.trim();
-    if (path.isEmpty && url.isEmpty) {
-      return;
-    }
-    if (path == _committedStoreCardImagePath ||
-        url == _committedStoreCardImageUrl) {
-      return;
-    }
-    await InventoryImageService.instance.tryDeleteImage(
-      imageUrl: url,
-      imageStoragePath: path,
+  void _adoptStoreHome(ModernStoreHomeSetting setting) {
+    _showFeaturedStoreProducts = setting.showFeaturedProducts;
+    _featuredStoreTitleController.text = setting.featuredTitle;
+    _showStoreBanner = setting.showStoreBanner;
+    _storeBannerTitleController.text = setting.storeBannerTitle;
+    _storeBannerSubtitleController.text = setting.storeBannerSubtitle;
+    _storeBannerButtonTextController.text = setting.storeBannerButtonText;
+    _storeCardBackgroundFit = setting.storeBannerBackgroundFit;
+    _storeCardBackgroundAlignment = setting.storeBannerBackgroundAlignment;
+    _storeCardOverlayPreset = setting.storeBannerOverlayPreset;
+    _storeCardOverlayTone = setting.storeBannerOverlayTone;
+    _storeCardTitleColorPreset = setting.storeBannerTitleColorPreset;
+    _storeCardSubtitleColorPreset = setting.storeBannerSubtitleColorPreset;
+    _storeCardButtonColorPreset = setting.storeBannerButtonColorPreset;
+    _storeCardContentPosition = setting.storeBannerContentPosition;
+    _featuredProductLayout = setting.featuredProductLayout;
+    _storeEntryLayout = setting.storeEntryLayout;
+    _loadedFeaturedProductLayout = setting.featuredProductLayout;
+    _loadedStoreEntryLayout = setting.storeEntryLayout;
+    _committedStoreCardImageUrl = setting.storeBannerImageUrl;
+    _committedStoreCardImagePath = setting.storeBannerImageStoragePath;
+  }
+
+  Future<ModernStoreHomeSetting> _storeHomeSettingForSave() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
+    final Object? rawAppearance = snapshot.data()?['homeAppearance'];
+    final Map<String, dynamic> appearance = rawAppearance is Map
+        ? Map<String, dynamic>.from(rawAppearance)
+        : <String, dynamic>{};
+    final Object? rawModern = appearance['modern'];
+    final Map<String, dynamic> modern = rawModern is Map
+        ? Map<String, dynamic>.from(rawModern)
+        : <String, dynamic>{};
+    final ModernStoreHomeSetting latest = ModernStoreHomeSetting.fromMap(
+      modern,
     );
-  }
-
-  String _storeCardImageError(Object error) {
-    final String message = error.toString();
-    if (message.contains('5MB') || message.contains('5 MB')) {
-      return '圖片不可超過 5 MB';
-    }
-    return message;
-  }
-
-  Future<void> _pickStoreEntryCardImage() async {
-    try {
-      setState(() => _uploadingStoreCardImage = true);
-      final result = await FixedImagePickFlow.pickCropAndUpload(
-        context: context,
-        spec: FixedImageSpec.storeEntryBackground,
-        title: '裁切商城入口背景',
-        shopId: widget.shopId,
-        itemId: 'store_entry_card/p_${DateTime.now().millisecondsSinceEpoch}',
-        folder: 'home',
-        imageType: 'home_store_entry_card',
-        idMetadataKey: 'storeEntryCardId',
-      );
-      if (result == null) {
-        return;
-      }
-      await _discardPendingStoreCardImage();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _pendingStoreCardImageUrl = result.imageUrl;
-        _pendingStoreCardImagePath = result.imageStoragePath;
-        _removeStoreCardImage = false;
-        if (_storeCardOverlayPreset == ModernStoreCardOverlays.none) {
-          _storeCardOverlayPreset = ModernStoreCardOverlays.standard;
-        }
-        if (_storeCardTitleColorPreset == ModernStoreCardTextColors.dark) {
-          _storeCardTitleColorPreset = ModernStoreCardTextColors.light;
-          _storeCardSubtitleColorPreset = ModernStoreCardTextColors.light;
-        }
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_storeCardImageError(error))));
-    } finally {
-      if (mounted) {
-        setState(() => _uploadingStoreCardImage = false);
-      }
-    }
-  }
-
-  void _markRemoveStoreEntryCardImage() {
-    final String pendingUrl = _pendingStoreCardImageUrl;
-    final String pendingPath = _pendingStoreCardImagePath;
-    setState(() {
-      _removeStoreCardImage = true;
-      _pendingStoreCardImageUrl = '';
-      _pendingStoreCardImagePath = '';
-    });
-    if (pendingUrl.isNotEmpty || pendingPath.isNotEmpty) {
-      InventoryImageService.instance.tryDeleteImage(
-        imageUrl: pendingUrl,
-        imageStoragePath: pendingPath,
-      );
-    }
+    return latest.copyWith(
+      featuredProductLayout:
+          _featuredProductLayout == _loadedFeaturedProductLayout
+          ? null
+          : _featuredProductLayout,
+      storeEntryLayout: _storeEntryLayout == _loadedStoreEntryLayout
+          ? null
+          : _storeEntryLayout,
+    );
   }
 
   Future<void> _loadSettings() async {
@@ -681,6 +631,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _informationSections = HomeInformationSectionsSetting.fromMap(
           modernAppearance['informationSections'],
         );
+        _appearancePresetId = homeAppearancePresetById(
+          modernAppearance[homeAppearancePresetIdKey]?.toString(),
+        )?.id;
+        _browsingPresetId = null;
+        _showStayServiceStrip =
+            modernAppearance['showStayServiceStrip'] != false;
         _modernBannerPreviewImageUrl = _firstActiveBannerUrl(shopData);
         _brandStyle = StoreBrandStyle.fromMap(
           modernAppearance,
@@ -710,12 +666,13 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _storeCardButtonColorPreset =
             storeHomeSetting.storeBannerButtonColorPreset;
         _storeCardContentPosition = storeHomeSetting.storeBannerContentPosition;
+        _featuredProductLayout = storeHomeSetting.featuredProductLayout;
+        _storeEntryLayout = storeHomeSetting.storeEntryLayout;
+        _loadedFeaturedProductLayout = storeHomeSetting.featuredProductLayout;
+        _loadedStoreEntryLayout = storeHomeSetting.storeEntryLayout;
         _committedStoreCardImageUrl = storeHomeSetting.storeBannerImageUrl;
         _committedStoreCardImagePath =
             storeHomeSetting.storeBannerImageStoragePath;
-        _pendingStoreCardImageUrl = '';
-        _pendingStoreCardImagePath = '';
-        _removeStoreCardImage = false;
         _loadedShop = shopData == null
             ? <String, dynamic>{}
             : Map<String, dynamic>.from(shopData);
@@ -851,6 +808,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
     try {
       _storeSelectedLayoutSettings();
+      final ModernStoreHomeSetting storeHomeForSave =
+          await _storeHomeSettingForSave();
 
       await FirebaseFirestore.instance
           .collection('shops')
@@ -892,8 +851,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 'newsSection': _newsSection.toMap(),
                 'quickBookingSection': _quickBookingSection.toMap(),
                 'informationSections': _informationSections.toMap(),
+                homeAppearancePresetIdKey: ?_appearancePresetId,
+                'showStayServiceStrip': _showStayServiceStrip,
 
-                ..._draftStoreHomeSetting.toMap(),
+                ...storeHomeForSave.toMap(),
                 ..._navigationConfig.toMap(),
               },
             },
@@ -907,27 +868,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 _floatingButtonType == ShopChatService.floatingTypePetnestChat,
           }, SetOptions(merge: true));
 
-      final ModernStoreHomeSetting savedStoreCard = _draftStoreHomeSetting;
-      if (_removeStoreCardImage) {
-        await _discardPendingStoreCardImage();
-      }
-      if (_removeStoreCardImage || _pendingStoreCardImagePath.isNotEmpty) {
-        final bool replacedOfficial =
-            _committedStoreCardImagePath.isNotEmpty &&
-            _committedStoreCardImagePath !=
-                savedStoreCard.storeBannerImageStoragePath;
-        if (replacedOfficial || _removeStoreCardImage) {
-          await InventoryImageService.instance.tryDeleteImage(
-            imageUrl: _committedStoreCardImageUrl,
-            imageStoragePath: _committedStoreCardImagePath,
-          );
-        }
-      }
-      _committedStoreCardImageUrl = savedStoreCard.storeBannerImageUrl;
-      _committedStoreCardImagePath = savedStoreCard.storeBannerImageStoragePath;
-      _pendingStoreCardImageUrl = '';
-      _pendingStoreCardImagePath = '';
-      _removeStoreCardImage = false;
+      _adoptStoreHome(storeHomeForSave);
       _savedNavigation = _navigationConfig;
       _appearanceDirty = false;
 
@@ -1218,6 +1159,93 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       _modernTheme = value;
       _appearanceDirty = true;
     });
+  }
+
+  HomeAppearanceDraft get _appearanceDraft {
+    return HomeAppearanceDraft(
+      theme: _modernTheme,
+      sectionOrder: _homeSectionOrder,
+      rooms: _roomSection,
+      environment: _environmentSection,
+      about: _aboutSection,
+      news: _newsSection,
+      quickBooking: _quickBookingSection,
+      information: _informationSections,
+      navigation: _navigationConfig,
+      bannerFrame: _modernBannerFrame,
+      showStayServiceStrip: _showStayServiceStrip,
+      featuredProductLayout: _featuredProductLayout,
+      storeEntryLayout: _storeEntryLayout,
+    );
+  }
+
+  Map<String, dynamic> get _previewModernAppearance {
+    final HomeAppearancePreset? browsing = homeAppearancePresetById(
+      _browsingPresetId,
+    );
+    if (browsing == null) {
+      return _draftModernAppearance;
+    }
+    final HomeAppearanceDraft next = browsing.apply(_appearanceDraft);
+    return <String, dynamic>{
+      ..._draftModernAppearance,
+      'themeColors': next.theme.toMap(),
+      'homeSectionOrder': next.sectionOrder,
+      'roomSection': next.rooms.toMap(),
+      'environmentSection': next.environment.toMap(),
+      'aboutSection': next.about.toMap(),
+      'newsSection': next.news.toMap(),
+      'quickBookingSection': next.quickBooking.toMap(),
+      'informationSections': next.information.toMap(),
+      'showStayServiceStrip': next.showStayServiceStrip,
+      'featuredProductLayout': next.featuredProductLayout,
+      'storeEntryLayout': next.storeEntryLayout,
+      ...next.bannerFrame.toMap(),
+      ...next.navigation.toMap(),
+    };
+  }
+
+  void _applyAppearancePreset(HomeAppearancePreset preset) {
+    final HomeAppearanceDraft next = preset.apply(_appearanceDraft);
+    setState(() {
+      if (_selectedLayout != 'modern') {
+        _storeSelectedLayoutSettings();
+        _selectedLayout = 'modern';
+        _applySelectedLayoutSettings();
+      }
+      _modernTheme = next.theme;
+      _homeSectionOrder = next.sectionOrder;
+      _roomSection = next.rooms;
+      _environmentSection = next.environment;
+      _aboutSection = next.about;
+      _newsSection = next.news;
+      _quickBookingSection = next.quickBooking;
+      _informationSections = next.information;
+      _navigationConfig = next.navigation;
+      _modernBannerFrame = next.bannerFrame;
+      _showStayServiceStrip = next.showStayServiceStrip;
+      _featuredProductLayout = next.featuredProductLayout;
+      _storeEntryLayout = next.storeEntryLayout;
+      _appearancePresetId = preset.id;
+      _browsingPresetId = null;
+      _appearanceDirty = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已套用『${preset.name}』預覽，確認後請儲存外觀設定。')),
+    );
+  }
+
+  Widget _appearancePresetStrip() {
+    return HomeAppearancePresetStrip(
+      draft: _appearanceDraft,
+      presetId: _appearancePresetId,
+      previewingId: _browsingPresetId,
+      accent: _modernTheme.primaryColor,
+      onPreview: (HomeAppearancePreset preset) {
+        setState(() => _browsingPresetId = preset.id);
+      },
+      onApply: _applyAppearancePreset,
+    );
   }
 
   Widget _buildRoomPane(bool desktopModern) {
@@ -2181,7 +2209,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }) {
     return ModernHomeEditorPreview(
       shopId: widget.shopId,
-      draftModernAppearance: _draftModernAppearance,
+      draftModernAppearance: _previewModernAppearance,
       draftLogoUrl: _modernLogoUrl,
       showCaption: showCaption,
       showPhoneChrome: false,
@@ -2223,6 +2251,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         primary: false,
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: <Widget>[
+          _appearancePresetStrip(),
+          const SizedBox(height: 18),
           _buildSectionTitle(
             icon: Icons.view_quilt_outlined,
             title: '首頁版型',
@@ -2379,6 +2409,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   List<Widget> _modernEditorSections() {
     return <Widget>[
+      _appearancePresetStrip(),
+      const SizedBox(height: 16),
       _editorCard(
         title: '新版首頁基本外觀',
         subtitle: '目前使用新版首頁',
@@ -2430,14 +2462,39 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           child: _buildHomeBannerDisplaySettings(),
         ),
       ),
-      KeyedSubtree(
-        key: _storeSettingsKey,
-        child: _editorCard(
-          title: '首頁賣場入口',
-          subtitle: '影響首頁精選商品與寵物賣場入口卡片，不改商城頁面',
-          child: _buildModernStoreHomeSettings(),
+      if (StorefrontAccess.isModuleEnabled(_loadedShop))
+        KeyedSubtree(
+          key: _storeSettingsKey,
+          child: _editorCard(
+            title: '商城',
+            subtitle: '商城首頁與商品展示已移至商城專屬設定。',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  '此區塊內容與外觀請至商城設定管理。首頁排序只決定它出現的位置。',
+                  style: TextStyle(fontSize: 13, height: 1.4),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ShopStoreSettingsPage(
+                            shopId: widget.shopId,
+                            canManage: true,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('前往商城設定 →'),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
       if (_pendingSectionSelected)
         KeyedSubtree(
           key: _pendingSettingsKey,
@@ -3176,267 +3233,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             icon: const Icon(Icons.collections_outlined),
             label: const Text('管理活動海報'),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernStoreHomeSettings() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('顯示精選商品'),
-            subtitle: const Text('關閉後，新版首頁不顯示精選商品區'),
-            value: _showFeaturedStoreProducts,
-            onChanged: (bool value) {
-              setState(() {
-                _showFeaturedStoreProducts = value;
-              });
-            },
-          ),
-          TextField(
-            controller: _featuredStoreTitleController,
-            maxLength: 12,
-            enabled: _showFeaturedStoreProducts,
-            decoration: const InputDecoration(
-              labelText: '精選商品標題',
-              helperText: '預設：精選商品',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const Divider(height: 28),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('顯示首頁賣場卡片'),
-            subtitle: const Text('關閉後，新版首頁不顯示寵物賣場入口'),
-            value: _showStoreBanner,
-            onChanged: (bool value) {
-              setState(() {
-                _showStoreBanner = value;
-              });
-            },
-          ),
-          const Text('預覽', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          IgnorePointer(
-            child: ModernHomeStoreCard(
-              theme: _shopThemeForStore,
-              setting: _draftStoreHomeSetting,
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _storeBannerTitleController,
-            maxLength: 12,
-            enabled: _showStoreBanner,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: '卡片標題',
-              helperText: '預設：寵物賣場',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _storeBannerSubtitleController,
-            maxLength: 24,
-            enabled: _showStoreBanner,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: '卡片副標',
-              helperText: '預設：精選毛孩好物，把喜歡帶回家',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _storeBannerButtonTextController,
-            maxLength: 10,
-            enabled: _showStoreBanner,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: '按鈕文字',
-              helperText: '預設：逛逛賣場',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text('按鈕顏色', style: TextStyle(fontWeight: FontWeight.w600)),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardButtonColors.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardButtonColors.label(value)),
-                selected: _storeCardButtonColorPreset == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardButtonColorPreset = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          const Text('主要文字顏色', style: TextStyle(fontWeight: FontWeight.w600)),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardTextColors.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardTextColors.label(value)),
-                selected: _storeCardTitleColorPreset == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardTitleColorPreset = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          const Text('次要文字顏色', style: TextStyle(fontWeight: FontWeight.w600)),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardTextColors.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardTextColors.label(value)),
-                selected: _storeCardSubtitleColorPreset == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardSubtitleColorPreset = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          const Text('文字位置', style: TextStyle(fontWeight: FontWeight.w600)),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardPositions.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardPositions.label(value)),
-                selected: _storeCardContentPosition == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardContentPosition = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-          const Text('卡片背景圖片', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text(
-            FixedImageSpec.storeEntryBackground.hintText,
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.4,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: <Widget>[
-              FilledButton.tonal(
-                onPressed: !_showStoreBanner || _uploadingStoreCardImage
-                    ? null
-                    : _pickStoreEntryCardImage,
-                child: Text(
-                  _draftStoreHomeSetting.hasBackgroundImage ? '更換圖片' : '上傳圖片',
-                ),
-              ),
-              if (_draftStoreHomeSetting.hasBackgroundImage)
-                TextButton(
-                  onPressed: _uploadingStoreCardImage
-                      ? null
-                      : _markRemoveStoreEntryCardImage,
-                  child: const Text('移除圖片'),
-                ),
-            ],
-          ),
-          if (_uploadingStoreCardImage)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: LinearProgressIndicator(),
-            ),
-          const SizedBox(height: 8),
-          const Text('背景圖片顯示方式'),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardFits.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardFits.label(value)),
-                selected: _storeCardBackgroundFit == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardBackgroundFit = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          const Text('圖片焦點'),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardAlignments.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardAlignments.label(value)),
-                selected: _storeCardBackgroundAlignment == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardBackgroundAlignment = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          const Text('背景遮罩'),
-          Wrap(
-            spacing: 8,
-            children: ModernStoreCardOverlays.all.map((String value) {
-              return ChoiceChip(
-                label: Text(ModernStoreCardOverlays.label(value)),
-                selected: _storeCardOverlayPreset == value,
-                onSelected: _showStoreBanner
-                    ? (_) {
-                        setState(() => _storeCardOverlayPreset = value);
-                      }
-                    : null,
-              );
-            }).toList(),
-          ),
-          if (_storeCardOverlayPreset !=
-              ModernStoreCardOverlays.none) ...<Widget>[
-            const SizedBox(height: 8),
-            const Text('遮罩顏色'),
-            Wrap(
-              spacing: 8,
-              children: ModernStoreCardOverlayTones.all.map((String value) {
-                return ChoiceChip(
-                  label: Text(ModernStoreCardOverlayTones.label(value)),
-                  selected: _storeCardOverlayTone == value,
-                  onSelected: _showStoreBanner
-                      ? (_) {
-                          setState(() => _storeCardOverlayTone = value);
-                        }
-                      : null,
-                );
-              }).toList(),
-            ),
-          ],
         ],
       ),
     );

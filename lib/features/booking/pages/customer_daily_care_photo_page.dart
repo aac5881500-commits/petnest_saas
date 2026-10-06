@@ -97,6 +97,21 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
             children: <Widget>[
               _headerCard(),
 
+              if (photos.every(
+                (DailyCarePhotoModel photo) => photo.retentionEnded,
+              )) ...<Widget>[
+                const SizedBox(height: 12),
+                const Text(
+                  '照片保存期限已結束',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '照護紀錄仍會保留，照片已依保存期限自動清除。',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                ),
+              ],
+
               const SizedBox(height: 14),
 
               for (final String dateKey in dateKeys) ...<Widget>[
@@ -229,6 +244,39 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
             itemBuilder: (context, index) {
               final DailyCarePhotoModel photo = photos[index];
 
+              if (photo.retentionEnded) {
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Text(
+                        '照片保存期限已結束',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              if (photo.previewUrl.trim().isEmpty) {
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.photo_outlined, color: Colors.grey),
+                  ),
+                );
+              }
+
               return InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () {
@@ -289,6 +337,9 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
   }
 
   void _showPreview(BuildContext context, DailyCarePhotoModel photo) {
+    if (!photo.canDisplayPreview) {
+      return;
+    }
     showDialog<void>(
       context: context,
       builder: (dialogContext) {

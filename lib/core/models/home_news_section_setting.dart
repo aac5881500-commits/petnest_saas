@@ -127,6 +127,7 @@ class HomeNewsSectionSetting {
     this.showArrow = true,
     this.surfaceStyle = HomeNewsSurfaces.solid,
     this.textAlign = HomeNewsTextAligns.left,
+    this.showEmptyPlaceholder = true,
   });
 
   final int schemaVersion;
@@ -140,6 +141,9 @@ class HomeNewsSectionSetting {
   final bool showArrow;
   final String surfaceStyle;
   final String textAlign;
+
+  /// 編輯預覽在沒有公告時是否仍占一塊提示卡。正式前台本來就會隱藏。
+  final bool showEmptyPlaceholder;
 
   bool get isHalf =>
       HomeNewsLayouts.migrate(layout) == HomeNewsLayouts.compactCard;
@@ -161,6 +165,7 @@ class HomeNewsSectionSetting {
     bool? showArrow,
     String? surfaceStyle,
     String? textAlign,
+    bool? showEmptyPlaceholder,
   }) {
     return HomeNewsSectionSetting(
       schemaVersion: schemaVersion ?? this.schemaVersion,
@@ -174,6 +179,7 @@ class HomeNewsSectionSetting {
       showArrow: showArrow ?? this.showArrow,
       surfaceStyle: surfaceStyle ?? this.surfaceStyle,
       textAlign: textAlign ?? this.textAlign,
+      showEmptyPlaceholder: showEmptyPlaceholder ?? this.showEmptyPlaceholder,
     );
   }
 
@@ -190,6 +196,7 @@ class HomeNewsSectionSetting {
       'showArrow': showArrow,
       'surfaceStyle': HomeNewsSurfaces.migrate(surfaceStyle),
       'textAlign': HomeNewsTextAligns.migrate(textAlign),
+      'showEmptyPlaceholder': showEmptyPlaceholder,
     };
   }
 
@@ -217,6 +224,9 @@ class HomeNewsSectionSetting {
       showArrow: map['showArrow'] is bool ? map['showArrow'] as bool : true,
       surfaceStyle: HomeNewsSurfaces.migrate(map['surfaceStyle']),
       textAlign: HomeNewsTextAligns.migrate(map['textAlign']),
+      showEmptyPlaceholder: map['showEmptyPlaceholder'] is bool
+          ? map['showEmptyPlaceholder'] as bool
+          : true,
     );
   }
 

@@ -998,6 +998,22 @@ class BookingDetailViewData {
     return end.add(Duration(hours: downloadHoursAfterCheckout));
   }
 
+  /// 文字照護紀錄在服務結束後仍可查看，不受照片下載期限影響。
+  bool canViewDailyCareRecord({bool daycareCareEnabled = false}) {
+    if (DailyCareEntitlement.explicitlyNoReports(raw)) {
+      return false;
+    }
+    if (isDaycare) {
+      if (!daycareCareEnabled || status == 'cancelled') {
+        return false;
+      }
+      return status == 'checked_in' ||
+          status == 'completed' ||
+          status == 'checked_out';
+    }
+    return status == 'checked_in' || status == 'completed';
+  }
+
   bool canViewDailyCare({
     required int downloadHoursAfterCheckout,
     DateTime? now,

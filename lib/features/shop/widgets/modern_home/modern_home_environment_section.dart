@@ -49,6 +49,13 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
           return _entry();
         }
         return _imageCard(imageUrl);
+      case HomeEnvironmentLayouts.editorial:
+        final String editorialUrl =
+            HomeEnvironmentSectionSetting.resolveImageUrl(environmentIntro);
+        if (editorialUrl.isEmpty && imageProvider == null) {
+          return _entry();
+        }
+        return _editorial(editorialUrl);
       default:
         if (facilities.isEmpty) {
           return const SizedBox.shrink();
@@ -75,6 +82,65 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
       default:
         return Icons.home_outlined;
     }
+  }
+
+  Widget _editorial(String imageUrl) {
+    final Widget photo = ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: _photo(imageUrl, 168, Alignment.center),
+    );
+    final Widget copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          setting.entryTitle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 18,
+            height: 1.25,
+            fontWeight: FontWeight.w800,
+            color: theme.textColor,
+          ),
+        ),
+        if (setting.showSubtitle &&
+            setting.subtitle.trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            setting.subtitle.trim(),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: theme.secondaryTextColor,
+            ),
+          ),
+        ],
+      ],
+    );
+    return InkWell(
+      key: const Key('home-environment-editorial'),
+      onTap: _open,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          if (constraints.maxWidth < 280) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[photo, const SizedBox(height: 10), copy],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Expanded(flex: 3, child: photo),
+              const SizedBox(width: 12),
+              Expanded(flex: 2, child: copy),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Widget _entry() {

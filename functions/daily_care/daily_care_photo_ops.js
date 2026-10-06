@@ -573,6 +573,40 @@ async function releaseReservation(firestore, reservationId, deleteFiles) {
   }
 }
 
+async function expireStoredPhoto(firestore, photoId, photo, options) {
+  const extra = options || {};
+  const deleteFile = extra.deleteFile || safeDeleteFile;
+  const previewPath = normalizeString(photo.previewStoragePath);
+  let downloadPath = normalizeString(photo.downloadStoragePath);
+  const dlRef = firestore.collection("daily_care_photo_downloads").doc(photoId);
+  const dlSnap = await dlRef.get();
+  if (!downloadPath && dlSnap.exists) {
+    downloadPath = normalizeString(dlSnap.data().downloadStoragePath);
+  }
+  if (previewPath) {
+    assertStoragePath(previewPath, photo.shopId, photo.bookingId, photoId);
+    await deleteFile(previewPath);
+  }
+  if (downloadPath) {
+    assertStoragePath(downloadPath, photo.shopId, photo.bookingId, photoId);
+    await deleteFile(downloadPath);
+  }
+  const photoRef = firestore.collection("daily_care_photos").doc(photoId);
+  const photoSnap = await photoRef.get();
+  if (photoSnap.exists) {
+    await photoRef.set({
+      previewUrl: "",
+      previewStoragePath: "",
+      downloadStoragePath: "",
+      photoCleanupStatus: "cleaned",
+      photoCleanedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+  }
+  if (dlSnap.exists && typeof dlRef.delete === "function") {
+    await dlRef.delete();
+  }
+}
+
 async function deletePhotoFilesAndDocs(firestore, photoId, photo, adjustCount) {
   const previewPath = normalizeString(photo.previewStoragePath);
   let downloadPath = "";
@@ -655,6 +689,7 @@ async function safeDeleteFile(path) {
 }
 
 exports.releaseReservation = releaseReservation;
+exports.expireStoredPhoto = expireStoredPhoto;
 exports.deletePhotoFilesAndDocs = deletePhotoFilesAndDocs;
 exports.safeDeleteFile = safeDeleteFile;
 

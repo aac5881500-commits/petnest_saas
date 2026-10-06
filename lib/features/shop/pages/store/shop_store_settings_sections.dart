@@ -11,6 +11,7 @@ import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/core/services/store_settings_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payout_setting_page.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_appearance_editor.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_front_home_settings_section.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_home_settings_section.dart';
 
 class StoreSettingsBasicPage extends StatefulWidget {
@@ -148,6 +149,8 @@ class StoreSettingsHomePage extends StatefulWidget {
 }
 
 class _StoreSettingsHomePageState extends State<StoreSettingsHomePage> {
+  final GlobalKey<StoreFrontHomeSettingsSectionState> _frontHomeKey =
+      GlobalKey<StoreFrontHomeSettingsSectionState>();
   final TextEditingController _announcement = TextEditingController();
   final TextEditingController _featuredTitle = TextEditingController();
   final TextEditingController _promoTitle = TextEditingController();
@@ -198,6 +201,7 @@ class _StoreSettingsHomePageState extends State<StoreSettingsHomePage> {
           )
           .toMap(),
     );
+    await _frontHomeKey.currentState?.save();
     if (!mounted) {
       return;
     }
@@ -232,6 +236,13 @@ class _StoreSettingsHomePageState extends State<StoreSettingsHomePage> {
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: <Widget>[
+                  const Text(
+                    '商城自己的首頁',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('控制真正進入商城後看到的公告、分類與商品區塊。'),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _announcement,
                     enabled: widget.canManage,
@@ -322,6 +333,11 @@ class _StoreSettingsHomePageState extends State<StoreSettingsHomePage> {
                       labelText: '最新商品標題',
                       hintText: '最新商品',
                     ),
+                  ),
+                  StoreFrontHomeSettingsSection(
+                    key: _frontHomeKey,
+                    shopId: widget.shopId,
+                    canManage: widget.canManage,
                   ),
                   const SizedBox(height: 20),
                   if (widget.canManage)
@@ -671,6 +687,8 @@ class _StoreSettingsAppearancePageState
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: <Widget>[
+                  const Text('這裡設定進入商城之後的主題。旅館首頁的商城入口在「商城首頁」。'),
+                  const SizedBox(height: 12),
                   if (_loaded)
                     StoreAppearanceEditor(
                       shopId: widget.shopId,

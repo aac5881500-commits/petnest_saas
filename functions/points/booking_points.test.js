@@ -9,6 +9,8 @@ const {
   canIssueEarn,
   computeEarnPoints,
   resolveFinalEarn,
+  planMemberEarnSync,
+  isWalkInMember,
   ntdFromPoints,
 } = require("./booking_points");
 
@@ -241,12 +243,341 @@ describe("booking points adjust", () => {
     assert.equal(second, first);
   });
 
-  it("退款後店員調整不可超過新系統點數", () => {
+  it("店員調整後以調整值為應發點數，可高於系統值", () => {
     assert.equal(resolveFinalEarn({
-      systemPoints: 3,
+      systemPoints: 100,
       eligible: true,
       adjusted: true,
-      overridePoints: 10,
-    }), 3);
+      overridePoints: 120,
+    }), 120);
+    assert.equal(resolveFinalEarn({
+      systemPoints: 100,
+      eligible: true,
+      adjusted: true,
+      overridePoints: 80,
+    }), 80);
+  });
+
+  it("未完成或取消時調整值也不發", () => {
+    assert.equal(resolveFinalEarn({
+      systemPoints: 100,
+      eligible: false,
+      adjusted: true,
+      overridePoints: 120,
+    }), 0);
+  });
+});
+
+const nightSetting = {
+  enabled: true,
+  calculationType: "night",
+  pointsPerNight: 10,
+  minimumOrderAmount: 0,
+};
+
+const daycareSetting = {
+  enabled: true,
+  daycareEarnEnabled: true,
+  daycareAmountPerPoint: 100,
+};
+
+/**
+ * @param {Object} extra
+ * @return {Object}
+ */
+function stayBooking(extra) {
+  return {
+    nights: 10,
+    totalPrice: 5000,
+    paidAmount: 5000,
+    refundAmount: 0,
+    status: "completed",
+    source: "customer",
+    ...extra,
+  };
+}
+
+/**
+ * @param {Object} extra
+ * @return {Object}
+ */
+function daycareBooking(extra) {
+  return {
+    bookingKind: "daycare",
+    totalPrice: 800,
+    paidAmount: 800,
+    refundAmount: 0,
+    status: "completed",
+    settlementConfirmed: true,
+    source: "customer",
+    ...extra,
+  };
+}
+
+describe("manual order points eligibility", () => {
+  it("CASE 1 App 會員自己住宿訂單正常發點", () => {
+    const booking = stayBooking();
+    assert.equal(isWalkInMember({source: "app"}, true), false);
+    assert.equal(canIssueEarn(booking), true);
+    const system = computeEarnPoints(nightSetting, booking, {isAppMember: true});
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      systemPoints: system,
+      alreadyIssued: 0,
+      balance: 0,
+      totalEarned: 0,
+    });
+    assert.equal(system, 100);
+    assert.equal(plan.target, 100);
+    assert.equal(plan.delta, 100);
+    assert.equal(plan.writeMemberPoints, true);
+    assert.equal(plan.current, 100);
+  });
+
+  it("CASE 2 店主幫 App 會員建立住宿仍正常發點", () => {
+    const booking = stayBooking({source: "admin"});
+    assert.equal(isWalkInMember({source: "admin"}, true), false);
+    const system = computeEarnPoints(nightSetting, booking, {isAppMember: true});
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      systemPoints: system,
+      alreadyIssued: 0,
+      balance: 40,
+      totalEarned: 40,
+    });
+    assert.equal(system, 100);
+    assert.equal(plan.delta, 100);
+    assert.equal(plan.current, 140);
+    assert.equal(plan.writeMemberPoints, true);
+  });
+
+  it("CASE 3 店主幫手動會員建立住宿不發點也不寫 member_points", () => {
+    const booking = stayBooking({source: "admin"});
+    assert.equal(isWalkInMember({source: "admin", isTempAdminMember: true}, false), true);
+    assert.equal(isWalkInMember(null, false), true);
+    const system = computeEarnPoints(nightSetting, booking, {isAppMember: false});
+    const plan = planMemberEarnSync({
+      isAppMember: false,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 100,
+      alreadyIssued: 0,
+      balance: 0,
+      pointsUsed: 50,
+    });
+    assert.equal(system, 0);
+    assert.equal(plan.target, 0);
+    assert.equal(plan.delta, 0);
+    assert.equal(plan.writeMemberPoints, false);
+    assert.equal(plan.skipped, true);
+  });
+
+  it("CASE 4 App 會員自己安親正常發點", () => {
+    const booking = daycareBooking();
+    const system = computeEarnPoints(daycareSetting, booking, {isAppMember: true});
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: canIssueEarn(booking),
+      systemPoints: system,
+      alreadyIssued: 0,
+      balance: 0,
+      totalEarned: 0,
+    });
+    assert.equal(system, 8);
+    assert.equal(plan.target, 8);
+    assert.equal(plan.delta, 8);
+    assert.equal(plan.writeMemberPoints, true);
+  });
+
+  it("CASE 5 店主幫 App 會員建立安親正常發點", () => {
+    const booking = daycareBooking({source: "admin"});
+    const system = computeEarnPoints(daycareSetting, booking, {isAppMember: true});
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      systemPoints: system,
+      alreadyIssued: 0,
+      balance: 2,
+      totalEarned: 2,
+    });
+    assert.equal(system, 8);
+    assert.equal(plan.delta, 8);
+    assert.equal(plan.current, 10);
+  });
+
+  it("CASE 6 店主幫手動會員建立安親不發點", () => {
+    const booking = daycareBooking({source: "admin"});
+    const system = computeEarnPoints(daycareSetting, booking, {isAppMember: false});
+    const plan = planMemberEarnSync({
+      isAppMember: false,
+      eligible: true,
+      systemPoints: system,
+      overridePoints: 8,
+      adjusted: true,
+      alreadyIssued: 0,
+      balance: 0,
+    });
+    assert.equal(system, 0);
+    assert.equal(plan.writeMemberPoints, false);
+    assert.equal(plan.target, 0);
+  });
+});
+
+describe("settlement reward delta", () => {
+  it("CASE 7 已發 100 調整成 120 只加差額 20", () => {
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 120,
+      alreadyIssued: 100,
+      balance: 100,
+      totalEarned: 100,
+      pointsUsed: 30,
+    });
+    assert.equal(plan.target, 120);
+    assert.equal(plan.delta, 20);
+    assert.equal(plan.current, 120);
+    assert.equal(plan.totalEarned, 120);
+    assert.equal(plan.writeMemberPoints, true);
+  });
+
+  it("CASE 8 已發 100 調整成 80 只扣差額 20", () => {
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 80,
+      alreadyIssued: 100,
+      balance: 100,
+      totalEarned: 100,
+    });
+    assert.equal(plan.target, 80);
+    assert.equal(plan.delta, -20);
+    assert.equal(plan.current, 80);
+    assert.equal(plan.totalEarned, 80);
+  });
+
+  it("CASE 9 尚未發放時 100 改 120 最終只發 120", () => {
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 120,
+      alreadyIssued: 0,
+      balance: 0,
+      totalEarned: 0,
+    });
+    assert.equal(plan.target, 120);
+    assert.equal(plan.delta, 120);
+    assert.equal(plan.current, 120);
+  });
+
+  it("CASE 10 同一筆 sync 第二次 delta 為 0", () => {
+    const first = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 120,
+      alreadyIssued: 100,
+      balance: 100,
+      totalEarned: 100,
+    });
+    const second = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 120,
+      alreadyIssued: first.nextIssued,
+      balance: first.current,
+      totalEarned: first.totalEarned,
+    });
+    assert.equal(first.delta, 20);
+    assert.equal(second.delta, 0);
+    assert.equal(second.writeMemberPoints, false);
+    assert.equal(second.current, 120);
+  });
+
+  it("CASE 11 Function retry 用已發目標，不重複發點", () => {
+    const issued = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      systemPoints: 100,
+      alreadyIssued: 0,
+      balance: 0,
+      totalEarned: 0,
+    });
+    const retry = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      systemPoints: 100,
+      alreadyIssued: issued.nextIssued,
+      balance: issued.current,
+      totalEarned: issued.totalEarned,
+    });
+    assert.equal(issued.delta, 100);
+    assert.equal(issued.nextIssued, 100);
+    assert.equal(retry.delta, 0);
+    assert.equal(retry.writeMemberPoints, false);
+    assert.equal(retry.current, 100);
+  });
+
+  it("CASE 12 手動會員結算跳過發點且不建立 member_points", () => {
+    const plan = planMemberEarnSync({
+      isAppMember: false,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 120,
+      alreadyIssued: 0,
+      balance: 0,
+      pointsUsed: 40,
+    });
+    assert.equal(plan.skipped, true);
+    assert.equal(plan.target, 0);
+    assert.equal(plan.delta, 0);
+    assert.equal(plan.writeMemberPoints, false);
+    assert.equal(plan.current, 0);
+  });
+
+  it("取消後應發改 0，依差額扣回，不另訂退款政策", () => {
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: false,
+      adjusted: true,
+      systemPoints: 0,
+      overridePoints: 100,
+      alreadyIssued: 100,
+      balance: 100,
+      totalEarned: 100,
+    });
+    assert.equal(plan.target, 0);
+    assert.equal(plan.delta, -100);
+    assert.equal(plan.current, 0);
+  });
+
+  it("餘額不足時沿用既有下限，不把不足額記成負數", () => {
+    const plan = planMemberEarnSync({
+      isAppMember: true,
+      eligible: true,
+      adjusted: true,
+      systemPoints: 100,
+      overridePoints: 20,
+      alreadyIssued: 100,
+      balance: 10,
+      totalEarned: 100,
+    });
+    assert.equal(plan.delta, -80);
+    assert.equal(plan.current, 0);
+    assert.equal(plan.clamped, true);
+    assert.equal(plan.nextIssued, 20);
   });
 });

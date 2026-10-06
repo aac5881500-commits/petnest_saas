@@ -50,6 +50,8 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
     return switch (HomeQuickBookingLayouts.migrate(setting.layout)) {
       HomeQuickBookingLayouts.compactCard => _compact(),
       HomeQuickBookingLayouts.singleLine => _single(),
+      HomeQuickBookingLayouts.spotlight => _spotlight(),
+      HomeQuickBookingLayouts.heroCta => _split(hero: true),
       _ => _split(),
     };
   }
@@ -223,7 +225,73 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
     );
   }
 
-  Widget _split() {
+  Widget _spotlight() {
+    return _shell(
+      child: InkWell(
+        key: const Key('home-quick-booking-card'),
+        onTap: _tap(onOpenAutomatic),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          child: Column(
+            crossAxisAlignment: _crossAlign,
+            children: <Widget>[
+              Text(
+                setting.entryTitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: _textAlign,
+                style: TextStyle(
+                  fontSize: 20,
+                  height: 1.25,
+                  fontWeight: FontWeight.w800,
+                  color: theme.textColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                setting.entrySubtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: _textAlign,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: theme.secondaryTextColor,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Align(
+                alignment: _textAlign == TextAlign.center
+                    ? Alignment.center
+                    : Alignment.centerLeft,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      setting.entryButton,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _split({bool hero = false}) {
     final List<_QuickDoor> doors = <_QuickDoor>[
       if (_stay)
         _QuickDoor(
@@ -279,16 +347,16 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
                         index++
                       ) ...<Widget>[
                         if (index > 0) const SizedBox(height: 8),
-                        _door(doors[index]),
+                        _door(doors[index], hero: hero),
                       ],
                     ],
                   );
                 }
                 return Row(
                   children: <Widget>[
-                    Expanded(child: _door(doors[0])),
+                    Expanded(child: _door(doors[0], hero: hero)),
                     const SizedBox(width: 8),
-                    Expanded(child: _door(doors[1])),
+                    Expanded(child: _door(doors[1], hero: hero)),
                   ],
                 );
               },
@@ -299,19 +367,23 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
     );
   }
 
-  Widget _door(_QuickDoor door) {
+  Widget _door(_QuickDoor door, {bool hero = false}) {
     return Material(
-      color: theme.primaryColor.withValues(alpha: 0.08),
+      color: hero
+          ? theme.primaryColor
+          : theme.primaryColor.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.cardBorderColor),
+        borderRadius: BorderRadius.circular(hero ? 16 : 12),
+        side: BorderSide(
+          color: hero ? theme.primaryColor : theme.cardBorderColor,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: door.key,
         onTap: door.onTap,
         child: SizedBox(
-          height: 56,
+          height: hero ? 84 : 56,
           width: double.infinity,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -319,7 +391,11 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 if (setting.showIcon) ...<Widget>[
-                  Icon(door.icon, size: 18, color: theme.primaryColor),
+                  Icon(
+                    door.icon,
+                    size: hero ? 22 : 18,
+                    color: hero ? Colors.white : theme.primaryColor,
+                  ),
                   const SizedBox(width: 6),
                 ],
                 Flexible(
@@ -328,8 +404,9 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
+                      fontSize: hero ? 16 : null,
                       fontWeight: FontWeight.w800,
-                      color: theme.textColor,
+                      color: hero ? Colors.white : theme.textColor,
                     ),
                   ),
                 ),

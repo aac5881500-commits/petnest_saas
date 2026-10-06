@@ -3,9 +3,11 @@
 // 功能說明：以實際退房／安親結束時間起算 24 小時，不因補退款重設。
 
 const admin = require("firebase-admin");
-const {normalizeString, toDate} = require("../daycare/daycare_utils");
+const {normalizeString, toDate, toInt} = require("../daycare/daycare_utils");
 
-const RETENTION_MS = 24 * 60 * 60 * 1000;
+const ALLOWED_RETENTION_HOURS = [12, 24, 48, 72];
+const DEFAULT_RETENTION_HOURS = 24;
+const RETENTION_MS = DEFAULT_RETENTION_HOURS * 60 * 60 * 1000;
 const STAMP_CHUNK = 40;
 const HOLD_MS_BASE = 15 * 60 * 1000;
 const HOLD_MS_MAX = 6 * 60 * 60 * 1000;
@@ -26,12 +28,49 @@ function actualServiceEnd(booking) {
     toDate(booking.completedAt);
 }
 
+function explicitRetentionHours(source) {
+  if (!source || source.downloadHoursAfterCheckout == null ||
+      source.downloadHoursAfterCheckout === "") {
+    return null;
+  }
+  const hours = toInt(source.downloadHoursAfterCheckout, 0);
+  if (ALLOWED_RETENTION_HOURS.indexOf(hours) < 0) {
+    return null;
+  }
+  return hours;
+}
+
+function retentionHours(booking) {
+  return explicitRetentionHours(booking) || DEFAULT_RETENTION_HOURS;
+}
+
+async function resolveRetentionHours(firestore, booking) {
+  const specified = explicitRetentionHours(booking);
+  if (specified != null) {
+    return specified;
+  }
+  const shopId = normalizeString(booking && booking.shopId);
+  if (!firestore || !shopId) {
+    return DEFAULT_RETENTION_HOURS;
+  }
+  try {
+    const snap = await firestore.collection("shops").doc(shopId).get();
+    if (!snap || snap.exists !== true) {
+      return DEFAULT_RETENTION_HOURS;
+    }
+    const setting = (snap.data() || {}).dailyCareSetting || {};
+    return explicitRetentionHours(setting) || DEFAULT_RETENTION_HOURS;
+  } catch (error) {
+    return DEFAULT_RETENTION_HOURS;
+  }
+}
+
 function computeExpiresAt(booking) {
   const end = actualServiceEnd(booking);
   if (!end) {
     return null;
   }
-  return new Date(end.getTime() + RETENTION_MS);
+  return new Date(end.getTime() + retentionHours(booking) * 60 * 60 * 1000);
 }
 
 function bookingEnded(booking) {
@@ -140,7 +179,25 @@ async function stampExpiresForBooking(firestore, bookingId, booking) {
   if (!bookingEnded(booking || {})) {
     return {updated: 0, skipped: 0, aligned: 0};
   }
-  const expires = computeExpiresAt(booking || {});
+  const hours = await resolveRetentionHours(firestore, booking || {});
+  const stampedBooking = {
+    ...(booking || {}),
+    downloadHoursAfterCheckout: hours,
+  };
+  if (explicitRetentionHours(booking) == null && bookingId) {
+    try {
+      const bookingRef = firestore.collection("bookings").doc(bookingId);
+      const existing = await bookingRef.get();
+      if (existing && existing.exists === true) {
+        await bookingRef.set({
+          downloadHoursAfterCheckout: hours,
+        }, {merge: true});
+      }
+    } catch (error) {
+      // 期限仍以本次計算為準；快照寫入失敗不阻擋照片 expiresAt。
+    }
+  }
+  const expires = computeExpiresAt(stampedBooking);
   if (!expires) {
     return {updated: 0, skipped: 0, aligned: 0};
   }
@@ -235,9 +292,14 @@ function assertStoragePath(path, shopId, bookingId, photoId) {
 
 module.exports = {
   RETENTION_MS,
+  DEFAULT_RETENTION_HOURS,
+  ALLOWED_RETENTION_HOURS,
   STAMP_CHUNK,
   isDaycare,
   actualServiceEnd,
+  explicitRetentionHours,
+  retentionHours,
+  resolveRetentionHours,
   computeExpiresAt,
   bookingEnded,
   sameTime,

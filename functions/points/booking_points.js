@@ -200,7 +200,9 @@ function computeEarnPoints(setting, booking, extras) {
 }
 
 /**
- * 店員調整後仍以系統計算為上限，避免退款後超發；未調整則用系統值。
+ * 未調整用系統點數；店員已調整則以 rewardPointsFinal 為應發點數。
+ * 不合格（未完成、待補／待退、取消）仍為 0，由 sync 依差額追回。
+ * 調整值可以高於或低於系統值，不再被系統點數卡住。
  * @param {Object} params
  * @return {number}
  */
@@ -212,7 +214,49 @@ function resolveFinalEarn(params) {
   if (params.adjusted !== true) {
     return systemPoints;
   }
-  return Math.min(Math.max(0, toInt(params.overridePoints, 0)), systemPoints);
+  return Math.max(0, toInt(params.overridePoints, 0));
+}
+
+/**
+ * 這張訂單應發點數減掉已發點數。餘額沿用既有 Math.max(0) 下限。
+ * 無 App 會員不寫 member_points；pointsUsed 不計入已發點數。
+ * @param {Object} params
+ * @return {Object}
+ */
+function planMemberEarnSync(params) {
+  const input = params || {};
+  const already = Math.max(0, toInt(input.alreadyIssued, 0));
+  const balance = Math.max(0, toInt(input.balance, 0));
+  const totalEarned = Math.max(0, toInt(input.totalEarned, 0));
+  if (input.isAppMember !== true) {
+    return {
+      target: 0,
+      delta: 0,
+      writeMemberPoints: false,
+      current: balance,
+      totalEarned,
+      nextIssued: 0,
+      skipped: true,
+    };
+  }
+  const target = resolveFinalEarn({
+    systemPoints: input.systemPoints,
+    eligible: input.eligible,
+    adjusted: input.adjusted,
+    overridePoints: input.overridePoints,
+  });
+  const delta = target - already;
+  const rawNext = balance + delta;
+  return {
+    target,
+    delta,
+    writeMemberPoints: delta !== 0,
+    current: Math.max(0, rawNext),
+    totalEarned: Math.max(0, totalEarned + delta),
+    nextIssued: target,
+    skipped: false,
+    clamped: rawNext < 0,
+  };
 }
 
 function earnStatusOf(params) {
@@ -254,6 +298,7 @@ module.exports = {
   isWalkInMember,
   computeEarnPoints,
   resolveFinalEarn,
+  planMemberEarnSync,
   earnStatusOf,
   channelOfBooking,
   toInt,

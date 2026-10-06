@@ -1012,6 +1012,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
                 itemBuilder: (context, index) {
                   final DailyCarePhotoModel photo = photos[index];
                   final String url = photo.previewUrl.trim();
+                  final bool ended = photo.retentionEnded;
 
                   return Stack(
                     children: <Widget>[
@@ -1020,7 +1021,21 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
                             color: Colors.grey.shade100,
-                            child: url.isEmpty
+                            child: ended
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(6),
+                                      child: Text(
+                                        '照片已到期清除',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : url.isEmpty
                                 ? const Center(
                                     child: Icon(
                                       Icons.photo_outlined,
@@ -1045,7 +1060,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
                       Positioned(
                         top: 4,
                         right: 4,
-                        child: _locked
+                        child: _locked || ended
                             ? const SizedBox.shrink()
                             : Material(
                                 color: Colors.black.withValues(alpha: 0.55),

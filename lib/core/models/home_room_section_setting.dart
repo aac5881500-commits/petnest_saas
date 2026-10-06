@@ -6,10 +6,12 @@ class HomeRoomSectionLayouts {
   static const String horizontalScroll = 'horizontalScroll';
   static const String cardGrid = 'cardGrid';
   static const String simpleEntry = 'simpleEntry';
+  static const String featured = 'featured';
   static const List<String> all = <String>[
     horizontalScroll,
     cardGrid,
     simpleEntry,
+    featured,
   ];
 
   static String label(String value) {
@@ -18,6 +20,8 @@ class HomeRoomSectionLayouts {
         return '卡片拼排';
       case simpleEntry:
         return '簡約入口';
+      case featured:
+        return '精選大圖';
       default:
         return '橫向滑動';
     }
@@ -36,6 +40,8 @@ class HomeRoomSectionLayouts {
         return cardGrid;
       case simpleEntry:
         return simpleEntry;
+      case featured:
+        return featured;
       default:
         return horizontalScroll;
     }

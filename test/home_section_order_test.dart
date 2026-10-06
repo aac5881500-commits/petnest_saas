@@ -52,6 +52,30 @@ void main() {
     expect(HomeSectionOrder.normalize(moved), moved);
   });
 
+  test('hiding store sections keeps their saved slots', () {
+    final List<String> saved = HomeSectionOrder.normalize(null);
+    final int featuredSlot = saved.indexOf('featured');
+    final int entranceSlot = saved.indexOf('storeEntrance');
+    final List<String> visible = HomeSectionOrder.visible(
+      saved,
+      showAnnouncements: true,
+      showFeatured: false,
+      showStoreEntrance: false,
+    );
+    expect(visible.contains('featured'), isFalse);
+    expect(visible.contains('storeEntrance'), isFalse);
+    final List<String> moved = HomeSectionOrder.reorderVisible(
+      saved: saved,
+      visible: visible,
+      oldIndex: 0,
+      newIndex: 2,
+    );
+    expect(moved.indexOf('featured'), featuredSlot);
+    expect(moved.indexOf('storeEntrance'), entranceSlot);
+    expect(moved.contains('featured'), isTrue);
+    expect(moved.contains('storeEntrance'), isTrue);
+  });
+
   test('hiding announcements keeps their saved slot', () {
     final List<String> saved = HomeSectionOrder.reorderVisible(
       saved: HomeSectionOrder.normalize(null),

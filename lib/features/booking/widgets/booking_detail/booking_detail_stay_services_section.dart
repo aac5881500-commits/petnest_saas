@@ -36,28 +36,49 @@ class BookingDetailStayServicesSection extends StatelessWidget {
       downloadHoursAfterCheckout,
     );
 
-    if (view.isDaycare) {
-      if (!daycareCareEnabled || view.status == 'cancelled') {
-        return const SizedBox.shrink();
-      }
-    } else if (view.status != 'checked_in' && view.status != 'completed') {
+    final bool canViewRecord = view.canViewDailyCareRecord(
+      daycareCareEnabled: daycareCareEnabled,
+    );
+    if (!canViewRecord) {
       return const SizedBox.shrink();
-    }
-
-    if (view.status == 'completed' && expired) {
-      return BookingDetailCard(
-        child: Text(
-          '照護照片下載期限已結束',
-          style: TextStyle(
-            fontSize: BookingDetailUi.bodySize,
-            color: BookingDetailUi.of(context).muted,
-          ),
-        ),
-      );
     }
 
     if (!canView) {
-      return const SizedBox.shrink();
+      final bool tellExpired =
+          expired ||
+          (view.isDaycare &&
+              (view.status == 'completed' || view.status == 'checked_out'));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          _sectionTitle(context),
+          _journalRow(context),
+          if (tellExpired)
+            BookingDetailCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '照片保存期限已結束',
+                    style: TextStyle(
+                      fontSize: BookingDetailUi.bodySize,
+                      fontWeight: FontWeight.w700,
+                      color: BookingDetailUi.of(context).text,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '照護紀錄仍會保留，照片已依保存期限自動清除。',
+                    style: TextStyle(
+                      fontSize: BookingDetailUi.bodySize,
+                      color: BookingDetailUi.of(context).muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
     }
 
     final String roomName = view.roomName;
@@ -66,37 +87,8 @@ class BookingDetailStayServicesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8, left: 2),
-          child: Text(
-            view.isDaycare ? '本次安親回報' : '入住期間服務',
-            style: TextStyle(
-              fontSize: BookingDetailUi.sectionTitleSize,
-              fontWeight: FontWeight.w700,
-              color: BookingDetailUi.of(context).text,
-            ),
-          ),
-        ),
-        BookingDetailEntryRow(
-          icon: Icons.pets_outlined,
-          title: view.isDaycare ? '本次安親回報' : '每日照護紀錄',
-          subtitle: view.isDaycare
-              ? '查看本次安親回報'
-              : (view.status == 'checked_in' ? '查看最新照護紀錄' : '查看住宿期間照護紀錄'),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => CustomerDailyCarePage(
-                  shopId: shopId,
-                  bookingId: bookingId,
-                  roomName: roomName,
-                  journalTitle: view.isDaycare ? '本次安親回報' : '每日照護紀錄',
-                ),
-              ),
-            );
-          },
-        ),
+        _sectionTitle(context),
+        _journalRow(context),
         BookingDetailEntryRow(
           icon: Icons.photo_library_outlined,
           title: '照護照片',
@@ -137,6 +129,45 @@ class BookingDetailStayServicesSection extends StatelessWidget {
         ),
         if (view.showCamera) CustomerCameraDetailEntry(bookingId: bookingId),
       ],
+    );
+  }
+
+  Widget _sectionTitle(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 2),
+      child: Text(
+        view.isDaycare ? '本次安親回報' : '入住期間服務',
+        style: TextStyle(
+          fontSize: BookingDetailUi.sectionTitleSize,
+          fontWeight: FontWeight.w700,
+          color: BookingDetailUi.of(context).text,
+        ),
+      ),
+    );
+  }
+
+  Widget _journalRow(BuildContext context) {
+    return BookingDetailEntryRow(
+      icon: Icons.pets_outlined,
+      title: view.isDaycare ? '本次安親回報' : '每日照護紀錄',
+      subtitle: view.isDaycare
+          ? '查看本次安親回報'
+          : (view.status == 'checked_in'
+                ? '查看最新照護紀錄'
+                : '查看住宿期間照護紀錄'),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => CustomerDailyCarePage(
+              shopId: view.shopId,
+              bookingId: bookingId,
+              roomName: view.roomName,
+              journalTitle: view.isDaycare ? '本次安親回報' : '每日照護紀錄',
+            ),
+          ),
+        );
+      },
     );
   }
 }

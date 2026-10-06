@@ -35,6 +35,7 @@ import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/custom_form/widgets/order_form_answers_view.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_completion_section.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_points_card.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_finance_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_preview.dart';
@@ -321,7 +322,11 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
               body: BookingDetailUi.constrain(
                 ListView(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(BookingDetailUi.pagePadding),
+                  padding: EdgeInsets.all(
+                    MediaQuery.sizeOf(context).width < 600
+                        ? 12
+                        : BookingDetailUi.pagePadding,
+                  ),
                   children: <Widget>[
                     BookingDetailSummaryCard(
                       view: view,
@@ -329,21 +334,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                       onContactShop: _scrollToMessageSection,
                       onRequestRefund: () => _onRequestRefund(view),
                     ),
-                    FutureBuilder<PreArrivalGuideModel>(
-                      future: _guideFuture,
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<PreArrivalGuideModel> guideSnap,
-                          ) {
-                            return BookingDetailPreparationSection(
-                              view: view,
-                              guide: guideSnap.data,
-                              onOpenTerms: () => _openTerms(view),
-                              onOpenPayment: _scrollToFinance,
-                            );
-                          },
-                    ),
+                    BookingDetailCustomerPetSection(data: data, view: view),
                     if (view.showCustomerSubmitFormOnCustomerPage)
                       OrderFormAnswersView(
                         orderRaw: view.customerSubmitFormRaw,
@@ -354,24 +345,6 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                         collapsible: true,
                         initiallyExpanded: false,
                       ),
-                    FutureBuilder<DailyCareSettingModel>(
-                      future: _dailyCareSettingFuture,
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<DailyCareSettingModel> careSnap,
-                          ) {
-                            final DailyCareSettingModel setting =
-                                careSnap.data ?? const DailyCareSettingModel();
-                            return BookingDetailStayServicesSection(
-                              view: view,
-                              bookingId: widget.docId,
-                              downloadHoursAfterCheckout:
-                                  setting.downloadHoursAfterCheckout,
-                              daycareCareEnabled: setting.daycareEnabled,
-                            );
-                          },
-                    ),
                     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       stream: shopId.isEmpty
                           ? const Stream.empty()
@@ -441,7 +414,40 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             );
                           },
                     ),
-                    BookingDetailCustomerPetSection(data: data, view: view),
+                    BookingDetailPointsCard(booking: data),
+                    FutureBuilder<DailyCareSettingModel>(
+                      future: _dailyCareSettingFuture,
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<DailyCareSettingModel> careSnap,
+                          ) {
+                            final DailyCareSettingModel setting =
+                                careSnap.data ?? const DailyCareSettingModel();
+                            return BookingDetailStayServicesSection(
+                              view: view,
+                              bookingId: widget.docId,
+                              downloadHoursAfterCheckout:
+                                  setting.downloadHoursAfterCheckout,
+                              daycareCareEnabled: setting.daycareEnabled,
+                            );
+                          },
+                    ),
+                    FutureBuilder<PreArrivalGuideModel>(
+                      future: _guideFuture,
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<PreArrivalGuideModel> guideSnap,
+                          ) {
+                            return BookingDetailPreparationSection(
+                              view: view,
+                              guide: guideSnap.data,
+                              onOpenTerms: () => _openTerms(view),
+                              onOpenPayment: _scrollToFinance,
+                            );
+                          },
+                    ),
                     BookingDetailMessagePreview(
                       view: view,
                       bookingId: widget.docId,

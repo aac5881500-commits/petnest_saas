@@ -27,6 +27,7 @@ import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_layout_canvas.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_about_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_faq_section.dart';
@@ -142,7 +143,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   static const Color _backgroundColor = Color(0xFFFFFCF7);
 
   late final Stream<Map<String, dynamic>?> _shopStream;
-  late final Stream<List<Map<String, dynamic>>> _roomTypesStream;
+  StreamSubscription<List<Map<String, dynamic>>>? _roomTypesSub;
+  List<Map<String, dynamic>>? _roomTypes;
+  bool _roomTypesFailed = false;
+  String? _roomShopId;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _announcementsStream;
   late final Stream<List<DiscountCampaignModel>> _campaignsStream;
   late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
@@ -181,7 +185,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   void initState() {
     super.initState();
     _shopStream = ShopService.instance.streamShop(widget.shopId);
-    _roomTypesStream = ShopService.instance.streamRoomTypes(widget.shopId);
+    _listenRoomTypes();
     _announcementsStream = FirebaseFirestore.instance
         .collection('shops')
         .doc(widget.shopId)
@@ -355,7 +359,47 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   }
 
   @override
+  void didUpdateWidget(ShopPublicModernPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _listenRoomTypes();
+    }
+  }
+
+  void _listenRoomTypes() {
+    _roomTypesSub?.cancel();
+    if (widget.shopId != _roomShopId) {
+      _roomTypes = null;
+      _roomTypesFailed = false;
+      _roomShopId = widget.shopId;
+    }
+    _roomTypesSub = ShopService.instance
+        .streamRoomTypes(widget.shopId)
+        .listen(
+          (List<Map<String, dynamic>> rooms) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _roomTypes = rooms;
+              _roomTypesFailed = false;
+            });
+          },
+          onError: (Object _) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _roomTypesFailed = true;
+              _roomTypes ??= const <Map<String, dynamic>>[];
+            });
+          },
+        );
+  }
+
+  @override
   void dispose() {
+    _roomTypesSub?.cancel();
     _announcementsSub.cancel();
     _campaignsSub.cancel();
     _policySub.cancel();
@@ -749,9 +793,16 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final bool accommodationAvailable = shop['bookingEnabled'] != false;
         final bool daycareAvailable = DaycareSettingsService.instance
             .isEnabledForShop(shop: shop, settings: _daycareSettings);
+        final bool showAnnouncementsOnHome =
+            showAnnouncements &&
+            !(newsPhase == HomeNewsSectionPhase.empty &&
+                !newsSection.showEmptyPlaceholder);
+        final bool showStayServiceStrip =
+            modernAppearance['showStayServiceStrip'] != false;
+        final bool storeModuleEnabled = StorefrontAccess.isModuleEnabled(shop);
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
-          showAnnouncements: showAnnouncements,
+          showAnnouncements: showAnnouncementsOnHome,
           showAbout: aboutVisible,
           showPolicy: homeInfoOccupiesSection(policyPhase),
           showFaq: homeInfoOccupiesSection(faqPhase),
@@ -763,6 +814,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             accommodationAvailable: accommodationAvailable,
             daycareAvailable: daycareAvailable,
           ),
+          showServices: showStayServiceStrip,
+          showFeatured:
+              storeModuleEnabled && storeHomeSetting.showFeaturedProducts,
+          showStoreEntrance:
+              storeModuleEnabled && storeHomeSetting.showStoreBanner,
         );
         Widget sectionBody(String sectionId) {
           return _homeSection(
@@ -1194,59 +1250,51 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required HomeRoomSectionSetting roomSection,
   }) {
     final bool preview = widget.layoutCanvas || widget.isPreview;
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _roomTypesStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return const SizedBox(
-            height: 120,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          );
-        }
-        return ModernHomeRoomSection(
-          theme: theme,
-          setting: roomSection,
-          roomTypes: snapshot.data ?? const <Map<String, dynamic>>[],
-          preview: preview,
-          loadFailed: snapshot.hasError,
-          selectedRoomTypeId: widget.selectedRoomTypeId,
-          onSelectRoomType: (String roomTypeId) {
-            widget.onSelectRoomType?.call(roomTypeId);
-            widget.onSelectSection?.call('rooms');
-          },
-          onOpenRoom: preview
-              ? null
-              : (Map<String, dynamic> roomType) {
-                  _openPage(
-                    RoomTypeDetailPage(
-                      shopId: widget.shopId,
-                      roomType: roomType,
-                      startDate: DateTime.now(),
-                      endDate: DateTime.now().add(const Duration(days: 1)),
-                      theme: theme,
-                      isIntroMode: true,
-                    ),
-                  );
-                },
-          onOpenAllRooms: preview
-              ? null
-              : () {
-                  _openPage(
-                    ShopRoomIntroPage(shopId: widget.shopId, theme: theme),
-                  );
-                },
-          onManageRooms: preview
-              ? () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ShopRoomTypePage(shopId: widget.shopId),
-                    ),
-                  );
-                }
-              : null,
-        );
+    if (_roomTypes == null && !_roomTypesFailed) {
+      return const SizedBox(
+        height: 120,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    return ModernHomeRoomSection(
+      theme: theme,
+      setting: roomSection,
+      roomTypes: _roomTypes ?? const <Map<String, dynamic>>[],
+      preview: preview,
+      loadFailed: _roomTypesFailed && (_roomTypes?.isEmpty ?? true),
+      selectedRoomTypeId: widget.selectedRoomTypeId,
+      onSelectRoomType: (String roomTypeId) {
+        widget.onSelectRoomType?.call(roomTypeId);
+        widget.onSelectSection?.call('rooms');
       },
+      onOpenRoom: preview
+          ? null
+          : (Map<String, dynamic> roomType) {
+              _openPage(
+                RoomTypeDetailPage(
+                  shopId: widget.shopId,
+                  roomType: roomType,
+                  startDate: DateTime.now(),
+                  endDate: DateTime.now().add(const Duration(days: 1)),
+                  theme: theme,
+                  isIntroMode: true,
+                ),
+              );
+            },
+      onOpenAllRooms: preview
+          ? null
+          : () {
+              _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
+            },
+      onManageRooms: preview
+          ? () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ShopRoomTypePage(shopId: widget.shopId),
+                ),
+              );
+            }
+          : null,
     );
   }
 

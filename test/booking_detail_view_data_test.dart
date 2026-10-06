@@ -367,6 +367,14 @@ void main() {
         ),
         isTrue,
       );
+      expect(view.canViewDailyCareRecord(), isTrue);
+      expect(
+        view.canViewDailyCare(
+          downloadHoursAfterCheckout: 24,
+          now: checkOut.add(const Duration(hours: 25)),
+        ),
+        isFalse,
+      );
     });
 
     test('舊訂單缺少新欄位不崩潰', () {

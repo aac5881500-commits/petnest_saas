@@ -81,17 +81,29 @@ class _CustomerDailyCareDownloadPageState
         final Map<String, dynamic> data =
             bookingSnapshot.data!.data() ?? <String, dynamic>{};
 
-        final dynamic rawCheckOutAt = data['checkOutAt'];
-
-        DateTime? checkOutAt;
-
-        if (rawCheckOutAt is Timestamp) {
-          checkOutAt = rawCheckOutAt.toDate();
-        } else if (rawCheckOutAt is DateTime) {
-          checkOutAt = rawCheckOutAt;
-        } else if (rawCheckOutAt is String) {
-          checkOutAt = DateTime.tryParse(rawCheckOutAt);
+        DateTime? readTime(dynamic raw) {
+          if (raw is Timestamp) {
+            return raw.toDate();
+          }
+          if (raw is DateTime) {
+            return raw;
+          }
+          if (raw is String) {
+            return DateTime.tryParse(raw);
+          }
+          return null;
         }
+
+        final bool daycare =
+            (data['bookingKind'] ?? '').toString() == 'daycare' ||
+            (data['serviceType'] ?? '').toString() == 'daycare';
+        final DateTime? serviceEnd = daycare
+            ? readTime(data['actualEndAt']) ??
+                  readTime(data['checkedOutAt']) ??
+                  readTime(data['completedAt'])
+            : readTime(data['checkOutAt']) ??
+                  readTime(data['checkedOutAt']) ??
+                  readTime(data['completedAt']);
 
         /// 已連結 App 的訂單會員，照片 metadata 齊備後即可下載。
         /// 沒有 userId 的手動會員不會開放公開下載。
@@ -109,16 +121,6 @@ class _CustomerDailyCareDownloadPageState
               ),
             ),
           );
-        }
-
-        DateTime? serviceEnd = checkOutAt;
-        if (serviceEnd == null) {
-          final dynamic rawActual = data['actualEndAt'] ?? data['completedAt'];
-          if (rawActual is Timestamp) {
-            serviceEnd = rawActual.toDate();
-          } else if (rawActual is DateTime) {
-            serviceEnd = rawActual;
-          }
         }
 
         return FutureBuilder<List<Object?>>(
@@ -165,13 +167,9 @@ class _CustomerDailyCareDownloadPageState
                 ? stayInfo.roomName
                 : roomName;
 
-            /// 真正下載截止時間：
-            ///
-            /// checkOutAt
-            /// +
-            /// 店主設定 downloadHoursAfterCheckout
+            final int retentionHours = setting.downloadHoursAfterCheckout;
             final DateTime? actualDownloadDeadline = serviceEnd?.add(
-              const Duration(hours: 24),
+              Duration(hours: retentionHours),
             );
 
             final bool isExpired =
@@ -214,8 +212,8 @@ class _CustomerDailyCareDownloadPageState
 
                     Text(
                       isExpired
-                          ? '照護資料下載期限已結束'
-                          : '照片上傳完成即可下載。期限自實際結束起算 24 小時，檔案稍後才由排程清除。',
+                          ? '照片保存期限已結束'
+                          : '照片上傳完成即可下載。期限自實際結束起算 $retentionHours 小時，到期後由系統排程清除照片。',
                     ),
 
                     const SizedBox(height: 8),
@@ -235,7 +233,7 @@ class _CustomerDailyCareDownloadPageState
 
                     Text(
                       actualDownloadDeadline == null
-                          ? '下載截止時間：服務結束後 24 小時'
+                          ? '下載截止時間：服務結束後 $retentionHours 小時'
                           : '下載截止時間：${_formatDateTime(actualDownloadDeadline)}',
                       style: TextStyle(
                         fontSize: 13,

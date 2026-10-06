@@ -1,521 +1,607 @@
 // 檔案名稱：lib/features/platform/pages/platform_shop_list_page.dart
-// 功能說明：平台店家列表頁
-// 功能：
-// 1. 顯示所有公開店家
-// 2. 點擊進入店家前台
-// 3. 之後可擴充搜尋 / 篩選 / 排序
+// 功能說明：探索好店。首頁只逛店，會員功能收在左側可收合浮層。
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/auth/pages/login_page.dart';
+import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
+import 'package:petnest_saas/features/platform/widgets/compact_shop_card.dart';
+import 'package:petnest_saas/features/platform/widgets/explore_section_header.dart';
+import 'package:petnest_saas/features/platform/widgets/explore_sidebar.dart';
+import 'package:petnest_saas/features/platform/widgets/my_shops_section.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class PlatformShopListPage extends StatelessWidget {
+class PlatformShopListPage extends StatefulWidget {
   const PlatformShopListPage({super.key});
 
-  String _businessTypeLabel(String value) {
-    switch (value) {
-      case 'cat_hotel':
-        return '貓咪旅店';
-      case 'dog_hotel':
-        return '狗狗旅店';
-      case 'grooming':
-        return '美容';
-      case 'hospital':
-        return '動物醫院';
-      case 'shop':
-        return '寵物賣場';
-      default:
-        return '其他';
-    }
+  @override
+  State<PlatformShopListPage> createState() => _PlatformShopListPageState();
+}
+
+class _PlatformShopListPageState extends State<PlatformShopListPage> {
+  static const List<String> _categories = <String>[
+    '全部',
+    '貓咪旅宿',
+    '狗狗旅宿',
+    '寵物美容',
+    '動物醫院',
+  ];
+
+  final TextEditingController _search = TextEditingController();
+  final ScrollController _scroll = ScrollController();
+  final Map<String, Future<QuerySnapshot<Map<String, dynamic>>>> _reviews =
+      <String, Future<QuerySnapshot<Map<String, dynamic>>>>{};
+  String? _stayUid;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _stayStream;
+  String _category = '全部';
+  bool _openOnly = false;
+  bool _memberOpen = false;
+  bool _showRecentEmpty = false;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _scroll.dispose();
+    super.dispose();
   }
 
-  String _moduleLabel(String value) {
-    switch (value) {
-      case 'cat_hotel':
-        return '貓咪旅宿';
-      case 'dog_hotel':
-        return '狗狗旅宿';
-      case 'grooming':
-        return '寵物美容';
-      case 'hospital':
-        return '動物醫院';
-      case 'shop':
-        return '寵物賣場';
-      default:
-        return value;
-    }
+  void _toast(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _openMap(String address) async {
-    if (address.trim().isEmpty) return;
+  Future<void> _requireLogin(VoidCallback next) async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      next();
+      return;
+    }
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+    );
+  }
 
-    final uri = Uri.parse(
+  void _openShop(String shopId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => ShopPublicPage(shopId: shopId)),
+    );
+  }
+
+  void _bookAgain(String shopId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ShopBookingEntryPage(shopId: shopId),
+      ),
+    );
+  }
+
+  void _openBookings() {
+    _requireLogin(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const MyBookingsPage()),
+      );
+    });
+  }
+
+  Future<void> _openMapFor(String address) async {
+    if (address.trim().isEmpty) {
+      _toast('這間店還沒有地址');
+      return;
+    }
+    final Uri uri = Uri.parse(
       'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
     );
-
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  bool _isShopOpenNow(Map<String, dynamic> data) {
-    final manualOpen = data['isOpen'] == true;
-    if (!manualOpen) return false;
+  void _showMap(List<_ExploreShop> shops) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: ListView(
+            children: <Widget>[
+              const ListTile(title: Text('地圖找店')),
+              if (shops.isEmpty) const ListTile(title: Text('目前沒有可顯示在地圖的店家')),
+              for (final _ExploreShop shop in shops)
+                ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: Text(
+                    shop.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    shop.area,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openMapFor(shop.fullAddress);
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-    final openTime = data['openTime']?.toString() ?? '';
-    final closeTime = data['closeTime']?.toString() ?? '';
+  void _showFilters() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setSheet) {
+              return SwitchListTile(
+                title: const Text('只看營業中'),
+                value: _openOnly,
+                onChanged: (bool value) {
+                  setState(() {
+                    _openOnly = value;
+                  });
+                  setSheet(() {});
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 
-    if (openTime.isEmpty || closeTime.isEmpty) {
-      return manualOpen;
+  Future<QuerySnapshot<Map<String, dynamic>>> _reviewFuture(String shopId) {
+    return _reviews.putIfAbsent(shopId, () {
+      return FirebaseFirestore.instance
+          .collection('reviews')
+          .where('shopId', isEqualTo: shopId)
+          .where('status', isEqualTo: 'visible')
+          .get();
+    });
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _memberStays() {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return null;
     }
-
-    final now = TimeOfDay.now();
-
-    TimeOfDay? parseTime(String value) {
-      final parts = value.split(':');
-      if (parts.length != 2) return null;
-
-      final hour = int.tryParse(parts[0]);
-      final minute = int.tryParse(parts[1]);
-
-      if (hour == null || minute == null) return null;
-
-      return TimeOfDay(hour: hour, minute: minute);
+    if (_stayUid != user.uid || _stayStream == null) {
+      _stayUid = user.uid;
+      _stayStream = FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .limit(30)
+          .snapshots();
     }
+    return _stayStream;
+  }
 
-    final open = parseTime(openTime);
-    final close = parseTime(closeTime);
+  void _toggleMember() {
+    setState(() {
+      _memberOpen = !_memberOpen;
+    });
+  }
 
-    if (open == null || close == null) return manualOpen;
+  void _closeMember() {
+    if (!_memberOpen) {
+      return;
+    }
+    setState(() {
+      _memberOpen = false;
+    });
+  }
 
-    final nowMinutes = now.hour * 60 + now.minute;
-    final openMinutes = open.hour * 60 + open.minute;
-    final closeMinutes = close.hour * 60 + close.minute;
+  void _openRecent() {
+    setState(() {
+      _memberOpen = true;
+      _showRecentEmpty = true;
+    });
+  }
 
-    return nowMinutes >= openMinutes && nowMinutes <= closeMinutes;
+  List<_ExploreShop> _visible(List<_ExploreShop> shops) {
+    final String keyword = _search.text.trim().toLowerCase();
+    return shops.where((_ExploreShop shop) {
+      if (_openOnly && !shop.isOpen) {
+        return false;
+      }
+      if (_category != '全部' && !shop.services.contains(_category)) {
+        return false;
+      }
+      if (keyword.isEmpty) {
+        return true;
+      }
+      final String haystack =
+          '${shop.name} ${shop.area} ${shop.fullAddress} ${shop.services.join(' ')}'
+              .toLowerCase();
+      return haystack.contains(keyword);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('平台找店'),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.map_outlined, size: 18),
-            label: const Text('地圖'),
-          ),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.tune, size: 18),
-            label: const Text('篩選'),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('shops')
             .where('isPublic', isEqualTo: true)
             .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-
-          if (docs.isEmpty) {
-            return const Center(child: Text('目前沒有公開店家'));
-          }
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, size: 20, color: Colors.grey.shade500),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: '搜尋店名、地區或服務',
-                            hintStyle: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 14,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SizedBox(
-                height: 42,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                  children: const [
-                    _QuickFilterChip(label: '全部', selected: true),
-                    SizedBox(width: 8),
-                    _QuickFilterChip(label: '貓咪旅宿'),
-                    SizedBox(width: 8),
-                    _QuickFilterChip(label: '寵物美容'),
-                    SizedBox(width: 8),
-                    _QuickFilterChip(label: '動物醫院'),
-                  ],
-                ),
-              ),
-
-              Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.68,
-                  ),
-
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-
-                    final data = doc.data() as Map<String, dynamic>;
-
-                    final city = data['city'] ?? '';
-                    final district = data['district'] ?? '';
-                    final address = data['address'] ?? '';
-
-                    final fullAddress = '$city$district$address';
-                    final enabledModules =
-                        List<String>.from(data['enabledModules'] ?? []).where((
-                          item,
-                        ) {
-                          return item != 'basic_info' && item != 'reports';
-                        }).toList();
-                    final platformHomeCoverUrl =
-                        data['platformHomeCoverUrl']?.toString() ?? '';
-                    final logoUrl =
-                        data['platformHomeLogoUrl']?.toString() ?? '';
-
-                    final coverUrl = platformHomeCoverUrl.isNotEmpty
-                        ? platformHomeCoverUrl
-                        : data['coverUrl']?.toString() ?? '';
-
-                    final isOpen = _isShopOpenNow(data);
-                    final openTime = data['openTime']?.toString() ?? '';
-                    final closeTime = data['closeTime']?.toString() ?? '';
-                    final businessTimeText =
-                        openTime.isNotEmpty && closeTime.isNotEmpty
-                        ? '$openTime - $closeTime'
-                        : '尚未設定營業時間';
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(20),
-
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ShopPublicPage(shopId: doc.id),
-                          ),
-                        );
-                      },
-
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(18),
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 120,
-                                        width: double.infinity,
-                                        color: Colors.grey.shade200,
-                                        child: coverUrl.isNotEmpty
-                                            ? Image.network(
-                                                coverUrl,
-                                                fit: BoxFit.cover,
-                                              )
-                                            : const Center(
-                                                child: Icon(
-                                                  Icons.store,
-                                                  color: Colors.black26,
-                                                  size: 38,
-                                                ),
-                                              ),
-                                      ),
-
-                                      Positioned(
-                                        left: 12,
-                                        top: 12,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: isOpen
-                                                ? Colors.green.shade50
-                                                : Colors.red.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              30,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            isOpen ? '營業中' : '休息中',
-                                            style: TextStyle(
-                                              color: isOpen
-                                                  ? Colors.green.shade700
-                                                  : Colors.red.shade700,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Positioned(
-                                  left: 14,
-                                  bottom: -18,
-                                  child: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
-                                      image: logoUrl.isNotEmpty
-                                          ? DecorationImage(
-                                              image: NetworkImage(logoUrl),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                    ),
-                                    child: logoUrl.isEmpty
-                                        ? const Icon(
-                                            Icons.pets,
-                                            size: 22,
-                                            color: Colors.black38,
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 28),
-
-                            Text(
-                              data['name'] ?? '未命名店家',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            _ShopReviewSummary(shopId: doc.id),
-
-                            const SizedBox(height: 6),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '$city $district',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-
-                                InkWell(
-                                  onTap: () => _openMap(fullAddress),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    child: Icon(
-                                      Icons.location_on,
-                                      size: 18,
-                                      color: Colors.blue.shade600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: enabledModules.isEmpty
-                                  ? [
-                                      _ServiceChip(
-                                        label: _businessTypeLabel(
-                                          data['businessType']?.toString() ??
-                                              '',
-                                        ),
-                                      ),
-                                    ]
-                                  : enabledModules
-                                        .map(
-                                          (module) => _ServiceChip(
-                                            label: _moduleLabel(module),
-                                          ),
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+            ) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final List<_ExploreShop> shops = (snapshot.data?.docs ?? [])
+                  .map(_ExploreShop.fromDoc)
+                  .toList();
+              return LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final double width = constraints.maxWidth;
+                  final bool desktop = width >= 900;
+                  final List<_ExploreShop> visible = _visible(shops);
+                  final Widget content = _ExploreBody(
+                    screenWidth: width,
+                    desktop: desktop,
+                    shops: shops,
+                    visible: visible,
+                    search: _search,
+                    category: _category,
+                    categories: _categories,
+                    openOnly: _openOnly,
+                    scroll: _scroll,
+                    onSearch: () => setState(() {}),
+                    onCategory: (String value) =>
+                        setState(() => _category = value),
+                    onOpenOnly: (bool value) =>
+                        setState(() => _openOnly = value),
+                    onBack: Navigator.canPop(context)
+                        ? () => Navigator.pop(context)
+                        : null,
+                    onMap: () => _showMap(visible),
+                    onFilter: _showFilters,
+                    onOpenShop: _openShop,
+                    onFavorites: () {
+                      _requireLogin(() => _toast('收藏功能準備中'));
+                    },
+                    reviewFuture: _reviewFuture,
+                  );
+                  final double panelWidth = desktop
+                      ? 232
+                      : (width * 0.78).clamp(220, 300).toDouble();
+                  final Stream<QuerySnapshot<Map<String, dynamic>>>? stays =
+                      _memberStays();
+                  final Map<String, _ExploreShop> byId = <String, _ExploreShop>{
+                    for (final _ExploreShop shop in shops) shop.id: shop,
+                  };
+                  return SafeArea(
+                    child: stays == null
+                        ? _ExploreShell(
+                            desktop: desktop,
+                            panelWidth: panelWidth,
+                            memberOpen: _memberOpen,
+                            showRecentEmpty: _showRecentEmpty,
+                            stays: const <ExploreStayShop>[],
+                            loggedIn: false,
+                            content: content,
+                            onToggle: _toggleMember,
+                            onClose: _closeMember,
+                            onMyStays: () {
+                              _requireLogin(() {
+                                setState(() => _memberOpen = true);
+                              });
+                            },
+                            onBookings: () {
+                              _closeMember();
+                              _openBookings();
+                            },
+                            onFavorites: () {
+                              _requireLogin(() => _toast('收藏功能準備中'));
+                            },
+                            onRecent: _openRecent,
+                            onOpenStay: _openShop,
+                          )
+                        : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: stays,
+                            builder:
+                                (
+                                  BuildContext context,
+                                  AsyncSnapshot<
+                                    QuerySnapshot<Map<String, dynamic>>
+                                  >
+                                  staySnapshot,
+                                ) {
+                                  final List<ExploreStayShop> grouped =
+                                      staySnapshot.hasData
+                                      ? _groupStays(
+                                          staySnapshot.data!.docs,
+                                          byId,
                                         )
-                                        .toList(),
-                            ),
-                            const Spacer(),
-
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.schedule,
-                                  size: 14,
-                                  color: Colors.grey.shade500,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    businessTimeText,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                                      : const <ExploreStayShop>[];
+                                  return _ExploreShell(
+                                    desktop: desktop,
+                                    panelWidth: panelWidth,
+                                    memberOpen: _memberOpen,
+                                    showRecentEmpty: _showRecentEmpty,
+                                    stays: grouped,
+                                    loggedIn: true,
+                                    stayError: staySnapshot.hasError,
+                                    content: content,
+                                    onToggle: _toggleMember,
+                                    onClose: _closeMember,
+                                    onMyStays: () {
+                                      if (grouped.isEmpty) {
+                                        setState(() => _memberOpen = true);
+                                        return;
+                                      }
+                                      _closeMember();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => MyStayShopsPage(
+                                            shops: grouped,
+                                            onOpen: (ExploreStayShop shop) {
+                                              Navigator.pop(context);
+                                              _openShop(shop.shopId);
+                                            },
+                                            onBookAgain:
+                                                (ExploreStayShop shop) =>
+                                                    _bookAgain(shop.shopId),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    onBookings: () {
+                                      _closeMember();
+                                      _openBookings();
+                                    },
+                                    onFavorites: () {
+                                      _requireLogin(() => _toast('收藏功能準備中'));
+                                    },
+                                    onRecent: _openRecent,
+                                    onOpenStay: _openShop,
+                                  );
+                                },
+                          ),
+                  );
+                },
+              );
+            },
       ),
     );
   }
 }
 
-class _ShopReviewSummary extends StatelessWidget {
-  const _ShopReviewSummary({required this.shopId});
+class _ExploreBody extends StatelessWidget {
+  const _ExploreBody({
+    required this.screenWidth,
+    required this.desktop,
+    required this.shops,
+    required this.visible,
+    required this.search,
+    required this.category,
+    required this.categories,
+    required this.openOnly,
+    required this.scroll,
+    required this.onSearch,
+    required this.onCategory,
+    required this.onOpenOnly,
+    required this.onBack,
+    required this.onMap,
+    required this.onFilter,
+    required this.onOpenShop,
+    required this.onFavorites,
+    required this.reviewFuture,
+  });
 
-  final String shopId;
+  final double screenWidth;
+  final bool desktop;
+  final List<_ExploreShop> shops;
+  final List<_ExploreShop> visible;
+  final TextEditingController search;
+  final String category;
+  final List<String> categories;
+  final bool openOnly;
+  final ScrollController scroll;
+  final VoidCallback onSearch;
+  final ValueChanged<String> onCategory;
+  final ValueChanged<bool> onOpenOnly;
+  final VoidCallback? onBack;
+  final VoidCallback onMap;
+  final VoidCallback onFilter;
+  final ValueChanged<String> onOpenShop;
+  final VoidCallback onFavorites;
+  final Future<QuerySnapshot<Map<String, dynamic>>> Function(String shopId)
+  reviewFuture;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance
-          .collection('reviews')
-          .where('shopId', isEqualTo: shopId)
-          .where('status', isEqualTo: 'visible')
-          .get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Text(
-            '評價載入中',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return Text(
-            '尚無評價',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-        }
-
-        double total = 0;
-
-        for (final doc in docs) {
-          final data = doc.data();
-          total += ((data['rating'] ?? 0) as num).toDouble();
-        }
-
-        final average = total / docs.length;
-
-        return Row(
-          children: [
-            const Icon(Icons.star, size: 15, color: Color(0xFFFFB300)),
-            const SizedBox(width: 3),
-            Expanded(
-              child: Text(
-                '${average.toStringAsFixed(1)}（${docs.length}）',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF444444),
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final TextTheme text = Theme.of(context).textTheme;
+    final double textScale = MediaQuery.textScalerOf(context).scale(1);
+    final double imageAspect = desktop ? 1.72 : 1.65;
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double gridWidth = constraints.maxWidth;
+        final int columns = exploreShopColumns(screenWidth);
+        final double aspect = compactShopCardAspectRatio(
+          gridWidth: gridWidth,
+          columns: columns,
+          textScale: textScale,
+          imageAspect: imageAspect,
+          roomy: desktop,
+        );
+        return Column(
+          children: <Widget>[
+            if (!desktop)
+              _PhoneHeader(onBack: onBack, onMap: onMap, onFilter: onFilter)
+            else if (onBack != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back),
                 ),
+              ),
+            Expanded(
+              child: CustomScrollView(
+                controller: scroll,
+                slivers: <Widget>[
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(16, desktop ? 20 : 4, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 46,
+                        child: TextField(
+                          controller: search,
+                          onChanged: (_) => onSearch(),
+                          style: text.bodyMedium,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: '搜尋店名、地區或服務',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            filled: true,
+                            fillColor: colors.surface,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: colors.outlineVariant,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: colors.outlineVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 48,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        itemCount: categories.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (BuildContext context, int index) {
+                          final String label = categories[index];
+                          return _CategoryChip(
+                            label: label,
+                            selected: label == category,
+                            onTap: () => onCategory(label),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        children: <Widget>[
+                          _CategoryChip(
+                            label: '營業中',
+                            selected: openOnly,
+                            onTap: () => onOpenOnly(!openOnly),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: ExploreSectionHeader(title: '探索更多店家'),
+                    ),
+                  ),
+                  if (shops.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: Text('目前沒有公開店家')),
+                    )
+                  else if (visible.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              '沒有找到符合條件的店家',
+                              style: text.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '試試其他關鍵字或分類',
+                              style: text.bodyMedium?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: aspect,
+                        ),
+                        delegate: SliverChildBuilderDelegate((
+                          BuildContext context,
+                          int index,
+                        ) {
+                          final _ExploreShop shop = visible[index];
+                          return CompactShopCard(
+                            name: shop.name,
+                            imageUrl: shop.coverUrl,
+                            logoUrl: shop.logoUrl,
+                            isOpen: shop.isOpen,
+                            hours: shop.hoursLabel,
+                            roomy: desktop,
+                            services: compactServiceLine(shop.services),
+                            onTap: () => onOpenShop(shop.id),
+                            onFavorite: onFavorites,
+                            meta: _RatingLine(
+                              area: shop.area,
+                              future: reviewFuture(shop.id),
+                              fontSize: desktop ? 12.5 : 11.5,
+                            ),
+                          );
+                        }, childCount: visible.length),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
@@ -525,56 +611,472 @@ class _ShopReviewSummary extends StatelessWidget {
   }
 }
 
-class _ServiceChip extends StatelessWidget {
-  const _ServiceChip({required this.label});
+class _ExploreShell extends StatelessWidget {
+  const _ExploreShell({
+    required this.desktop,
+    required this.panelWidth,
+    required this.memberOpen,
+    required this.showRecentEmpty,
+    required this.stays,
+    required this.loggedIn,
+    required this.content,
+    required this.onToggle,
+    required this.onClose,
+    required this.onMyStays,
+    required this.onBookings,
+    required this.onFavorites,
+    required this.onRecent,
+    required this.onOpenStay,
+    this.stayError = false,
+  });
 
-  final String label;
+  final bool desktop;
+  final double panelWidth;
+  final bool memberOpen;
+  final bool showRecentEmpty;
+  final List<ExploreStayShop> stays;
+  final bool loggedIn;
+  final Widget content;
+  final VoidCallback onToggle;
+  final VoidCallback onClose;
+  final VoidCallback onMyStays;
+  final VoidCallback onBookings;
+  final VoidCallback onFavorites;
+  final VoidCallback onRecent;
+  final ValueChanged<String> onOpenStay;
+  final bool stayError;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF3FF),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF1565C0),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
+    final double panelLeft = memberOpen
+        ? (desktop ? 56 : 0)
+        : (desktop ? 56 - panelWidth : -panelWidth);
+    return Stack(
+      children: <Widget>[
+        Padding(
+          padding: EdgeInsets.only(left: desktop ? 56 : 0),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: content,
+            ),
+          ),
+        ),
+        if (memberOpen)
+          Positioned(
+            left: desktop ? 56 + panelWidth : panelWidth,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClose,
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: desktop ? 0.04 : 0.16),
+              ),
+            ),
+          ),
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          left: panelLeft,
+          top: 0,
+          bottom: 0,
+          width: panelWidth,
+          child: IgnorePointer(
+            ignoring: !memberOpen,
+            child: ExploreMemberPanel(
+              onClose: onClose,
+              onMyStays: onMyStays,
+              onBookings: onBookings,
+              onFavorites: onFavorites,
+              onRecent: onRecent,
+              stays: stays,
+              loggedIn: loggedIn,
+              stayError: stayError,
+              showRecentEmpty: showRecentEmpty,
+              onOpenStay: (ExploreStayShop shop) {
+                onClose();
+                onOpenStay(shop.shopId);
+              },
+            ),
+          ),
+        ),
+        if (desktop)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 56,
+            child: ExploreMemberRail(
+              onToggle: onToggle,
+              onMyStays: onMyStays,
+              onBookings: onBookings,
+              onFavorites: onFavorites,
+              onRecent: onRecent,
+            ),
+          )
+        else if (!memberOpen)
+          Positioned(
+            left: 0,
+            top: 248,
+            child: ExplorePawHandle(onTap: onToggle),
+          ),
+      ],
+    );
+  }
+}
+
+class _PhoneHeader extends StatelessWidget {
+  const _PhoneHeader({
+    required this.onBack,
+    required this.onMap,
+    required this.onFilter,
+  });
+
+  final VoidCallback? onBack;
+  final VoidCallback onMap;
+  final VoidCallback onFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme text = Theme.of(context).textTheme;
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: <Widget>[
+            if (onBack != null)
+              IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back))
+            else
+              const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '探索好店',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onMap,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+              ),
+              icon: const Icon(Icons.map_outlined, size: 18),
+              label: const Text('地圖'),
+            ),
+            TextButton.icon(
+              onPressed: onFilter,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+              ),
+              icon: const Icon(Icons.tune, size: 18),
+              label: const Text('篩選'),
+            ),
+            const SizedBox(width: 4),
+          ],
         ),
       ),
     );
   }
 }
 
-class _QuickFilterChip extends StatelessWidget {
-  const _QuickFilterChip({required this.label, this.selected = false});
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: selected ? const Color(0xFF1565C0) : Colors.white,
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? colors.primary : colors.surface,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: selected ? const Color(0xFF1565C0) : Colors.grey.shade200,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.grey.shade700,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? colors.primary : colors.outlineVariant,
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(
+              color: selected ? colors.onPrimary : colors.onSurface,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+List<ExploreStayShop> _groupStays(
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  Map<String, _ExploreShop> shops,
+) {
+  final Map<String, int> counts = <String, int>{};
+  final Map<String, DateTime?> latest = <String, DateTime?>{};
+  final Map<String, String> names = <String, String>{};
+  for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in docs) {
+    final Map<String, dynamic> data = doc.data();
+    final String shopId = (data['shopId'] ?? '').toString().trim();
+    if (shopId.isEmpty) {
+      continue;
+    }
+    counts[shopId] = (counts[shopId] ?? 0) + 1;
+    final DateTime? when =
+        _readDate(data['startDate']) ?? _readDate(data['createdAt']);
+    final DateTime? current = latest[shopId];
+    if (when != null && (current == null || when.isAfter(current))) {
+      latest[shopId] = when;
+    }
+    final String bookedName = (data['shopName'] ?? '').toString().trim();
+    if (bookedName.isNotEmpty) {
+      names[shopId] = bookedName;
+    }
+  }
+  final List<String> ids = counts.keys.toList()
+    ..sort((String a, String b) {
+      final DateTime left = latest[a] ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime right =
+          latest[b] ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return right.compareTo(left);
+    });
+  return <ExploreStayShop>[
+    for (final String id in ids)
+      ExploreStayShop(
+        shopId: id,
+        name: shops[id]?.name ?? names[id] ?? '旅店',
+        imageUrl: shops[id]?.coverUrl ?? '',
+        count: counts[id] ?? 0,
+        latest: latest[id],
+      ),
+  ];
+}
+
+DateTime? _readDate(Object? value) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is String) {
+    return DateTime.tryParse(value);
+  }
+  return null;
+}
+
+class _RatingLine extends StatelessWidget {
+  const _RatingLine({
+    required this.area,
+    required this.future,
+    required this.fontSize,
+  });
+
+  final String area;
+  final Future<QuerySnapshot<Map<String, dynamic>>> future;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      future: future,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+          ) {
+            String prefix = '尚無評價';
+            final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                snapshot.data?.docs ??
+                <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            if (docs.isNotEmpty) {
+              double total = 0;
+              for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+                  in docs) {
+                total += ((doc.data()['rating'] ?? 0) as num).toDouble();
+              }
+              prefix =
+                  '★ ${(total / docs.length).toStringAsFixed(1)} · ${docs.length} 則';
+            }
+            final String place = area.trim().isEmpty ? '地區未填' : area.trim();
+            return Text(
+              '$prefix · $place',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: fontSize,
+                height: 1.15,
+                color: colors.onSurfaceVariant,
+              ),
+            );
+          },
+    );
+  }
+}
+
+class _ExploreShop {
+  const _ExploreShop({
+    required this.id,
+    required this.name,
+    required this.city,
+    required this.district,
+    required this.address,
+    required this.coverUrl,
+    required this.logoUrl,
+    required this.isOpen,
+    required this.openTime,
+    required this.closeTime,
+    required this.services,
+  });
+
+  final String id;
+  final String name;
+  final String city;
+  final String district;
+  final String address;
+  final String coverUrl;
+  final String logoUrl;
+  final bool isOpen;
+  final String openTime;
+  final String closeTime;
+  final List<String> services;
+
+  String get hoursLabel {
+    final String open = openTime.trim();
+    final String close = closeTime.trim();
+    if (open.isEmpty || close.isEmpty) {
+      return '';
+    }
+    return '$open–$close';
+  }
+
+  String get area {
+    final String cityText = city.trim();
+    final String districtText = district.trim();
+    if (cityText.isEmpty) {
+      return districtText;
+    }
+    if (districtText.isEmpty) {
+      return cityText;
+    }
+    return '$cityText$districtText';
+  }
+
+  String get fullAddress => '$city$district$address';
+
+  static _ExploreShop fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final Map<String, dynamic> data = doc.data();
+    final List<String> modules =
+        List<String>.from(data['enabledModules'] ?? <dynamic>[])
+            .where((String item) => item != 'basic_info' && item != 'reports')
+            .toList();
+    final List<String> labels = modules.isEmpty
+        ? <String>[_typeLabel(data['businessType']?.toString() ?? '')]
+        : modules.map(_moduleLabel).toList();
+    final String platformCover = data['platformHomeCoverUrl']?.toString() ?? '';
+    return _ExploreShop(
+      id: doc.id,
+      name: (data['name'] ?? '未命名店家').toString(),
+      city: (data['city'] ?? '').toString(),
+      district: (data['district'] ?? '').toString(),
+      address: (data['address'] ?? '').toString(),
+      coverUrl: platformCover.isNotEmpty
+          ? platformCover
+          : data['coverUrl']?.toString() ?? '',
+      logoUrl: data['platformHomeLogoUrl']?.toString() ?? '',
+      isOpen: _isOpenNow(data),
+      openTime: data['openTime']?.toString() ?? '',
+      closeTime: data['closeTime']?.toString() ?? '',
+      services: labels,
+    );
+  }
+}
+
+String _moduleLabel(String value) {
+  switch (value) {
+    case 'cat_hotel':
+      return '貓咪旅宿';
+    case 'dog_hotel':
+      return '狗狗旅宿';
+    case 'grooming':
+      return '寵物美容';
+    case 'hospital':
+      return '動物醫院';
+    case 'shop':
+      return '寵物賣場';
+    default:
+      return value;
+  }
+}
+
+String _typeLabel(String value) {
+  switch (value) {
+    case 'cat_hotel':
+      return '貓咪旅宿';
+    case 'dog_hotel':
+      return '狗狗旅宿';
+    case 'grooming':
+      return '寵物美容';
+    case 'hospital':
+      return '動物醫院';
+    case 'shop':
+      return '寵物賣場';
+    default:
+      return '其他';
+  }
+}
+
+bool _isOpenNow(Map<String, dynamic> data) {
+  if (data['isOpen'] != true) {
+    return false;
+  }
+  final String openTime = data['openTime']?.toString() ?? '';
+  final String closeTime = data['closeTime']?.toString() ?? '';
+  if (openTime.isEmpty || closeTime.isEmpty) {
+    return true;
+  }
+  int? minutes(String value) {
+    final List<String> parts = value.split(':');
+    if (parts.length != 2) {
+      return null;
+    }
+    final int? hour = int.tryParse(parts[0]);
+    final int? minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) {
+      return null;
+    }
+    return hour * 60 + minute;
+  }
+
+  final int? open = minutes(openTime);
+  final int? close = minutes(closeTime);
+  if (open == null || close == null) {
+    return true;
+  }
+  final DateTime now = DateTime.now();
+  final int current = now.hour * 60 + now.minute;
+  return current >= open && current <= close;
 }
