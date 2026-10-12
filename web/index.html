@@ -19,19 +19,113 @@
   <meta charset="UTF-8">
 <meta name="google-signin-client_id" content="38879325834-0jhudhp878ic9fpvktclokm8lacpjl62.apps.googleusercontent.com">
 <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="PetNest 寵物旅宿管理">
+  <meta name="theme-color" content="#FFF8F0">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="petnest_saas">
+  <meta name="apple-mobile-web-app-title" content="PetNest">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>petnest_saas</title>
+  <title>PetNest</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // 記住瀏覽器的安裝提示，讓 Flutter 在店主點「下載電腦版」時呼叫。
+    // 不註冊額外的 Service Worker，避免和 Flutter 產生的更新機制互相覆蓋。
+    (function () {
+      var deferredPrompt = null;
+      var storageKey = 'petnest-pwa-installed';
+
+      function remembered() {
+        try {
+          return window.localStorage.getItem(storageKey) === '1';
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function rememberInstalled() {
+        try {
+          window.localStorage.setItem(storageKey, '1');
+        } catch (error) {}
+      }
+
+      function forgetInstalled() {
+        try {
+          window.localStorage.removeItem(storageKey);
+        } catch (error) {}
+      }
+
+      function notify(name) {
+        window.dispatchEvent(new Event(name));
+      }
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        deferredPrompt = event;
+        forgetInstalled();
+        notify('petnest-pwa-available');
+      });
+
+      window.addEventListener('appinstalled', function () {
+        deferredPrompt = null;
+        rememberInstalled();
+        notify('petnest-pwa-installed');
+      });
+
+      function browserName() {
+        var ua = window.navigator.userAgent || '';
+        if (ua.indexOf('Edg/') >= 0) return 'edge';
+        if (ua.indexOf('Chrome/') >= 0 || ua.indexOf('CriOS/') >= 0) return 'chrome';
+        if (ua.indexOf('Safari/') >= 0) return 'safari';
+        if (ua.indexOf('Firefox/') >= 0) return 'firefox';
+        return 'other';
+      }
+
+      window.petNestPwa = {
+        isStandalone: function () {
+          return window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true;
+        },
+        canPrompt: function () {
+          return deferredPrompt != null;
+        },
+        rememberedInstalled: remembered,
+        isSecure: function () {
+          return window.isSecureContext === true;
+        },
+        browserName: browserName
+      };
+
+      window.petNestPwaPrompt = function () {
+        if (!deferredPrompt) {
+          return Promise.resolve('unavailable');
+        }
+        var promptEvent = deferredPrompt;
+        deferredPrompt = null;
+        return promptEvent.prompt().then(function () {
+          return promptEvent.userChoice;
+        }).then(function (choice) {
+          var outcome = choice && choice.outcome ? choice.outcome : 'dismissed';
+          if (outcome === 'accepted') {
+            rememberInstalled();
+          }
+          return outcome;
+        }).catch(function () {
+          return 'dismissed';
+        });
+      };
+
+      window.petNestPwaListen = function (callback) {
+        window.addEventListener('petnest-pwa-available', callback);
+        window.addEventListener('petnest-pwa-installed', callback);
+      };
+    })();
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

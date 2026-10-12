@@ -18,6 +18,8 @@ class ShopRequestCenterPage extends StatelessWidget {
         return '電話修改';
       case 'address':
         return '地址搬遷';
+      case 'fullVerify':
+        return '店家認證／平台公開';
       case 'licenseNumber':
         return '特寵字號修改';
       case 'taxId':
@@ -35,6 +37,8 @@ class ShopRequestCenterPage extends StatelessWidget {
         return '已核准';
       case 'rejected':
         return '已拒絕';
+      case 'supplement':
+        return '補件';
       default:
         return '未知';
     }

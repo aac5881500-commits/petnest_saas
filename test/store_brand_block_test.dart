@@ -205,6 +205,10 @@ void main() {
   testWidgets('brand settings card fits a narrow phone width', (
     WidgetTester tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final TextEditingController subtitle = TextEditingController(text: '副標');
     addTearDown(subtitle.dispose);
     await tester.pumpWidget(
@@ -233,12 +237,19 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('重設位置'), findsOneWidget);
     expect(find.text('垂直位置'), findsNothing);
-    expect(find.byTooltip('粉紅色 #E06B84'), findsNWidgets(2));
-    expect(find.text('店名字體大小 20 px'), findsOneWidget);
-    expect(find.text('副標字體大小 18 px'), findsOneWidget);
+    expect(find.text('20 px'), findsOneWidget);
+    expect(find.text('18 px'), findsOneWidget);
     expect(find.text('請先上傳店家 Logo'), findsOneWidget);
+    expect(find.text('店家'), findsOneWidget);
+    await tester.tap(find.text('店名顏色'));
+    await tester.tap(find.text('副標顏色'));
+    await tester.pump();
+    expect(find.byTooltip('粉紅色 #E06B84'), findsNWidgets(2));
+    await tester.ensureVisible(find.text('進階調整'));
+    await tester.tap(find.text('進階調整'));
+    await tester.pump();
+    expect(find.text('重設位置'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -569,6 +580,97 @@ void main() {
     await tester.pump();
     expect(subtitle.text.characters.length, 24);
     expect(subtitle.text, twentyFour);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('saved name font stays compatible with older brand data', () {
+    final StoreBrandStyle kept = StoreBrandStyle.fromMap(<String, dynamic>{
+      'homepageBrandNameFontFamily': 'KleeOne',
+      'homepageBrandNameFontSize': 20,
+      'homepageBrandX': 0.2,
+    });
+    expect(kept.nameFontFamily, 'KleeOne');
+    expect(kept.appliedNameFontFamily, 'KleeOne');
+    expect(kept.nameFontSize, 20);
+    expect(kept.x, 0.2);
+    expect(kept.toMap()['homepageBrandNameFontFamily'], 'KleeOne');
+
+    final StoreBrandStyle unknown = StoreBrandStyle.fromMap(<String, dynamic>{
+      'homepageBrandNameFontFamily': 'LegacyScript',
+      'homepageBrandTextAlign': 'left',
+    });
+    expect(unknown.nameFontFamily, '');
+    expect(unknown.appliedNameFontFamily, isNull);
+    expect(unknown.textAlign, 'left');
+  });
+
+  testWidgets('name font menu uses the real shop name on the header', (
+    WidgetTester tester,
+  ) async {
+    StoreBrandStyle style = const StoreBrandStyle(
+      markType: 'none',
+      nameFontFamily: 'LegacyScript',
+    );
+    final TextEditingController subtitle = TextEditingController();
+    addTearDown(subtitle.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return ListView(
+                children: <Widget>[
+                  StoreBrandSettingsCard(
+                    style: style,
+                    theme: theme,
+                    shopName: '旺旺旅館',
+                    subtitleController: subtitle,
+                    logoSection: const SizedBox.shrink(),
+                    hasLogo: false,
+                    onChanged: (StoreBrandStyle next) {
+                      setState(() => style = next);
+                    },
+                  ),
+                  StoreBrandBlock(
+                    contextKind: StoreBrandDisplayContext.home,
+                    style: style,
+                    shopName: '旺旺旅館',
+                    subtitle: '',
+                    logoUrl: '',
+                    theme: theme,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    expect(find.text('貓咪本舖'), findsNothing);
+    expect(tester.takeException(), isNull);
+    for (final Text name in tester.widgetList<Text>(find.text('旺旺旅館'))) {
+      expect(name.style?.fontFamily, isNull);
+    }
+
+    await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('系統預設'), findsWidgets);
+    expect(find.text('jf open 粉圓'), findsOneWidget);
+    expect(find.text('Noto Sans TC 現代黑體'), findsOneWidget);
+    expect(find.text('Noto Serif TC 傳統宋體'), findsOneWidget);
+    expect(find.text('Klee One 日系手寫'), findsOneWidget);
+    expect(find.text('昭源宋體'), findsOneWidget);
+
+    await tester.tap(find.text('Klee One 日系手寫'));
+    await tester.pumpAndSettle();
+    expect(style.nameFontFamily, 'KleeOne');
+    expect(find.text('旺旺旅館'), findsWidgets);
+    for (final Text name in tester.widgetList<Text>(find.text('旺旺旅館'))) {
+      expect(name.style?.fontFamily, 'KleeOne');
+      expect(name.style?.fontWeight, FontWeight.w800);
+    }
     expect(tester.takeException(), isNull);
   });
 }

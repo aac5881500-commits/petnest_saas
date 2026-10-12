@@ -1,15 +1,14 @@
 // 檔案名稱：lib/features/platform/pages/platform_user_management_page.dart
-// 功能說明：顯示平台最高管理員、開發管理員與平台員工清單
-// 👥 平台人員管理頁
-// 並標示帳號狀態、角色及已分配權限數量。
-// 只有擁有管理平台人員權限者可以進入此頁。
+// 功能說明：平台人員名單、搜尋篩選與桌機側欄；編輯改到獨立頁面。
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/platform_permission_keys.dart';
 import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/models/platform_admin_model.dart';
 import '../../../core/services/platform_admin_service.dart';
+import '../../../core/services/platform_permission_catalog.dart';
 import 'platform_user_create_page.dart';
 import 'platform_user_permission_page.dart';
 
@@ -24,389 +23,345 @@ class PlatformUserManagementPage extends StatelessWidget {
       ),
       builder: (context, permissionSnapshot) {
         if (permissionSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-
-        if (permissionSnapshot.hasError) {
+        if (permissionSnapshot.hasError || permissionSnapshot.data != true) {
           return Scaffold(
             appBar: AppBar(title: const Text('平台人員與權限')),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  '讀取平台權限失敗：${permissionSnapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            ),
+            body: const Center(child: Text('你沒有管理平台人員的權限')),
           );
         }
-
-        final canManageAdmins = permissionSnapshot.data ?? false;
-
-        if (!canManageAdmins) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('平台人員與權限')),
-            body: const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock_outline, size: 56, color: Colors.orange),
-                    SizedBox(height: 16),
-                    Text(
-                      '你沒有管理平台人員的權限',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      '請由根管理員或其他授權人員分配「管理平台員工與權限」。',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return Scaffold(
-          appBar: AppBar(title: const Text('平台人員與權限')),
-          body: StreamBuilder<List<PlatformAdminModel>>(
-            stream: PlatformAdminService.instance.streamAdmins(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return _ErrorView(message: '讀取平台人員失敗：${snapshot.error}');
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final admins = snapshot.data ?? <PlatformAdminModel>[];
-
-              if (admins.isEmpty) {
-                return const _EmptyView();
-              }
-
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: admins.length,
-                separatorBuilder: (_, _) {
-                  return const SizedBox(height: 12);
-                },
-                itemBuilder: (context, index) {
-                  return _PlatformUserCard(admin: admins[index]);
-                },
-              );
-            },
-          ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const PlatformUserCreatePage(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.person_add_alt_1),
-            label: const Text('新增平台人員'),
-          ),
-        );
+        return const _PlatformUserDirectory();
       },
     );
   }
 }
 
-class _PlatformUserCard extends StatelessWidget {
-  const _PlatformUserCard({required this.admin});
+class _PlatformUserDirectory extends StatefulWidget {
+  const _PlatformUserDirectory();
 
-  final PlatformAdminModel admin;
+  @override
+  State<_PlatformUserDirectory> createState() => _PlatformUserDirectoryState();
+}
+
+class _PlatformUserDirectoryState extends State<_PlatformUserDirectory> {
+  final TextEditingController _searchController = TextEditingController();
+  String _roleFilter = 'all';
+  String _statusFilter = 'all';
+  String? _selectedUid;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<PlatformAdminModel> _visible(List<PlatformAdminModel> admins) {
+    final String query = _searchController.text.trim().toLowerCase();
+    return admins.where((PlatformAdminModel admin) {
+      if (_roleFilter != 'all' && admin.role != _roleFilter) return false;
+      if (_statusFilter == 'enabled' && !admin.enabled) return false;
+      if (_statusFilter == 'disabled' && admin.enabled) return false;
+      if (query.isEmpty) return true;
+      return admin.name.toLowerCase().contains(query) ||
+          admin.email.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  Future<void> _open(PlatformAdminModel admin, {int tab = 0}) async {
+    if (PlatformRootAdmin.isRoot(admin.uid) ||
+        admin.role == PlatformAdminRoles.superAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('最高管理員不能從這個畫面修改')),
+      );
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlatformUserPermissionPage(admin: admin, initialTab: tab),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isRootAdmin = PlatformRootAdmin.isRoot(admin.uid);
-    final roleLabel = PlatformAdminRoles.label(admin.role);
-
-    final permissionCount =
-        admin.permissions.contains(PlatformPermissionKeys.all)
-        ? PlatformPermissionKeys.assignableValues.length
-        : admin.permissions
-              .where(PlatformPermissionKeys.assignableValues.contains)
-              .length;
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          if (isRootAdmin) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('根管理員為永久最高權限，不能從平台後台修改')),
+    return Scaffold(
+      appBar: AppBar(title: const Text('平台人員與權限')),
+      body: StreamBuilder<List<PlatformAdminModel>>(
+        stream: PlatformAdminService.instance.streamAdmins(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('讀取平台人員失敗：${snapshot.error}'),
             );
-            return;
           }
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PlatformUserPermissionPage(admin: admin),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _UserAvatar(isRootAdmin: isRootAdmin, enabled: admin.enabled),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final List<PlatformAdminModel> admins =
+              snapshot.data ?? <PlatformAdminModel>[];
+          final List<PlatformAdminModel> visible = _visible(admins);
+          PlatformAdminModel? selected;
+          for (final PlatformAdminModel admin in admins) {
+            if (admin.uid == _selectedUid) selected = admin;
+          }
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final bool wide = constraints.maxWidth >= 960;
+              final Widget directory = Column(
+                children: [
+                  _StatsBar(admins: admins),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Text(
-                            admin.name.trim().isEmpty
-                                ? roleLabel
-                                : admin.name.trim(),
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        TextField(
+                          controller: _searchController,
+                          decoration: const InputDecoration(
+                            labelText: '搜尋姓名或 Email',
+                            prefixIcon: Icon(Icons.search),
+                            border: OutlineInputBorder(),
                           ),
+                          onChanged: (_) => setState(() {}),
                         ),
-                        _StatusChip(enabled: admin.enabled),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      admin.email.trim().isEmpty
-                          ? '尚未設定 Email'
-                          : admin.email.trim(),
-                      style: TextStyle(color: Colors.grey.shade700),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _InfoChip(
-                          icon: isRootAdmin
-                              ? Icons.workspace_premium
-                              : Icons.badge_outlined,
-                          label: roleLabel,
-                        ),
-                        _InfoChip(
-                          icon: Icons.key_outlined,
-                          label: isRootAdmin
-                              ? '全部最高權限'
-                              : '$permissionCount 項權限',
-                        ),
-                        if (isRootAdmin)
-                          const _InfoChip(
-                            icon: Icons.lock_outline,
-                            label: '不可修改',
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'UID：${admin.uid}',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              if (isRootAdmin)
-                const Icon(Icons.lock_outline, color: Colors.orange)
-              else
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: '刪除平台人員',
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              title: const Text('刪除平台人員'),
-                              content: Text(
-                                '確定要刪除\n\n'
-                                '${admin.name}\n'
-                                '${admin.email}\n\n'
-                                '嗎？',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context, false);
-                                  },
-                                  child: const Text('取消'),
-                                ),
-                                FilledButton(
-                                  onPressed: () {
-                                    Navigator.pop(context, true);
-                                  },
-                                  child: const Text('刪除'),
-                                ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            DropdownButton<String>(
+                              value: _roleFilter,
+                              items: const [
+                                DropdownMenuItem(value: 'all', child: Text('全部角色')),
+                                DropdownMenuItem(value: PlatformAdminRoles.superAdmin, child: Text('最高管理員')),
+                                DropdownMenuItem(value: PlatformAdminRoles.platformAdmin, child: Text('平台管理員')),
+                                DropdownMenuItem(value: PlatformAdminRoles.developerAdmin, child: Text('開發管理員')),
+                                DropdownMenuItem(value: PlatformAdminRoles.platformStaff, child: Text('平台員工')),
                               ],
-                            );
-                          },
-                        );
-
-                        if (confirm != true) {
-                          return;
-                        }
-
-                        try {
-                          await PlatformAdminService.instance.removeAdmin(
-                            admin.uid,
-                          );
-
-                          if (!context.mounted) {
-                            return;
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '${admin.name.trim().isEmpty ? admin.email : admin.name} 已移除平台人員權限',
-                              ),
+                              onChanged: (String? value) {
+                                if (value == null) return;
+                                setState(() => _roleFilter = value);
+                              },
                             ),
-                          );
-                        } catch (error) {
-                          if (!context.mounted) {
-                            return;
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('刪除失敗：$error'),
-                              backgroundColor: Colors.red,
+                            DropdownButton<String>(
+                              value: _statusFilter,
+                              items: const [
+                                DropdownMenuItem(value: 'all', child: Text('全部狀態')),
+                                DropdownMenuItem(value: 'enabled', child: Text('啟用')),
+                                DropdownMenuItem(value: 'disabled', child: Text('停用')),
+                              ],
+                              onChanged: (String? value) {
+                                if (value == null) return;
+                                setState(() => _statusFilter = value);
+                              },
                             ),
-                          );
-                        }
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: visible.isEmpty
+                        ? const Center(child: Text('沒有符合條件的平台人員'))
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: visible.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final PlatformAdminModel admin = visible[index];
+                              return _UserTile(
+                                admin: admin,
+                                selected: admin.uid == _selectedUid,
+                                onTap: () {
+                                  if (wide) {
+                                    setState(() => _selectedUid = admin.uid);
+                                  } else {
+                                    _open(admin);
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              );
+              if (!wide) return directory;
+              return Row(
+                children: [
+                  Expanded(child: directory),
+                  SizedBox(
+                    width: 360,
+                    child: _DetailPanel(
+                      admin: selected,
+                      onEdit: (int tab) {
+                        if (selected == null) return;
+                        _open(selected, tab: tab);
                       },
                     ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.grey.shade600,
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PlatformUserCreatePage()),
+          );
+        },
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('新增平台人員'),
       ),
     );
   }
 }
 
-class _UserAvatar extends StatelessWidget {
-  const _UserAvatar({required this.isRootAdmin, required this.enabled});
+class _StatsBar extends StatelessWidget {
+  const _StatsBar({required this.admins});
 
-  final bool isRootAdmin;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final backgroundColor = !enabled
-        ? Colors.grey.shade200
-        : isRootAdmin
-        ? Colors.amber.shade100
-        : Colors.blue.shade50;
-
-    final foregroundColor = !enabled
-        ? Colors.grey
-        : isRootAdmin
-        ? Colors.orange.shade800
-        : Colors.blue;
-
-    return CircleAvatar(
-      radius: 25,
-      backgroundColor: backgroundColor,
-      child: Icon(
-        isRootAdmin
-            ? Icons.workspace_premium
-            : Icons.admin_panel_settings_outlined,
-        color: foregroundColor,
-        size: 28,
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.enabled});
-
-  final bool enabled;
+  final List<PlatformAdminModel> admins;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: enabled ? Colors.green.shade50 : Colors.red.shade50,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: enabled ? Colors.green.shade200 : Colors.red.shade200,
-        ),
-      ),
-      child: Text(
-        enabled ? '已啟用' : '已停用',
-        style: TextStyle(
-          color: enabled ? Colors.green.shade700 : Colors.red.shade700,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    final int enabled = admins.where((admin) => admin.enabled).length;
+    final Map<String, int> roles = <String, int>{};
+    for (final PlatformAdminModel admin in admins) {
+      final String label = PlatformAdminRoles.label(admin.role);
+      roles[label] = (roles[label] ?? 0) + 1;
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          Icon(icon, size: 15, color: Colors.grey.shade700),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade800,
-              fontWeight: FontWeight.w600,
+          _Stat(label: '平台人員', value: '${admins.length}'),
+          _Stat(label: '啟用', value: '$enabled'),
+          _Stat(label: '停用', value: '${admins.length - enabled}'),
+          for (final MapEntry<String, int> entry in roles.entries)
+            _Stat(label: entry.key, value: '${entry.value}'),
+        ],
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text('$label $value'),
+    );
+  }
+}
+
+class _UserTile extends StatelessWidget {
+  const _UserTile({
+    required this.admin,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final PlatformAdminModel admin;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool root = PlatformRootAdmin.isRoot(admin.uid);
+    final int count = root || admin.role == PlatformAdminRoles.superAdmin
+        ? PlatformPermissionKeys.assignableValues.length
+        : PlatformPermissionCatalog.enabledCount(admin.permissions);
+    final String? lastLogin = _formatTime(admin.lastLoginAt);
+    return Card(
+      color: selected ? Colors.blue.shade50 : null,
+      child: ListTile(
+        minVerticalPadding: 12,
+        title: Text(admin.name.trim().isEmpty ? '未命名' : admin.name.trim()),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(admin.email.trim().isEmpty ? '尚未設定 Email' : admin.email.trim()),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                Text(PlatformAdminRoles.label(admin.role)),
+                Text(admin.enabled ? '已啟用' : '已停用'),
+                Text(root ? '全部權限' : '$count 項權限'),
+                if (lastLogin != null) Text('最後登入 $lastLogin'),
+              ],
             ),
+          ],
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _DetailPanel extends StatelessWidget {
+  const _DetailPanel({required this.admin, required this.onEdit});
+
+  final PlatformAdminModel? admin;
+  final void Function(int tab) onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final PlatformAdminModel? person = admin;
+    if (person == null) {
+      return const Center(child: Text('選擇一位平台人員後，可在這裡查看與編輯。'));
+    }
+    return Material(
+      elevation: 1,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            person.name.trim().isEmpty ? '未命名' : person.name.trim(),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(person.email),
+          const SizedBox(height: 8),
+          Text(PlatformAdminRoles.label(person.role)),
+          Text(person.enabled ? '已啟用' : '已停用'),
+          if (person.lastLoginAt != null)
+            Text('最後登入 ${_formatTime(person.lastLoginAt)}'),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () => onEdit(0),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            child: const Text('編輯資料'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => onEdit(2),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            child: const Text('編輯權限'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => onEdit(1),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            child: const Text('調整啟用狀態'),
           ),
         ],
       ),
@@ -414,36 +369,12 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text('目前沒有平台人員資料', textAlign: TextAlign.center),
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.red),
-        ),
-      ),
-    );
-  }
+String? _formatTime(Timestamp? value) {
+  if (value == null) return null;
+  final DateTime time = value.toDate().toLocal();
+  final String month = time.month.toString().padLeft(2, '0');
+  final String day = time.day.toString().padLeft(2, '0');
+  final String hour = time.hour.toString().padLeft(2, '0');
+  final String minute = time.minute.toString().padLeft(2, '0');
+  return '$month/$day $hour:$minute';
 }

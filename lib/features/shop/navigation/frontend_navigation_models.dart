@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/core/services/shop_plan_access.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 
 enum FrontendNavAction {
@@ -283,7 +284,7 @@ class FrontendNavShopState {
     required bool showShopMenus,
     required bool loggedIn,
   }) {
-    final String plan = (shop['plan'] ?? 'free').toString();
+    final String plan = ShopPlanAccess.effectivePlan(shop);
     final Object? paidUntil = shop['paidUntil'];
     bool paidActive = false;
     if (paidUntil != null) {

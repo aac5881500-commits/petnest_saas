@@ -7,11 +7,17 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
+import 'package:petnest_saas/core/legal_pet/license_lookup.dart';
+import 'package:petnest_saas/core/legal_pet/shop_profile_lock.dart';
+import 'package:petnest_saas/core/services/legal_pet_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/pages/shop_change_request_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_request_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_verify_request_page.dart';
+import 'package:petnest_saas/features/shop/widgets/legal_pet_license_check_card.dart';
+import 'package:petnest_saas/features/shop/widgets/legal_pet_license_input.dart';
 
 class ShopBasicInfoPage extends StatefulWidget {
   const ShopBasicInfoPage({super.key, required this.shopId});
@@ -47,10 +53,15 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   bool _isPublic = false;
   String _verifyRequestStatus = '';
 
-  bool _isInitialSetup = false;
+  bool _addressSetupCompleted = false;
+  bool _phoneSetupCompleted = false;
+  bool _lookingUp = false;
+  LegalPetLookupResult? _lookup;
+  LegalPetLookupInputs? _lookupInputs;
 
   /// 特寵字號與統編是否仍為首次設定
   bool _licenseInitialSetup = false;
+  String _persistedLicense = '';
   bool _taxIdInitialSetup = false;
 
   bool _lineInitialSetup = false;
@@ -61,7 +72,18 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   @override
   void initState() {
     super.initState();
+    for (final controller in [
+      _cityController,
+      _districtController,
+      _addressController,
+    ]) {
+      controller.addListener(_onCheckInputsChanged);
+    }
     _loadShopData();
+  }
+
+  void _onCheckInputsChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadShopData() async {
@@ -77,7 +99,8 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _igUrlController.text = shop?['igUrl'] ?? '';
     _fbUrlController.text = shop?['fbUrl'] ?? '';
 
-    _licenseController.text = shop?['licenseNumber'] ?? '';
+    _persistedLicense = (shop?['licenseNumber'] ?? '').toString();
+    _licenseController.text = licenseInputText(_persistedLicense);
     _taxIdController.text = shop?['taxId'] ?? '';
     _showTaxId = shop?['showTaxId'] ?? true;
     _licenseVerified = shop?['licenseVerified'] == true;
@@ -85,16 +108,15 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _isPublic = shop?['isPublic'] == true;
     _verifyRequestStatus = await _loadVerifyRequestStatus();
 
+    _addressSetupCompleted = isAddressSetupCompleted(shop);
+    _phoneSetupCompleted = isPhoneSetupCompleted(shop);
+
     final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
 
     _businessType = rawBusinessType == 'cat' ? 'cat_hotel' : rawBusinessType;
 
-    _isInitialSetup =
-        _phoneController.text.trim().isEmpty ||
-        _addressController.text.trim().isEmpty;
-
     /// 欄位沒有資料時，可以進行第一次設定；已有資料就鎖定
-    _licenseInitialSetup = _licenseController.text.trim().isEmpty;
+    _licenseInitialSetup = _persistedLicense.trim().isEmpty;
     _taxIdInitialSetup = _taxIdController.text.trim().isEmpty;
 
     _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
@@ -193,6 +215,20 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     setState(() => _saving = true);
 
     try {
+      final bool savingAddress =
+          !_addressSetupCompleted && _addressController.text.trim().isNotEmpty;
+      final bool savingPhone =
+          !_phoneSetupCompleted && _phoneController.text.trim().isNotEmpty;
+      if (savingAddress || savingPhone) {
+        await LegalPetService.instance.saveInitialProfile(
+          shopId: widget.shopId,
+          phone: savingPhone ? _phoneController.text : null,
+          city: savingAddress ? _cityController.text : null,
+          district: savingAddress ? _districtController.text : null,
+          address: savingAddress ? _addressController.text : null,
+        );
+      }
+      final licenseNumber = _licenseToSave();
       await ShopService.instance.updateShopBasicInfo(
         shopId: widget.shopId,
         name: _nameController.text,
@@ -204,28 +240,36 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
         lineUrl: _lineUrlController.text,
         igUrl: _igUrlController.text,
         fbUrl: _fbUrlController.text,
-        licenseNumber: _licenseController.text,
+        licenseNumber: licenseNumber,
         taxId: _taxIdController.text,
         showTaxId: _showTaxId,
       );
 
       /// 第一次儲存成功後，只要已有資料就立即改為鎖定狀態
-      _licenseInitialSetup = _licenseController.text.trim().isEmpty;
+      _persistedLicense = licenseNumber;
+      _licenseInitialSetup = _persistedLicense.trim().isEmpty;
       _taxIdInitialSetup = _taxIdController.text.trim().isEmpty;
 
       _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
       _igInitialSetup = _igUrlController.text.trim().isEmpty;
       _fbInitialSetup = _fbUrlController.text.trim().isEmpty;
-
-      _isInitialSetup =
-          _phoneController.text.trim().isEmpty ||
-          _addressController.text.trim().isEmpty;
+      if (_addressController.text.trim().isNotEmpty) {
+        _addressSetupCompleted = true;
+      }
+      if (_phoneController.text.trim().isNotEmpty) {
+        _phoneSetupCompleted = true;
+      }
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('已儲存')));
+    } on LegalPetException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -287,7 +331,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
         builder: (_) => ShopVerifyRequestPage(
           shopId: widget.shopId,
           shopName: _nameController.text,
-          currentLicenseNumber: _licenseController.text,
+          currentLicenseNumber: _licenseToSave(),
           currentTaxId: _taxIdController.text,
         ),
       ),
@@ -310,7 +354,13 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     super.dispose();
   }
 
-  void _openChangeRequest() {
+  void _openChangeRequest({
+    String? initialRequestType,
+    String? initialCity,
+    String? initialDistrict,
+    String? initialAddress,
+    String? initialHint,
+  }) {
     Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -321,13 +371,95 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
           currentDistrict: _districtController.text,
           currentPhone: _phoneController.text,
           currentAddress: _addressController.text,
-          currentLicenseNumber: _licenseController.text,
+          currentLicenseNumber: _licenseToSave(),
           currentTaxId: _taxIdController.text,
           currentLineUrl: _lineUrlController.text,
           currentIgUrl: _igUrlController.text,
           currentFbUrl: _fbUrlController.text,
+          initialRequestType: initialRequestType ?? 'phone',
+          initialNewCity: initialCity,
+          initialNewDistrict: initialDistrict,
+          initialNewAddress: initialAddress,
+          initialHint: initialHint,
         ),
       ),
+    );
+  }
+
+  String _licenseToSave() {
+    return licenseValueToStore(
+      persisted: _persistedLicense,
+      current: _licenseController.text,
+    );
+  }
+
+  void _clearLookupResult() {
+    if (_lookup == null && _lookupInputs == null) return;
+    setState(() {
+      _lookup = null;
+      _lookupInputs = null;
+    });
+  }
+
+  Future<void> _lookupLicense() async {
+    final license = _licenseController.text.trim();
+    if (license.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先填寫特寵字號')),
+      );
+      return;
+    }
+    setState(() => _lookingUp = true);
+    try {
+      final result = await LegalPetService.instance.lookupLicense(
+        shopId: widget.shopId,
+        licenseNumber: license,
+        city: _cityController.text,
+        district: _districtController.text,
+        address: _addressController.text,
+      );
+      _lookup = result;
+      _lookupInputs = LegalPetLookupInputs(
+        license: _licenseController.text,
+        city: _cityController.text,
+        district: _districtController.text,
+        address: _addressController.text,
+      );
+    } on LegalPetException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } finally {
+      if (mounted) setState(() => _lookingUp = false);
+    }
+  }
+
+  void _applyGovernmentAddress(LegalPetMatch match) {
+    final parsed = match.parsedAddress;
+    if (!parsed.reliable || _addressSetupCompleted) return;
+    setState(() {
+      _cityController.text = parsed.city;
+      _districtController.text = parsed.district;
+      _addressController.text = parsed.detail;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已帶入表單，按儲存後才會寫入')),
+    );
+  }
+
+  void _requestRegisteredAddress(LegalPetMatch match) {
+    final parsed = match.parsedAddress;
+    _openChangeRequest(
+      initialRequestType: 'address',
+      initialCity: parsed.reliable ? parsed.city : _cityController.text,
+      initialDistrict: parsed.reliable
+          ? parsed.district
+          : _districtController.text,
+      initialAddress: parsed.reliable ? parsed.detail : match.legaladdress,
+      initialHint: parsed.reliable
+          ? '已預填政府登記地址，核准前不會改正式地址。'
+          : '政府地址無法可靠拆成縣市與區域，原始地址已放在詳細地址，請確認後再送出。',
     );
   }
 
@@ -497,8 +629,8 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                                   _lockedField(
                                     label: '電話',
                                     controller: _phoneController,
-                                    locked: !_isInitialSetup,
-                                    firstSetup: _isInitialSetup,
+                                    locked: _phoneSetupCompleted,
+                                    firstSetup: !_phoneSetupCompleted,
                                     keyboardType: TextInputType.phone,
                                   ),
                                 ],
@@ -508,25 +640,106 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                               _sectionCard(
                                 title: '店址資料',
                                 children: <Widget>[
-                                  _twoCol(
-                                    split: tablet,
-                                    left: _lockedField(
-                                      label: '縣市',
-                                      controller: _cityController,
-                                      locked: true,
+                                  if (_addressSetupCompleted)
+                                    _twoCol(
+                                      split: tablet,
+                                      left: _lockedField(
+                                        label: '縣市',
+                                        controller: _cityController,
+                                        locked: true,
+                                      ),
+                                      right: _lockedField(
+                                        label: '區域',
+                                        controller: _districtController,
+                                        locked: true,
+                                      ),
+                                    )
+                                  else
+                                    _twoCol(
+                                      split: tablet,
+                                      left: DropdownButtonFormField<String>(
+                                        key: ValueKey(
+                                          'city-${_cityController.text}',
+                                        ),
+                                        initialValue:
+                                            cityData.containsKey(
+                                              _cityController.text,
+                                            )
+                                            ? _cityController.text
+                                            : null,
+                                        decoration: _fieldDecoration(
+                                          label: '縣市',
+                                          locked: false,
+                                          firstSetup: true,
+                                        ),
+                                        items: cityData.keys
+                                            .map(
+                                              (city) => DropdownMenuItem(
+                                                value: city,
+                                                child: Text(city),
+                                              ),
+                                            )
+                                            .toList(),
+                                        onChanged: (value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            _cityController.text = value;
+                                            final districts =
+                                                cityData[value] ?? [];
+                                            if (!districts.contains(
+                                              _districtController.text,
+                                            )) {
+                                              _districtController.text =
+                                                  districts.isEmpty
+                                                  ? ''
+                                                  : districts.first;
+                                            }
+                                          });
+                                        },
+                                      ),
+                                      right: DropdownButtonFormField<String>(
+                                        key: ValueKey(
+                                          '${_cityController.text}-${_districtController.text}',
+                                        ),
+                                        initialValue:
+                                            (cityData[_cityController.text] ??
+                                                    [])
+                                                .contains(
+                                                  _districtController.text,
+                                                )
+                                            ? _districtController.text
+                                            : null,
+                                        decoration: _fieldDecoration(
+                                          label: '區域',
+                                          locked: false,
+                                          firstSetup: true,
+                                        ),
+                                        items:
+                                            (cityData[_cityController.text] ??
+                                                    [])
+                                                .map(
+                                                  (district) =>
+                                                      DropdownMenuItem(
+                                                        value: district,
+                                                        child: Text(district),
+                                                      ),
+                                                )
+                                                .toList(),
+                                        onChanged: (value) {
+                                          if (value == null) return;
+                                          setState(
+                                            () => _districtController.text =
+                                                value,
+                                          );
+                                        },
+                                      ),
                                     ),
-                                    right: _lockedField(
-                                      label: '區域',
-                                      controller: _districtController,
-                                      locked: true,
-                                    ),
-                                  ),
                                   const SizedBox(height: 12),
                                   _lockedField(
                                     label: '地址',
                                     controller: _addressController,
-                                    locked: !_isInitialSetup,
-                                    firstSetup: _isInitialSetup,
+                                    locked: _addressSetupCompleted,
+                                    firstSetup: !_addressSetupCompleted,
                                   ),
                                 ],
                                 footer: _applyEditButton(),
@@ -537,11 +750,11 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                                 children: <Widget>[
                                   _twoCol(
                                     split: tablet,
-                                    left: _lockedField(
-                                      label: '特寵字號',
+                                    left: LegalPetLicenseInput(
                                       controller: _licenseController,
                                       locked: !_licenseInitialSetup,
                                       firstSetup: _licenseInitialSetup,
+                                      onChanged: _clearLookupResult,
                                     ),
                                     right: _lockedField(
                                       label: '統編',
@@ -550,6 +763,36 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                                       firstSetup: _taxIdInitialSetup,
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _lookingUp ? null : _lookupLicense,
+                                      icon: const Icon(Icons.fact_check_outlined),
+                                      label: Text(_lookingUp ? '查核中' : '查核字號'),
+                                    ),
+                                  ),
+                                  if (_lookup != null) ...[
+                                    const SizedBox(height: 8),
+                                    LegalPetLicenseCheckCard(
+                                      result: _lookup!,
+                                      stale: _lookupInputs == null ||
+                                          !_lookupInputs!.matches(
+                                            LegalPetLookupInputs(
+                                              license: _licenseController.text,
+                                              city: _cityController.text,
+                                              district: _districtController.text,
+                                              address: _addressController.text,
+                                            ),
+                                          ),
+                                      addressLocked: _addressSetupCompleted,
+                                      currentAddress:
+                                          '${_cityController.text}${_districtController.text}${_addressController.text}',
+                                      onApply: _applyGovernmentAddress,
+                                      onKeep: () => setState(() {}),
+                                      onRequestChange: _requestRegisteredAddress,
+                                    ),
+                                  ],
                                   const SizedBox(height: 8),
                                   Text(
                                     '相關資料須經平台確認，公開資格依審核結果為準。',
@@ -698,10 +941,21 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                 ),
               ],
             ),
-            if (_isInitialSetup) ...<Widget>[
+            if (!_phoneSetupCompleted) ...<Widget>[
               const SizedBox(height: 4),
               Text(
-                '請先完成電話與地址等首次設定。',
+                '電話仍可做首次設定，完成後需申請修改。',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Colors.brown.shade600,
+                ),
+              ),
+            ],
+            if (!_addressSetupCompleted) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                '地址仍可做首次設定，這次可以修正縣市與區域，儲存後鎖定。',
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.4,

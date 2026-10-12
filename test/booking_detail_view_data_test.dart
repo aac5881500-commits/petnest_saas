@@ -304,10 +304,7 @@ void main() {
         docId: 'id',
       );
       expect(
-        pending.canViewDailyCare(
-          downloadHoursAfterCheckout: 24,
-          daycareCareEnabled: true,
-        ),
+        pending.canViewDailyCare(daycareCareEnabled: true),
         isFalse,
       );
       final BookingDetailViewData inStay = BookingDetailViewData.fromBooking(
@@ -318,10 +315,7 @@ void main() {
         docId: 'id',
       );
       expect(
-        inStay.canViewDailyCare(
-          downloadHoursAfterCheckout: 24,
-          daycareCareEnabled: true,
-        ),
+        inStay.canViewDailyCare(daycareCareEnabled: true),
         isTrue,
       );
       final BookingDetailViewData unpaid = BookingDetailViewData.fromBooking(
@@ -333,10 +327,7 @@ void main() {
         docId: 'id',
       );
       expect(
-        unpaid.canViewDailyCare(
-          downloadHoursAfterCheckout: 24,
-          daycareCareEnabled: true,
-        ),
+        unpaid.canViewDailyCare(daycareCareEnabled: true),
         isFalse,
       );
       final BookingDetailViewData stayPending =
@@ -345,7 +336,7 @@ void main() {
             docId: 'id',
           );
       expect(
-        stayPending.canViewDailyCare(downloadHoursAfterCheckout: 24),
+        stayPending.canViewDailyCare(),
         isFalse,
       );
     });
@@ -357,24 +348,58 @@ void main() {
         docId: 'id',
       );
       expect(
-        view.dailyCareDownloadDeadline(24),
+        view.dailyCareDownloadDeadline(),
         checkOut.add(const Duration(hours: 24)),
       );
       expect(
         view.dailyCareDownloadExpired(
-          downloadHoursAfterCheckout: 24,
           now: checkOut.add(const Duration(hours: 25)),
         ),
         isTrue,
       );
       expect(view.canViewDailyCareRecord(), isTrue);
       expect(
-        view.canViewDailyCare(
-          downloadHoursAfterCheckout: 24,
-          now: checkOut.add(const Duration(hours: 25)),
-        ),
+        view.canViewDailyCare(now: checkOut.add(const Duration(hours: 25))),
         isFalse,
       );
+      final BookingDetailViewData oldHours =
+          BookingDetailViewData.fromBooking(
+            data: <String, dynamic>{
+              'status': 'completed',
+              'checkOutAt': checkOut,
+              'downloadHoursAfterCheckout': 72,
+            },
+            docId: 'id',
+          );
+      expect(
+        oldHours.dailyCareDownloadDeadline(),
+        checkOut.add(const Duration(hours: 24)),
+      );
+      final DateTime actualEnd = DateTime(2026, 8, 2, 9);
+      final BookingDetailViewData daycare = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'status': 'completed',
+          'bookingKind': 'daycare',
+          'scheduledEndAt': DateTime(2026, 8, 3, 18),
+          'actualEndAt': actualEnd,
+          'downloadHoursAfterCheckout': 12,
+        },
+        docId: 'day',
+      );
+      expect(
+        daycare.dailyCareDownloadDeadline(),
+        actualEnd.add(const Duration(hours: 24)),
+      );
+      final BookingDetailViewData scheduledOnly =
+          BookingDetailViewData.fromBooking(
+            data: <String, dynamic>{
+              'status': 'completed',
+              'bookingKind': 'daycare',
+              'scheduledEndAt': DateTime(2026, 8, 3, 18),
+            },
+            docId: 'sched',
+          );
+      expect(scheduledOnly.dailyCareDownloadDeadline(), isNull);
     });
 
     test('舊訂單缺少新欄位不崩潰', () {

@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
+import 'package:petnest_saas/core/services/legal_pet_service.dart';
 
 class ShopVerifyRequestPage extends StatefulWidget {
   const ShopVerifyRequestPage({
@@ -33,14 +35,20 @@ class _ShopVerifyRequestPageState extends State<ShopVerifyRequestPage> {
   final _contactPhoneController = TextEditingController();
   final _contactTitleController = TextEditingController();
   final _noteController = TextEditingController();
+  final _differenceController = TextEditingController();
+  final _proposedAddressController = TextEditingController();
 
   final _picker = ImagePicker();
 
   bool _submitting = false;
+  bool _proposeAddress = false;
+  String _proposedCity = '台北市';
+  String _proposedDistrict = '中正區';
 
   XFile? _identityImage;
   XFile? _licenseImage;
   XFile? _taxIdImage;
+  XFile? _addressImage;
 
   String _typeLabel() {
     return '店家認證／平台公開申請';
@@ -65,6 +73,8 @@ class _ShopVerifyRequestPageState extends State<ShopVerifyRequestPage> {
         _licenseImage = image;
       } else if (type == 'taxId') {
         _taxIdImage = image;
+      } else if (type == 'address') {
+        _addressImage = image;
       }
     });
   }
@@ -171,23 +181,30 @@ class _ShopVerifyRequestPageState extends State<ShopVerifyRequestPage> {
         );
       }
 
-      await FirebaseFirestore.instance.collection('shop_change_requests').add({
+      String? addressProofUrl;
+      if (_addressImage != null) {
+        addressProofUrl = await _uploadImage(
+          image: _addressImage!,
+          folderName: 'address',
+        );
+      }
+
+      await LegalPetService.instance.submitCertification({
         'shopId': widget.shopId,
-        'shopName': widget.shopName,
-        'requestType': 'fullVerify',
-        'currentValue': _currentValueText(),
-        'newValue': _currentValueText(),
         'contactName': _contactNameController.text.trim(),
         'contactPhone': _contactPhoneController.text.trim(),
         'contactTitle': _contactTitleController.text.trim(),
         'contactProofImageUrl': identityImageUrl,
         'licenseImageUrl': licenseImageUrl,
         'taxIdImageUrl': taxIdImageUrl,
-        'reason': _noteController.text.trim(),
-        'applicantUid': user.uid,
-        'applicantEmail': user.email ?? '',
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
+        'addressProofImageUrl': addressProofUrl ?? '',
+        'addressDifferenceNote': _differenceController.text.trim(),
+        'note': _noteController.text.trim(),
+        'proposedCity': _proposeAddress ? _proposedCity : '',
+        'proposedDistrict': _proposeAddress ? _proposedDistrict : '',
+        'proposedAddress': _proposeAddress
+            ? _proposedAddressController.text.trim()
+            : '',
       });
 
       if (!mounted) return;
@@ -197,6 +214,11 @@ class _ShopVerifyRequestPageState extends State<ShopVerifyRequestPage> {
       ).showSnackBar(const SnackBar(content: Text('認證申請已送出')));
 
       Navigator.pop(context);
+    } on LegalPetException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -237,6 +259,8 @@ class _ShopVerifyRequestPageState extends State<ShopVerifyRequestPage> {
     _contactPhoneController.dispose();
     _contactTitleController.dispose();
     _noteController.dispose();
+    _differenceController.dispose();
+    _proposedAddressController.dispose();
     super.dispose();
   }
 
@@ -337,6 +361,86 @@ class _ShopVerifyRequestPageState extends State<ShopVerifyRequestPage> {
                 hint: '請上傳統一編號或營業相關證明',
                 image: _taxIdImage,
                 onPressed: () => _pickImage('taxId'),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _differenceController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: '地址差異說明',
+                helperText: '營業地址與政府登記地址明顯不同時必填',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _imageButton(
+              title: '地址差異證明（地址明顯不同時必填）',
+              hint: '可上傳租約、現場照片或其他可供平台確認場所的資料',
+              image: _addressImage,
+              onPressed: () => _pickImage('address'),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _proposeAddress,
+              title: const Text('一併附上擬更正地址，核准前不改正式地址'),
+              onChanged: (value) {
+                setState(() => _proposeAddress = value ?? false);
+              },
+            ),
+            if (_proposeAddress) ...[
+              DropdownButtonFormField<String>(
+                key: ValueKey(_proposedCity),
+                initialValue: cityData.containsKey(_proposedCity)
+                    ? _proposedCity
+                    : null,
+                decoration: const InputDecoration(labelText: '擬更正縣市'),
+                items: cityData.keys
+                    .map(
+                      (city) => DropdownMenuItem(value: city, child: Text(city)),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _proposedCity = value;
+                    final districts = cityData[value] ?? <String>[];
+                    if (!districts.contains(_proposedDistrict)) {
+                      _proposedDistrict = districts.first;
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                key: ValueKey('$_proposedCity-$_proposedDistrict'),
+                initialValue: (cityData[_proposedCity] ?? []).contains(
+                  _proposedDistrict,
+                )
+                    ? _proposedDistrict
+                    : null,
+                decoration: const InputDecoration(labelText: '擬更正區域'),
+                items: (cityData[_proposedCity] ?? [])
+                    .map(
+                      (district) => DropdownMenuItem(
+                        value: district,
+                        child: Text(district),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _proposedDistrict = value);
+                },
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _proposedAddressController,
+                decoration: const InputDecoration(
+                  labelText: '擬更正詳細地址',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ],
 

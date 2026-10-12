@@ -10,7 +10,6 @@ const {
   HttpsError,
 } = require("firebase-functions/v2/https");
 
-const PLATFORM_PERMISSION_ALL = "all";
 const REVIEW_PAYMENT_PERMISSION = "review_payment_applications";
 const SUPER_ADMIN_ROLE = "super_admin";
 
@@ -99,7 +98,6 @@ async function verifyPaymentReviewer(userId) {
   // ✅ 最高管理員、全部權限或金流審核權限皆可核准
   const hasPermission =
     role === SUPER_ADMIN_ROLE ||
-    permissions.includes(PLATFORM_PERMISSION_ALL) ||
     permissions.includes(REVIEW_PAYMENT_PERMISSION);
 
   if (!hasPermission) {

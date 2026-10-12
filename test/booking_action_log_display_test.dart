@@ -104,6 +104,52 @@ void main() {
     expect(lines.join('\n').contains('credit_card'), isFalse);
   });
 
+  test('人工確認付款依付款目的顯示，並相容舊 action', () {
+    final Map<String, dynamic> full = <String, dynamic>{
+      'type': 'manual_payment_confirmed',
+      'payload': <String, dynamic>{
+        'paymentPurpose': 'full',
+        'paymentMethod': 'transfer',
+        'amount': 4000,
+      },
+    };
+    expect(BookingActionLogDisplay.title(full), '確認全額入帳');
+    expect(
+      BookingActionLogDisplay.detailLines(full),
+      contains('全額付款 NT\$ 4000'),
+    );
+    final Map<String, dynamic> legacyFull = <String, dynamic>{
+      'type': 'deposit_confirmed',
+      'paymentPurpose': 'full',
+      'amount': 5000,
+      'paymentMethod': 'transfer',
+    };
+    expect(BookingActionLogDisplay.title(legacyFull), '確認全額入帳');
+    expect(
+      BookingActionLogDisplay.detailLines(legacyFull),
+      contains('全額付款 NT\$ 5000'),
+    );
+    final Map<String, dynamic> deposit = <String, dynamic>{
+      'action': 'manual_payment_confirmed',
+      'payload': <String, dynamic>{
+        'paymentPurpose': 'deposit',
+        'amount': 1500,
+        'paymentMethod': 'transfer',
+      },
+    };
+    expect(BookingActionLogDisplay.title(deposit), '確認訂金');
+    expect(
+      BookingActionLogDisplay.detailLines(deposit),
+      contains('訂金 NT\$ 1500'),
+    );
+    expect(
+      BookingActionLogDisplay.title(<String, dynamic>{
+        'type': 'deposit_confirmed',
+      }),
+      '確認訂金',
+    );
+  });
+
   test('結算標題顯示具體動作', () {
     expect(
       BookingActionLogDisplay.title(<String, dynamic>{

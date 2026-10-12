@@ -10,68 +10,67 @@ class PermissionInviteListCard extends StatelessWidget {
   const PermissionInviteListCard({
     super.key,
     required this.shopId,
+    required this.invites,
     required this.currentUserRole,
     required this.isOwner,
     required this.roleLabelBuilder,
   });
 
   final String shopId;
+  final List<Map<String, dynamic>> invites;
   final String? currentUserRole;
   final bool isOwner;
   final String Function(String role) roleLabelBuilder;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ShopService.instance.streamShopMemberInvites(shopId),
-      builder: (context, snapshot) {
-        final invites = snapshot.data ?? [];
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '待綁定邀請',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (invites.isEmpty) const ListTile(title: Text('目前沒有待綁定邀請')),
-                ...invites.map((invite) {
-                  final role = invite['role']?.toString() ?? '-';
-
-                  return ListTile(
-                    leading: const Icon(Icons.mail_outline),
-                    title: Text(invite['email']?.toString() ?? '-'),
-                    subtitle: Text('角色：${roleLabelBuilder(role)}'),
-                    trailing: isOwner
-                        ? IconButton(
-                            onPressed: () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user == null) return;
-
-                              await ShopService.instance.removeMemberInvite(
-                                inviteDocId: invite['id'],
-                                shopId: shopId,
-                                operatorUid: user.uid,
-                                operatorRole:
-                                    currentUserRole ?? ShopRoles.owner,
-                              );
-                            },
-                            icon: const Icon(Icons.delete_outline),
-                          )
-                        : null,
-                  );
-                }),
-              ],
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '待接受邀請',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 8),
+            if (invites.isEmpty) const ListTile(title: Text('目前沒有待接受邀請')),
+            ...invites.map((invite) {
+              final role = invite['role']?.toString() ?? '-';
+              final bool canCancel =
+                  isOwner ||
+                  (currentUserRole == ShopRoles.manager &&
+                      role == ShopRoles.staff);
+
+              return ListTile(
+                leading: const Icon(Icons.mail_outline),
+                title: Text(invite['email']?.toString() ?? '-'),
+                subtitle: Text('角色：${roleLabelBuilder(role)}｜待接受'),
+                trailing: canCancel
+                    ? IconButton(
+                        tooltip: '取消邀請',
+                        onPressed: () async {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user == null) return;
+
+                          await ShopService.instance.removeMemberInvite(
+                            inviteDocId: invite['id'],
+                            shopId: shopId,
+                            operatorUid: user.uid,
+                            operatorRole: currentUserRole ?? ShopRoles.owner,
+                          );
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                      )
+                    : null,
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 }

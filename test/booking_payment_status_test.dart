@@ -188,4 +188,80 @@ void main() {
     expect(BookingPaymentStatus.resolveDueNow(data), 300);
     expect(data['depositExpireAt'], expire);
   });
+
+  test('客戶選全額時店主確認文案與金額是全額，不是訂金', () {
+    final Map<String, dynamic> data = <String, dynamic>{
+      'status': 'pending',
+      'payAmountType': 'full',
+      'totalPayableAmount': 4200,
+      'totalPrice': 5000,
+      'depositAmount': 1500,
+      'paidAmount': 0,
+      'paymentMethod': 'transfer',
+    };
+    final InitialPaymentChoice choice =
+        BookingPaymentStatus.initialPaymentChoice(data);
+    expect(choice.purpose, 'full');
+    expect(choice.typeLabel, '全額付款');
+    expect(choice.confirmButtonLabel, '確認全額入帳');
+    expect(choice.amount, 4200);
+    expect(BookingPaymentStatus.needsInitialPaymentConfirm(data), isTrue);
+    expect(choice.confirmLines('銀行轉帳'), <String>[
+      '付款方式：銀行轉帳',
+      '付款類型：全額付款',
+      '本次確認金額：NT\$ 4200',
+    ]);
+  });
+
+  test('客戶選訂金時店主確認文案維持訂金', () {
+    final InitialPaymentChoice choice =
+        BookingPaymentStatus.initialPaymentChoice(<String, dynamic>{
+          'status': 'pending',
+          'payAmountType': 'deposit',
+          'totalPrice': 5000,
+          'depositAmount': 1500,
+          'paidAmount': 0,
+        });
+    expect(choice.purpose, 'deposit');
+    expect(choice.typeLabel, '訂金');
+    expect(choice.confirmButtonLabel, '確認訂金入帳');
+    expect(choice.amount, 1500);
+  });
+
+  test('全額銀行轉帳應轉金額用最終應付，不用原價', () {
+    final Map<String, dynamic> data = <String, dynamic>{
+      'status': 'pending',
+      'paymentMethod': 'transfer',
+      'payAmountType': 'full',
+      'originalTotal': 5000,
+      'discountAmount': 500,
+      'pointAmount': 500,
+      'totalPrice': 4000,
+      'depositAmount': 1500,
+      'paidAmount': 0,
+    };
+    expect(BookingPaymentStatus.resolveDueNow(data), 4000);
+    expect(BookingPaymentStatus.initialPaymentChoice(data).amount, 4000);
+    expect(BookingPaymentStatus.initialPaymentChoice(data).purpose, 'full');
+    data['payAmountType'] = 'deposit';
+    expect(BookingPaymentStatus.resolveDueNow(data), 1500);
+    expect(BookingPaymentStatus.initialPaymentChoice(data).purpose, 'deposit');
+  });
+
+  test('舊訂單沒有付款目的時維持訂金，不依金額猜全額', () {
+    final Map<String, dynamic> data = <String, dynamic>{
+      'status': 'pending',
+      'totalPrice': 5000,
+      'depositAmount': 1500,
+      'paidAmount': 0,
+    };
+    expect(BookingPaymentStatus.resolvePayAmountType(data), 'deposit');
+    expect(
+      BookingPaymentStatus.initialPaymentChoice(data).confirmButtonLabel,
+      '確認訂金入帳',
+    );
+    expect(BookingPaymentStatus.needsInitialPaymentConfirm(data), isTrue);
+    data['totalPrice'] = 1500;
+    expect(BookingPaymentStatus.resolvePayAmountType(data), 'deposit');
+  });
 }

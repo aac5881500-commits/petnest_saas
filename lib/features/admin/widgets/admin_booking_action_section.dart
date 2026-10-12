@@ -4,6 +4,8 @@
 // 並集中管理訂金確認、取消、選房、更換房間與退房完成按鈕。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 
@@ -68,7 +70,8 @@ StayBookingActionFlags stayBookingActionFlags({
   return StayBookingActionFlags(
     pendingNotice: isPending,
     confirmDirect: isPending && depositAmount <= 0,
-    confirmDeposit: isPending && depositAmount > 0 && depositPaid != true,
+    confirmDeposit:
+        isPending && BookingPaymentStatus.needsInitialPaymentConfirm(data),
     confirmAfterDeposit: isPending && depositAmount > 0 && depositPaid == true,
     assignNotice: isConfirmed && !isAssigned,
     assignRoom: isConfirmed && !isAssigned,
@@ -143,6 +146,9 @@ class AdminBookingActionSection extends StatelessWidget {
         _notice(color: Colors.orange, text: '請先確認訂單，確認後才能選擇房間'),
       if (flags.assignNotice)
         _notice(color: Colors.blue, text: '訂單已確認，請完成分房後再辦理入住'),
+      if (chrome != AdminBookingActionChrome.phoneSticky &&
+          flags.confirmDeposit)
+        ManualPaymentConfirmSummary(data: data),
     ];
     final bool checkoutOnAside =
         chrome == AdminBookingActionChrome.full &&
@@ -239,10 +245,12 @@ class AdminBookingActionSection extends StatelessWidget {
     required bool includeCheckout,
   }) {
     if (flags.confirmDeposit) {
+      final InitialPaymentChoice choice =
+          BookingPaymentStatus.initialPaymentChoice(data);
       return ElevatedButton(
         onPressed: onConfirmDeposit,
         style: primary,
-        child: const Text('確認收到訂金'),
+        child: Text(choice.confirmButtonLabel),
       );
     }
     if (flags.confirmDirect || flags.confirmAfterDeposit) {
@@ -275,6 +283,32 @@ class AdminBookingActionSection extends StatelessWidget {
       );
     }
     return null;
+  }
+}
+
+class ManualPaymentConfirmSummary extends StatelessWidget {
+  const ManualPaymentConfirmSummary({super.key, required this.data});
+
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final InitialPaymentChoice choice = BookingPaymentStatus.initialPaymentChoice(
+      data,
+    );
+    final List<String> lines = choice.confirmLines(
+      BookingPaymentLabels.method(data['paymentMethod']),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (final String line in lines)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(line),
+          ),
+      ],
+    );
   }
 }
 

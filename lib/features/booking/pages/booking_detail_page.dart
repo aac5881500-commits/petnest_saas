@@ -427,8 +427,6 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             return BookingDetailStayServicesSection(
                               view: view,
                               bookingId: widget.docId,
-                              downloadHoursAfterCheckout:
-                                  setting.downloadHoursAfterCheckout,
                               daycareCareEnabled: setting.daycareEnabled,
                             );
                           },
@@ -1134,7 +1132,9 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     final bool settled = BookingSettlementMath.isSettlementConfirmed(
       bookingData,
     );
-    final String purpose = settled ? 'balance' : 'deposit';
+    final InitialPaymentChoice initial =
+        BookingPaymentStatus.initialPaymentChoice(bookingData);
+    final String purpose = settled ? 'balance' : initial.purpose;
     if (!BookingPaymentProof.hasImageForPurpose(bookingData, purpose)) {
       if (!context.mounted) {
         return;
@@ -1187,9 +1187,9 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
           bookingId: widget.docId,
           imageUrl: '',
           storagePath: '',
-          purpose: 'deposit',
+          purpose: initial.purpose,
           last5: last5,
-          amount: BookingPaymentStatus.resolveDepositAmount(bookingData),
+          amount: initial.amount,
         );
       }
       if (!mounted) {
@@ -1261,10 +1261,12 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       final bool settled = BookingSettlementMath.isSettlementConfirmed(
         bookingData,
       );
-      final String purpose = settled ? 'balance' : 'deposit';
-      final int amount = purpose == 'deposit'
-          ? BookingPaymentStatus.resolveDepositAmount(bookingData)
-          : BookingSettlementMath.remainingDue(data: bookingData);
+      final InitialPaymentChoice initial =
+          BookingPaymentStatus.initialPaymentChoice(bookingData);
+      final String purpose = settled ? 'balance' : initial.purpose;
+      final int amount = settled
+          ? BookingSettlementMath.remainingDue(data: bookingData)
+          : initial.amount;
       final String stamp = DateTime.now().millisecondsSinceEpoch.toString();
       final String proofId = '${purpose}_$stamp';
       final ref = FirebaseStorage.instance

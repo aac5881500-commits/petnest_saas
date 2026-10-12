@@ -14,27 +14,20 @@ class BookingDetailStayServicesSection extends StatelessWidget {
     super.key,
     required this.view,
     required this.bookingId,
-    required this.downloadHoursAfterCheckout,
     this.daycareCareEnabled = false,
   });
 
   final BookingDetailViewData view;
   final String bookingId;
-  final int downloadHoursAfterCheckout;
   final bool daycareCareEnabled;
 
   @override
   Widget build(BuildContext context) {
     final bool canView = view.canViewDailyCare(
-      downloadHoursAfterCheckout: downloadHoursAfterCheckout,
       daycareCareEnabled: daycareCareEnabled,
     );
-    final bool expired = view.dailyCareDownloadExpired(
-      downloadHoursAfterCheckout: downloadHoursAfterCheckout,
-    );
-    final DateTime? deadline = view.dailyCareDownloadDeadline(
-      downloadHoursAfterCheckout,
-    );
+    final bool expired = view.dailyCareDownloadExpired();
+    final DateTime? deadline = view.dailyCareDownloadDeadline();
 
     final bool canViewRecord = view.canViewDailyCareRecord(
       daycareCareEnabled: daycareCareEnabled,

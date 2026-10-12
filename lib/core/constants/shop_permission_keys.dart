@@ -117,6 +117,15 @@ class ShopPermissionKeys {
   /// 🐾 調整臨托價格
   static const adjustDaycarePrice = 'adjust_daycare_price';
 
+  /// 管理一般員工與員工邀請。不能任命店長或老闆。
+  static const manageStaff = 'manage_staff';
+
+  /// 查看平台一般公告。
+  static const viewPlatformNotices = 'view_platform_notices';
+
+  /// 聯絡平台客服與查看回覆。
+  static const contactPlatformSupport = 'contact_platform_support';
+
   /// 🔥 全部權限列表
   static const all = [
     manageMembers,
@@ -149,6 +158,11 @@ class ShopPermissionKeys {
     manageStoreOrders,
     manageStoreSettings,
     managePolicy,
+    viewReports,
+    viewActionLogs,
+    manageStaff,
+    viewPlatformNotices,
+    contactPlatformSupport,
     viewDaycareBookings,
     manageDaycareBookings,
     manageDaycareSettings,

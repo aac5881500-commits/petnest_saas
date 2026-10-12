@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
+import 'package:petnest_saas/core/services/shop_plan_access.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
@@ -45,7 +46,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
     if (!mounted) return;
     setState(() {
       _selectedModules = modules;
-      _plan = shop['plan']?.toString() ?? 'free';
+      _plan = ShopPlanAccess.effectivePlan(shop);
     });
   }
 

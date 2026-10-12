@@ -33,7 +33,7 @@ const CUSTOMER_TRANSACTIONAL_TYPES = {
 function classifyCustomerNotification(data) {
   const payload = data || {};
   const type = (payload.type || "").toString();
-  let source = (payload.source || "").toString();
+  const source = (payload.source || "").toString();
   let category = (payload.category || "").toString();
   const explicitFalse = payload.isMandatory === false ||
     payload.isMandatory === "false";
@@ -875,6 +875,15 @@ exports.createPlatformUserByEmail =
   require("./platform/create_platform_user")
       .createPlatformUserByEmail;
 /**
+ * 一次更新平台人員角色、權限與啟用狀態。
+ *
+ * 實際邏輯放在：
+ * functions/platform/update_platform_user.js
+ */
+exports.updatePlatformUser =
+  require("./platform/update_platform_user")
+      .updatePlatformUser;
+/**
  * ⚙️ 更新店家收款方式營運設定
  *
  * 實際邏輯放在：
@@ -982,6 +991,8 @@ exports.changeBookingPaymentMethod =
 
 exports.appendBookingPaymentProof =
   require("./bookings/append_booking_payment_proof").appendBookingPaymentProof;
+exports.confirmManualBookingPayment =
+  require("./bookings/manual_initial_payment").confirmManualBookingPayment;
 
 exports.quoteDailyCareAddon =
   require("./daily_care/quote_daily_care").quoteDailyCareAddon;
@@ -1033,3 +1044,60 @@ exports.syncCameraAccessOnDeviceDeleted =
   cameraAccessSync.syncCameraAccessOnDeviceDeleted;
 exports.syncCameraAccessOnShop = cameraAccessSync.syncCameraAccessOnShop;
 exports.syncCameraRoomSignal = cameraAccessSync.syncCameraRoomSignal;
+
+const legalPet = require("./legal_pet/callables");
+exports.syncLegalPetBusinesses = legalPet.syncLegalPetBusinesses;
+exports.syncLegalPetBusinessesDaily = legalPet.syncLegalPetBusinessesDaily;
+exports.lookupLegalPetLicense = legalPet.lookupLegalPetLicense;
+exports.saveShopInitialProfile = legalPet.saveShopInitialProfile;
+exports.submitShopCertification = legalPet.submitShopCertification;
+exports.reviewShopChangeRequest = legalPet.reviewShopChangeRequest;
+exports.listLegalPetBusinesses = legalPet.listLegalPetBusinesses;
+exports.getLegalPetBusiness = legalPet.getLegalPetBusiness;
+exports.updateLegalPetContact = legalPet.updateLegalPetContact;
+exports.backfillLegalPetDirectory = legalPet.backfillLegalPetDirectory;
+exports.backfillLicenseLookupKeys = legalPet.backfillLicenseLookupKeys;
+exports.guardShopLicenseCertification =
+  legalPet.guardShopLicenseCertification;
+
+const sales = require("./sales/callables");
+exports.createShopWithActivation = sales.createShopWithActivation;
+exports.saveSalesRep = sales.saveSalesRep;
+exports.listSalesReps = sales.listSalesReps;
+exports.saveActivationCode = sales.saveActivationCode;
+exports.listActivationCodes = sales.listActivationCodes;
+exports.registerSubscriptionPayment = sales.registerSubscriptionPayment;
+exports.confirmSubscriptionPayment = sales.confirmSubscriptionPayment;
+exports.refundSubscriptionPayment = sales.refundSubscriptionPayment;
+exports.grantShopEntitlement = sales.grantShopEntitlement;
+exports.assignShopSales = sales.assignShopSales;
+exports.saveCommissionRule = sales.saveCommissionRule;
+exports.settleCommission = sales.settleCommission;
+exports.migrateShopCommercialData = sales.migrateShopCommercialData;
+exports.listSubscriptionShops = sales.listSubscriptionShops;
+exports.listSubscriptionPayments = sales.listSubscriptionPayments;
+exports.getShopCommercial = sales.getShopCommercial;
+exports.listResponsibleShops = sales.listResponsibleShops;
+exports.listCommissionEntries = sales.listCommissionEntries;
+exports.listCommissionRules = sales.listCommissionRules;
+exports.migrateActivationCodes = sales.migrateActivationCodes;
+exports.reconcileSalesSummaries = sales.reconcileSalesSummaries;
+exports.previewSubscriptionPayment = sales.previewSubscriptionPayment;
+exports.updateShopPlan = sales.updateShopPlan;
+exports.applyDueShopPlans = sales.applyDueShopPlans;
+exports.applyDueShopPlansDaily = onSchedule({
+  schedule: "10 0 * * *",
+  timeZone: "Asia/Taipei",
+  region: "asia-east1",
+}, async () => {
+  const salesOps = require("./sales/commercial_ops");
+  let cursor = "";
+  do {
+    const page = await salesOps.applyDueShopPlans(null, {
+      limit: 80,
+      cursor: cursor,
+    });
+    cursor = page.nextCursor || "";
+  } while (cursor);
+});
+exports.salesMonthSummary = sales.salesMonthSummary;

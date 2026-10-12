@@ -3,7 +3,6 @@
 
 import 'dart:async';
 
-import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
@@ -1807,26 +1806,52 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           ),
         ),
       );
-    } catch (e, st) {
-      /// 💳 線上付款建立失敗時保留 Booking
-      ///
-      /// 正式付款架構中，一筆 Booking 可以對應多筆 Payment。
-      /// 因此付款建立失敗時不刪除訂單，也不恢復優惠券，
-      /// 讓會員之後可以針對同一筆 Booking 重新付款，
-      /// 避免產生重複訂單。
-      debugPrint('[BookingSubmit] submit failed: $e');
-      debugPrint('[BookingSubmit] stack:\n$st');
+    } catch (e) {
+      /// 線上付款建立失敗時保留 Booking。
+      /// 一筆 Booking 可以對應多筆 Payment，付款失敗不刪除訂單。
+      /// 訂單仍有效時也保留 requestId，避免重試再建立一筆。
+      final String stage = e is BookingSubmitException
+          ? e.stage
+          : e is PaymentFunctionException
+          ? 'payment_init'
+          : 'submit';
+      final String operation = e is BookingSubmitException
+          ? e.operation
+          : e is PaymentFunctionException
+          ? 'PaymentFunctionService.createPayment'
+          : 'BookingSubmitHelper.submitBooking';
+      final String firebaseCode = e is BookingSubmitException
+          ? e.firebaseCode
+          : e is PaymentFunctionException
+          ? e.code
+          : e is FirebaseException
+          ? e.code
+          : '';
+      BookingSubmitHelper.logStageFailure(
+        stage: stage,
+        operation: operation,
+        error: e,
+        firebaseCode: firebaseCode,
+      );
 
-      if (e is! PaymentFunctionException) {
+      final bool keepRequest =
+          e is PaymentFunctionException ||
+          (e is BookingSubmitException && e.keepRequestId);
+      if (!keepRequest) {
         _bookingRequestId = null;
         _bookingRequestSignature = null;
       }
 
       if (!mounted) return;
 
+      final String paymentMessage = e is PaymentFunctionException
+          ? e.message.trim()
+          : '';
       final String message = e is PaymentFunctionException
+          ? (paymentMessage.isEmpty ? '付款程序暫時無法啟動，請稍後再試。' : paymentMessage)
+          : e is BookingSubmitException
           ? e.message
-          : InventoryException.userMessage(e);
+          : '預約送出失敗，請稍後再試。';
 
       _showSnackBar(message);
     } finally {

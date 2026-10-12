@@ -113,6 +113,14 @@ class _BookingDetailFinanceSectionState
               '本次應付訂金',
               'NT\$ ${view.depositAmount}',
               valueColor: BookingDetailUi.of(context).primary,
+            )
+          else if (view.payAmountType == 'full' &&
+              !view.isPaidInFull &&
+              view.dueNowAmount > 0)
+            _kv(
+              '本次應付全額',
+              'NT\$ ${view.dueNowAmount}',
+              valueColor: BookingDetailUi.of(context).primary,
             ),
           const SizedBox(height: 8),
           Text(

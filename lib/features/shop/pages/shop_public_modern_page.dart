@@ -27,7 +27,10 @@ import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
+import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_quick_action_bar.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_layout_canvas.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_about_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_faq_section.dart';
@@ -800,6 +803,19 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final bool showStayServiceStrip =
             modernAppearance['showStayServiceStrip'] != false;
         final bool storeModuleEnabled = StorefrontAccess.isModuleEnabled(shop);
+        final HomeQuickActionSetting quickActions =
+            HomeQuickActionSetting.fromMap(
+              modernAppearance[HomeQuickActionSetting.mapKey],
+            );
+        final Widget quickActionBar = _quickActionBar(
+          shop: shop,
+          shopName: shopName,
+          shopLogoUrl: logoUrl,
+          theme: modernTheme,
+          setting: quickActions,
+          storeEnabled: storeModuleEnabled,
+          chatEnabled: ShopChatService.isEnabled(shop),
+        );
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
           showAnnouncements: showAnnouncementsOnHome,
@@ -853,6 +869,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             quickBookingSection: quickBookingSection,
             accommodationAvailable: accommodationAvailable,
             daycareAvailable: daycareAvailable,
+            quickActionBar: quickActionBar,
+            quickActionsAtStart: quickActions.atStart,
           );
         }
 
@@ -1000,6 +1018,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           hideMenu: useBottomBar,
                           textColor: modernTheme.textColor,
                         ),
+                        actions: quickActionBar,
+                        actionsAtStart: quickActions.atStart,
                       ),
                       Expanded(
                         child: LayoutBuilder(
@@ -1330,6 +1350,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required HomeQuickBookingSectionSetting quickBookingSection,
     required bool accommodationAvailable,
     required bool daycareAvailable,
+    required Widget quickActionBar,
+    required bool quickActionsAtStart,
   }) {
     switch (sectionId) {
       case 'header':
@@ -1346,6 +1368,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             hideMenu: useBottomBar,
             textColor: theme.textColor,
           ),
+          actions: quickActionBar,
+          actionsAtStart: quickActionsAtStart,
         );
       case 'footer':
         return _canvasFooter(theme: theme);
@@ -1579,6 +1603,28 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _quickActionBar({
+    required Map<String, dynamic> shop,
+    required String shopName,
+    required String shopLogoUrl,
+    required HomeThemeModel theme,
+    required HomeQuickActionSetting setting,
+    required bool storeEnabled,
+    required bool chatEnabled,
+  }) {
+    return HomeQuickActionHost(
+      shopId: widget.shopId,
+      shop: shop,
+      shopName: shopName,
+      shopLogoUrl: shopLogoUrl,
+      theme: theme,
+      setting: setting,
+      storeEnabled: storeEnabled,
+      chatEnabled: chatEnabled,
+      interactive: !widget.isPreview && !widget.layoutCanvas,
     );
   }
 

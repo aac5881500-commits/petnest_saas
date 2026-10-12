@@ -16,6 +16,7 @@ import 'package:petnest_saas/features/admin/models/settlement_next_action.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_settlement_panel.dart';
 import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/admin_manual_deposit_confirm.dart';
@@ -48,7 +49,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.d
 import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
-import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_stay_meta_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
@@ -202,7 +203,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                           await _updateStatus('confirmed');
                         },
                         onConfirmDeposit: () async {
-                          await _confirmDepositAndBooking(context);
+                          await _confirmDepositAndBooking(context, data);
                         },
                         onCancelBooking: () async {
                           await showAdminCancelBookingDialog(
@@ -451,15 +452,10 @@ class AdminBookingDetailPage extends StatelessWidget {
                                   !BookingSettlementMath.isSettlementLocked(
                                     data,
                                   ) &&
-                                  (status == 'pending' ||
-                                      status == 'pending_confirmation' ||
-                                      status == 'unpaid') &&
-                                  BookingPaymentStatus.resolveDepositAmount(
-                                        data,
-                                      ) >
-                                      0 &&
-                                  !BookingPaymentStatus.isDepositConfirmed(data)
-                              ? () => _applyConfirmDeposit()
+                                  BookingPaymentStatus.needsInitialPaymentConfirm(
+                                    data,
+                                  )
+                              ? () => _confirmDepositAndBooking(context, data)
                               : null,
                         ),
                         AdminBookingDetailPolicyCard(data: data),
@@ -640,10 +636,6 @@ class AdminBookingDetailPage extends StatelessWidget {
     try {
       final String checkoutShopId = (data['shopId'] ?? '').toString().trim();
       if (checkoutShopId.isNotEmpty) {
-        final setting = await DailyCareSettingService.instance.getSetting(
-          checkoutShopId,
-        );
-        final int downloadHours = setting.downloadHoursAfterCheckout;
         final DocumentSnapshot<Map<String, dynamic>> updatedBookingSnapshot =
             await FirebaseFirestore.instance
                 .collection('bookings')
@@ -651,34 +643,43 @@ class AdminBookingDetailPage extends StatelessWidget {
                 .get();
         final Map<String, dynamic> updatedBookingData =
             updatedBookingSnapshot.data() ?? <String, dynamic>{};
-        final dynamic rawCheckOutAt =
-            updatedBookingData['checkOutAt'] ??
-            updatedBookingData['checkedOutAt'];
-        DateTime? checkoutCompletedAt;
-        if (rawCheckOutAt is Timestamp) {
-          checkoutCompletedAt = rawCheckOutAt.toDate();
-        } else if (rawCheckOutAt is DateTime) {
-          checkoutCompletedAt = rawCheckOutAt;
-        } else if (rawCheckOutAt is String) {
-          checkoutCompletedAt = DateTime.tryParse(rawCheckOutAt);
+        final bool daycare =
+            (updatedBookingData['bookingKind'] ?? '').toString() ==
+                'daycare' ||
+            (updatedBookingData['serviceType'] ?? '').toString() == 'daycare';
+        final dynamic rawServiceEnd = daycare
+            ? updatedBookingData['actualEndAt'] ??
+                  updatedBookingData['checkedOutAt'] ??
+                  updatedBookingData['completedAt']
+            : updatedBookingData['checkOutAt'] ??
+                  updatedBookingData['checkedOutAt'] ??
+                  updatedBookingData['completedAt'];
+        DateTime? serviceEnd;
+        if (rawServiceEnd is Timestamp) {
+          serviceEnd = rawServiceEnd.toDate();
+        } else if (rawServiceEnd is DateTime) {
+          serviceEnd = rawServiceEnd;
+        } else if (rawServiceEnd is String) {
+          serviceEnd = DateTime.tryParse(rawServiceEnd);
         }
-        checkoutCompletedAt ??= DateTime.now();
-        final DateTime expiresAt = checkoutCompletedAt.add(
-          Duration(hours: downloadHours),
-        );
-        final QuerySnapshot<Map<String, dynamic>> downloadSnapshot =
-            await FirebaseFirestore.instance
-                .collection('daily_care_photo_downloads')
-                .where('bookingId', isEqualTo: bookingId)
-                .get();
-        if (downloadSnapshot.docs.isNotEmpty) {
-          final WriteBatch batch = FirebaseFirestore.instance.batch();
-          for (final doc in downloadSnapshot.docs) {
-            batch.update(doc.reference, <String, dynamic>{
-              'expiresAt': Timestamp.fromDate(expiresAt),
-            });
+        if (serviceEnd != null) {
+          final DateTime expiresAt = serviceEnd.add(
+            const Duration(hours: DailyCareReportMode.retentionHours),
+          );
+          final QuerySnapshot<Map<String, dynamic>> downloadSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('daily_care_photo_downloads')
+                  .where('bookingId', isEqualTo: bookingId)
+                  .get();
+          if (downloadSnapshot.docs.isNotEmpty) {
+            final WriteBatch batch = FirebaseFirestore.instance.batch();
+            for (final doc in downloadSnapshot.docs) {
+              batch.update(doc.reference, <String, dynamic>{
+                'expiresAt': Timestamp.fromDate(expiresAt),
+              });
+            }
+            await batch.commit();
           }
-          await batch.commit();
         }
       }
     } catch (error, stackTrace) {
@@ -787,14 +788,22 @@ class AdminBookingDetailPage extends StatelessWidget {
     return AdminManualDepositConfirm.confirmStayBooking(bookingId: bookingId);
   }
 
-  Future<void> _confirmDepositAndBooking(BuildContext context) async {
+  Future<void> _confirmDepositAndBooking(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) async {
+    final InitialPaymentChoice choice =
+        BookingPaymentStatus.initialPaymentChoice(data);
+    final String methodLabel = BookingPaymentLabels.method(
+      data['paymentMethod'],
+    );
     final bool? ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('確認收到訂金'),
-          content: const Text('確認已收到訂金？此操作不可重複執行。'),
+          title: Text(choice.confirmButtonLabel),
+          content: Text(choice.confirmLines(methodLabel).join('\n')),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -802,7 +811,7 @@ class AdminBookingDetailPage extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('確認'),
+              child: Text(choice.confirmButtonLabel),
             ),
           ],
         );
@@ -815,12 +824,12 @@ class AdminBookingDetailPage extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return const AlertDialog(
+        return AlertDialog(
           content: Row(
             children: <Widget>[
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Expanded(child: Text('正在確認訂金…')),
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Expanded(child: Text('正在${choice.confirmButtonLabel}…')),
             ],
           ),
         );
@@ -830,9 +839,9 @@ class AdminBookingDetailPage extends StatelessWidget {
       await _applyConfirmDeposit();
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('訂金已確認')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(choice.isFull ? '全額已確認' : '訂金已確認')),
+        );
       }
     } catch (error, stack) {
       ChatErrorProbe.dump(

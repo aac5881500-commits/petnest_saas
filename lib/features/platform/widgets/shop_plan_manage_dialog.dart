@@ -4,7 +4,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:petnest_saas/core/constants/shop_modules.dart';
+import 'package:petnest_saas/core/services/shop_plan_access.dart';
+import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 
 class ShopPlanManageDialog extends StatelessWidget {
   const ShopPlanManageDialog({
@@ -65,46 +66,64 @@ class ShopPlanManageDialog extends StatelessWidget {
   }
 
   Future<void> _extendPaidUntil(BuildContext context, int days) async {
-    final paidUntil = shop['paidUntil'];
-
-    DateTime baseDate;
-
-    if (paidUntil is Timestamp && paidUntil.toDate().isAfter(DateTime.now())) {
-      baseDate = paidUntil.toDate();
-    } else {
-      baseDate = DateTime.now();
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('贈送 $days 天'),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: '原因',
+              hintText: '這是贈送或人工調整，不會產生收入與分潤',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              child: const Text('確認贈送'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (reason == null || reason.length < 2) return;
+    try {
+      await ShopCommercialService.instance.grantEntitlement(
+        shopId: shopId,
+        days: days,
+        reason: reason,
+      );
+    } on ShopCommercialException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+      return;
     }
-
-    await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-      'paidUntil': Timestamp.fromDate(baseDate.add(Duration(days: days))),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
 
     if (context.mounted) {
       Navigator.pop(context);
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('已延長 $days 天')));
+      ).showSnackBar(SnackBar(content: Text('已贈送 $days 天，沒有計入收入')));
     }
   }
 
   Future<void> _updatePlan(BuildContext context, String plan) async {
-    final lockedModule =
-        shop['lockedModule']?.toString().trim().isNotEmpty == true
-        ? shop['lockedModule'].toString()
-        : shop['businessType']?.toString() ?? ShopModules.catHotel;
-
-    final enabledModules = plan == 'pro'
-        ? ShopModules.proEnabledModules()
-        : ShopModules.lockedPlanModules(lockedModule);
-
-    await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-      'plan': plan,
-      'lockedModule': lockedModule,
-      'enabledModules': enabledModules,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await ShopCommercialService.instance.updateShopPlan(
+      shopId: shopId,
+      plan: plan,
+    );
 
     if (context.mounted) {
       Navigator.pop(context);
@@ -142,7 +161,7 @@ class ShopPlanManageDialog extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('自訂延長天數'),
+          title: const Text('自訂贈送天數'),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
@@ -295,7 +314,9 @@ class ShopPlanManageDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final plan = shop['plan']?.toString() ?? 'free';
+    final plan = ShopPlanAccess.effectivePlan(shop);
+    final pendingPlan = ShopPlanAccess.pendingNextPlan(shop);
+    final pendingStarts = ShopPlanAccess.pendingNextStarts(shop);
     final accountStatus = shop['accountStatus']?.toString() ?? 'normal';
 
     return AlertDialog(
@@ -349,6 +370,13 @@ class ShopPlanManageDialog extends StatelessWidget {
               child: Column(
                 children: [
                   _infoRow('目前方案', _planLabel(plan)),
+                  if (pendingPlan.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _infoRow(
+                      '下一期方案',
+                      '${_planLabel(pendingPlan)}，自 $pendingStarts',
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   _infoRow('到期日', _formatDate(shop['paidUntil'])),
                   const SizedBox(height: 10),
@@ -406,9 +434,10 @@ class ShopPlanManageDialog extends StatelessWidget {
             const SizedBox(height: 18),
 
             const Text(
-              '延長方案',
+              '贈送或人工調整權益',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
             ),
+            const Text('不會產生收款與分潤'),
             const SizedBox(height: 10),
 
             Wrap(
@@ -416,13 +445,13 @@ class ShopPlanManageDialog extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _actionChip(
-                  label: '+7天',
+                  label: '贈送 7 天',
                   icon: Icons.add_circle_outline,
                   color: Colors.blue,
                   onTap: () => _extendPaidUntil(context, 7),
                 ),
                 _actionChip(
-                  label: '+30天',
+                  label: '贈送 30 天',
                   icon: Icons.add_circle_outline,
                   color: Colors.blue,
                   onTap: () => _extendPaidUntil(context, 30),

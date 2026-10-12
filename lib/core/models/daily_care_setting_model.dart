@@ -473,7 +473,7 @@ class DailyCareSettingModel {
   /// 樂觀鎖：避免無提示覆蓋其他員工剛儲存的設定
   final int revision;
 
-  /// 退房後可下載紀錄與照片的時間
+  /// 舊設定欄位。照護照片保存已固定 24 小時，期限計算不再讀這個值。
   final int downloadHoursAfterCheckout;
 
   /// 客戶端日誌頁首與區塊顯示開關（舊資料缺欄視為全部開啟）

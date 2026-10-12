@@ -11,6 +11,7 @@ class StoreBrandSettingsCard extends StatelessWidget {
     super.key,
     required this.style,
     required this.theme,
+    this.shopName = '',
     required this.subtitleController,
     required this.logoSection,
     required this.hasLogo,
@@ -19,6 +20,7 @@ class StoreBrandSettingsCard extends StatelessWidget {
 
   final StoreBrandStyle style;
   final HomeThemeModel theme;
+  final String shopName;
   final TextEditingController subtitleController;
   final Widget logoSection;
   final bool hasLogo;
@@ -30,328 +32,428 @@ class StoreBrandSettingsCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _section(
-          title: '店家內容',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              logoSection,
-              const SizedBox(height: 12),
-              TextField(
-                controller: subtitleController,
-                maxLength: StoreBrandTextPolicy.subtitleMaxCharacters,
-                maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                inputFormatters: <TextInputFormatter>[
-                  LengthLimitingTextInputFormatter(
-                    StoreBrandTextPolicy.subtitleMaxCharacters,
-                  ),
-                ],
-                decoration: const InputDecoration(
-                  labelText: '店名下方副標',
-                  helperText: '留空並儲存後，新版首頁不顯示副標\n建議 16 字內；首頁最多顯示兩行，過長會以 … 省略',
-                  helperMaxLines: 3,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
+          title: '店家基本識別',
+          caption: '顯示在首頁最上方。店名來自基本資料。',
+          child: _identityBody(),
+        ),
+        _section(
+          title: '店名與副標文字',
+          caption: '調整字體、大小、顏色與對齊。',
+          child: _textBody(context),
+        ),
+        _AdvancedPlacement(style: style, onChanged: onChanged),
+      ],
+    );
+  }
+
+  Widget _identityBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        logoSection,
+        const SizedBox(height: 12),
+        InputDecorator(
+          decoration: const InputDecoration(
+            labelText: '店名',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          child: Text(
+            _shopNameLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: style.appliedNameFontFamily,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1F2937),
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        _section(
-          title: '店家識別圖示',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  _choice(
-                    label: '使用店家 Logo',
-                    selected: style.markType == 'logo',
-                    onSelected: () =>
-                        onChanged(style.copyWith(markType: 'logo')),
-                  ),
-                  _choice(
-                    label: '使用內建小圖示',
-                    selected: style.markType == 'builtinIcon',
-                    onSelected: () =>
-                        onChanged(style.copyWith(markType: 'builtinIcon')),
-                  ),
-                  _choice(
-                    label: '不顯示圖示',
-                    selected: style.markType == 'none',
-                    onSelected: () =>
-                        onChanged(style.copyWith(markType: 'none')),
-                  ),
-                ],
-              ),
-              if (style.markType == 'logo' && !hasLogo) ...<Widget>[
-                const SizedBox(height: 8),
-                const Text(
-                  '請先上傳店家 Logo',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFB45309),
-                  ),
-                ),
-              ],
-              if (style.markType == 'builtinIcon') ...<Widget>[
-                const SizedBox(height: 12),
-                const Text(
-                  '內建圖示',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: <Widget>[
-                    for (final _BrandIcon icon in _BrandIcon.values)
-                      ChoiceChip(
-                        label: Text(icon.label),
-                        avatar: Icon(icon.data, size: 16),
-                        selected: style.fallbackIcon == icon.id,
-                        onSelected: (bool selected) {
-                          if (selected) {
-                            onChanged(style.copyWith(fallbackIcon: icon.id));
-                          }
-                        },
-                      ),
-                  ],
-                ),
-              ],
-              if (style.showsMark) ...<Widget>[
-                const SizedBox(height: 12),
-                const Text(
-                  '圖示位置',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: <Widget>[
-                    _choice(
-                      label: '文字左側',
-                      selected: style.logoPlacement == 'leading',
-                      onSelected: () =>
-                          onChanged(style.copyWith(logoPlacement: 'leading')),
-                    ),
-                    _choice(
-                      label: '文字右側',
-                      selected: style.logoPlacement == 'trailing',
-                      onSelected: () =>
-                          onChanged(style.copyWith(logoPlacement: 'trailing')),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  '圖示大小',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: <Widget>[
-                    _choice(
-                      label: '小',
-                      selected: style.logoSize == 'small',
-                      onSelected: () =>
-                          onChanged(style.copyWith(logoSize: 'small')),
-                    ),
-                    _choice(
-                      label: '中',
-                      selected: style.logoSize == 'medium',
-                      onSelected: () =>
-                          onChanged(style.copyWith(logoSize: 'medium')),
-                    ),
-                    _choice(
-                      label: '大',
-                      selected: style.logoSize == 'large',
-                      onSelected: () =>
-                          onChanged(style.copyWith(logoSize: 'large')),
-                    ),
-                  ],
-                ),
-              ],
-            ],
+        const SizedBox(height: 10),
+        TextField(
+          controller: subtitleController,
+          maxLength: StoreBrandTextPolicy.subtitleMaxCharacters,
+          maxLengthEnforcement: MaxLengthEnforcement.enforced,
+          inputFormatters: <TextInputFormatter>[
+            LengthLimitingTextInputFormatter(
+              StoreBrandTextPolicy.subtitleMaxCharacters,
+            ),
+          ],
+          decoration: const InputDecoration(
+            labelText: '店名下方副標',
+            helperText: '留空則不顯示。最多 24 字。',
+            isDense: true,
+            border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 12),
-        _section(
-          title: '文字樣式',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: <Widget>[
-                  _choice(
-                    label: '靠左',
-                    selected: style.textAlign == 'left',
-                    onSelected: () =>
-                        onChanged(style.copyWith(textAlign: 'left')),
-                  ),
-                  _choice(
-                    label: '置中',
-                    selected: style.textAlign == 'center',
-                    onSelected: () =>
-                        onChanged(style.copyWith(textAlign: 'center')),
-                  ),
-                  _choice(
-                    label: '靠右',
-                    selected: style.textAlign == 'right',
-                    onSelected: () =>
-                        onChanged(style.copyWith(textAlign: 'right')),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _colorRow(
-                context: context,
-                label: '店家名稱顏色',
-                value: style.nameColor(theme.textColor),
-                themeChoice: theme.primaryColor,
-                onPick: (Color color) {
-                  onChanged(style.copyWith(nameColorValue: color.toARGB32()));
-                },
-              ),
-              const SizedBox(height: 12),
-              _colorRow(
-                context: context,
-                label: '副標文字顏色',
-                value: style.subtitleColor(theme.textColor),
-                themeChoice: theme.primaryColor,
-                onPick: (Color color) {
-                  onChanged(
-                    style.copyWith(subtitleColorValue: color.toARGB32()),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              _fontSlider(
-                label: '店名字體大小',
-                value: style.nameFontSize,
-                min: StoreBrandStyle.minNameFont,
-                max: StoreBrandStyle.maxNameFont,
-                onChanged: (double value) {
-                  onChanged(style.copyWith(nameFontSize: value));
-                },
-              ),
-              _fontSlider(
-                label: '副標字體大小',
-                value: style.subtitleFontSize,
-                min: StoreBrandStyle.minSubtitleFont,
-                max: StoreBrandStyle.maxSubtitleFont,
-                onChanged: (double value) {
-                  onChanged(style.copyWith(subtitleFontSize: value));
-                },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('文字陰影'),
-                subtitle: const Text('為店名與副標加上柔和陰影'),
-                value: style.textShadowEnabled,
-                onChanged: (bool value) {
-                  onChanged(style.copyWith(textShadowEnabled: value));
-                },
-              ),
-            ],
-          ),
+        const SizedBox(height: 4),
+        const Text('Logo 顯示方式', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            _toggle(
+              label: '使用店家 Logo',
+              selected: style.markType == 'logo',
+              onSelected: () => onChanged(style.copyWith(markType: 'logo')),
+            ),
+            _toggle(
+              label: '使用內建小圖示',
+              selected: style.markType == 'builtinIcon',
+              onSelected: () =>
+                  onChanged(style.copyWith(markType: 'builtinIcon')),
+            ),
+            _toggle(
+              label: '不顯示',
+              selected: style.markType == 'none',
+              onSelected: () => onChanged(style.copyWith(markType: 'none')),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        _section(
-          title: '水平位置',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        if (style.markType == 'logo' && !hasLogo) ...<Widget>[
+          const SizedBox(height: 8),
+          const Text(
+            '請先上傳店家 Logo',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFB45309),
+            ),
+          ),
+        ],
+        if (style.markType == 'builtinIcon') ...<Widget>[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: <Widget>[
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  _choice(
-                    label: '靠左',
-                    selected: (style.x - 0).abs() < 0.015,
-                    onSelected: () => onChanged(style.copyWith(x: 0)),
-                  ),
-                  _choice(
-                    label: '置中',
-                    selected: (style.x - 0.5).abs() < 0.015,
-                    onSelected: () => onChanged(style.copyWith(x: 0.5)),
-                  ),
-                  _choice(
-                    label: '靠右',
-                    selected: (style.x - 1).abs() < 0.015,
-                    onSelected: () => onChanged(style.copyWith(x: 1)),
-                  ),
-                  if (!StoreBrandStyle.isPresetX(style.x))
-                    const ChoiceChip(
-                      label: Text('自訂位置'),
-                      selected: true,
-                      onSelected: null,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text('水平位置 ${(style.x * 100).round()}%'),
-              const SizedBox(height: 8),
-              const Text(
-                '也可以在左側預覽直接左右拖曳',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: Colors.black54,
+              for (final _BrandIcon icon in _BrandIcon.values)
+                ChoiceChip(
+                  label: Text(icon.label),
+                  avatar: Icon(icon.data, size: 16),
+                  selected: style.fallbackIcon == icon.id,
+                  onSelected: (bool selected) {
+                    if (selected) {
+                      onChanged(style.copyWith(fallbackIcon: icon.id));
+                    }
+                  },
                 ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: () =>
-                      onChanged(StoreBrandStyle.resetPlacement(style)),
-                  child: const Text('重設位置'),
-                ),
-              ),
             ],
           ),
+        ],
+        if (style.showsMark) ...<Widget>[
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool sideBySide = constraints.maxWidth >= 520;
+              final Widget placement = _optionGroup(
+                label: 'Logo 位置',
+                children: <Widget>[
+                  _toggle(
+                    label: '文字左側',
+                    selected: style.logoPlacement == 'leading',
+                    onSelected: () =>
+                        onChanged(style.copyWith(logoPlacement: 'leading')),
+                  ),
+                  _toggle(
+                    label: '文字右側',
+                    selected: style.logoPlacement == 'trailing',
+                    onSelected: () =>
+                        onChanged(style.copyWith(logoPlacement: 'trailing')),
+                  ),
+                ],
+              );
+              final Widget size = _optionGroup(
+                label: 'Logo 大小',
+                children: <Widget>[
+                  _toggle(
+                    label: '小',
+                    selected: style.logoSize == 'small',
+                    onSelected: () =>
+                        onChanged(style.copyWith(logoSize: 'small')),
+                  ),
+                  _toggle(
+                    label: '中',
+                    selected: style.logoSize == 'medium',
+                    onSelected: () =>
+                        onChanged(style.copyWith(logoSize: 'medium')),
+                  ),
+                  _toggle(
+                    label: '大',
+                    selected: style.logoSize == 'large',
+                    onSelected: () =>
+                        onChanged(style.copyWith(logoSize: 'large')),
+                  ),
+                ],
+              );
+              if (!sideBySide) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    placement,
+                    const SizedBox(height: 10),
+                    size,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: placement),
+                  const SizedBox(width: 16),
+                  Expanded(child: size),
+                ],
+              );
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _textBody(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text('字體', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        _nameFontDropdown(),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final Widget nameSize = _fontSlider(
+              label: '店名',
+              value: style.nameFontSize,
+              min: StoreBrandStyle.minNameFont,
+              max: StoreBrandStyle.maxNameFont,
+              onChanged: (double value) {
+                onChanged(style.copyWith(nameFontSize: value));
+              },
+            );
+            final Widget subtitleSize = _fontSlider(
+              label: '副標',
+              value: style.subtitleFontSize,
+              min: StoreBrandStyle.minSubtitleFont,
+              max: StoreBrandStyle.maxSubtitleFont,
+              onChanged: (double value) {
+                onChanged(style.copyWith(subtitleFontSize: value));
+              },
+            );
+            if (constraints.maxWidth < 520) {
+              return Column(
+                children: <Widget>[
+                  nameSize,
+                  const SizedBox(height: 4),
+                  subtitleSize,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(child: nameSize),
+                const SizedBox(width: 16),
+                Expanded(child: subtitleSize),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 4),
+        const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            _toggle(
+              label: '靠左',
+              selected: style.textAlign == 'left',
+              onSelected: () => onChanged(style.copyWith(textAlign: 'left')),
+            ),
+            _toggle(
+              label: '置中',
+              selected: style.textAlign == 'center',
+              onSelected: () => onChanged(style.copyWith(textAlign: 'center')),
+            ),
+            _toggle(
+              label: '靠右',
+              selected: style.textAlign == 'right',
+              onSelected: () => onChanged(style.copyWith(textAlign: 'right')),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('文字陰影', style: TextStyle(fontWeight: FontWeight.w700)),
+                  SizedBox(height: 2),
+                  Text(
+                    '讓文字在背景上更清楚。',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: style.textShadowEnabled,
+              onChanged: (bool value) {
+                onChanged(style.copyWith(textShadowEnabled: value));
+              },
+            ),
+          ],
+        ),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final Widget nameColor = _BrandColorField(
+              label: '店名顏色',
+              value: style.nameColor(theme.textColor),
+              themeChoice: theme.primaryColor,
+              onPick: (Color color) {
+                onChanged(style.copyWith(nameColorValue: color.toARGB32()));
+              },
+            );
+            final Widget subtitleColor = _BrandColorField(
+              label: '副標顏色',
+              value: style.subtitleColor(theme.textColor),
+              themeChoice: theme.primaryColor,
+              onPick: (Color color) {
+                onChanged(style.copyWith(subtitleColorValue: color.toARGB32()));
+              },
+            );
+            if (constraints.maxWidth < 520) {
+              return Column(
+                children: <Widget>[
+                  nameColor,
+                  const SizedBox(height: 8),
+                  subtitleColor,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(child: nameColor),
+                const SizedBox(width: 12),
+                Expanded(child: subtitleColor),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _choice({
-    required String label,
-    required bool selected,
-    required VoidCallback onSelected,
-  }) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (bool value) {
-        if (value) {
-          onSelected();
+  String get _shopNameLabel {
+    final String name = shopName.trim();
+    return name.isEmpty ? '店家' : name;
+  }
+
+  String get _selectedNameFont {
+    if (StoreBrandStyle.nameFontFamilies.contains(style.nameFontFamily)) {
+      return style.nameFontFamily;
+    }
+    return StoreBrandStyle.defaultNameFontFamily;
+  }
+
+  Widget _nameFontDropdown() {
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedNameFont,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: <DropdownMenuItem<String>>[
+        for (final _NameFontOption option in _NameFontOption.values)
+          DropdownMenuItem<String>(
+            value: option.family,
+            child: Text(option.label, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: (String? value) {
+        if (value == null || value == style.nameFontFamily) {
+          return;
         }
+        onChanged(style.copyWith(nameFontFamily: value));
       },
     );
   }
 
-  Widget _section({required String title, required Widget child}) {
+  Widget _optionGroup({required String label, required List<Widget> children}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
+      ],
+    );
+  }
+
+  Widget _toggle({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    final Color accent = theme.primaryColor;
+    return Material(
+      color: selected ? accent.withValues(alpha: 0.1) : const Color(0xFFF8F9FB),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: selected ? accent : const Color(0xFFE6E8EC)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: selected ? null : onSelected,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? accent : const Color(0xFF334155),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _section({
+    required String title,
+    required String caption,
+    required Widget child,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6E8EC)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            caption,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.35,
+              color: Color(0xFF64748B),
+            ),
           ),
           const SizedBox(height: 12),
           child,
@@ -367,35 +469,246 @@ class StoreBrandSettingsCard extends StatelessWidget {
     required double max,
     required ValueChanged<double> onChanged,
   }) {
+    final int pixels = value.round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Text('$label ${value.round()} px'),
+        Row(
+          children: <Widget>[
+            Expanded(child: Text(label)),
+            Text(
+              '$pixels px',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
         Slider(
           value: value.clamp(min, max).toDouble(),
           min: min,
           max: max,
           divisions: (max - min).round(),
-          label: '${value.round()}',
+          label: '$pixels',
           onChanged: onChanged,
         ),
       ],
     );
   }
+}
 
-  Widget _colorRow({
-    required BuildContext context,
-    required String label,
-    required Color value,
-    required Color themeChoice,
-    required ValueChanged<Color> onPick,
-  }) {
-    final List<HomeColorSwatch> swatches = <HomeColorSwatch>[
+class _AdvancedPlacement extends StatefulWidget {
+  const _AdvancedPlacement({required this.style, required this.onChanged});
+
+  final StoreBrandStyle style;
+  final ValueChanged<StoreBrandStyle> onChanged;
+
+  @override
+  State<_AdvancedPlacement> createState() => _AdvancedPlacementState();
+}
+
+class _AdvancedPlacementState extends State<_AdvancedPlacement> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final StoreBrandStyle style = widget.style;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6E8EC)),
+      ),
+      child: Column(
+        children: <Widget>[
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+              child: Row(
+                children: <Widget>[
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          '進階調整',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          '水平位置。平時可在左側預覽直接拖曳。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(_open ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
+            ),
+          ),
+          if (_open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _placeChip('靠左', (style.x - 0).abs() < 0.015, 0),
+                      _placeChip('置中', (style.x - 0.5).abs() < 0.015, 0.5),
+                      _placeChip('靠右', (style.x - 1).abs() < 0.015, 1),
+                      if (!StoreBrandStyle.isPresetX(style.x))
+                        const ChoiceChip(
+                          label: Text('自訂位置'),
+                          selected: true,
+                          onSelected: null,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('水平位置 ${(style.x * 100).round()}%'),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton(
+                      onPressed: () => widget.onChanged(
+                        StoreBrandStyle.resetPlacement(style),
+                      ),
+                      child: const Text('重設位置'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeChip(String label, bool selected, double x) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (bool value) {
+        if (value) {
+          widget.onChanged(widget.style.copyWith(x: x));
+        }
+      },
+    );
+  }
+}
+
+class _BrandColorField extends StatefulWidget {
+  const _BrandColorField({
+    required this.label,
+    required this.value,
+    required this.themeChoice,
+    required this.onPick,
+  });
+
+  final String label;
+  final Color value;
+  final Color themeChoice;
+  final ValueChanged<Color> onPick;
+
+  @override
+  State<_BrandColorField> createState() => _BrandColorFieldState();
+}
+
+class _BrandColorFieldState extends State<_BrandColorField> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final int current = widget.value.toARGB32();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: widget.value,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text(
+                  _open ? '收合' : '選擇',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open) ...<Widget>[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 0,
+            runSpacing: 0,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              for (final HomeColorSwatch swatch in _swatches)
+                HomeColorSwatchButton(
+                  swatch: swatch,
+                  selected: _sameColor(current, swatch.argb),
+                  onTap: () => widget.onPick(Color(swatch.argb)),
+                ),
+              OutlinedButton(
+                onPressed: () async {
+                  final int? next = await showHomeColorPicker(
+                    context,
+                    initial: widget.value,
+                  );
+                  if (next == null) {
+                    return;
+                  }
+                  widget.onPick(Color(next));
+                },
+                child: const Text('自訂顏色'),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<HomeColorSwatch> get _swatches {
+    return <HomeColorSwatch>[
       const HomeColorSwatch('深棕', 0xFF3A2A20),
       const HomeColorSwatch('黑色', 0xFF111111),
       const HomeColorSwatch('深灰', 0xFF4B5563),
       const HomeColorSwatch('白色', 0xFFFFFFFF),
-      HomeColorSwatch('主題色', themeChoice.toARGB32()),
+      HomeColorSwatch('主題色', widget.themeChoice.toARGB32()),
       const HomeColorSwatch('橘色', 0xFFFF8A00),
       const HomeColorSwatch('暖黃色', 0xFFE6A23C),
       const HomeColorSwatch('粉紅色', 0xFFE06B84),
@@ -404,40 +717,6 @@ class StoreBrandSettingsCard extends StatelessWidget {
       const HomeColorSwatch('綠色', 0xFF4F7D61),
       const HomeColorSwatch('紅色', 0xFFD64545),
     ];
-    final int current = value.toARGB32();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 0,
-          runSpacing: 0,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: <Widget>[
-            for (final HomeColorSwatch swatch in swatches)
-              HomeColorSwatchButton(
-                swatch: swatch,
-                selected: _sameColor(current, swatch.argb),
-                onTap: () => onPick(Color(swatch.argb)),
-              ),
-            OutlinedButton(
-              onPressed: () async {
-                final int? next = await showHomeColorPicker(
-                  context,
-                  initial: value,
-                );
-                if (next == null) {
-                  return;
-                }
-                onPick(Color(next));
-              },
-              child: const Text('自訂顏色'),
-            ),
-          ],
-        ),
-      ],
-    );
   }
 
   bool _sameColor(int a, int b) => (a & 0xFFFFFFFF) == (b & 0xFFFFFFFF);
@@ -456,5 +735,21 @@ class _BrandIcon {
     _BrandIcon('star', '星星', Icons.star_rounded),
     _BrandIcon('home', '房屋', Icons.home_rounded),
     _BrandIcon('crown', '皇冠', Icons.workspace_premium_rounded),
+  ];
+}
+
+class _NameFontOption {
+  const _NameFontOption(this.family, this.label);
+
+  final String family;
+  final String label;
+
+  static const List<_NameFontOption> values = <_NameFontOption>[
+    _NameFontOption(StoreBrandStyle.defaultNameFontFamily, '系統預設'),
+    _NameFontOption('jfOpenHuninn', 'jf open 粉圓'),
+    _NameFontOption('NotoSansTC', 'Noto Sans TC 現代黑體'),
+    _NameFontOption('NotoSerifTC', 'Noto Serif TC 傳統宋體'),
+    _NameFontOption('KleeOne', 'Klee One 日系手寫'),
+    _NameFontOption('ChironSungHK', '昭源宋體'),
   ];
 }

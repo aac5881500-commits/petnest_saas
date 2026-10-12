@@ -9,6 +9,7 @@ import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/core/services/home_banner_navigation.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
+import 'package:petnest_saas/core/services/shop_plan_access.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -199,7 +200,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         );
 
         final externalLinksEnabled = shop['externalLinksEnabled'] != false;
-        final plan = shop['plan']?.toString() ?? 'free';
+        final plan = ShopPlanAccess.effectivePlan(shop);
         final paidUntil = shop['paidUntil'];
 
         bool isPaidActive = false;

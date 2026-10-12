@@ -225,7 +225,8 @@ class DaycareStatusLabels {
   static String actionName(String raw) {
     switch (raw) {
       case 'deposit_confirmed':
-        return '確認訂金';
+      case 'manual_payment_confirmed':
+        return '';
       case 'daycare_created':
         return '建立安親訂單';
       case 'daycare_confirm':

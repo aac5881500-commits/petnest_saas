@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 
 class BookingDetailPaymentSection extends StatelessWidget {
   const BookingDetailPaymentSection({
@@ -33,12 +34,14 @@ class BookingDetailPaymentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
-    final totalPrice = data['totalPrice'] ?? 0;
-    final depositAmount = data['depositAmount'] ?? 0;
-
-    final paymentAmountLabel = payAmountType == 'full' ? '一次付清金額' : '訂金金額';
-    final paymentAmount = payAmountType == 'full' ? totalPrice : depositAmount;
+    final InitialPaymentChoice paymentChoice =
+        BookingPaymentStatus.initialPaymentChoice(data);
+    final String paymentAmountLabel = paymentChoice.typeLabel;
+    final int paymentAmount = paymentChoice.settled
+        ? (paymentChoice.isFull
+              ? BookingPaymentStatus.resolveTotal(data)
+              : BookingPaymentStatus.resolveDepositAmount(data))
+        : paymentChoice.amount;
 
     return _sectionCard(
       title: '付款方式',

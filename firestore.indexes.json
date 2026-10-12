@@ -208,6 +208,28 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "audience", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
@@ -445,6 +467,17 @@
   "queryScope": "COLLECTION",
   "fields": [
     { "fieldPath": "bookingId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "action_logs",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "targetType", "order": "ASCENDING" },
+    { "fieldPath": "targetId", "order": "ASCENDING" },
     { "fieldPath": "createdAt", "order": "DESCENDING" },
     { "fieldPath": "__name__", "order": "DESCENDING" }
   ],
@@ -846,6 +879,321 @@
   "fields": [
     { "fieldPath": "status", "order": "ASCENDING" },
     { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "countyCode", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "licenseStatus", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "countyCode", "order": "ASCENDING" },
+    { "fieldPath": "licenseStatus", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shop_change_requests",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "requestType", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "nameGrams", "arrayConfig": "CONTAINS" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "licensePrefixes", "arrayConfig": "CONTAINS" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "normalizedLicense", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "contactPhoneDigits", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "businessState", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "linkStatus", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "contactStatus", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "districtKey", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "districtPending", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "validity", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "validity", "order": "ASCENDING" },
+    { "fieldPath": "validDate", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "hasCat", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "hasDog", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "hasBoarding", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "hasSale", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "legal_pet_businesses",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "hasBreeding", "order": "ASCENDING" },
+    { "fieldPath": "govSort", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shop_members",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "uid", "order": "ASCENDING" },
+    { "fieldPath": "role", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "activation_codes",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "salesRepId", "order": "ASCENDING" },
+    { "fieldPath": "normalizedCode", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shop_subscription_payments",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shops",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "currentSalesRepId", "order": "ASCENDING" },
+    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shops",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
+    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shops",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
+    { "fieldPath": "trialUntil", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "sales_month_summaries",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "month", "order": "ASCENDING" },
+    { "fieldPath": "repId", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "activation_codes",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "nameGrams", "arrayConfig": "CONTAINS" },
+    { "fieldPath": "normalizedCode", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "activation_codes",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "codePrefixes", "arrayConfig": "CONTAINS" },
+    { "fieldPath": "normalizedCode", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "activation_codes",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "salesRepId", "order": "ASCENDING" },
+    { "fieldPath": "normalizedCode", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shops",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
+    { "fieldPath": "trialUntil", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shops",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
+    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shop_commercial",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "currentSalesRepId", "order": "ASCENDING" },
+    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "shop_subscription_payments",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
   ],
   "density": "SPARSE_ALL"
 }

@@ -7,7 +7,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/platform_permission_keys.dart';
+import '../../../core/constants/platform_root_admin.dart';
+import '../../../core/models/platform_admin_model.dart';
 import '../../../core/services/platform_admin_service.dart';
+import '../../../core/services/platform_permission_catalog.dart';
+import '../widgets/platform_permission_editor.dart';
 
 class PlatformUserCreatePage extends StatefulWidget {
   const PlatformUserCreatePage({super.key});
@@ -25,8 +29,46 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
   String _role = PlatformAdminRoles.platformStaff;
   bool _enabled = true;
   bool _saving = false;
+  bool _operatorReady = false;
+  Set<String>? _grantableKeys;
+  late final Future<bool> _canManage = PlatformAdminService.instance
+      .hasPermission(PlatformPermissionKeys.managePlatformAdmins);
 
   final Set<String> _selectedPermissions = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOperator();
+  }
+
+  Future<void> _loadOperator() async {
+    try {
+      final String? uid = PlatformAdminService.instance.currentUserId;
+      final PlatformAdminModel? operator =
+          await PlatformAdminService.instance.getCurrentAdmin();
+      if (!mounted) return;
+      final bool canGrantAll = PlatformRootAdmin.isRoot(uid) ||
+          operator?.role == PlatformAdminRoles.superAdmin;
+      setState(() {
+        _operatorReady = true;
+        _grantableKeys = canGrantAll
+            ? null
+            : operator?.permissions
+                .where(PlatformPermissionKeys.assignableValues.contains)
+                .where(
+                  (String key) => !PlatformPermissionCatalog.isSuperOnly(key),
+                )
+                .toSet();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _operatorReady = true;
+        _grantableKeys = <String>{};
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -36,6 +78,7 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     final formState = _formKey.currentState;
 
     if (formState == null || !formState.validate()) {
@@ -43,8 +86,48 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
     }
 
     FocusScope.of(context).unfocus();
-
     setState(() => _saving = true);
+
+    final bool risk = _selectedPermissions.any(
+      (String key) =>
+          PlatformPermissionKeys.isSensitive(key) ||
+          PlatformPermissionCatalog.paymentKeys.contains(key) ||
+          PlatformPermissionCatalog.securityKeys.contains(key),
+    );
+    if (risk) {
+      final bool? confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          final List<String> names = _selectedPermissions
+              .where(
+                (String key) =>
+                    PlatformPermissionKeys.isSensitive(key) ||
+                    PlatformPermissionCatalog.paymentKeys.contains(key) ||
+                    PlatformPermissionCatalog.securityKeys.contains(key),
+              )
+              .map(PlatformPermissionKeys.label)
+              .toList();
+          return AlertDialog(
+            title: const Text('確認授予權限'),
+            content: Text('這次會一併授予：\n${names.join('、')}\n\n確認後才會建立平台人員。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('返回修改'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('確認建立'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true || !mounted) {
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+    }
 
     try {
       await PlatformAdminService.instance.createAdminByEmail(
@@ -87,9 +170,7 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<bool>(
-      future: PlatformAdminService.instance.hasPermission(
-        PlatformPermissionKeys.managePlatformAdmins,
-      ),
+      future: _canManage,
       builder: (context, permissionSnapshot) {
         if (permissionSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -264,6 +345,10 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
               ),
               items: const [
                 DropdownMenuItem(
+                  value: PlatformAdminRoles.platformAdmin,
+                  child: Text('平台管理員'),
+                ),
+                DropdownMenuItem(
                   value: PlatformAdminRoles.developerAdmin,
                   child: Text('開發管理員'),
                 ),
@@ -299,59 +384,35 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
   }
 
   Widget _buildPermissionCard() {
+    if (!_operatorReady) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Text(
-                '初始權限',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
+            const Text(
+              '初始權限',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text('只開啟此人員目前工作需要的權限，之後仍可修改。'),
+            const SizedBox(height: 8),
+            const Text('只開啟此人員目前工作需要的權限。最高管理員專屬權限不能在這裡授予。'),
+            const SizedBox(height: 12),
+            PlatformPermissionEditor(
+              selected: _selectedPermissions,
+              grantableKeys: _grantableKeys,
+              locked: _saving,
+              onChanged: (String permission, bool enabled) {
+                _updatePermission(permission, enabled);
+              },
             ),
-            const Divider(),
-            ...PlatformPermissionKeys.assignableValues.map((permission) {
-              final selected = _selectedPermissions.contains(permission);
-
-              final description = PlatformPermissionKeys.description(
-                permission,
-              );
-
-              final sensitive = PlatformPermissionKeys.isSensitive(permission);
-
-              return SwitchListTile(
-                value: selected,
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(PlatformPermissionKeys.label(permission)),
-                    ),
-                    if (sensitive)
-                      Tooltip(
-                        message: '敏感權限',
-                        child: Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.orange.shade700,
-                          size: 20,
-                        ),
-                      ),
-                  ],
-                ),
-                subtitle: description.isEmpty ? null : Text(description),
-                onChanged: _saving
-                    ? null
-                    : (value) {
-                        _updatePermission(permission, value);
-                      },
-              );
-            }),
           ],
         ),
       ),

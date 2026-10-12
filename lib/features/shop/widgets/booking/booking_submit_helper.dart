@@ -9,10 +9,38 @@ import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
+
+/// 前台住宿送出失敗。訊息已轉成顧客可讀文字，並標明停在哪個階段。
+class BookingSubmitException implements Exception {
+  const BookingSubmitException({
+    required this.message,
+    required this.stage,
+    required this.operation,
+    this.firebaseCode = '',
+    this.bookingCreated = false,
+    this.keepRequestId = false,
+  });
+
+  final String message;
+  final String stage;
+  final String operation;
+  final String firebaseCode;
+
+  /// 住宿訂單文件已經存在。
+  final bool bookingCreated;
+
+  /// 訂單仍有效時，重試必須沿用同一個 requestId，避免再建立一筆。
+  final bool keepRequestId;
+
+  @override
+  String toString() => message;
+}
 
 class BookingSubmitHelper {
   BookingSubmitHelper._();
@@ -21,6 +49,208 @@ class BookingSubmitHelper {
     return paymentMethod == 'credit_card' ||
         paymentMethod == 'atm' ||
         paymentMethod == 'cvs_code';
+  }
+
+  /// 與 firestore.rules 裡顧客更新 shops/{shopId}/members/{uid} 的 hasOnly 清單一致。
+  static const Set<String> customerMemberUpdateKeys = <String>{
+    'email',
+    'name',
+    'phone',
+    'address',
+    'emergencyContact',
+    'petCount',
+    'bookingCount',
+    'updatedAt',
+    'lastLoginAt',
+    'lastBookingAt',
+    'avatarUrl',
+    'avatarStoragePath',
+    'policyAccepted',
+    'policyVersion',
+    'policyTitle',
+    'policyAcceptedAt',
+    'policyAcceptedFrom',
+  };
+
+  /// 訂單成立後回寫會員快取。只含顧客有權更新的欄位。
+  static Map<String, dynamic> customerBookingMemberPatch({
+    required int bookingCount,
+    required int petCount,
+    required int policyVersion,
+    required String policyTitle,
+    Object? policyAcceptedAt,
+  }) {
+    return <String, dynamic>{
+      'bookingCount': bookingCount,
+      'petCount': petCount,
+      'policyAccepted': policyVersion > 0,
+      'policyVersion': policyVersion,
+      'policyTitle': policyTitle,
+      'policyAcceptedFrom': 'customer',
+      'policyAcceptedAt': ?policyAcceptedAt,
+    };
+  }
+
+  /// 已取消的訂單可以換新 requestId；仍有效的訂單必須沿用原 ID。
+  static bool shouldKeepBookingRequestId({
+    required bool bookingExists,
+    required String status,
+    required bool cancelledAtPresent,
+  }) {
+    if (!bookingExists) {
+      return false;
+    }
+    if (status == 'cancelled' || cancelledAtPresent) {
+      return false;
+    }
+    return true;
+  }
+
+  static void logStageFailure({
+    required String stage,
+    required String operation,
+    required Object error,
+    String firebaseCode = '',
+  }) {
+    final String code = firebaseCode.isNotEmpty
+        ? firebaseCode
+        : _firebaseCodeOf(error);
+    debugPrint(
+      '[BookingSubmit] stage=$stage operation=$operation firebaseCode=$code',
+    );
+  }
+
+  static String userFacingSubmitMessage({
+    required String stage,
+    required Object error,
+    bool bookingStillActive = false,
+  }) {
+    if (error is BookingSubmitException) {
+      return error.message;
+    }
+
+    final String raw = _plainMessage(error);
+    if (stage == 'addon_inventory') {
+      if (raw.isNotEmpty && !_isTechnicalMessage(raw)) {
+        return raw;
+      }
+      if (bookingStillActive) {
+        return '加購商品處理失敗，請重新確認。';
+      }
+      return '加購商品處理失敗，這次預約未成立，請重新確認。';
+    }
+
+    if (raw.isNotEmpty && !_isTechnicalMessage(raw)) {
+      return raw;
+    }
+
+    return '預約送出失敗，請稍後再試。';
+  }
+
+  static String _firebaseCodeOf(Object error) {
+    if (error is FirebaseException) {
+      return error.code;
+    }
+    if (error is BookingSubmitException) {
+      return error.firebaseCode;
+    }
+    return '';
+  }
+
+  static String _plainMessage(Object error) {
+    if (error is InventoryException ||
+        error is StayBookingFunctionException ||
+        error is BookingSubmitException) {
+      return error.toString().trim();
+    }
+    if (error is FirebaseException) {
+      return '';
+    }
+
+    var text = error.toString().trim();
+    const List<String> prefixes = <String>[
+      'Exception: ',
+      'Bad state: ',
+      'Invalid argument(s): ',
+    ];
+    for (final String prefix in prefixes) {
+      if (text.startsWith(prefix)) {
+        text = text.substring(prefix.length).trim();
+      }
+    }
+    return text;
+  }
+
+  static bool _isTechnicalMessage(String text) {
+    final String lower = text.toLowerCase();
+    return lower.contains('permission-denied') ||
+        lower.contains('firebase') ||
+        lower.contains('exception') ||
+        lower.contains('cloud_firestore') ||
+        text.contains('沒有權限執行此庫存操作');
+  }
+
+  static Future<bool> _activeBookingExists(String requestId) async {
+    final String id = requestId.trim();
+    if (id.isEmpty) {
+      return false;
+    }
+
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snap =
+          await FirebaseFirestore.instance.collection('bookings').doc(id).get();
+      final Map<String, dynamic>? data = snap.data();
+      return shouldKeepBookingRequestId(
+        bookingExists: snap.exists,
+        status: (data?['status'] ?? '').toString(),
+        cancelledAtPresent: data?['cancelledAt'] != null,
+      );
+    } catch (error) {
+      logStageFailure(
+        stage: 'booking_status',
+        operation: 'bookings.get',
+        error: error,
+      );
+      return true;
+    }
+  }
+
+  static Future<T> _runStage<T>({
+    required String stage,
+    required String operation,
+    required String requestId,
+    required Future<T> Function() action,
+  }) async {
+    try {
+      return await action();
+    } catch (error, stackTrace) {
+      logStageFailure(stage: stage, operation: operation, error: error);
+      if (error is BookingSubmitException) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+
+      final bool keep = await _activeBookingExists(requestId);
+      final bool addonFailure =
+          stage == 'create_booking' &&
+          error is InventoryException &&
+          error.message != '此預約無法完成，請重新送出';
+      final String resolvedStage = addonFailure ? 'addon_inventory' : stage;
+      Error.throwWithStackTrace(
+        BookingSubmitException(
+          message: userFacingSubmitMessage(
+            stage: resolvedStage,
+            error: error,
+            bookingStillActive: keep,
+          ),
+          stage: resolvedStage,
+          operation: addonFailure ? 'finalizeBookingAddonInventory' : operation,
+          firebaseCode: _firebaseCodeOf(error),
+          bookingCreated: keep,
+          keepRequestId: keep,
+        ),
+        stackTrace,
+      );
+    }
   }
 
   static Future<void> checkDuplicatePetBooking({
@@ -147,51 +377,81 @@ class BookingSubmitHelper {
     Map<String, dynamic> petFormAnswersByPetId = const <String, dynamic>{},
     Map<String, dynamic>? dailyCareEntitlement,
   }) async {
-    await MemberService.instance.ensureMember(
-      shopId: shopId,
-      name: customerName,
-      phone: customerPhone,
+    await _runStage<void>(
+      stage: 'ensure_member',
+      operation: 'MemberService.ensureMember',
+      requestId: requestId,
+      action: () => MemberService.instance.ensureMember(
+        shopId: shopId,
+        name: customerName,
+        phone: customerPhone,
+      ),
     );
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      throw Exception('請先登入');
+      throw const BookingSubmitException(
+        message: '請先登入',
+        stage: 'auth',
+        operation: 'FirebaseAuth.currentUser',
+      );
     }
 
-    await checkDuplicatePetBooking(
-      shopId: shopId,
-      selectedPetIds: selectedPetIds,
-      startDate: startDate,
-      endDate: endDate,
+    await _runStage<void>(
+      stage: 'duplicate_booking',
+      operation: 'bookings.duplicateCheck',
+      requestId: requestId,
+      action: () => checkDuplicatePetBooking(
+        shopId: shopId,
+        selectedPetIds: selectedPetIds,
+        startDate: startDate,
+        endDate: endDate,
+      ),
     );
 
-    await checkTooManyOpenBookings(shopId: shopId, userId: user.uid);
+    await _runStage<void>(
+      stage: 'open_booking_limit',
+      operation: 'bookings.openBookingCheck',
+      requestId: requestId,
+      action: () =>
+          checkTooManyOpenBookings(shopId: shopId, userId: user.uid),
+    );
 
-    await FirebaseFirestore.instance
-        .collection('user_profiles')
-        .doc(user.uid)
-        .set({
-          'name': customerName,
-          'phone': customerPhone,
-          'address': address,
-          'emergencyContact': {
-            'name': emergencyName,
-            'phone': emergencyPhone,
-            'relation': relation,
-            'address': emergencyAddress,
-            'phone2': phone2,
-          },
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    await _runStage<void>(
+      stage: 'profile_sync',
+      operation: 'user_profiles.set',
+      requestId: requestId,
+      action: () => FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(user.uid)
+          .set({
+            'name': customerName,
+            'phone': customerPhone,
+            'address': address,
+            'emergencyContact': {
+              'name': emergencyName,
+              'phone': emergencyPhone,
+              'relation': relation,
+              'address': emergencyAddress,
+              'phone2': phone2,
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)),
+    );
 
-    TermsConsentSnapshot resolvedConsent;
+    final TermsConsentSnapshot resolvedConsent;
     if (termsConsent != null && termsConsent.termsVersion >= 0) {
       resolvedConsent = termsConsent;
     } else {
-      resolvedConsent = await ShopPolicyService.instance.confirmTerms(
-        shopId: shopId,
-        userId: user.uid,
-        serviceType: PolicyApplicableService.accommodation,
+      resolvedConsent = await _runStage<TermsConsentSnapshot>(
+        stage: 'terms_confirm',
+        operation: 'ShopPolicyService.confirmTerms',
+        requestId: requestId,
+        action: () => ShopPolicyService.instance.confirmTerms(
+          shopId: shopId,
+          userId: user.uid,
+          serviceType: PolicyApplicableService.accommodation,
+        ),
       );
     }
 
@@ -209,7 +469,11 @@ class BookingSubmitHelper {
     final int roomSubtotal =
         (basePrice * nights) + extraPetTotal + specialDateSurchargeAmount;
 
-    final bookingId = await BookingService.instance.createBooking(
+    final bookingId = await _runStage<String>(
+      stage: 'create_booking',
+      operation: 'BookingService.createBooking',
+      requestId: requestId,
+      action: () => BookingService.instance.createBooking(
       shopId: shopId,
       customerName: customerName,
       customerPhone: customerPhone,
@@ -271,81 +535,85 @@ class BookingSubmitHelper {
 
       /// 🔒 傳入固定訂單文件 ID，避免同一請求重送建立兩筆
       requestId: requestId,
-      customFormAnswers: customFormAnswers == null
-          ? null
-          : customFormAnswers.toCallableMap(),
+      customFormAnswers: customFormAnswers?.toCallableMap(),
       petFormAnswersByPetId: petFormAnswersByPetId.isEmpty
           ? null
           : petFormAnswersByPetId,
+      ),
     );
 
     final String normalizedCouponId = couponId.trim();
 
     if (normalizedCouponId.isNotEmpty) {
-      debugPrint('[BookingSubmit] start reserve coupon $normalizedCouponId');
-      try {
-        await MemberCouponService.instance.reserveCoupon(
-          shopId: shopId,
-          couponId: normalizedCouponId,
-          userId: user.uid,
-          bookingId: bookingId,
-        );
-      } catch (error) {
-        // 優惠券保留失敗時，不直接刪除訂單。
-        //
-        // 一般會員沒有刪除 Booking 的權限，
-        // 若呼叫 delete()，會蓋掉原本真正的錯誤，
-        // 最後前端只會看到 permission-denied。
-        //
-        // 改成將剛建立的訂單標記為取消，
-        // 避免訂單繼續占用房間與住宿日期。
-        try {
-          await BookingService.instance.cancelBooking(
-            bookingId: bookingId,
-            cancelReason: '優惠券保留失敗，系統自動取消訂單',
-            cancelBy: 'system',
-          );
-        } catch (_) {
-          // 回復訂單失敗時，不覆蓋原本的優惠券錯誤。
-        }
-
-        rethrow;
-      }
+      debugPrint('[BookingSubmit] start reserve coupon');
+      await _runStage<void>(
+        stage: 'reserve_coupon',
+        operation: 'MemberCouponService.reserveCoupon',
+        requestId: requestId,
+        action: () async {
+          try {
+            await MemberCouponService.instance.reserveCoupon(
+              shopId: shopId,
+              couponId: normalizedCouponId,
+              userId: user.uid,
+              bookingId: bookingId,
+            );
+          } catch (error) {
+            // 優惠券保留失敗時，不直接刪除訂單。
+            // 一般會員沒有刪除 Booking 的權限。
+            // 改成取消剛建立的訂單，避免繼續占用住宿日期。
+            // 取消失敗時保留原錯誤，並由外層沿用同一個 requestId。
+            try {
+              await BookingService.instance.cancelBooking(
+                bookingId: bookingId,
+                cancelReason: '優惠券保留失敗，系統自動取消訂單',
+                cancelBy: 'system',
+              );
+            } catch (cancelError) {
+              logStageFailure(
+                stage: 'reserve_coupon',
+                operation: 'BookingService.cancelBooking',
+                error: cancelError,
+              );
+            }
+            rethrow;
+          }
+        },
+      );
     }
-    final bookingCountSnap = await FirebaseFirestore.instance
-        .collection('bookings')
-        .where('shopId', isEqualTo: shopId)
-        .where('userId', isEqualTo: user.uid)
-        .get();
 
-    await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(shopId)
-        .collection('members')
-        .doc(user.uid)
-        .set({
-          // 第一次建立會員快取時，Firestore Rules 必須驗證這些欄位。
-          'userId': user.uid,
-          'blacklisted': false,
-          'isBlocked': false,
+    try {
+      final bookingCountSnap = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('shopId', isEqualTo: shopId)
+          .where('userId', isEqualTo: user.uid)
+          .get();
 
-          // 預約與會員統計資料。
-          'bookingCount': bookingCountSnap.docs.length,
-          'petCount': selectedPetIds.length,
-          'policyAccepted': policyVersion > 0,
-          'policyVersion': policyVersion,
-          'policyTitle': policyTitle,
-          'policyAcceptedAt': policyAcceptedAt,
-          'policyAcceptedFrom': 'customer',
-          'termsType': resolvedConsent.termsType,
-          'termsVersion': resolvedConsent.termsVersion,
-          'termsTitle': resolvedConsent.termsTitle,
-          if (resolvedConsent.consentRecordId.isNotEmpty)
-            'consentRecordId': resolvedConsent.consentRecordId,
-          if (resolvedConsent.termsVersionDocumentId.isNotEmpty)
-            'termsVersionDocumentId': resolvedConsent.termsVersionDocumentId,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      final Map<String, dynamic> memberPatch = customerBookingMemberPatch(
+        bookingCount: bookingCountSnap.docs.length,
+        petCount: selectedPetIds.length,
+        policyVersion: policyVersion,
+        policyTitle: policyTitle,
+        policyAcceptedAt: policyAcceptedAt,
+      );
+      memberPatch['updatedAt'] = FieldValue.serverTimestamp();
+
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .collection('members')
+          .doc(user.uid)
+          .set(memberPatch, SetOptions(merge: true));
+    } catch (error) {
+      // 條款同意已寫入 policy_acceptances，並隨訂單送進 Cloud Function。
+      // 會員快取只是附帶統計。訂單已成立時，不得把預約顯示成失敗。
+      logStageFailure(
+        stage: 'member_sync',
+        operation: 'shops.members.mergeCustomerStats',
+        error: error,
+      );
+      debugPrint('[BookingSubmit] member_sync kept bookingId=$bookingId');
+    }
 
     return bookingId;
   }

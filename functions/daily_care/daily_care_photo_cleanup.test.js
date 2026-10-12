@@ -5,7 +5,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const admin = require("firebase-admin");
-const {computeExpiresAt} = require("./daily_care_expiry");
+const {
+  computeExpiresAt,
+  DAILY_CARE_PHOTO_RETENTION_HOURS,
+} = require("./daily_care_expiry");
 const {
   cleanupExpiredBatch,
   processExpiredDownload,
@@ -349,46 +352,135 @@ test("CASE 9 一張失敗不擋住其他照片，失敗的下一輪可重試", a
       "cleaned");
 });
 
-test("CASE 10 住宿依退房時間加店家保留小時", () => {
-  const end = new Date("2026-10-01T04:00:00Z");
-  const expires = computeExpiresAt({
-    status: "completed",
-    checkOutAt: end,
-    downloadHoursAfterCheckout: 48,
-  });
-  assert.equal(expires.getTime(), end.getTime() + 48 * 60 * 60 * 1000);
-});
+const HOUR_MS = 60 * 60 * 1000;
 
-test("CASE 11 安親依實際結束時間加店家保留小時", () => {
-  const end = new Date("2026-10-02T02:00:00Z");
-  const expires = computeExpiresAt({
-    bookingKind: "daycare",
-    status: "completed",
-    actualEndAt: end,
-    checkOutAt: new Date("2026-10-03T00:00:00Z"),
-    downloadHoursAfterCheckout: 12,
-  });
-  assert.equal(expires.getTime(), end.getTime() + 12 * 60 * 60 * 1000);
-});
-
-test("CASE 10 住宿到期才刪，未滿店家小時不刪", async () => {
+test("CASE 1 住宿結束未滿 24 小時不刪", async () => {
   const now = new Date("2026-10-06T04:00:00Z");
+  const end = new Date(now.getTime() - (23 * HOUR_MS + 59 * 60 * 1000));
   const db = memFirestore();
   db.store.shops.set("s1", {
-    dailyCareSetting: {downloadHoursAfterCheckout: 48},
+    dailyCareSetting: {downloadHoursAfterCheckout: 12},
   });
-  const earlyEnd = new Date(now.getTime() - 47 * 60 * 60 * 1000);
   db.store.bookings.set("stay-early", {
     shopId: "s1",
     status: "completed",
-    checkOutAt: earlyEnd,
+    checkOutAt: end,
+    downloadHoursAfterCheckout: 12,
   });
   seedPhoto(db, {
     shopId: "s1",
     bookingId: "stay-early",
     photoId: "early",
-    recordId: "rec",
-    expiresAt: new Date(now.getTime() - 1000),
+    recordId: "stay-early_20261005_0",
+    expiresAt: new Date(end.getTime() + 12 * HOUR_MS),
+  });
+  const removed = [];
+  const stats = await cleanupExpiredBatch(db, {
+    now,
+    deleteFile: async (path) => {
+      removed.push(path);
+    },
+  });
+  assert.equal(stats.success, 0);
+  assert.equal(removed.length, 0);
+  assert.equal(
+      db.store.daily_care_photos.get("early").previewUrl.includes("early"),
+      true,
+  );
+  assert.equal(
+      computeExpiresAt(db.store.bookings.get("stay-early")).getTime(),
+      end.getTime() + 24 * HOUR_MS,
+  );
+});
+
+test("CASE 2 與 CASE 5-6 住宿滿 24 小時才清，舊店家小時無效", async () => {
+  assert.equal(DAILY_CARE_PHOTO_RETENTION_HOURS, 24);
+  const now = new Date("2026-10-06T04:00:00Z");
+  const end = new Date(now.getTime() - 24 * HOUR_MS - 1000);
+  for (const hours of [12, 24, 48, 72]) {
+    const expires = computeExpiresAt({
+      status: "completed",
+      checkOutAt: end,
+      downloadHoursAfterCheckout: hours,
+    });
+    assert.equal(expires.getTime(), end.getTime() + 24 * HOUR_MS);
+  }
+  const db = memFirestore();
+  db.store.shops.set("s1", {
+    dailyCareSetting: {downloadHoursAfterCheckout: 72},
+  });
+  const record = {
+    temperature: "27",
+    photoCount: 2,
+    note: "活動正常",
+  };
+  db.store.daily_care_records.set("stay-due_20261001_0", record);
+  db.store.bookings.set("stay-due", {
+    shopId: "s1",
+    status: "completed",
+    checkOutAt: end,
+    downloadHoursAfterCheckout: 72,
+    pointsIssued: 2,
+  });
+  const paths = seedPhoto(db, {
+    shopId: "s1",
+    bookingId: "stay-due",
+    photoId: "due",
+    recordId: "stay-due_20261001_0",
+    expiresAt: new Date(end.getTime() + 24 * HOUR_MS),
+  });
+  const removed = [];
+  const due = await cleanupExpiredBatch(db, {
+    now,
+    deleteFile: async (path) => {
+      removed.push(path);
+    },
+  });
+  assert.equal(due.success, 1);
+  assert.equal(removed.includes(paths.preview), true);
+  assert.equal(removed.includes(paths.download), true);
+  const photo = db.store.daily_care_photos.get("due");
+  assert.equal(photo.previewUrl, "");
+  assert.equal(photo.previewStoragePath, "");
+  assert.equal(photo.downloadStoragePath, "");
+  assert.equal(photo.photoCleanupStatus, "cleaned");
+  assert.deepEqual(db.store.daily_care_records.get("stay-due_20261001_0"),
+      record);
+  assert.equal(record.photoCount, 2);
+  assert.equal(db.store.bookings.get("stay-due").status, "completed");
+  assert.equal(db.store.bookings.get("stay-due").pointsIssued, 2);
+  assert.equal(db.store.bookings.get("stay-due").downloadHoursAfterCheckout, 72);
+});
+
+test("CASE 3-4 安親以 actualEndAt 加 24 小時，不看預定結束", async () => {
+  const now = new Date("2026-10-06T04:00:00Z");
+  const earlyEnd = new Date(now.getTime() - (23 * HOUR_MS + 59 * 60 * 1000));
+  const earlyExpires = computeExpiresAt({
+    bookingKind: "daycare",
+    status: "completed",
+    actualEndAt: earlyEnd,
+    checkOutAt: new Date(now.getTime() + 24 * HOUR_MS),
+    downloadHoursAfterCheckout: 12,
+  });
+  assert.equal(earlyExpires.getTime(), earlyEnd.getTime() + 24 * HOUR_MS);
+  const db = memFirestore();
+  db.store.shops.set("s1", {
+    dailyCareSetting: {downloadHoursAfterCheckout: 12},
+  });
+  db.store.bookings.set("day-early", {
+    shopId: "s1",
+    bookingKind: "daycare",
+    status: "completed",
+    actualEndAt: earlyEnd,
+    checkOutAt: new Date(now.getTime() + 48 * HOUR_MS),
+    downloadHoursAfterCheckout: 12,
+  });
+  seedPhoto(db, {
+    shopId: "s1",
+    bookingId: "day-early",
+    photoId: "day-early",
+    recordId: "day-early_20261006_0",
+    expiresAt: new Date(earlyEnd.getTime() + 12 * HOUR_MS),
   });
   const removed = [];
   const early = await cleanupExpiredBatch(db, {
@@ -399,29 +491,30 @@ test("CASE 10 住宿到期才刪，未滿店家小時不刪", async () => {
   });
   assert.equal(early.success, 0);
   assert.equal(removed.length, 0);
-  assert.equal(
-      db.store.daily_care_photos.get("early").previewUrl.includes("early"),
-      true,
-  );
 
-  const dueEnd = new Date(now.getTime() - 49 * 60 * 60 * 1000);
-  db.store.bookings.set("stay-due", {
+  const dueEnd = new Date(now.getTime() - 24 * HOUR_MS - 1000);
+  const record = {
+    temperature: "24",
+    humidity: "55",
+    note: "睡眠正常",
+    photoCount: 1,
+    completedAt: dueEnd,
+  };
+  db.store.daily_care_records.set("day-due_20261006_0", record);
+  db.store.bookings.set("day-due", {
     shopId: "s1",
+    bookingKind: "daycare",
     status: "completed",
-    checkOutAt: dueEnd,
-    pointsIssued: 2,
-  });
-  db.store.daily_care_records.set("stay-due_20261001_0", {
-    temperature: "27",
-    photoCount: 2,
-    note: "活動正常",
+    actualEndAt: dueEnd,
+    checkOutAt: new Date(now.getTime() + 24 * HOUR_MS),
+    downloadHoursAfterCheckout: 72,
   });
   seedPhoto(db, {
     shopId: "s1",
-    bookingId: "stay-due",
-    photoId: "due",
-    recordId: "stay-due_20261001_0",
-    expiresAt: new Date(now.getTime() - 1000),
+    bookingId: "day-due",
+    photoId: "day-due",
+    recordId: "day-due_20261006_0",
+    expiresAt: new Date(dueEnd.getTime() + 24 * HOUR_MS),
   });
   const due = await cleanupExpiredBatch(db, {
     now,
@@ -430,53 +523,12 @@ test("CASE 10 住宿到期才刪，未滿店家小時不刪", async () => {
     },
   });
   assert.equal(due.success, 1);
-  assert.equal(db.store.daily_care_photos.get("due").previewUrl, "");
-  assert.equal(db.store.daily_care_records.get("stay-due_20261001_0").photoCount,
-      2);
-  assert.equal(db.store.daily_care_records.get("stay-due_20261001_0").temperature,
-      "27");
-  assert.equal(db.store.bookings.get("stay-due").status, "completed");
-  assert.equal(db.store.bookings.get("stay-due").pointsIssued, 2);
-});
-
-test("CASE 11-12 安親完成後到期清理，照護紀錄仍在", async () => {
-  const now = new Date("2026-10-06T04:00:00Z");
-  const end = new Date(now.getTime() - 13 * 60 * 60 * 1000);
-  const db = memFirestore();
-  db.store.shops.set("s1", {
-    dailyCareSetting: {downloadHoursAfterCheckout: 12},
-  });
-  db.store.bookings.set("day-1", {
-    shopId: "s1",
-    bookingKind: "daycare",
-    status: "completed",
-    actualEndAt: end,
-    checkOutAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-  });
-  const record = {
-    temperature: "24",
-    humidity: "55",
-    note: "睡眠正常",
-    photoCount: 1,
-    completedAt: end,
-  };
-  db.store.daily_care_records.set("day-1_20261006_0", record);
-  seedPhoto(db, {
-    shopId: "s1",
-    bookingId: "day-1",
-    photoId: "day-photo",
-    recordId: "day-1_20261006_0",
-    expiresAt: new Date(now.getTime() - 1000),
-  });
-  const stats = await cleanupExpiredBatch(db, {
-    now,
-    deleteFile: async () => {},
-  });
-  assert.equal(stats.success, 1);
-  assert.deepEqual(db.store.daily_care_records.get("day-1_20261006_0"), record);
-  assert.equal(db.store.daily_care_photos.has("day-photo"), true);
-  assert.equal(db.store.daily_care_photos.get("day-photo").previewUrl, "");
-  assert.equal(db.store.bookings.get("day-1").status, "completed");
+  assert.deepEqual(db.store.daily_care_records.get("day-due_20261006_0"),
+      record);
+  assert.equal(db.store.daily_care_photos.get("day-due").previewUrl, "");
+  assert.equal(db.store.daily_care_photos.get("day-due").photoCleanupStatus,
+      "cleaned");
+  assert.equal(db.store.bookings.get("day-due").status, "completed");
 });
 
 test("沒有到期資料時只查下載與預約，不掃照護紀錄", async () => {

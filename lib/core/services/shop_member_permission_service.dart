@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/platform_root_admin.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
+import 'package:petnest_saas/core/services/shop_permission_catalog.dart';
 import 'package:petnest_saas/core/models/shop_staff_identity_snapshot.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 
@@ -34,26 +35,31 @@ class ShopMemberPermissionService {
   }
 
   Map<String, bool> managerDefaultPermissions() {
+    // 缺漏的鍵維持關閉。店長日常權限只在套用模板並儲存後寫入，
+    // 避免舊的 manager 文件因為沒有該欄位就被放大權限。
     return {
       ShopPermissionKeys.manageMembers: false,
-      ShopPermissionKeys.editBasicInfo: true,
-      ShopPermissionKeys.editBusinessInfo: true,
-      ShopPermissionKeys.editMedia: true,
+      ShopPermissionKeys.editBasicInfo: false,
+      ShopPermissionKeys.editBusinessInfo: false,
+      ShopPermissionKeys.editMedia: false,
       ShopPermissionKeys.manageBookings: true,
       ShopPermissionKeys.manageChat: true,
-      ShopPermissionKeys.manageMemberPoints: true,
+      ShopPermissionKeys.manageMemberPoints: false,
+      ShopPermissionKeys.manageStaff: false,
+      ShopPermissionKeys.viewPlatformNotices: false,
+      ShopPermissionKeys.contactPlatformSupport: false,
       ShopPermissionKeys.managePointRedemptions: true,
       ShopPermissionKeys.viewInventory: true,
-      ShopPermissionKeys.receiveInventory: true,
+      ShopPermissionKeys.receiveInventory: false,
       ShopPermissionKeys.viewStoreOrders: true,
-      ShopPermissionKeys.manageStoreOrders: true,
-      ShopPermissionKeys.viewReports: true,
-      ShopPermissionKeys.viewActionLogs: true,
+      ShopPermissionKeys.manageStoreOrders: false,
+      ShopPermissionKeys.viewReports: false,
+      ShopPermissionKeys.viewActionLogs: false,
       ShopPermissionKeys.viewDaycareBookings: true,
       ShopPermissionKeys.manageDaycareBookings: true,
-      ShopPermissionKeys.manageDaycareSettings: true,
-      ShopPermissionKeys.manageDaycarePricing: true,
-      ShopPermissionKeys.convertDaycareToAccommodation: true,
+      ShopPermissionKeys.manageDaycareSettings: false,
+      ShopPermissionKeys.manageDaycarePricing: false,
+      ShopPermissionKeys.convertDaycareToAccommodation: false,
       ShopPermissionKeys.adjustDaycarePrice: false,
     };
   }
@@ -98,11 +104,37 @@ class ShopMemberPermissionService {
     switch (role) {
       case ShopRoles.owner:
         return ownerDefaultPermissions();
-
+      case ShopRoles.manager:
+        return ShopPermissionCatalog.stripOwnerOnly(
+          managerDefaultPermissions(),
+        );
       case ShopRoles.staff:
       default:
         return staffDefaultPermissions();
     }
+  }
+
+  Map<String, bool> mergeSavedPermissions({
+    required dynamic stored,
+    required Map<String, bool> draft,
+    required String role,
+  }) {
+    final Map<String, bool> result = <String, bool>{};
+    if (stored is Map) {
+      for (final String key in ShopPermissionKeys.all) {
+        final dynamic raw = stored[key];
+        if (raw is bool) result[key] = raw;
+      }
+    }
+    for (final ShopPermissionItem item in ShopPermissionCatalog.items) {
+      result[item.key] = draft[item.key] == true;
+    }
+    if (role != ShopRoles.owner) {
+      for (final String key in ShopPermissionCatalog.ownerOnlyKeys) {
+        result[key] = false;
+      }
+    }
+    return result;
   }
 
   Map<String, bool> normalizePermissions(dynamic value, {String? role}) {
@@ -130,6 +162,7 @@ class ShopMemberPermissionService {
     final role = memberData['role']?.toString();
 
     if (role == ShopRoles.owner) return true;
+    if (ShopPermissionCatalog.isOwnerOnlyKey(permissionKey)) return false;
 
     final permissions = normalizePermissions(
       memberData['permissions'],
@@ -183,6 +216,19 @@ class ShopMemberPermissionService {
       throw Exception('Email 不可為空');
     }
 
+    if (role == ShopRoles.owner) {
+      throw Exception('不可任命老闆');
+    }
+    final String? blocked = ShopPermissionCatalog.roleChangeBlock(
+      operatorRole: operatorRole,
+      targetCurrentRole: '',
+      nextRole: role,
+      editingSelf: false,
+    );
+    if (blocked != null) {
+      throw Exception(blocked);
+    }
+
     final existingMembers = await _shopMembers
         .where('shopId', isEqualTo: shopId)
         .get();
@@ -190,12 +236,25 @@ class ShopMemberPermissionService {
     for (final doc in existingMembers.docs) {
       final data = doc.data();
       if (data['emailKey'] == normalizedEmail) {
+        final String? memberBlock = ShopPermissionCatalog.roleChangeBlock(
+          operatorRole: operatorRole,
+          targetCurrentRole: data['role']?.toString() ?? '',
+          nextRole: role,
+          editingSelf: data['uid']?.toString() == operatorUid,
+        );
+        if (memberBlock != null) {
+          throw Exception(memberBlock);
+        }
         final oldPermissions = normalizePermissions(
           data['permissions'],
           role: data['role']?.toString(),
         );
 
-        final newPermissions = normalizePermissions(permissions, role: role);
+        final newPermissions = mergeSavedPermissions(
+          stored: data['permissions'],
+          draft: permissions,
+          role: role,
+        );
 
         final changedPermissions = ShopPermissionKeys.all
             .where((key) => oldPermissions[key] != newPermissions[key])
@@ -223,6 +282,7 @@ class ShopMemberPermissionService {
           operatorRole: operatorRole,
           payload: {
             'memberEmail': data['email'] ?? '',
+            'previousRole': data['role'] ?? '',
             'memberRole': role,
             'changedPermissions': changedPermissions,
           },
@@ -233,13 +293,23 @@ class ShopMemberPermissionService {
     }
 
     final inviteDocId = '${shopId}_$normalizedEmail';
+    final DocumentSnapshot<Map<String, dynamic>> existingInvite =
+        await _shopMemberInvites.doc(inviteDocId).get();
+    if (existingInvite.exists &&
+        existingInvite.data()?['status'] == 'pending') {
+      throw Exception('此 Email 已有待接受邀請');
+    }
 
     await _shopMemberInvites.doc(inviteDocId).set({
       'shopId': shopId,
       'email': normalizedEmail,
       'emailKey': normalizedEmail,
       'role': role,
-      'permissions': normalizePermissions(permissions, role: role),
+      'permissions': mergeSavedPermissions(
+        stored: existingInvite.data()?['permissions'],
+        draft: permissions,
+        role: role,
+      ),
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -261,27 +331,60 @@ class ShopMemberPermissionService {
     required Map<String, bool> permissions,
     required String operatorUid,
     required String operatorRole,
+    Map<String, bool>? baseline,
   }) async {
     final oldDoc = await _shopMembers.doc(memberDocId).get();
     final oldData = oldDoc.data() ?? {};
 
+    final String currentRole = oldData['role']?.toString() ?? '';
+    final String? blocked = ShopPermissionCatalog.roleChangeBlock(
+      operatorRole: operatorRole,
+      targetCurrentRole: currentRole,
+      nextRole: role,
+      editingSelf: oldData['uid']?.toString() == operatorUid,
+    );
+    if (blocked != null) {
+      throw Exception(blocked);
+    }
+
     final oldPermissions = normalizePermissions(
       oldData['permissions'],
-      role: oldData['role']?.toString(),
+      role: currentRole,
     );
 
-    final newPermissions = normalizePermissions(permissions, role: role);
+    final newPermissions = baseline == null
+        ? mergeSavedPermissions(
+            stored: oldData['permissions'],
+            draft: permissions,
+            role: role,
+          )
+        : applyPermissionEdits(
+            stored: oldData['permissions'],
+            before: baseline,
+            after: permissions,
+            role: role,
+          );
 
-    final changedPermissions = ShopPermissionKeys.all
-        .where((key) => oldPermissions[key] != newPermissions[key])
-        .map(
-          (key) => {
-            'key': key,
-            'oldValue': oldPermissions[key] ?? false,
-            'newValue': newPermissions[key] ?? false,
-          },
-        )
-        .toList();
+    final List<Map<String, dynamic>> changedPermissions = baseline == null
+        ? ShopPermissionKeys.all
+              .where((key) => oldPermissions[key] != newPermissions[key])
+              .map(
+                (key) => {
+                  'key': key,
+                  'oldValue': oldPermissions[key] ?? false,
+                  'newValue': newPermissions[key] ?? false,
+                },
+              )
+              .toList()
+        : ShopPermissionCatalog.diff(baseline, permissions)
+              .map(
+                (ShopPermissionChange change) => {
+                  'key': change.key,
+                  'oldValue': !change.enabled,
+                  'newValue': change.enabled,
+                },
+              )
+              .toList();
 
     await _shopMembers.doc(memberDocId).update({
       'role': role,
@@ -298,10 +401,39 @@ class ShopMemberPermissionService {
       operatorRole: operatorRole,
       payload: {
         'memberEmail': oldData['email'] ?? '',
+        'previousRole': currentRole,
         'memberRole': role,
         'changedPermissions': changedPermissions,
       },
     );
+  }
+
+  /// 只覆寫這次有改動的目錄鍵，其餘已儲存的權限保持原值。
+  Map<String, bool> applyPermissionEdits({
+    required dynamic stored,
+    required Map<String, bool> before,
+    required Map<String, bool> after,
+    required String role,
+  }) {
+    final Map<String, bool> result = <String, bool>{};
+    if (stored is Map) {
+      for (final String key in ShopPermissionKeys.all) {
+        final dynamic raw = stored[key];
+        if (raw is bool) result[key] = raw;
+      }
+    }
+    for (final ShopPermissionChange change in ShopPermissionCatalog.diff(
+      before,
+      after,
+    )) {
+      result[change.key] = change.enabled;
+    }
+    if (role != ShopRoles.owner) {
+      for (final String key in ShopPermissionCatalog.ownerOnlyKeys) {
+        result[key] = false;
+      }
+    }
+    return result;
   }
 
   Future<void> removeMember({
@@ -369,6 +501,27 @@ class ShopMemberPermissionService {
       final shopId = invite['shopId'];
 
       final memberDocId = '${shopId}_${user.uid}';
+      final DocumentSnapshot<Map<String, dynamic>> existingMember =
+          await _shopMembers.doc(memberDocId).get();
+      if (existingMember.exists &&
+          existingMember.data()?['role']?.toString() == ShopRoles.owner) {
+        await inviteDoc.reference.update({'status': 'accepted'});
+        continue;
+      }
+      final QuerySnapshot<Map<String, dynamic>> sameEmail = await _shopMembers
+          .where('shopId', isEqualTo: shopId)
+          .where('emailKey', isEqualTo: email)
+          .limit(5)
+          .get();
+      final bool otherUid = sameEmail.docs.any((
+        QueryDocumentSnapshot<Map<String, dynamic>> doc,
+      ) {
+        return doc.id != memberDocId &&
+            doc.data()['uid']?.toString() != user.uid;
+      });
+      if (otherUid) {
+        continue;
+      }
 
       await _shopMembers.doc(memberDocId).set({
         'shopId': shopId,

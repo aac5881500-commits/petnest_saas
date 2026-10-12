@@ -83,8 +83,7 @@ class DailyCarePhotoModel {
   /// 建立時間
   final DateTime? createdAt;
 
-  /// 後端排程寫入的照片保存期限。
-  /// 小時數沿用店家 downloadHoursAfterCheckout，不另設刪除期限。
+  /// 後端排程寫入的照片保存期限。固定為服務實際結束後 24 小時。
   final DateTime? expiresAt;
 
   /// 後端清理完成後為 cleaned。網址已清空，不可再載入。

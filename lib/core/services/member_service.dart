@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/services/member_search_fields.dart';
 
 class MemberService {
@@ -63,8 +64,10 @@ class MemberService {
 
     try {
       if (doc.exists) {
+        // 一般會員更新只能改規則允許的欄位。
+        // 搜尋索引（nameNormalized 等）與 userId／黑名單不在顧客可改清單，
+        // 寫進去會被判定為 permission-denied。索引留在初次建立的內容。
         await memberRef.set({
-          'userId': user.uid,
           'email': user.email ?? '',
           'name': resolvedName,
           'phone': resolvedPhone,
@@ -77,12 +80,6 @@ class MemberService {
           'updatedAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
           'lastBookingAt': FieldValue.serverTimestamp(),
-          ...MemberSearchFields.fromMember(
-            name: resolvedName,
-            phone: resolvedPhone,
-            email: user.email ?? '',
-            source: 'app',
-          ),
         }, SetOptions(merge: true));
       } else {
         await memberRef.set({
@@ -121,8 +118,8 @@ class MemberService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      print('🔥 ensureMember錯誤');
-      print(e);
+      final String code = e is FirebaseException ? e.code : '';
+      debugPrint('[MemberService] ensureMember failed firebaseCode=$code');
       rethrow;
     }
   }

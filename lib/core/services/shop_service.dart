@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
-import 'package:petnest_saas/core/services/platform_activation_code_service.dart';
+import 'package:petnest_saas/core/services/shop_plan_access.dart';
 import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
@@ -32,7 +32,7 @@ class ShopService {
       _firestore.collection('shop_members');
 
   List<String> effectiveEnabledModules(Map<String, dynamic> shop) {
-    final plan = shop['plan']?.toString() ?? 'free';
+    final plan = ShopPlanAccess.effectivePlan(shop);
 
     final lockedModule =
         shop['lockedModule']?.toString().trim().isNotEmpty == true
@@ -69,6 +69,9 @@ class ShopService {
       return false;
     }
 
+    if (ShopPlanAccess.scheduleApplied(shop)) {
+      return effectiveEnabledModules(shop).contains(module);
+    }
     return normalizeEnabledModules(shop['enabledModules']).contains(module);
   }
 
@@ -79,7 +82,7 @@ class ShopService {
     final shopDoc = await _shops.doc(shopId).get();
     final shop = shopDoc.data() ?? {};
 
-    final plan = shop['plan']?.toString() ?? 'free';
+    final plan = ShopPlanAccess.effectivePlan(shop);
 
     final lockedModule =
         shop['lockedModule']?.toString().trim().isNotEmpty == true
@@ -127,72 +130,6 @@ class ShopService {
     return ShopProfileService.instance.updateShop(shopId: shopId, data: data);
   }
 
-  /// ===============================
-  /// 🏪 產生下一個店家編號
-  /// ===============================
-  /// 格式：SHOP0001、SHOP0002
-  Future<String> _generateNextShopCode() async {
-    final counterRef = _firestore.collection('platform_counters').doc('shops');
-
-    return _firestore.runTransaction<String>((transaction) async {
-      final snapshot = await transaction.get(counterRef);
-
-      final current = snapshot.exists
-          ? (snapshot.data()?['current'] ?? 0) as int
-          : 0;
-
-      final next = current + 1;
-
-      transaction.set(counterRef, {
-        'current': next,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      return 'SHOP${next.toString().padLeft(4, '0')}';
-    });
-  }
-
-  bool _userFieldMissing(Map<String, dynamic>? data, String key) {
-    if (data == null || !data.containsKey(key) || data[key] == null) {
-      return true;
-    }
-    final Object? value = data[key];
-    return value is String && value.trim().isEmpty;
-  }
-
-  /// 創店時補齊店主的 users/{uid}。已有欄位不覆蓋，缺的才補預設值。
-  Map<String, dynamic> _ownerPlatformUserSeed({
-    required User user,
-    required DocumentSnapshot<Map<String, dynamic>> snapshot,
-  }) {
-    final Map<String, dynamic>? data = snapshot.data();
-    final bool exists = snapshot.exists;
-    final Map<String, dynamic> payload = <String, dynamic>{
-      'uid': user.uid,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (!exists || _userFieldMissing(data, 'email')) {
-      payload['email'] = user.email ?? '';
-    }
-    if (!exists || _userFieldMissing(data, 'displayName')) {
-      payload['displayName'] = user.displayName ?? '';
-    }
-    if (!exists || _userFieldMissing(data, 'role')) {
-      payload['role'] = 'user';
-    }
-    if (!exists || _userFieldMissing(data, 'status')) {
-      payload['status'] = 'active';
-    }
-    if (!exists) {
-      payload['createdAt'] = FieldValue.serverTimestamp();
-    }
-    if (!exists || _userFieldMissing(data, 'lastLoginAt')) {
-      payload['lastLoginAt'] = FieldValue.serverTimestamp();
-    }
-    return payload;
-  }
-
   /// 建立店家
   Future<String> createShop({
     required String name,
@@ -202,215 +139,7 @@ class ShopService {
     required String activationCode,
     String businessType = 'cat_hotel',
   }) async {
-    final user = _currentUser;
-
-    if (user == null) throw Exception('未登入');
-
-    final existing = await _shopMembers
-        .where('uid', isEqualTo: user.uid)
-        .where('role', isEqualTo: 'owner')
-        .limit(1)
-        .get();
-
-    if (existing.docs.isNotEmpty) {
-      throw Exception('你已經建立過店家了');
-    }
-
-    final activationError = await PlatformActivationCodeService.instance
-        .validateCode(activationCode);
-
-    if (activationError != null) {
-      throw Exception(activationError);
-    }
-
-    final activationCodeData = await PlatformActivationCodeService.instance
-        .getCode(activationCode);
-
-    if (activationCodeData == null) {
-      throw Exception('找不到此激活碼');
-    }
-
-    final shopCode = await _generateNextShopCode();
-
-    final shopRef = _shops.doc(shopCode);
-    final memberRef = _shopMembers.doc('${shopCode}_${user.uid}');
-
-    final activationCodeId = activationCodeData['id'].toString();
-
-    final activationPlan = activationCodeData['plan']?.toString() ?? 'basic';
-
-    final lockedModule =
-        activationCodeData['module']?.toString() ?? ShopModules.catHotel;
-
-    final initialEnabledModules = ShopModules.lockedPlanModules(lockedModule);
-
-    final activationFreeDays = activationCodeData['freeDays'] is int
-        ? activationCodeData['freeDays'] as int
-        : 30;
-
-    final paidUntil = Timestamp.fromDate(
-      DateTime.now().add(Duration(days: activationFreeDays)),
-    );
-
-    final activationCodeRef = _firestore
-        .collection('activation_codes')
-        .doc(activationCodeId);
-
-    final batch = _firestore.batch();
-    final userRef = _firestore.collection('users').doc(user.uid);
-    final userSnap = await userRef.get();
-
-    final policyAcceptanceRef = shopRef
-        .collection('policy_acceptances')
-        .doc('shop_owner_policy_v$acceptedShopOwnerPolicyVersion');
-
-    batch.set(shopRef, {
-      'shopId': shopCode,
-      'shopCode': shopCode,
-      'name': name.trim(),
-      'ownerUid': user.uid,
-
-      // 🔒 建立後鎖定欄位
-      'profileLocked': true,
-      'lockedFields': [
-        'name',
-        'businessType',
-        'city',
-        'licenseNumber',
-        'taxId',
-      ],
-
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      // 🎟️ 激活碼 / 方案開通
-      'activationCode': activationCode.trim(),
-      'activationCodeId': activationCodeId,
-      'activationFreeDays': activationFreeDays,
-      'plan': activationPlan,
-      'paidUntil': paidUntil,
-      'planStartedAt': FieldValue.serverTimestamp(),
-      'acceptedShopOwnerPolicyVersion': acceptedShopOwnerPolicyVersion,
-
-      'acceptedShopOwnerPolicyAt': FieldValue.serverTimestamp(),
-
-      // 基本資料
-      'businessType': lockedModule,
-      'lockedModule': lockedModule,
-      'phone': '',
-      'address': '',
-      'description': '',
-      'city': city.trim(),
-      'district': district.trim(),
-      'lineUrl': '',
-
-      // 營業資訊
-      'isOpen': true,
-      'businessHours': '',
-      'closedDays': <String>[],
-      'serviceTypes': <String>['overnight'],
-      'isPublic': false,
-
-      // 圖片
-      'logoUrl': '',
-      'coverUrl': '',
-
-      // 模組開關（後台分頁用）
-      'enabledModules': initialEnabledModules,
-
-      // ========= 預約設定 =========
-      'bookingEnabled': true,
-      'daycareEnabled': false,
-      'totalRooms': 1,
-
-      // ========= 💰 訂金 / 付款設定 =========
-      'depositEnabled': false,
-      'depositAmount': 0,
-
-      'bankName': '',
-      'accountName': '',
-      'accountNumber': '',
-
-      'paymentMethods': {'cash': true, 'transfer': false},
-
-      // 本次新增：房況欄位
-      'cleaningRooms': 0,
-      'maintenanceRooms': 0,
-
-      'maxAdvanceBookingDays': 30,
-      'defaultPricePerNight': 0,
-      'blockedDates': <String>[],
-      'specialPrices': <String, dynamic>{},
-    });
-
-    batch.set(memberRef, {
-      'shopId': shopRef.id,
-      'uid': user.uid,
-      'email': user.email ?? '',
-      'emailKey': normalizeEmail(user.email ?? ''),
-
-      // 權限預留：owner / manager / staff
-      'role': ShopRoles.owner,
-      'permissions': ownerDefaultPermissions(),
-      'status': 'active',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    batch.set(
-      userRef,
-      _ownerPlatformUserSeed(user: user, snapshot: userSnap),
-      SetOptions(merge: true),
-    );
-
-    batch.set(policyAcceptanceRef, {
-      'type': 'shop_owner_policy',
-      'version': acceptedShopOwnerPolicyVersion,
-      'acceptedAt': FieldValue.serverTimestamp(),
-      'acceptedByUid': user.uid,
-      'acceptedByEmail': user.email ?? '',
-    });
-
-    final currentUsedCount = activationCodeData['usedCount'] ?? 0;
-
-    final maxUses = activationCodeData['maxUses'] ?? 0;
-
-    final newUsedCount = currentUsedCount + 1;
-
-    batch.update(activationCodeRef, {
-      'usedCount': newUsedCount,
-      'usedShopIds': FieldValue.arrayUnion([shopRef.id]),
-      'usedByUids': FieldValue.arrayUnion([user.uid]),
-      'lastUsedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-
-      // 🔥 用完自動停用
-      'enabled': newUsedCount < maxUses,
-    });
-    final activationUsageLogRef = activationCodeRef
-        .collection('usage_logs')
-        .doc(shopRef.id);
-
-    batch.set(activationUsageLogRef, {
-      'shopId': shopRef.id,
-      'shopName': name.trim(),
-      'usedByUid': user.uid,
-      'usedByEmail': user.email ?? '',
-      'plan': activationPlan,
-      'freeDays': activationFreeDays,
-      'module': lockedModule,
-      'usedAt': FieldValue.serverTimestamp(),
-    });
-
-    try {
-      print('🔥 準備 batch commit');
-      await batch.commit();
-      print('✅ batch commit 成功');
-    } catch (e, st) {
-      print('🔥 建立店家 batch commit 失敗: $e');
-      print(st);
-      rethrow;
-    }
-    return shopRef.id;
+    throw Exception('請使用後端創店流程');
   }
 
   /// 取得我的店家
@@ -956,6 +685,7 @@ class ShopService {
     required Map<String, bool> permissions,
     required String operatorUid,
     required String operatorRole,
+    Map<String, bool>? baseline,
   }) async {
     return ShopMemberPermissionService.instance.updateMemberPermission(
       memberDocId: memberDocId,
@@ -964,6 +694,7 @@ class ShopService {
       permissions: permissions,
       operatorUid: operatorUid,
       operatorRole: operatorRole,
+      baseline: baseline,
     );
   }
 

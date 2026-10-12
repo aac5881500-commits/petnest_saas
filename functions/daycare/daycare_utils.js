@@ -2,6 +2,7 @@
 // 功能說明：臨托共用工具：登入、店家、權限、金額、時間、操作紀錄
 
 const admin = require("firebase-admin");
+const {isOwnerOnlyPermission} = require("../shops/shop_permission_policy");
 
 const ROOT_ADMIN_UID = "7FNrECQeqAca9Vu8lBBzTSdcJcg1";
 
@@ -334,11 +335,13 @@ async function hasShopPermission(shopId, uid, permissionKey) {
     }
     const permissions = member.permissions && typeof member.permissions ===
       "object" ? member.permissions : {};
-    if (permissions[permissionKey] === true) {
+    if (!isOwnerOnlyPermission(permissionKey) &&
+      permissions[permissionKey] === true) {
       return true;
     }
   }
-  const shopSnap = await admin.firestore().collection("shops").doc(shopId).get();
+  const shopSnap = await admin.firestore().collection("shops")
+      .doc(shopId).get();
   return shopSnap.exists &&
     normalizeString((shopSnap.data() || {}).ownerUid) === uid;
 }
@@ -543,8 +546,8 @@ function summarizePolicyForService(policy, serviceType) {
  * @return {boolean}
  */
 function shopHasCatHotel(shopData) {
-  const modules = Array.isArray(shopData.enabledModules) ?
-    shopData.enabledModules.map((item) => String(item)) : [];
+  const modules = require("../sales/commercial_policy")
+      .effectiveModules(shopData || {});
   return modules.includes("cat_hotel");
 }
 

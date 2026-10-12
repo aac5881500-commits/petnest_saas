@@ -3,10 +3,12 @@
 // 功能：
 // - 建立 Firebase 帳號
 // - 建立 Firestore users 資料
-// - 成功後返回登入頁
+// - 寄出驗證信後進入信箱驗證頁
 
 import 'package:flutter/material.dart';
+import '../../../core/services/auth_access_policy.dart';
 import '../../../core/services/auth_service.dart';
+import 'email_verification_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -27,6 +29,24 @@ class _RegisterPageState extends State<RegisterPage> {
 
   /// 🟢 註冊
   Future<void> _register() async {
+    final String? emailError = AuthAccessPolicy.emailIssue(
+      _emailController.text,
+    );
+    if (emailError != null) {
+      setState(() {
+        _error = emailError;
+      });
+      return;
+    }
+    final String? passwordError = AuthAccessPolicy.passwordIssue(
+      _passwordController.text,
+    );
+    if (passwordError != null) {
+      setState(() {
+        _error = passwordError;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -39,18 +59,30 @@ class _RegisterPageState extends State<RegisterPage> {
         displayName: _nameController.text.trim(),
       );
 
-      /// 註冊成功 → 回上一頁（登入）
-      if (mounted) {
-        Navigator.pop(context);
+      if (!mounted) {
+        return;
       }
-    } catch (e) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => const EmailVerificationPage(justSent: true),
+        ),
+        (Route<dynamic> route) => false,
+      );
+    } catch (error) {
+      final String? message = AuthService.authErrorMessage(error);
+      if (!mounted || message == null) {
+        return;
+      }
       setState(() {
-        _error = '註冊失敗：$e';
+        _error = message;
       });
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 

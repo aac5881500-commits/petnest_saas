@@ -1,5 +1,8 @@
 // 檔案名稱：lib/features/shop/widgets/modern_home/shop_modern_logo.dart
-// 功能說明：新版 Beta 共用店家 Logo：固定正方形、cover、失敗顯示圖示。
+// 功能說明：新版 Beta 共用店家 Logo。
+// 1. Logo 完整等比例顯示，不裁切、不變形。
+// 2. 移除額外背景色，與首頁背景自然融合。
+// 3. 保留圖片載入、錯誤圖示、尺寸及圓角設定。
 
 import 'package:flutter/material.dart';
 
@@ -27,53 +30,50 @@ class ShopModernLogo extends StatelessWidget {
       height: size,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: ColoredBox(
-          color: primaryColor.withValues(alpha: 0.10),
-          child: url.isEmpty
-              ? _FallbackIcon(color: primaryColor, size: iconSize)
-              : Image.network(
-                  url,
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  gaplessPlayback: true,
-                  loadingBuilder:
-                      (
-                        BuildContext context,
-                        Widget child,
-                        ImageChunkEvent? progress,
-                      ) {
-                        if (progress == null) {
-                          return child;
-                        }
-                        return ColoredBox(
-                          color: primaryColor.withValues(alpha: 0.08),
-                          child: Center(
-                            child: SizedBox(
-                              width: size * 0.28,
-                              height: size * 0.28,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: primaryColor,
-                              ),
-                            ),
+        child: url.isEmpty
+            ? _FallbackIcon(color: primaryColor, size: iconSize)
+            : Image.network(
+                url,
+                width: size,
+                height: size,
+
+                // 完整顯示圖片，不再裁切。
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+                gaplessPlayback: true,
+
+                loadingBuilder:
+                    (
+                      BuildContext context,
+                      Widget child,
+                      ImageChunkEvent? progress,
+                    ) {
+                      if (progress == null) {
+                        return child;
+                      }
+
+                      // 載入期間不額外加背景色。
+                      return Center(
+                        child: SizedBox(
+                          width: size * 0.28,
+                          height: size * 0.28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: primaryColor,
                           ),
-                        );
-                      },
-                  errorBuilder:
-                      (
-                        BuildContext context,
-                        Object error,
-                        StackTrace? stackTrace,
-                      ) {
-                        return _FallbackIcon(
-                          color: primaryColor,
-                          size: iconSize,
-                        );
-                      },
-                ),
-        ),
+                        ),
+                      );
+                    },
+
+                errorBuilder:
+                    (
+                      BuildContext context,
+                      Object error,
+                      StackTrace? stackTrace,
+                    ) {
+                      return _FallbackIcon(color: primaryColor, size: iconSize);
+                    },
+              ),
       ),
     );
   }

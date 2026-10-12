@@ -3,8 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_owner_policy_page.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
 
@@ -22,6 +21,7 @@ class _CreateShopPageState extends State<CreateShopPage> {
   final _activationCodeController = TextEditingController();
 
   bool _loading = false;
+  String? _createRequestId;
 
   final Map<String, List<String>> taiwanMap = {
     '台北市': [
@@ -445,21 +445,8 @@ class _CreateShopPageState extends State<CreateShopPage> {
 
       final user = FirebaseAuth.instance.currentUser;
 
-      if (user == null) return;
-
-      final ownedShopSnapshot = await FirebaseFirestore.instance
-          .collection('shops')
-          .where('ownerUid', isEqualTo: user.uid)
-          .limit(1)
-          .get();
-
-      if (ownedShopSnapshot.docs.isNotEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('此帳號已經擁有店家，無法重複建立新店。')));
-
+      if (user == null) {
+        if (mounted) setState(() => _loading = false);
         return;
       }
 
@@ -471,14 +458,21 @@ class _CreateShopPageState extends State<CreateShopPage> {
           ? policy!['version']
           : 1;
 
-      await ShopService.instance.createShop(
+      _createRequestId ??=
+          'shop${DateTime.now().microsecondsSinceEpoch}';
+      final shopId = await ShopCommercialService.instance.createShop(
         name: name,
         city: city,
         district: district,
-        businessType: 'cat_hotel',
         acceptedShopOwnerPolicyVersion: currentPolicyVersion,
         activationCode: activationCode,
+        requestId: _createRequestId!,
       );
+      _createRequestId = null;
+      if (!mounted) return;
+      if (shopId.isEmpty) {
+        throw Exception('沒有取得店家編號');
+      }
 
       if (!mounted) return;
 

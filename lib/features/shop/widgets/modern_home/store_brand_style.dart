@@ -34,6 +34,7 @@ class StoreBrandStyle {
     this.logoPlacement = 'leading',
     this.logoSize = 'medium',
     this.fallbackIcon = 'paw',
+    this.nameFontFamily = defaultNameFontFamily,
   });
 
   static const double defaultWidthRatio = 0.72;
@@ -44,6 +45,16 @@ class StoreBrandStyle {
   static const double minSubtitleFont = 10;
   static const double maxSubtitleFont = 18;
   static const double logoGap = 10;
+
+  /// 空字串代表原本字體。只接受目前已安裝的五款。
+  static const String defaultNameFontFamily = '';
+  static const List<String> nameFontFamilies = <String>[
+    'jfOpenHuninn',
+    'NotoSansTC',
+    'NotoSerifTC',
+    'KleeOne',
+    'ChironSungHK',
+  ];
   static const Object _keep = Object();
 
   final double x;
@@ -61,6 +72,17 @@ class StoreBrandStyle {
   final String logoPlacement;
   final String logoSize;
   final String fallbackIcon;
+
+  /// 店名字體。空字串沿用原本字體。
+  final String nameFontFamily;
+
+  /// 可套用的店名字體。未知代號回傳 null，畫面沿用原本字體。
+  String? get appliedNameFontFamily {
+    if (nameFontFamilies.contains(nameFontFamily)) {
+      return nameFontFamily;
+    }
+    return null;
+  }
 
   bool get showsMark => markType == 'logo' || markType == 'builtinIcon';
 
@@ -136,6 +158,7 @@ class StoreBrandStyle {
     String? logoPlacement,
     String? logoSize,
     String? fallbackIcon,
+    String? nameFontFamily,
   }) {
     return StoreBrandStyle(
       x: (x ?? this.x).clamp(0, 1).toDouble(),
@@ -165,6 +188,7 @@ class StoreBrandStyle {
       logoPlacement: logoPlacement ?? this.logoPlacement,
       logoSize: logoSize ?? this.logoSize,
       fallbackIcon: fallbackIcon ?? this.fallbackIcon,
+      nameFontFamily: _nameFontFamily(nameFontFamily ?? this.nameFontFamily),
     );
   }
 
@@ -197,6 +221,7 @@ class StoreBrandStyle {
       'showRightHeaderIcon': showsMark && logoPlacement == 'trailing',
       'leftHeaderIcon': fallbackIcon,
       'rightHeaderIcon': fallbackIcon,
+      'homepageBrandNameFontFamily': nameFontFamily,
     };
   }
 
@@ -232,6 +257,7 @@ class StoreBrandStyle {
       logoPlacement: _placement(map),
       logoSize: _logoSize(map['homepageBrandLogoSize']),
       fallbackIcon: _icon(map),
+      nameFontFamily: _nameFontFamily(map['homepageBrandNameFontFamily']),
     );
   }
 
@@ -321,6 +347,14 @@ class StoreBrandStyle {
       return 'trailing';
     }
     return 'leading';
+  }
+
+  static String _nameFontFamily(dynamic value) {
+    final String raw = (value ?? '').toString().trim();
+    if (nameFontFamilies.contains(raw)) {
+      return raw;
+    }
+    return defaultNameFontFamily;
   }
 
   static String _icon(Map<String, dynamic> map) {

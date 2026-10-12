@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/legal_pet_service.dart';
 
 class PlatformShopRequestManagePage extends StatelessWidget {
   const PlatformShopRequestManagePage({super.key});
@@ -43,6 +44,8 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         return '已核准';
       case 'rejected':
         return '已拒絕';
+      case 'supplement':
+        return '補件';
       case 'cancelled':
         return '已取消';
       default:
@@ -58,8 +61,8 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         return Colors.green;
       case 'rejected':
         return Colors.red;
-      case 'cancelled':
-        return Colors.grey;
+      case 'supplement':
+        return Colors.blue;
       default:
         return Colors.grey;
     }
@@ -76,96 +79,135 @@ class PlatformShopRequestManagePage extends StatelessWidget {
   }
 
   Future<void> _approveRequest({
+    required BuildContext context,
     required QueryDocumentSnapshot doc,
     required Map<String, dynamic> data,
   }) async {
-    final shopId = data['shopId']?.toString() ?? '';
     final requestType = data['requestType']?.toString() ?? '';
-    final newValue = data['newValue']?.toString() ?? '';
-
-    final newCity = data['newCity']?.toString() ?? '';
-    final newDistrict = data['newDistrict']?.toString() ?? '';
-    final newAddress = data['newAddress']?.toString() ?? '';
-
-    if (shopId.isEmpty) return;
-
+    bool approveLicense = false;
+    bool approveTaxId = false;
+    bool approvePublic = false;
+    bool applyProposedAddress = false;
+    bool transferLicense = false;
     if (requestType == 'fullVerify') {
-      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-        'licenseVerified': true,
-        'taxIdVerified': true,
-        'isPublic': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else if (requestType == 'address') {
-      if (newCity.isEmpty || newDistrict.isEmpty || newAddress.isEmpty) {
-        return;
-      }
-
-      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-        'city': newCity,
-        'district': newDistrict,
-        'address': newAddress,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      String? fieldName;
-
-      switch (requestType) {
-        case 'name':
-          fieldName = 'name';
-          break;
-
-        case 'phone':
-          fieldName = 'phone';
-          break;
-
-        case 'licenseNumber':
-          fieldName = 'licenseNumber';
-          break;
-
-        case 'taxId':
-          fieldName = 'taxId';
-          break;
-
-        case 'lineUrl':
-          fieldName = 'lineUrl';
-          break;
-
-        case 'igUrl':
-          fieldName = 'igUrl';
-          break;
-
-        case 'fbUrl':
-          fieldName = 'fbUrl';
-          break;
-      }
-
-      if (fieldName == null || newValue.trim().isEmpty) return;
-
-      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-        fieldName: newValue.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final choice = await showDialog<Map<String, bool>>(
+        context: context,
+        builder: (dialogContext) {
+          bool license = false;
+          bool tax = false;
+          bool publish = false;
+          bool address = data['proposedAddress'] is Map;
+          bool transfer = false;
+          return StatefulBuilder(
+            builder: (context, setLocal) {
+              return AlertDialog(
+                title: const Text('分開核准'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CheckboxListTile(
+                      value: license,
+                      title: const Text('核可特寵字號'),
+                      onChanged: (value) =>
+                          setLocal(() => license = value ?? false),
+                    ),
+                    CheckboxListTile(
+                      value: tax,
+                      title: const Text('核可統編'),
+                      onChanged: (value) => setLocal(() => tax = value ?? false),
+                    ),
+                    CheckboxListTile(
+                      value: publish,
+                      title: const Text('開放平台公開'),
+                      onChanged: (value) =>
+                          setLocal(() => publish = value ?? false),
+                    ),
+                    CheckboxListTile(
+                      value: address,
+                      title: const Text('套用擬更正地址'),
+                      onChanged: (value) =>
+                          setLocal(() => address = value ?? false),
+                    ),
+                    CheckboxListTile(
+                      value: transfer,
+                      title: const Text('字號已綁定其他店時，改綁到這家'),
+                      onChanged: (value) =>
+                          setLocal(() => transfer = value ?? false),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('取消'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, {
+                      'license': license,
+                      'tax': tax,
+                      'public': publish,
+                      'address': address,
+                      'transfer': transfer,
+                    }),
+                    child: const Text('送出核准'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+      if (choice == null || !context.mounted) return;
+      approveLicense = choice['license'] == true;
+      approveTaxId = choice['tax'] == true;
+      approvePublic = choice['public'] == true;
+      applyProposedAddress = choice['address'] == true;
+      transferLicense = choice['transfer'] == true;
     }
+    await _sendReview(
+      context: context,
+      requestId: doc.id,
+      action: 'approve',
+      approveLicense: approveLicense,
+      approveTaxId: approveTaxId,
+      approvePublic: approvePublic,
+      applyProposedAddress: applyProposedAddress,
+      transferLicense: transferLicense,
+    );
+  }
 
-    String reviewNote = '平台已核准';
-
-    switch (requestType) {
-      case 'fullVerify':
-        reviewNote = '平台已完成店家認證，並開放平台公開';
-        break;
-
-      default:
-        reviewNote = '平台已核准並更新資料';
+  Future<void> _sendReview({
+    required BuildContext context,
+    required String requestId,
+    required String action,
+    String reviewNote = '',
+    bool approveLicense = false,
+    bool approveTaxId = false,
+    bool approvePublic = false,
+    bool applyProposedAddress = false,
+    bool transferLicense = false,
+  }) async {
+    try {
+      await LegalPetService.instance.reviewRequest({
+        'requestId': requestId,
+        'action': action,
+        'reviewNote': reviewNote,
+        'approveLicense': approveLicense,
+        'approveTaxId': approveTaxId,
+        'approvePublic': approvePublic,
+        'applyProposedAddress': applyProposedAddress,
+        'transferLicense': transferLicense,
+      });
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('審核已送出')),
+      );
+    } on LegalPetException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
     }
-    await FirebaseFirestore.instance
-        .collection('shop_change_requests')
-        .doc(doc.id)
-        .update({
-          'status': 'approved',
-          'reviewNote': reviewNote,
-          'reviewedAt': FieldValue.serverTimestamp(),
-        });
   }
 
   Future<void> _rejectRequest({
@@ -207,16 +249,18 @@ class PlatformShopRequestManagePage extends StatelessWidget {
 
     reasonController.dispose();
 
-    if (rejectReason == null || rejectReason.isEmpty) return;
+    if (rejectReason == null ||
+        rejectReason.isEmpty ||
+        !context.mounted) {
+      return;
+    }
 
-    await FirebaseFirestore.instance
-        .collection('shop_change_requests')
-        .doc(doc.id)
-        .update({
-          'status': 'rejected',
-          'reviewNote': rejectReason,
-          'reviewedAt': FieldValue.serverTimestamp(),
-        });
+    await _sendReview(
+      context: context,
+      requestId: doc.id,
+      action: 'reject',
+      reviewNote: rejectReason,
+    );
   }
 
   Widget _buildImagePreview({required String title, required String imageUrl}) {
@@ -260,7 +304,7 @@ class PlatformShopRequestManagePage extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: filtered.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final doc = filtered[index];
         final data = doc.data() as Map<String, dynamic>;
@@ -351,6 +395,25 @@ class PlatformShopRequestManagePage extends StatelessWidget {
                 if (newValue.isNotEmpty) Text('申請修改為：$newValue'),
 
                 if (reason.isNotEmpty) Text('申請原因：$reason'),
+                if ((data['addressDifferenceNote'] ?? '').toString().isNotEmpty)
+                  Text('地址差異說明：${data['addressDifferenceNote']}'),
+                if ((data['checkResult'] ?? '').toString().isNotEmpty)
+                  Text('字號查核：${data['checkResult']}'),
+                if ((data['addressComparison'] ?? '').toString().isNotEmpty)
+                  Text('地址比對：${data['addressComparison']}'),
+                if ((data['licenseBindingShopId'] ?? '').toString().isNotEmpty)
+                  Text('字號目前綁定店家：${data['licenseBindingShopId']}'),
+                if (data['shopSnapshot'] is Map)
+                  Text('送件店家資料：${data['shopSnapshot']}'),
+                if (data['governmentSnapshot'] is Map)
+                  Text('送件政府資料：${data['governmentSnapshot']}'),
+                if (data['proposedAddress'] is Map)
+                  Text('擬更正地址：${data['proposedAddress']}'),
+                if ((data['addressProofImageUrl'] ?? '').toString().isNotEmpty)
+                  _buildImagePreview(
+                    title: '地址差異證明',
+                    imageUrl: data['addressProofImageUrl'].toString(),
+                  ),
 
                 if (reviewNote.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -372,7 +435,11 @@ class PlatformShopRequestManagePage extends StatelessWidget {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () async {
-                            await _approveRequest(doc: doc, data: data);
+                            await _approveRequest(
+                              context: context,
+                              doc: doc,
+                              data: data,
+                            );
                           },
                           child: const Text('核准'),
                         ),
@@ -384,6 +451,52 @@ class PlatformShopRequestManagePage extends StatelessWidget {
                             await _rejectRequest(context: context, doc: doc);
                           },
                           child: const Text('拒絕'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final reasonController = TextEditingController();
+                            final reason = await showDialog<String>(
+                              context: context,
+                              builder: (dialogContext) {
+                                return AlertDialog(
+                                  title: const Text('要求補件'),
+                                  content: TextField(
+                                    controller: reasonController,
+                                    decoration: const InputDecoration(
+                                      labelText: '補件原因',
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext),
+                                      child: const Text('取消'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(
+                                        dialogContext,
+                                        reasonController.text.trim(),
+                                      ),
+                                      child: const Text('送出'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            reasonController.dispose();
+                            if (reason == null || reason.isEmpty) return;
+                            if (!context.mounted) return;
+                            await _sendReview(
+                              context: context,
+                              requestId: doc.id,
+                              action: 'supplement',
+                              reviewNote: reason,
+                            );
+                          },
+                          child: const Text('補件'),
                         ),
                       ),
                     ],

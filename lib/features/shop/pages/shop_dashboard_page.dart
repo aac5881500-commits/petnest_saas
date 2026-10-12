@@ -1332,10 +1332,13 @@ class _BasicInfoTab extends StatelessWidget {
             _MenuTile(
               title: '權限設定',
               subtitle: currentUserRole == ShopRoles.owner
-                  ? '用 Email 指定員工，並設定功能開關'
-                  : '目前只有老闆可修改',
+                  ? '管理店長、員工與功能權限'
+                  : currentUserRole == ShopRoles.manager
+                  ? '可管理已授權的一般員工'
+                  : '目前無法修改權限',
               icon: Icons.admin_panel_settings,
-              enabled: currentUserRole == ShopRoles.owner,
+              enabled: currentUserRole == ShopRoles.owner ||
+                  currentUserRole == ShopRoles.manager,
               onTap: () {
                 Navigator.push(
                   context,

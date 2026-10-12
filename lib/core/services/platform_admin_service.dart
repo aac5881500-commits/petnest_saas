@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../constants/platform_permission_keys.dart';
+import 'platform_permission_catalog.dart';
 import '../constants/platform_root_admin.dart';
 import '../models/platform_admin_model.dart';
 
@@ -102,8 +103,7 @@ class PlatformAdminService {
       return false;
     }
 
-    return admin.role == PlatformAdminRoles.superAdmin ||
-        admin.permissions.contains(PlatformPermissionKeys.all);
+    return admin.role == PlatformAdminRoles.superAdmin;
   }
 
   /// 判斷目前登入者是否擁有指定權限
@@ -136,8 +136,8 @@ class PlatformAdminService {
       return true;
     }
 
-    if (admin.permissions.contains(PlatformPermissionKeys.all)) {
-      return true;
+    if (PlatformPermissionCatalog.superOnlyKeys.contains(permission)) {
+      return false;
     }
 
     return admin.permissions.contains(permission);
@@ -191,6 +191,9 @@ class PlatformAdminService {
 
     final sanitizedPermissions = permissions
         .where(PlatformPermissionKeys.assignableValues.contains)
+        .where(
+          (permission) => !PlatformPermissionCatalog.isSuperOnly(permission),
+        )
         .toSet()
         .toList();
 
@@ -262,6 +265,9 @@ class PlatformAdminService {
 
     final sanitizedPermissions = permissions
         .where(PlatformPermissionKeys.assignableValues.contains)
+        .where(
+          (permission) => !PlatformPermissionCatalog.isSuperOnly(permission),
+        )
         .toSet()
         .toList();
 
@@ -315,6 +321,9 @@ class PlatformAdminService {
 
     final sanitizedPermissions = permissions
         .where(PlatformPermissionKeys.assignableValues.contains)
+        .where(
+          (permission) => !PlatformPermissionCatalog.isSuperOnly(permission),
+        )
         .toSet()
         .toList();
 
@@ -453,21 +462,153 @@ class PlatformAdminService {
 
     final sanitizedPermissions = permissions
         .where(PlatformPermissionKeys.assignableValues.contains)
+        .where(
+          (permission) => !PlatformPermissionCatalog.isSuperOnly(permission),
+        )
         .toSet()
         .toList();
 
+    final existingAdmin = await getAdmin(uid);
+    final preservedPermissions = existingAdmin?.permissions.where((permission) {
+          return PlatformPermissionCatalog.isSuperOnly(permission) ||
+              !PlatformPermissionKeys.assignableValues.contains(permission);
+        }) ??
+        const <String>[];
+
     await _adminsReference.doc(uid).update({
       'role': role,
-      'permissions': sanitizedPermissions,
+      'permissions': <String>{
+        ...sanitizedPermissions,
+        ...preservedPermissions,
+      }.toList(),
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': operatorUid,
     });
   }
 
-  /// 刪除平台員工資料
+  /// 一次儲存姓名、Email、角色、權限與啟用狀態。
   ///
-  /// 這只會移除 platform_admins 權限資料，
-  /// 不會刪除 Firebase Authentication 帳號。
+  /// 根管理員使用同一批次寫入人員文件與操作紀錄。
+  /// 其他管理員改走 updatePlatformUser，由後端交易一次提交。
+  Future<void> savePlatformUser({
+    required String uid,
+    required String name,
+    required String email,
+    required String role,
+    required bool enabled,
+    required List<String> permissions,
+  }) async {
+    final operatorUid = currentUserId;
+
+    if (operatorUid == null || operatorUid.isEmpty) {
+      throw StateError('目前沒有登入使用者');
+    }
+
+    final normalizedUid = uid.trim();
+    final normalizedName = name.trim();
+    final normalizedEmail = email.trim().toLowerCase();
+    final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+    if (normalizedName.isEmpty) {
+      throw StateError('請輸入姓名或稱呼');
+    }
+    if (!emailPattern.hasMatch(normalizedEmail)) {
+      throw StateError('Email 格式不正確');
+    }
+    if (PlatformRootAdmin.isRoot(normalizedUid)) {
+      throw StateError('不能修改永久根管理員');
+    }
+    if (role == PlatformAdminRoles.superAdmin) {
+      throw StateError('不能任命最高管理員');
+    }
+    if (!PlatformAdminRoles.assignableRoles.contains(role)) {
+      throw StateError('平台角色不正確');
+    }
+
+    final targetAdmin = await getAdmin(normalizedUid);
+    if (targetAdmin == null) {
+      throw StateError('找不到平台人員資料');
+    }
+    if (targetAdmin.role == PlatformAdminRoles.superAdmin) {
+      throw StateError('不能修改最高管理員');
+    }
+    if (normalizedUid == operatorUid &&
+        !PlatformRootAdmin.isRoot(operatorUid)) {
+      throw StateError('不能修改自己的角色或權限');
+    }
+
+    final requested = permissions
+        .where(PlatformPermissionKeys.assignableValues.contains)
+        .where((permission) => !PlatformPermissionCatalog.isSuperOnly(permission))
+        .toSet()
+        .toList();
+
+    if (PlatformRootAdmin.isRoot(operatorUid)) {
+      final preserved = targetAdmin.permissions.where((permission) {
+        return PlatformPermissionCatalog.isSuperOnly(permission) ||
+            !PlatformPermissionKeys.assignableValues.contains(permission);
+      });
+      final nextPermissions = <String>{...requested, ...preserved}.toList();
+      final previous = targetAdmin.permissions.toSet();
+      final next = nextPermissions.toSet();
+      final batch = _firestore.batch();
+      batch.update(_adminsReference.doc(normalizedUid), {
+        'name': normalizedName,
+        'email': normalizedEmail,
+        'role': role,
+        'enabled': enabled,
+        'permissions': nextPermissions,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': operatorUid,
+      });
+      batch.set(_firestore.collection('action_logs').doc(), {
+        'shopId': 'platform',
+        'targetType': 'platform_user',
+        'targetId': normalizedUid,
+        'action': 'update_platform_user',
+        'operatorUid': operatorUid,
+        'operatorEmail': (_auth.currentUser?.email ?? '').trim(),
+        'operatorRole': PlatformAdminRoles.superAdmin,
+        'payload': {
+          'previousRole': targetAdmin.role,
+          'nextRole': role,
+          'previousEnabled': targetAdmin.enabled,
+          'nextEnabled': enabled,
+          'addedPermissions': next.difference(previous).toList(),
+          'removedPermissions': previous.difference(next).toList(),
+          'targetName': normalizedName,
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+      return;
+    }
+
+    try {
+      final callable = _functions.httpsCallable('updatePlatformUser');
+      await callable.call(<String, dynamic>{
+        'uid': normalizedUid,
+        'name': normalizedName,
+        'email': normalizedEmail,
+        'role': role,
+        'enabled': enabled,
+        'permissions': requested,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'not-found') {
+        throw StateError('平台人員更新服務尚未部署，資料沒有變更。');
+      }
+      final message = error.message?.trim();
+      if (message != null && message.isNotEmpty) {
+        throw StateError(message);
+      }
+      throw StateError('更新平台人員失敗，資料沒有變更。');
+    }
+  }
+
+  /// 刪除平台人員文件。
+  ///
+  /// 只移除 platform_users 權限資料，不會刪除 Firebase Authentication 帳號。
   Future<void> removeAdmin(String uid) async {
     final operatorUid = currentUserId;
 

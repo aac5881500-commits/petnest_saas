@@ -81,9 +81,8 @@ exports.createStoreOrder = onCall(
       }
 
       const shopData = shopSnapshot.data() || {};
-      const enabledModules = Array.isArray(shopData.enabledModules) ?
-        shopData.enabledModules.map((item) => String(item)) :
-        [];
+      const enabledModules = require("../sales/commercial_policy")
+          .effectiveModules(shopData);
       if (!enabledModules.includes("store")) {
         throw new HttpsError("failed-precondition", "此店家尚未開放賣場。");
       }

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/shop_plan_access.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
@@ -260,7 +261,7 @@ class AppDrawer extends StatelessWidget {
                       final shop =
                           snapshot.data?.data() as Map<String, dynamic>?;
 
-                      final plan = shop?['plan']?.toString() ?? 'free';
+                      final plan = ShopPlanAccess.effectivePlan(shop);
                       final paidUntil = shop?['paidUntil'];
 
                       bool isPaidActive = false;

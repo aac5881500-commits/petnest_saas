@@ -87,13 +87,20 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
     final totalPrice = data['totalPrice'] ?? 0;
     final depositAmount = data['depositAmount'] ?? 0;
-    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
+    final InitialPaymentChoice initialChoice =
+        BookingPaymentStatus.initialPaymentChoice(data);
+    final String payAmountType = initialChoice.purpose;
 
-    final paymentTitle = payAmountType == 'full' ? '全額' : '訂金';
+    final String paymentTitle = initialChoice.typeLabel;
 
-    final paymentAmount = payAmountType == 'full' ? totalPrice : depositAmount;
-    final depositPaid =
+    final int paymentAmount = initialChoice.settled
+        ? (initialChoice.isFull
+              ? BookingPaymentStatus.resolveTotal(data)
+              : BookingPaymentStatus.resolveDepositAmount(data))
+        : initialChoice.amount;
+    final bool depositPaid =
         data['depositPaid'] == true || data['depositStatus'] == 'confirmed';
+    final bool paymentConfirmed = initialChoice.settled || depositPaid;
 
     final shopUnreadMessageCount = (data['shopUnreadMessageCount'] ?? 0) as int;
 
@@ -461,14 +468,15 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                           expireTitle: payAmountType == 'full'
                               ? '付款期限'
                               : '訂金期限',
-                          depositText: depositAmount <= 0
+                          depositText: !initialChoice.isFull && depositAmount <= 0
                               ? '無需訂金'
-                              : depositPaid
+                              : paymentConfirmed
                               ? '已確認'
                               : '尚未確認',
-                          depositColor: depositAmount <= 0
+                          depositColor: !initialChoice.isFull &&
+                                  depositAmount <= 0
                               ? Colors.grey
-                              : depositPaid
+                              : paymentConfirmed
                               ? Colors.green
                               : Colors.orange,
                         ),
@@ -488,14 +496,14 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                 title: paymentTitle,
                                 value: paymentAmount > 0
                                     ? 'NT\$ $paymentAmount'
-                                    : '無需訂金',
-                                color: depositAmount > 0
-                                    ? depositPaid
+                                    : (initialChoice.isFull ? 'NT\$ 0' : '無需訂金'),
+                                color: paymentAmount > 0
+                                    ? paymentConfirmed
                                           ? Colors.green
                                           : Colors.orange
                                     : Colors.grey,
                                 subText: paymentAmount > 0
-                                    ? depositPaid
+                                    ? paymentConfirmed
                                           ? '已確認'
                                           : '尚未確認'
                                     : null,

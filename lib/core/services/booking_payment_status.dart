@@ -6,6 +6,34 @@ import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
+class InitialPaymentChoice {
+  const InitialPaymentChoice({
+    required this.purpose,
+    required this.amount,
+    required this.settled,
+  });
+
+  final String purpose;
+  final int amount;
+  final bool settled;
+
+  bool get isFull => purpose == 'full';
+
+  String get typeLabel => isFull ? '全額付款' : '訂金';
+
+  String get dueLabel => isFull ? '本次應付全額' : '本次應付訂金';
+
+  String get confirmButtonLabel => isFull ? '確認全額入帳' : '確認訂金入帳';
+
+  List<String> confirmLines(String methodLabel) {
+    return <String>[
+      '付款方式：$methodLabel',
+      '付款類型：$typeLabel',
+      '本次確認金額：NT\$ $amount',
+    ];
+  }
+}
+
 class BookingPaymentStatus {
   BookingPaymentStatus._();
 
@@ -38,11 +66,66 @@ class BookingPaymentStatus {
     return SafeParse.parseMoney(data['depositAmount']);
   }
 
+  /// 客戶下單時的付款目的。沒有明確欄位時維持訂金，不依金額猜成全額。
+  static String resolvePayAmountType(Map<String, dynamic> data) {
+    String read(dynamic value) {
+      final String text = (value ?? '').toString().trim().toLowerCase();
+      if (text == 'full' || text == 'deposit') {
+        return text;
+      }
+      return '';
+    }
+
+    final String choice = read(data['payAmountType']);
+    if (choice.isNotEmpty) {
+      return choice;
+    }
+    final String purpose = read(
+      data['paymentPurpose'] ?? data['lastPaymentPurpose'],
+    );
+    if (purpose.isNotEmpty) {
+      return purpose;
+    }
+    final String amountType = read(data['amountType']);
+    if (amountType.isNotEmpty) {
+      return amountType;
+    }
+    return 'deposit';
+  }
+
+  static InitialPaymentChoice initialPaymentChoice(Map<String, dynamic> data) {
+    final String purpose = resolvePayAmountType(data);
+    final int total = resolveTotal(data);
+    final int paid = resolvePaid(data);
+    final int deposit = resolveDepositAmount(data);
+    final int target = purpose == 'full' ? total : deposit;
+    final int due = target - paid;
+    final bool settled = purpose == 'full'
+        ? total > 0 && paid >= total
+        : isDepositConfirmed(data);
+    return InitialPaymentChoice(
+      purpose: purpose,
+      amount: due < 0 ? 0 : due,
+      settled: settled,
+    );
+  }
+
+  static bool needsInitialPaymentConfirm(Map<String, dynamic> data) {
+    final String status = (data['status'] ?? '').toString();
+    if (status != 'pending' &&
+        status != 'pending_confirmation' &&
+        status != 'unpaid') {
+      return false;
+    }
+    final InitialPaymentChoice choice = initialPaymentChoice(data);
+    return !choice.settled && choice.amount > 0;
+  }
+
   static int resolveDueNow(Map<String, dynamic> data) {
     final int topUp = BookingSettlementMath.balanceDelta(data: data);
     final int paid = resolvePaid(data);
     final int deposit = resolveDepositAmount(data);
-    final String payAmountType = (data['payAmountType'] ?? '').toString();
+    final String payAmountType = resolvePayAmountType(data);
     if (!isDepositConfirmed(data) && deposit > 0 && payAmountType != 'full') {
       final int due = deposit - paid;
       return due < 0 ? 0 : due;
@@ -51,6 +134,11 @@ class BookingPaymentStatus {
         !requiresUpfrontPayment(data) &&
         !BookingSettlementMath.isSettlementConfirmed(data)) {
       return 0;
+    }
+    if (payAmountType == 'full' &&
+        !BookingSettlementMath.isSettlementConfirmed(data)) {
+      final int due = resolveTotal(data) - paid;
+      return due < 0 ? 0 : due;
     }
     if (topUp > 0) {
       return topUp;

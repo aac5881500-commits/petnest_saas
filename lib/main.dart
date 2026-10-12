@@ -9,6 +9,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_policy_gate.dart';
+import 'package:petnest_saas/core/services/auth_service.dart';
+import 'package:petnest_saas/features/auth/pages/email_verification_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -99,7 +101,9 @@ class PetNestApp extends StatelessWidget {
           throw UnimplementedError('MemberPage 必須傳入 shopId，請由 Drawer 或首頁進入。');
         },
         '/login': (context) => const LoginPage(),
-        '/home': (context) => const PlatformPolicyGate(child: HomePage()),
+        '/home': (context) =>
+            const _VerifiedEntry(child: PlatformPolicyGate(child: HomePage())),
+        '/entry': (context) => const AppEntryPage(),
 
         // 🖥️ 店家 Web 後台入口
         '/admin': (context) => const AppEntryPage(),
@@ -199,10 +203,23 @@ class AppEntryPage extends StatelessWidget {
   const AppEntryPage({super.key});
 
   Future<Widget> _decideEntryPage() async {
-    final user = FirebaseAuth.instance.currentUser;
+    User? user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return const LoginPage();
+    }
+
+    try {
+      user = await AuthService.instance.reloadCurrentUser();
+    } catch (error) {
+      debugPrint('登入狀態重新讀取失敗');
+    }
+    user ??= FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const LoginPage();
+    }
+    if (AuthService.instance.mustVerifyEmail(user)) {
+      return const EmailVerificationPage();
     }
 
     // 🔔 手機使用者登入後，自動同步 FCM Token
@@ -266,6 +283,54 @@ class AppEntryPage extends StatelessWidget {
             return page;
           },
         );
+      },
+    );
+  }
+}
+
+class _VerifiedEntry extends StatefulWidget {
+  const _VerifiedEntry({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_VerifiedEntry> createState() => _VerifiedEntryState();
+}
+
+class _VerifiedEntryState extends State<_VerifiedEntry> {
+  late final Future<bool> _allowed = _check();
+
+  Future<bool> _check() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return true;
+    }
+    try {
+      final User? fresh = await AuthService.instance.reloadCurrentUser();
+      if (fresh == null) {
+        return true;
+      }
+      return !AuthService.instance.mustVerifyEmail(fresh);
+    } catch (error) {
+      debugPrint('首頁驗證狀態讀取失敗');
+      return !AuthService.instance.mustVerifyEmail(user);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _allowed,
+      builder: (BuildContext context, AsyncSnapshot<bool> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.data == false) {
+          return const EmailVerificationPage();
+        }
+        return widget.child;
       },
     );
   }

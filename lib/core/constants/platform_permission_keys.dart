@@ -7,18 +7,34 @@ abstract final class PlatformAdminRoles {
   /// 平台最高權限，只能由系統預先指定
   static const String superAdmin = 'super_admin';
 
-  /// 開發與系統測試帳號
+  /// 平台日常管理員。不能取得最高管理員專屬權限。
+  static const String platformAdmin = 'platform_admin';
+
+  /// 開發與系統測試帳號。既有文件維持這個值。
   static const String developerAdmin = 'developer_admin';
 
   /// 一般平台員工
   static const String platformStaff = 'platform_staff';
 
-  static const Set<String> values = {superAdmin, developerAdmin, platformStaff};
+  static const Set<String> values = {
+    superAdmin,
+    platformAdmin,
+    developerAdmin,
+    platformStaff,
+  };
+
+  static const List<String> assignableRoles = <String>[
+    platformAdmin,
+    developerAdmin,
+    platformStaff,
+  ];
 
   static String label(String role) {
     switch (role) {
       case superAdmin:
-        return '平台最高管理員';
+        return '最高管理員';
+      case platformAdmin:
+        return '平台管理員';
       case developerAdmin:
         return '開發管理員';
       case platformStaff:
@@ -99,6 +115,16 @@ abstract final class PlatformPermissionKeys {
   /// 管理創店激活碼
   static const String manageActivationCodes = 'manage_activation_codes';
 
+  /// 建立與調整業務、店家歸屬
+  static const String manageSales = 'manage_sales';
+
+  /// 業務只查看自己的客戶與業績
+  static const String viewOwnSales = 'view_own_sales';
+
+  /// 確認店家訂閱收款、退款與分潤發放
+  static const String manageSubscriptionFinance =
+      'manage_subscription_finance';
+
   /// 查看平台操作紀錄
   static const String viewPlatformLogs = 'view_platform_logs';
 
@@ -131,6 +157,9 @@ abstract final class PlatformPermissionKeys {
     managePlatformReviews,
     managePlatformPolicies,
     manageActivationCodes,
+    manageSales,
+    viewOwnSales,
+    manageSubscriptionFinance,
     viewPlatformLogs,
     managePlatformAdmins,
     managePlatformMedia,
@@ -171,6 +200,12 @@ abstract final class PlatformPermissionKeys {
         return '管理平台條款';
       case manageActivationCodes:
         return '管理創店激活碼';
+      case manageSales:
+        return '管理業務與店家歸屬';
+      case viewOwnSales:
+        return '查看自己的業務客戶';
+      case manageSubscriptionFinance:
+        return '管理店家訂閱收款與分潤';
       case viewPlatformLogs:
         return '查看平台操作紀錄';
       case managePlatformAdmins:
@@ -194,6 +229,12 @@ abstract final class PlatformPermissionKeys {
         return '高風險權限，可修改平台或店家的金流設定。';
       case emergencyDisablePayment:
         return '高風險權限，可立即停止金流交易。';
+      case manageSubscriptionFinance:
+        return '可確認店家方案收款、退款與分潤，不能由查看業者名單取得。';
+      case manageSales:
+        return '可建立業務、交接目前負責人，並在填寫理由後更正原始開發業務。';
+      case viewOwnSales:
+        return '只能查看綁定業務自己的客戶與月份業績，不能改比例或發放分潤。';
       case managePlatformAdmins:
         return '高風險權限，可建立平台員工並調整其權限。';
       case managePlatformMedia:
@@ -210,6 +251,7 @@ abstract final class PlatformPermissionKeys {
         permission == managePaymentSettings ||
         permission == emergencyDisablePayment ||
         permission == managePlatformAdmins ||
+        permission == manageSubscriptionFinance ||
         permission == accessDeveloperTools;
   }
 }

@@ -38,6 +38,20 @@ class _PlatformSendShopNotificationPageState
     {'value': 'update', 'label': '功能更新'},
   ];
 
+  String _audienceFor(String type) {
+    switch (type) {
+      case 'system':
+        return 'everyone';
+      case 'update':
+      case 'review':
+        return 'announcement';
+      case 'warning':
+        return 'managers';
+      default:
+        return 'owner';
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -65,6 +79,7 @@ class _PlatformSendShopNotificationPageState
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'status': 'unread',
+        'audience': _audienceFor(_type),
         'createdAt': FieldValue.serverTimestamp(),
         'readAt': null,
       });

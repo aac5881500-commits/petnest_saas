@@ -19,7 +19,6 @@ const {
   actualServiceEnd,
   evaluateCleanupDecision,
   nextRetryAt,
-  resolveRetentionHours,
 } = require("./daily_care_expiry");
 const {
   expireStoredPhoto,
@@ -118,11 +117,6 @@ async function loadCleanupContext(firestore, downloadDoc) {
   };
 }
 
-async function bookingReadyForCleanup(firestore, booking) {
-  const hours = await resolveRetentionHours(firestore, booking || {});
-  return {...(booking || {}), downloadHoursAfterCheckout: hours};
-}
-
 async function processExpiredDownload(firestore, downloadDoc, now, options) {
   const ref = downloadDoc.ref;
   const data = downloadDoc.data() || {};
@@ -130,7 +124,6 @@ async function processExpiredDownload(firestore, downloadDoc, now, options) {
     return {status: "held"};
   }
   const ctx = await loadCleanupContext(firestore, downloadDoc);
-  ctx.booking = await bookingReadyForCleanup(firestore, ctx.booking);
   const photoForCheck = ctx.photoExists ? ctx.photo : {
     shopId: ctx.download.shopId,
     bookingId: ctx.download.bookingId,
@@ -161,7 +154,6 @@ async function processExpiredDownload(firestore, downloadDoc, now, options) {
     return {status: "cleared", reason: decision.reason};
   }
   const freshCtx = await loadCleanupContext(firestore, downloadDoc);
-  freshCtx.booking = await bookingReadyForCleanup(firestore, freshCtx.booking);
   const fresh = evaluateCleanupDecision({
     bookingExists: freshCtx.bookingExists,
     booking: freshCtx.booking,

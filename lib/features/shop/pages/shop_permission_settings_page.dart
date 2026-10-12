@@ -1,24 +1,22 @@
 // 檔案名稱：lib/features/shop/pages/shop_permission_settings_page.dart
-// 功能說明：實際操作權限的畫面
+// 功能說明：權限與員工管理。分成員工、權限、操作紀錄，邀請與編輯分開。
+// 保留：既有 shop_members、Email 邀請、權限鍵與儲存 API。
+// 停用：角色切換時套用固定模板，以及三欄把紀錄塞在側邊的版面。
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
-import 'package:petnest_saas/core/services/daycare_enabled.dart';
+import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
+import 'package:petnest_saas/core/services/shop_permission_catalog.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
-import 'package:petnest_saas/features/shop/widgets/permissions/permission_category_tile.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/basic_info_permission_page.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/cat_hotel_permission_page.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/daycare_permission_page.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/inventory_permission_page.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/store_permission_page.dart';
-import 'package:petnest_saas/features/shop/widgets/permissions/permission_member_list_card.dart';
+import 'package:petnest_saas/features/shop/pages/shop_member_invite_page.dart';
+import 'package:petnest_saas/features/shop/widgets/permissions/permission_action_log_list.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_invite_list_card.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/member_permission_detail_page.dart';
+import 'package:petnest_saas/features/shop/widgets/permissions/permission_member_list_card.dart';
+import 'package:petnest_saas/features/shop/widgets/permissions/shop_permission_v2_editor.dart';
 
 class ShopPermissionSettingsPage extends StatefulWidget {
   const ShopPermissionSettingsPage({
@@ -35,540 +33,685 @@ class ShopPermissionSettingsPage extends StatefulWidget {
       _ShopPermissionSettingsPageState();
 }
 
-class _ShopPermissionSettingsPageState
-    extends State<ShopPermissionSettingsPage> {
-  final _emailController = TextEditingController();
+class _ShopPermissionSettingsPageState extends State<ShopPermissionSettingsPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
 
   String _selectedRole = ShopRoles.staff;
+  String _baselineRole = ShopRoles.staff;
+  String? _editingMemberId;
+  Map<String, dynamic>? _editingMember;
   bool _saving = false;
+  bool _storedOwnerOnly = false;
+  bool _wide = false;
+  bool _forcePop = false;
 
   late Map<String, bool> _permissions;
+  late Map<String, bool> _baseline;
 
   bool get _isOwner => widget.currentUserRole == ShopRoles.owner;
-
-  String _roleLabel(String role) {
-    switch (role) {
-      case ShopRoles.owner:
-        return '老闆';
-      case ShopRoles.staff:
-        return '員工';
-      default:
-        return role;
+  bool get _canEdit =>
+      widget.currentUserRole == ShopRoles.owner ||
+      widget.currentUserRole == ShopRoles.manager;
+  bool get _dirty =>
+      _editingMemberId != null &&
+      (_selectedRole != _baselineRole ||
+          !ShopPermissionCatalog.sameGrantable(_baseline, _permissions));
+  bool get _editorCanEdit {
+    final Map<String, dynamic>? member = _editingMember;
+    if (!_canEdit || member == null) return false;
+    if (member['role']?.toString() == ShopRoles.owner) return false;
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (widget.currentUserRole == ShopRoles.manager &&
+        member['uid']?.toString() == uid) {
+      return false;
     }
-  }
-
-  String _actionLabel(String action) {
-    switch (action) {
-      case 'create_invite':
-        return '建立員工邀請';
-      case 'invite_accepted':
-        return '員工接受邀請';
-      case 'update_member_permission':
-        return '更新成員權限';
-      case 'update_permission':
-        return '更新權限設定';
-      case 'remove_member_invite':
-        return '刪除待綁定邀請';
-      case 'remove_member':
-        return '刪除成員';
-      case 'block_date':
-        return '關閉預約日期';
-      case 'unblock_date':
-        return '恢復預約日期';
-      case 'update_booking_settings':
-        return '更新預約設定';
-      default:
-        return action == '-' ? '未記錄動作' : action;
-    }
-  }
-
-  String _targetTypeLabel(String targetType) {
-    switch (targetType) {
-      case 'shop_member':
-        return '店家成員';
-      case 'shop_member_invite':
-        return '員工邀請';
-      case 'shop_permission_settings':
-        return '權限設定';
-      case 'shop_booking_settings':
-        return '預約設定';
-      case 'shop_calendar_date':
-        return '預約日期';
-      default:
-        return targetType == '-' ? '未記錄目標' : targetType;
-    }
-  }
-
-  String _buildLogSubtitle(Map<String, dynamic> log) {
-    final targetType = log['targetType']?.toString() ?? '-';
-    final operatorEmail = log['operatorEmail']?.toString() ?? '-';
-    final operatorRole = log['operatorRole']?.toString() ?? '-';
-    final createdAt = log['createdAt'];
-
-    final timeText = createdAt is Timestamp
-        ? DateFormat('yyyy-MM-dd HH:mm').format(createdAt.toDate())
-        : '-';
-
-    final payload = Map<String, dynamic>.from(log['payload'] ?? {});
-    final memberEmail = payload['memberEmail']?.toString() ?? '';
-    final changedPermissions = payload['changedPermissions'];
-
-    if (log['action'] == 'update_member_permission' &&
-        memberEmail.isNotEmpty &&
-        changedPermissions is List &&
-        changedPermissions.isNotEmpty) {
-      final changes = changedPermissions
-          .map((item) {
-            final data = Map<String, dynamic>.from(item);
-            final key = data['key']?.toString() ?? '';
-            final newValue = data['newValue'] == true;
-
-            return '${_permissionLabel(key)}：${newValue ? '開啟' : '關閉'}';
-          })
-          .join('、');
-
-      return '$timeText\n'
-          '對象：$memberEmail｜變更：$changes｜操作者：$operatorEmail｜角色：${_roleLabel(operatorRole)}';
-    }
-
-    return '$timeText\n'
-        '目標：${_targetTypeLabel(targetType)}｜操作者：$operatorEmail｜角色：${_roleLabel(operatorRole)}';
-  }
-
-  String _permissionLabel(String key) {
-    switch (key) {
-      case 'manage_members':
-        return '會員管理';
-      case 'edit_basic_info':
-        return '店家基本資料';
-      case 'edit_business_info':
-        return '營業資訊';
-      case 'edit_media':
-        return '店家封面';
-      case 'manage_environment':
-        return '環境介紹';
-      case 'manage_about':
-        return '關於我們';
-      case 'manage_modules':
-        return '模組設定';
-      case 'manage_bookings':
-        return '訂單管理';
-      case 'manage_chat':
-        return '店家聊天';
-      case 'manage_booking_settings':
-        return '預約管理';
-      case 'manage_room_dashboard':
-        return '房務管理';
-      case 'manage_room_types':
-        return '房型管理';
-      case 'manage_rooms':
-        return '房間管理';
-      case 'manage_payment_settings':
-        return '付款 / 訂金設定';
-      case 'manage_member_points':
-        return '會員點數與結算發點調整';
-      case 'manage_point_redemptions':
-        return '實體商品核銷';
-      case 'view_inventory':
-        return '查看庫存';
-      case 'manage_inventory':
-        return '管理庫存品項';
-      case 'receive_inventory':
-        return '進貨';
-      case 'adjust_inventory':
-        return '出庫與盤點';
-      case 'view_inventory_cost':
-        return '查看成本';
-      case 'view_store_orders':
-        return '查看商城訂單';
-      case 'manage_store_products':
-        return '管理商品與分類';
-      case 'manage_store_orders':
-        return '管理商城訂單';
-      case 'manage_store_settings':
-        return '管理賣場設定';
-      case 'manage_policy':
-        return '入住規則';
-      case 'view_reports':
-        return '營運報表';
-      case 'view_action_logs':
-        return '動作紀錄';
-      default:
-        return key;
-    }
+    return true;
   }
 
   @override
   void initState() {
     super.initState();
-    _permissions = ShopService.instance.staffDefaultPermissions();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _permissions = ShopPermissionCatalog.emptyGrantable();
+    _baseline = Map<String, bool>.from(_permissions);
   }
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
-  void _applyRoleTemplate(String role) {
+  Map<String, bool> _draftFrom(Map<String, dynamic> member) {
+    final String role = member['role']?.toString() ?? ShopRoles.staff;
+    final Map<String, bool> normalized = ShopMemberPermissionService.instance
+        .normalizePermissions(member['permissions'], role: role);
+    final Map<String, bool> draft = ShopPermissionCatalog.emptyGrantable();
+    for (final ShopPermissionItem item in ShopPermissionCatalog.items) {
+      draft[item.key] = normalized[item.key] == true;
+    }
+    return ShopPermissionCatalog.stripOwnerOnly(draft);
+  }
+
+  void _loadMember(Map<String, dynamic> member) {
+    final String role = member['role']?.toString() == ShopRoles.manager
+        ? ShopRoles.manager
+        : ShopRoles.staff;
+    final Map<String, bool> draft = _draftFrom(member);
+    final dynamic raw = member['permissions'];
     setState(() {
+      _editingMemberId = member['id']?.toString();
+      _editingMember = member;
       _selectedRole = role;
-      _permissions = Map<String, bool>.from(
-        ShopService.instance.defaultPermissionsByRole(role),
-      );
+      _baselineRole = role;
+      _permissions = draft;
+      _baseline = Map<String, bool>.from(draft);
+      _storedOwnerOnly =
+          raw is Map && raw[ShopPermissionKeys.managePaymentSettings] == true;
     });
   }
 
-  Future<void> _save() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final email = _emailController.text.trim().toLowerCase();
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請輸入 Email')));
-      return;
-    }
-
-    setState(() {
-      _saving = true;
-    });
-
-    try {
-      await ShopService.instance.upsertMemberPermissionByEmail(
-        shopId: widget.shopId,
-        email: email,
-        role: _selectedRole,
-        permissions: _permissions,
-        operatorUid: user.uid,
-        operatorRole: widget.currentUserRole ?? ShopRoles.owner,
-      );
-
-      _emailController.clear();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('權限設定已儲存')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-      });
-    }
-  }
-
-  Widget _buildRoleSelector() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
-              value: _selectedRole,
-              decoration: const InputDecoration(
-                labelText: '角色',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: ShopRoles.staff, child: Text('員工')),
-              ],
-              onChanged: !_isOwner
-                  ? null
-                  : (value) {
-                      if (value == null) return;
-                      _applyRoleTemplate(value);
-                    },
+  Future<bool> _discardIfNeeded(String message) async {
+    if (!_dirty) return true;
+    final bool? discard = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('尚未儲存'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('繼續編輯'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _emailController,
-              enabled: _isOwner,
-              decoration: const InputDecoration(
-                labelText: '員工 Email',
-                hintText: 'example@gmail.com',
-                border: OutlineInputBorder(),
-              ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('放棄修改'),
             ),
           ],
+        );
+      },
+    );
+    return discard == true;
+  }
+
+  Future<void> _selectMember(Map<String, dynamic> member) async {
+    if (member['role']?.toString() == ShopRoles.owner) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('老闆擁有全部權限，不能在這裡修改')));
+      return;
+    }
+    if (member['id']?.toString() == _editingMemberId) {
+      if (!_wide) _tabController.animateTo(1);
+      return;
+    }
+    final bool discard = await _discardIfNeeded('要放棄這位成員尚未儲存的修改嗎？');
+    if (!discard || !mounted) return;
+    _loadMember(member);
+    if (!_wide) _tabController.animateTo(1);
+  }
+
+  Future<void> _changeRole(
+    String role,
+    List<Map<String, dynamic>> members,
+    List<Map<String, dynamic>> invites,
+  ) async {
+    if (!_editorCanEdit || role == _selectedRole) return;
+    final String? slot = ShopPermissionCatalog.secondManagerBlock(
+      nextRole: role,
+      editingMemberId: _editingMemberId,
+      members: members,
+      invites: invites,
+    );
+    if (slot != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(slot)));
+      return;
+    }
+    final List<ShopPermissionChange> lost =
+        ShopPermissionCatalog.permissionsLostOnRole(
+          nextRole: role,
+          permissions: _permissions,
+        );
+    if (lost.isNotEmpty) {
+      final bool? agreed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('變更角色'),
+            content: Text(
+              '改為${ShopRoles.label(role)}後，以下權限會關閉：\n'
+              '${lost.map((ShopPermissionChange item) => item.title).join('、')}\n\n'
+              '其餘權限維持現況，不會自動打開新權限。按下儲存後才寫入。',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('套用到草稿'),
+              ),
+            ],
+          );
+        },
+      );
+      if (agreed != true || !mounted) return;
+      setState(() {
+        _selectedRole = role;
+        for (final ShopPermissionChange change in lost) {
+          _permissions[change.key] = false;
+        }
+      });
+      return;
+    }
+    setState(() => _selectedRole = role);
+  }
+
+  Set<String> _lockedKeys(List<Map<String, dynamic>> members) {
+    if (_isOwner) return const <String>{};
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    Map<String, bool> own = const <String, bool>{};
+    for (final Map<String, dynamic> member in members) {
+      if (member['uid']?.toString() == uid) {
+        own = ShopMemberPermissionService.instance.normalizePermissions(
+          member['permissions'],
+          role: member['role']?.toString(),
+        );
+        break;
+      }
+    }
+    return ShopPermissionCatalog.items
+        .where((ShopPermissionItem item) {
+          return own[item.key] != true ||
+              item.key == ShopPermissionKeys.manageStaff;
+        })
+        .map((ShopPermissionItem item) => item.key)
+        .toSet();
+  }
+
+  Map<String, bool> _operatorPermissions(List<Map<String, dynamic>> members) {
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    for (final Map<String, dynamic> member in members) {
+      if (member['uid']?.toString() == uid) {
+        return ShopMemberPermissionService.instance.normalizePermissions(
+          member['permissions'],
+          role: member['role']?.toString(),
+        );
+      }
+    }
+    return const <String, bool>{};
+  }
+
+  Future<void> _openInvite(
+    List<Map<String, dynamic>> members,
+    List<Map<String, dynamic>> invites,
+  ) async {
+    final String? slot = ShopPermissionCatalog.secondManagerBlock(
+      nextRole: ShopRoles.manager,
+      editingMemberId: null,
+      members: members,
+      invites: invites,
+    );
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext context) {
+          return ShopMemberInvitePage(
+            shopId: widget.shopId,
+            operatorRole: widget.currentUserRole ?? ShopRoles.owner,
+            operatorPermissions: _operatorPermissions(members),
+            canPickManager: _isOwner && slot == null,
+            managerSlotMessage: slot,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _save(Set<String> lockedKeys) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    final String? memberId = _editingMemberId;
+    if (user == null || memberId == null || !_editorCanEdit) return;
+    final Map<String, bool> effective = Map<String, bool>.from(_permissions);
+    if (!_isOwner) {
+      for (final ShopPermissionItem item in ShopPermissionCatalog.items) {
+        final bool turnedOn =
+            effective[item.key] == true && _baseline[item.key] != true;
+        if (turnedOn && lockedKeys.contains(item.key)) {
+          effective[item.key] = false;
+        }
+      }
+    }
+    final List<ShopPermissionChange> changes = ShopPermissionCatalog.diff(
+      _baseline,
+      effective,
+    );
+    final bool roleChanged = _selectedRole != _baselineRole;
+    if (!roleChanged && changes.isEmpty && !_storedOwnerOnly) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('沒有需要儲存的修改')));
+      return;
+    }
+    final bool? agreed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        final String opened = changes
+            .where((ShopPermissionChange change) => change.enabled)
+            .map((ShopPermissionChange change) => change.title)
+            .join('、');
+        final String closed = changes
+            .where((ShopPermissionChange change) => !change.enabled)
+            .map((ShopPermissionChange change) => change.title)
+            .join('、');
+        return AlertDialog(
+          title: const Text('確認儲存'),
+          content: Text(
+            '${roleChanged ? '角色：${ShopRoles.label(_baselineRole)} → ${ShopRoles.label(_selectedRole)}\n' : ''}'
+            '新增：${opened.isEmpty ? '無' : opened}\n'
+            '移除：${closed.isEmpty ? '無' : closed}'
+            '${_storedOwnerOnly ? '\n金流與收款設定會關閉，這項僅店主可使用。' : ''}',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('儲存'),
+            ),
+          ],
+        );
+      },
+    );
+    if (agreed != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ShopService.instance.updateMemberPermission(
+        memberDocId: memberId,
+        shopId: widget.shopId,
+        role: _selectedRole,
+        permissions: effective,
+        operatorUid: user.uid,
+        operatorRole: widget.currentUserRole ?? ShopRoles.owner,
+        baseline: _baseline,
+      );
+      if (!mounted) return;
+      setState(() {
+        _permissions = Map<String, bool>.from(effective);
+        _baseline = Map<String, bool>.from(effective);
+        _baselineRole = _selectedRole;
+        _storedOwnerOnly = false;
+        if (_editingMember != null) {
+          _editingMember = <String, dynamic>{
+            ..._editingMember!,
+            'role': _selectedRole,
+          };
+        }
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已儲存，成員列表已更新')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存失敗：$error')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _cancelEdits() {
+    setState(() {
+      _permissions = Map<String, bool>.from(_baseline);
+      _selectedRole = _baselineRole;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _wide = MediaQuery.sizeOf(context).width >= 960;
+    final bool phoneEditor =
+        !_wide && _tabController.index == 1 && _editingMemberId != null;
+    return PopScope(
+      canPop: _forcePop || !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return;
+        _discardIfNeeded('有尚未儲存的修改，確定離開？').then((bool leave) {
+          if (!leave || !mounted) return;
+          setState(() => _forcePop = true);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) Navigator.of(context).pop();
+          });
+        });
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('權限與員工管理'),
+          leading: phoneEditor
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => _tabController.animateTo(0),
+                )
+              : null,
+          actions: <Widget>[
+            TextButton(
+              onPressed: _dirty ? _cancelEdits : null,
+              child: const Text('取消修改'),
+            ),
+            ShopTaskCenterButton(shopId: widget.shopId),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const <Widget>[
+              Tab(text: '員工管理'),
+              Tab(text: '權限設定'),
+              Tab(text: '操作紀錄'),
+            ],
+          ),
+        ),
+        body: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: ShopService.instance.streamShopMembers(widget.shopId),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<Map<String, dynamic>>> memberSnap,
+              ) {
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: ShopService.instance.streamShopMemberInvites(
+                    widget.shopId,
+                  ),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<Map<String, dynamic>>> inviteSnap,
+                      ) {
+                        final List<Map<String, dynamic>> members =
+                            memberSnap.data ?? const <Map<String, dynamic>>[];
+                        final List<Map<String, dynamic>> invites =
+                            inviteSnap.data ?? const <Map<String, dynamic>>[];
+                        _syncQuietMember(members);
+                        return _body(members, invites);
+                      },
+                );
+              },
         ),
       ),
     );
   }
 
-  Widget _buildSaveButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: (!_isOwner || _saving) ? null : _save,
-        icon: _saving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.save),
-        label: Text(_isOwner ? '儲存權限設定' : '目前只有老闆可修改'),
-      ),
-    );
+  void _syncQuietMember(List<Map<String, dynamic>> members) {
+    if (_dirty || _editingMemberId == null) return;
+    Map<String, dynamic>? live;
+    for (final Map<String, dynamic> member in members) {
+      if (member['id']?.toString() == _editingMemberId) {
+        live = member;
+        break;
+      }
+    }
+    if (live == null) return;
+    final String role = live['role']?.toString() == ShopRoles.manager
+        ? ShopRoles.manager
+        : ShopRoles.staff;
+    final Map<String, bool> draft = _draftFrom(live);
+    if (role == _baselineRole &&
+        ShopPermissionCatalog.sameGrantable(draft, _baseline)) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _dirty || _editingMemberId != live!['id']?.toString()) {
+        return;
+      }
+      _loadMember(live);
+    });
   }
 
-  Widget _buildActionLogs() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ActionLogService.instance.streamShopLogs(widget.shopId),
-      builder: (context, snapshot) {
-        final logs = (snapshot.data ?? [])
-            .where((log) {
-              final action = log['action']?.toString() ?? '';
-
-              return [
-                'create_invite',
-                'invite_accepted',
-                'update_member_permission',
-                'update_permission',
-                'remove_member_invite',
-                'remove_member',
-              ].contains(action);
-            })
-            .take(20)
-            .toList();
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '動作記錄',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (logs.isEmpty) const ListTile(title: Text('目前沒有動作記錄')),
-                ...logs.map((log) {
-                  final action = log['action']?.toString() ?? '-';
-                  return ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.history),
-                    title: Text(_actionLabel(action)),
-                    subtitle: Text(_buildLogSubtitle(log)),
-                  );
-                }),
+  Widget _body(
+    List<Map<String, dynamic>> members,
+    List<Map<String, dynamic>> invites,
+  ) {
+    final int staffCount = members
+        .where(
+          (Map<String, dynamic> member) =>
+              member['role']?.toString() == ShopRoles.staff,
+        )
+        .length;
+    final int managerSlots =
+        ShopPermissionCatalog.activeManagerCount(members) +
+        invites
+            .where(
+              (Map<String, dynamic> invite) =>
+                  invite['role']?.toString() == ShopRoles.manager,
+            )
+            .length;
+    final Set<String> lockedKeys = _lockedKeys(members);
+    final bool watchLogs =
+        _tabController.index == 2 || _editingMemberId != null;
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _stat('員工', '$staffCount'),
+                _stat('店長', '$managerSlots/1'),
+                _stat('待接受', '${invites.length}'),
               ],
             ),
           ),
-        );
-      },
+        ),
+        if (managerSlots > 1)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text('目前超過一名店長。新的任命已暫停，不會自動撤換現有成員。'),
+          ),
+        if (_dirty)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('有尚未儲存的修改'),
+            ),
+          ),
+        Expanded(
+          child: watchLogs
+              ? StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: ActionLogService.instance.streamShopLogs(
+                    widget.shopId,
+                  ),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<Map<String, dynamic>>> logSnap,
+                      ) {
+                        return _tabs(
+                          members,
+                          invites,
+                          logSnap.data ?? const <Map<String, dynamic>>[],
+                          lockedKeys,
+                        );
+                      },
+                )
+              : _tabs(
+                  members,
+                  invites,
+                  const <Map<String, dynamic>>[],
+                  lockedKeys,
+                ),
+        ),
+        if (_editingMemberId != null)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _dirty && !_saving ? _cancelEdits : null,
+                      child: const Text('取消修改'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: (!_editorCanEdit || _saving)
+                          ? null
+                          : () => _save(lockedKeys),
+                      child: Text(_saving ? '儲存中...' : '儲存'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('權限設定'),
-        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              '老闆可用 Email 指定主管或員工。\n'
-              '對方先註冊 / 登入，只要 Email 有被指定，就會自動看到該店後台入口。',
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildRoleSelector(),
-          const SizedBox(height: 12),
-          PermissionCategoryTile(
-            title: '基本資訊權限',
-            subtitle: '營業資訊、店家封面、前台內容、評價管理',
-            icon: Icons.store,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BasicInfoPermissionPage(
-                    permissions: _permissions,
-                    isOwner: _isOwner,
-                    onChanged: (key, value) {
-                      setState(() {
-                        _permissions[key] = value;
-                      });
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          StreamBuilder<Map<String, dynamic>?>(
-            stream: ShopService.instance.streamShop(widget.shopId),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-                ) {
-                  if (!DaycareEnabled.isOn(shop: shopSnap.data)) {
-                    return const SizedBox.shrink();
-                  }
-                  return PermissionCategoryTile(
-                    title: '安親權限',
-                    subtitle: '安親訂單、設定、方案、轉住宿與改價',
-                    icon: Icons.wb_sunny_outlined,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => DaycarePermissionPage(
-                            permissions: _permissions,
-                            isOwner: _isOwner,
-                            onChanged: (String key, bool value) {
-                              setState(() {
-                                _permissions[key] = value;
-                              });
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-          ),
-          const SizedBox(height: 12),
+  Widget _stat(String label, String value) {
+    return Chip(label: Text('$label $value'));
+  }
 
-          PermissionCategoryTile(
-            title: '貓咪旅店權限',
-            subtitle: '訂單、店家聊天、預約、房務、房型、房間、設備、收款優惠、住宿加購、入住規則',
-            icon: Icons.pets,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CatHotelPermissionPage(
-                    shopId: widget.shopId,
-                    permissions: _permissions,
-                    isOwner: _isOwner,
-                    onChanged: (key, value) {
-                      setState(() {
-                        _permissions[key] = value;
-                      });
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
+  Widget _tabs(
+    List<Map<String, dynamic>> members,
+    List<Map<String, dynamic>> invites,
+    List<Map<String, dynamic>> logs,
+    Set<String> lockedKeys,
+  ) {
+    return TabBarView(
+      controller: _tabController,
+      children: <Widget>[
+        _memberTab(members, invites, logs),
+        _permissionTab(members, invites, lockedKeys),
+        ListView(
+          padding: const EdgeInsets.all(16),
+          children: <Widget>[PermissionActionLogList(logs: logs)],
+        ),
+      ],
+    );
+  }
 
-          const SizedBox(height: 12),
-
-          PermissionCategoryTile(
-            title: '庫存管理權限',
-            subtitle: '查看庫存、品項管理、進貨、盤點與成本',
-            icon: Icons.inventory_2_outlined,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => InventoryPermissionPage(
-                    permissions: _permissions,
-                    isOwner: _isOwner,
-                    onChanged: (key, value) {
-                      setState(() {
-                        _permissions[key] = value;
-                      });
-                    },
-                  ),
-                ),
-              );
-            },
+  Widget _memberTab(
+    List<Map<String, dynamic>> members,
+    List<Map<String, dynamic>> invites,
+    List<Map<String, dynamic>> logs,
+  ) {
+    final Widget list = ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _canEdit ? () => _openInvite(members, invites) : null,
+            icon: const Icon(Icons.person_add_alt),
+            label: const Text('邀請成員'),
           ),
-          const SizedBox(height: 12),
+        ),
+        const SizedBox(height: 12),
+        PermissionMemberListCard(
+          members: members,
+          selectedId: _editingMemberId,
+          onTapMember: _selectMember,
+        ),
+        const SizedBox(height: 12),
+        PermissionInviteListCard(
+          shopId: widget.shopId,
+          invites: invites,
+          currentUserRole: widget.currentUserRole,
+          isOwner: _isOwner,
+          roleLabelBuilder: ShopRoles.label,
+        ),
+      ],
+    );
+    if (!_wide || _editingMember == null) return list;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Expanded(child: list),
+        SizedBox(width: 360, child: _memberPanel(logs)),
+      ],
+    );
+  }
 
-          PermissionCategoryTile(
-            title: '賣場權限',
-            subtitle: '商城訂單、商品、分類與賣場設定',
-            icon: Icons.storefront_outlined,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => StorePermissionPage(
-                    permissions: _permissions,
-                    isOwner: _isOwner,
-                    onChanged: (key, value) {
-                      setState(() {
-                        _permissions[key] = value;
-                      });
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
+  Widget _memberPanel(List<Map<String, dynamic>> logs) {
+    final Map<String, dynamic> member = _editingMember!;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
+      children: <Widget>[
+        Text(
+          PermissionMemberListCard.displayName(member),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(member['email']?.toString() ?? ''),
+        const SizedBox(height: 4),
+        Text(
+          '${ShopRoles.label(_selectedRole)}｜${PermissionMemberListCard.statusLabel(member['status']?.toString() ?? 'active')}｜已啟用 ${ShopPermissionCatalog.enabledCount(_permissions)} 項',
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: () => _tabController.animateTo(1),
+          child: const Text('調整權限'),
+        ),
+        const SizedBox(height: 12),
+        PermissionActionLogList(
+          logs: logs,
+          memberId: _editingMemberId,
+          title: '這位成員的異動',
+        ),
+      ],
+    );
+  }
 
-          PermissionCategoryTile(
-            title: '未來模板權限',
-            subtitle: '狗狗旅店、美容、醫院功能',
-            icon: Icons.extension,
-            onTap: () {},
-          ),
-          const SizedBox(height: 12),
-          _buildSaveButton(),
-          const SizedBox(height: 20),
-          PermissionMemberListCard(
-            shopId: widget.shopId,
-            roleLabelBuilder: _roleLabel,
-            onTapMember: (member) {
-              final role = member['role']?.toString() ?? '-';
-
-              final permissions = ShopService.instance.normalizePermissions(
-                member['permissions'],
-                role: role,
-              );
-
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MemberPermissionDetailPage(
-                    shopId: widget.shopId,
-                    memberDocId: member['id']?.toString() ?? '',
-                    email: member['email']?.toString() ?? '-',
-                    role: role,
-                    roleLabel: _roleLabel(role),
-                    permissions: permissions,
-                    currentUserRole: widget.currentUserRole,
-                    permissionLabelBuilder: _permissionLabel,
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          PermissionInviteListCard(
-            shopId: widget.shopId,
-            currentUserRole: widget.currentUserRole,
-            isOwner: _isOwner,
-            roleLabelBuilder: _roleLabel,
-          ),
-          const SizedBox(height: 12),
-          _buildActionLogs(),
-        ],
-      ),
+  Widget _permissionTab(
+    List<Map<String, dynamic>> members,
+    List<Map<String, dynamic>> invites,
+    Set<String> lockedKeys,
+  ) {
+    if (_editingMemberId == null) {
+      return const Center(child: Text('請先在員工管理選擇成員'));
+    }
+    final String? slot = ShopPermissionCatalog.secondManagerBlock(
+      nextRole: ShopRoles.manager,
+      editingMemberId: _editingMemberId,
+      members: members,
+      invites: invites,
+    );
+    return ShopPermissionV2Editor(
+      role: _selectedRole,
+      permissions: _permissions,
+      canEdit: _editorCanEdit && !_saving,
+      canPickManager: _isOwner,
+      managerSlotMessage: slot,
+      lockedKeys: _editorCanEdit
+          ? lockedKeys
+          : ShopPermissionCatalog.items
+                .map((ShopPermissionItem item) => item.key)
+                .toSet(),
+      onRoleChanged: (String role) => _changeRole(role, members, invites),
+      onToggle: (String key, bool value) {
+        setState(() => _permissions[key] = value);
+      },
+      onToggleCategory: (ShopPermissionCategory category, bool value) {
+        setState(() {
+          for (final ShopPermissionItem item in category.items) {
+            if (lockedKeys.contains(item.key)) continue;
+            _permissions[item.key] = value;
+          }
+        });
+      },
     );
   }
 }

@@ -11,42 +11,9 @@ const {
   HttpsError,
 } = require("firebase-functions/v2/https");
 
+const policy = require("./platform_user_policy");
+
 const ROOT_ADMIN_UID = "7FNrECQeqAca9Vu8lBBzTSdcJcg1";
-
-const PLATFORM_PERMISSION_ALL = "all";
-const MANAGE_PLATFORM_ADMINS_PERMISSION =
-  "manage_platform_admins";
-
-const SUPER_ADMIN_ROLE = "super_admin";
-const DEVELOPER_ADMIN_ROLE = "developer_admin";
-const PLATFORM_STAFF_ROLE = "platform_staff";
-
-const ALLOWED_ROLES = [
-  DEVELOPER_ADMIN_ROLE,
-  PLATFORM_STAFF_ROLE,
-];
-
-const ASSIGNABLE_PERMISSIONS = [
-  "view_shops",
-  "manage_shop_status",
-  "review_shop_requests",
-  "manage_shop_subscriptions",
-  "view_payment_status",
-  "review_payment_applications",
-  "view_payment_sensitive_data",
-  "manage_payment_settings",
-  "emergency_disable_payment",
-  "view_platform_members",
-  "manage_platform_members",
-  "manage_support_requests",
-  "manage_account_delete_requests",
-  "manage_platform_reviews",
-  "manage_platform_policies",
-  "manage_activation_codes",
-  "view_platform_logs",
-  "manage_platform_admins",
-  "access_developer_tools",
-];
 
 /**
  * 將未知資料安全轉成字串
@@ -55,11 +22,7 @@ const ASSIGNABLE_PERMISSIONS = [
  * @return {string}
  */
 function normalizeString(value) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  return value.toString().trim();
+  return policy.normalizeString(value);
 }
 
 /**
@@ -73,38 +36,20 @@ function normalizeEmail(value) {
 }
 
 /**
- * 將權限資料轉成合法權限陣列
- *
- * @param {*} value 原始權限資料
- * @return {string[]}
- */
-function normalizePermissions(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return [
-    ...new Set(
-        value
-            .map((permission) =>
-              normalizeString(permission),
-            )
-            .filter((permission) =>
-              ASSIGNABLE_PERMISSIONS.includes(permission),
-            ),
-    ),
-  ];
-}
-
-/**
  * 驗證目前登入者是否可管理平台人員
  *
  * @param {string} userId 操作者 Firebase UID
  * @return {Promise<void>}
  */
-async function verifyPlatformAdminManager(userId) {
+async function loadOperator(userId) {
   if (userId === ROOT_ADMIN_UID) {
-    return;
+    return {
+      uid: userId,
+      isRoot: true,
+      role: policy.SUPER_ADMIN_ROLE,
+      enabled: true,
+      permissions: [],
+    };
   }
 
   const snapshot = await admin
@@ -121,39 +66,31 @@ async function verifyPlatformAdminManager(userId) {
   }
 
   const platformAdmin = snapshot.data() || {};
+  const operator = {
+    uid: userId,
+    isRoot: false,
+    role: normalizeString(platformAdmin.role),
+    enabled: platformAdmin.enabled === true,
+    permissions: Array.isArray(platformAdmin.permissions) ?
+      platformAdmin.permissions :
+      [],
+  };
 
-  if (platformAdmin.enabled !== true) {
+  if (operator.enabled !== true) {
     throw new HttpsError(
         "permission-denied",
         "你的平台管理帳號目前已停用。",
     );
   }
 
-  const role = normalizeString(
-      platformAdmin.role,
-  ).toLowerCase();
-
-  const permissions = Array.isArray(
-      platformAdmin.permissions,
-  ) ?
-    platformAdmin.permissions.map((permission) =>
-      normalizeString(permission),
-    ) :
-    [];
-
-  const hasPermission =
-    role === SUPER_ADMIN_ROLE ||
-    permissions.includes(PLATFORM_PERMISSION_ALL) ||
-    permissions.includes(
-        MANAGE_PLATFORM_ADMINS_PERMISSION,
-    );
-
-  if (!hasPermission) {
+  if (!policy.canManagePlatformUsers(operator)) {
     throw new HttpsError(
         "permission-denied",
         "你沒有管理平台人員的權限。",
     );
   }
+
+  return operator;
 }
 
 /**
@@ -171,7 +108,7 @@ exports.createPlatformUserByEmail = onCall(
         );
       }
 
-      await verifyPlatformAdminManager(
+      const operator = await loadOperator(
           request.auth.uid,
       );
 
@@ -191,7 +128,8 @@ exports.createPlatformUserByEmail = onCall(
 
       const enabled = requestData.enabled === true;
 
-      const permissions = normalizePermissions(
+      const permissions = policy.grantablePermissions(
+          operator,
           requestData.permissions,
       );
 
@@ -219,7 +157,7 @@ exports.createPlatformUserByEmail = onCall(
         );
       }
 
-      if (!ALLOWED_ROLES.includes(role)) {
+      if (!policy.ALLOWED_ROLES.includes(role)) {
         throw new HttpsError(
             "invalid-argument",
             "平台角色不正確。",

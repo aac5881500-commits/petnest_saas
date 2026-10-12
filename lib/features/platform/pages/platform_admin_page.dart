@@ -13,12 +13,16 @@ import '../../../core/models/platform_admin_model.dart';
 import '../../../core/services/platform_admin_service.dart';
 import 'platform_account_delete_request_page.dart';
 import 'platform_activation_code_manage_page.dart';
+import 'platform_sales_rep_manage_page.dart';
+import 'platform_subscription_payment_page.dart';
+import 'platform_sales_performance_page.dart';
 import 'platform_contact_request_list_page.dart';
 import 'platform_member_manage_page.dart';
 import 'platform_payment_review_page.dart';
 import 'platform_policy_manage_page.dart';
 import 'platform_review_manage_page.dart';
 import 'platform_shop_manage_page.dart';
+import 'platform_legal_pet_directory_page.dart';
 import 'platform_shop_request_manage_page.dart';
 import 'platform_user_management_page.dart';
 import 'platform_media_library_page.dart';
@@ -246,6 +250,17 @@ List<_PlatformSection> _platformAdminSections({
         subtitle: '管理公開狀態、停權、方案與付款到期日',
         onTap: () => openPage(const PlatformShopManagePage()),
       ),
+    if (hasAnyPermission([
+      PlatformPermissionKeys.viewShops,
+      PlatformPermissionKeys.manageShopStatus,
+      PlatformPermissionKeys.reviewShopRequests,
+    ]))
+      _PlatformEntry(
+        icon: Icons.account_balance_outlined,
+        title: '業者資料庫',
+        subtitle: '農業部合法特定寵物業名單、字號對應與聯繫進度',
+        onTap: () => openPage(const PlatformLegalPetDirectoryPage()),
+      ),
     if (hasPermission(PlatformPermissionKeys.reviewShopRequests))
       _PlatformEntry(
         icon: Icons.approval_outlined,
@@ -287,8 +302,33 @@ List<_PlatformSection> _platformAdminSections({
       _PlatformEntry(
         icon: Icons.key_outlined,
         title: '激活碼管理',
-        subtitle: '建立創店激活碼、查看使用次數與啟用狀態',
+        subtitle: '建立創店激活碼、查看業務、試用天數與使用狀態',
         onTap: () => openPage(const PlatformActivationCodeManagePage()),
+      ),
+    if (hasPermission(PlatformPermissionKeys.manageSales))
+      _PlatformEntry(
+        icon: Icons.badge_outlined,
+        title: '業務管理',
+        subtitle: '建立業務、綁定平台帳號與停用，歷史歸屬會保留',
+        onTap: () => openPage(const PlatformSalesRepManagePage()),
+      ),
+    if (hasPermission(PlatformPermissionKeys.manageSubscriptionFinance))
+      _PlatformEntry(
+        icon: Icons.receipt_long_outlined,
+        title: '訂閱收款',
+        subtitle: '人工登記並確認店家方案收款，與顧客付款分開',
+        onTap: () => openPage(const PlatformSubscriptionPaymentPage()),
+      ),
+    if (hasAnyPermission([
+      PlatformPermissionKeys.manageSales,
+      PlatformPermissionKeys.viewOwnSales,
+      PlatformPermissionKeys.manageSubscriptionFinance,
+    ]))
+      _PlatformEntry(
+        icon: Icons.insights_outlined,
+        title: '業務業績與分潤',
+        subtitle: '依月份看開發業績，並與目前負責的付費店家分開',
+        onTap: () => openPage(const PlatformSalesPerformancePage()),
       ),
   ];
 

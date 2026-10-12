@@ -42,6 +42,7 @@ class StoreBrandBlock extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           softWrap: !home,
           style: TextStyle(
+            fontFamily: style.appliedNameFontFamily,
             fontSize: style.nameFontSize,
             height: 1.2,
             fontWeight: FontWeight.w800,

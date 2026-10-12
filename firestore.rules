@@ -28,17 +28,60 @@ function isEnabledPlatformUser() {
 }
 
 // 🔑 是否具有指定平台權限
-// 功能：根管理員直接通過；其他平台人員需具備指定權限。
+// 功能：根管理員與最高管理員直接通過。
+// all 與金流金鑰、開發工具只對最高管理員生效。
+function isSuperOnlyPlatformPermission(permission) {
+  return permission == 'view_payment_sensitive_data'
+    || permission == 'manage_payment_settings'
+    || permission == 'emergency_disable_payment'
+    || permission == 'access_developer_tools'
+    || permission == 'all';
+}
+
+function platformActor() {
+  return get(
+    /databases/$(database)/documents/platform_users/$(request.auth.uid)
+  ).data;
+}
+
 function hasPlatformPermission(permission) {
   return isRootAdmin()
     || (
       isEnabledPlatformUser()
-      && get(
-        /databases/$(database)/documents/platform_users/$(request.auth.uid)
-      ).data.permissions is list
-      && get(
-        /databases/$(database)/documents/platform_users/$(request.auth.uid)
-      ).data.permissions.hasAny([permission])
+      && platformActor().role == 'super_admin'
+    )
+    || (
+      isEnabledPlatformUser()
+      && !isSuperOnlyPlatformPermission(permission)
+      && platformActor().permissions is list
+      && platformActor().permissions.hasAny([permission])
+    );
+}
+
+function platformPermissionListHas(data, key) {
+  return data.permissions is list && data.permissions.hasAny([key]);
+}
+
+function platformUpdateAddsSuperOnly() {
+  return (
+      platformPermissionListHas(request.resource.data, 'view_payment_sensitive_data')
+      && !platformPermissionListHas(resource.data, 'view_payment_sensitive_data')
+    )
+    || (
+      platformPermissionListHas(request.resource.data, 'manage_payment_settings')
+      && !platformPermissionListHas(resource.data, 'manage_payment_settings')
+    )
+    || (
+      platformPermissionListHas(request.resource.data, 'emergency_disable_payment')
+      && !platformPermissionListHas(resource.data, 'emergency_disable_payment')
+    )
+    || (
+      platformPermissionListHas(request.resource.data, 'access_developer_tools')
+      && !platformPermissionListHas(resource.data, 'access_developer_tools')
+    )
+    || (
+      platformPermissionListHas(request.resource.data, 'all')
+      && !platformPermissionListHas(resource.data, 'all')
     );
 }
 
@@ -56,7 +99,7 @@ function canManagePlatformMedia() {
           ).data.permissions is list
           && get(
             /databases/$(database)/documents/platform_users/$(request.auth.uid)
-          ).data.permissions.hasAny(['all', 'manage_platform_media'])
+          ).data.permissions.hasAny(['manage_platform_media'])
         )
       )
     );
@@ -186,9 +229,46 @@ function hasShopPermissionKey(shopId, key) {
   return isRootAdmin()
     || isShopOwner(shopId)
     || (
-      isShopMember(shopId)
+      key != 'manage_payment_settings'
+      && isShopMember(shopId)
       && shopMemberData(shopId).permissions is map
       && shopMemberData(shopId).permissions.get(key, false) == true
+    );
+}
+
+function managerCanManageStaff(shopId) {
+  return isShopMember(shopId)
+    && shopMemberData(shopId).role == 'manager'
+    && shopMemberData(shopId).permissions is map
+    && shopMemberData(shopId).permissions.get('manage_staff', false) == true;
+}
+
+function canReadShopNotice(shopId) {
+  return isShopOwner(shopId)
+    || isShopOwnerUid(shopId)
+    || (
+      isShopMember(shopId)
+      && (
+        resource.data.get('audience', '') == 'everyone'
+        || (
+          resource.data.get('audience', '') == 'managers'
+          && shopMemberData(shopId).role == 'manager'
+        )
+        || (
+          resource.data.get('audience', '') == 'announcement'
+          && (
+            shopMemberData(shopId).role == 'manager'
+            || (
+              shopMemberData(shopId).permissions is map
+              && shopMemberData(shopId).permissions.get('view_platform_notices', false) == true
+            )
+          )
+        )
+        || (
+          resource.data.get('audience', '') == ''
+          && resource.data.type in ['system', 'update', 'review', 'warning']
+        )
+      )
     );
 }
 
@@ -250,9 +330,10 @@ function canReadAllBookings() {
     || hasPlatformPermission('manage_platform_members');
 }
 
-// 管理邀請：owner、根管理員，或具 manage_members 的成員。普通 staff 不行。
+// 管理邀請：owner、根管理員、具 manage_members 的成員，或已授權管理員工的店長。
 function canManageShopInvites(shopId) {
-  return hasShopPermissionKey(shopId, 'manage_members');
+  return hasShopPermissionKey(shopId, 'manage_members')
+    || managerCanManageStaff(shopId);
 }
 
 // 邀請文件 id 為 {shopId}_{emailKey}，與接受邀請時的寫入路徑相同。
@@ -459,10 +540,44 @@ match /shop_members/{memberId} {
 )
   );
 
-  allow update, delete: if isRootAdmin() ||
-    (
-      resource.data.shopId is string &&
-      isShopOwner(resource.data.shopId)
+  allow update: if isRootAdmin()
+    || (
+      resource.data.shopId is string
+      && isShopOwner(resource.data.shopId)
+      && request.resource.data.shopId == resource.data.shopId
+      && (
+        !(resource.data.uid is string)
+        || request.resource.data.uid == resource.data.uid
+      )
+      && (
+        (
+          resource.data.role == 'owner'
+          && request.resource.data.role == 'owner'
+        )
+        || (
+          resource.data.role != 'owner'
+          && request.resource.data.role in ['manager', 'staff']
+        )
+      )
+    )
+    || (
+      resource.data.shopId is string
+      && managerCanManageStaff(resource.data.shopId)
+      && resource.data.role == 'staff'
+      && request.resource.data.role == 'staff'
+      && request.resource.data.uid == resource.data.uid
+      && request.resource.data.shopId == resource.data.shopId
+      && request.auth.uid != resource.data.uid
+      && request.resource.data.permissions is map
+      && request.resource.data.permissions.get('manage_payment_settings', false) != true
+      && request.resource.data.permissions.get('manage_staff', false) != true
+    );
+
+  allow delete: if isRootAdmin()
+    || (
+      resource.data.shopId is string
+      && isShopOwner(resource.data.shopId)
+      && resource.data.role != 'owner'
     );
 }
 
@@ -486,7 +601,16 @@ match /shop_member_invites/{inviteId} {
       isRootAdmin() ||
       (
         request.resource.data.shopId is string &&
-        isShopOwner(request.resource.data.shopId)
+        isShopOwner(request.resource.data.shopId) &&
+        request.resource.data.role in ['manager', 'staff']
+      ) ||
+      (
+        request.resource.data.shopId is string &&
+        managerCanManageStaff(request.resource.data.shopId) &&
+        request.resource.data.role == 'staff' &&
+        request.resource.data.permissions is map &&
+        request.resource.data.permissions.get('manage_payment_settings', false) != true &&
+        request.resource.data.permissions.get('manage_staff', false) != true
       )
     );
 
@@ -503,13 +627,129 @@ allow update: if signedIn() &&
   request.resource.data.status == 'accepted' &&
   resource.data.status == 'pending' &&
   resource.data.emailKey == request.auth.token.email.lower();
+
+allow delete: if signedIn() &&
+  resource.data.shopId is string &&
+  managerCanManageStaff(resource.data.shopId) &&
+  resource.data.role == 'staff';
 }
+
+function shopText(data, field) {
+      return data.get(field, '') is string ? data.get(field, '') : '';
+    }
+
+    function shopAddressLocked(data) {
+      return data.get('addressSetupCompleted', false) == true
+        || shopText(data, 'address').size() > 0;
+    }
+
+    function shopPhoneLocked(data) {
+      return data.get('phoneSetupCompleted', false) == true
+        || shopText(data, 'phone').size() > 0;
+    }
+
+    function shopFlagKept(before, after, field) {
+      return !(before.get(field, false) == true
+        && after.get(field, false) != true);
+    }
+
+    // 地址、電話、字號與統編一旦已有資料就不可由店家直接改寫。
+    // 認證旗標也不能由店家自行打開。
+    function shopSensitiveProfileUnchanged() {
+      return (
+          !shopAddressLocked(resource.data)
+          || (
+            shopText(request.resource.data, 'city')
+              == shopText(resource.data, 'city')
+            && shopText(request.resource.data, 'district')
+              == shopText(resource.data, 'district')
+            && shopText(request.resource.data, 'address')
+              == shopText(resource.data, 'address')
+          )
+        )
+        && (
+          !shopPhoneLocked(resource.data)
+          || shopText(request.resource.data, 'phone')
+            == shopText(resource.data, 'phone')
+        )
+        && (
+          shopText(resource.data, 'licenseNumber').size() == 0
+          || shopText(request.resource.data, 'licenseNumber')
+            == shopText(resource.data, 'licenseNumber')
+        )
+        && (
+          shopText(resource.data, 'taxId').size() == 0
+          || shopText(request.resource.data, 'taxId')
+            == shopText(resource.data, 'taxId')
+        )
+        && shopFlagKept(
+          resource.data,
+          request.resource.data,
+          'addressSetupCompleted'
+        )
+        && shopFlagKept(
+          resource.data,
+          request.resource.data,
+          'phoneSetupCompleted'
+        )
+        && request.resource.data.get('licenseVerified', false)
+          == resource.data.get('licenseVerified', false)
+        && request.resource.data.get('taxIdVerified', false)
+          == resource.data.get('taxIdVerified', false);
+    }
+
+    function canViewLegalPetDirectory() {
+      return isRootAdmin()
+        || (
+          isEnabledPlatformUser()
+          && (
+            get(/databases/$(database)/documents/platform_users/$(request.auth.uid)).data.role
+              == 'super_admin'
+            || (
+              get(/databases/$(database)/documents/platform_users/$(request.auth.uid)).data.permissions
+                is list
+              && get(/databases/$(database)/documents/platform_users/$(request.auth.uid)).data.permissions
+                .hasAny([
+                  'view_shops',
+                  'manage_shop_status',
+                  'review_shop_requests'
+                ])
+            )
+          )
+        );
+    }
 
     // 🏪 店家資料
     match /shops/{shopId} {
       allow read: if true;
-      allow create: if signedIn();
-      allow update: if isRootAdmin()
+
+      function shopCommercialUnchanged() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny([
+            'plan',
+            'paidUntil',
+            'paidUntilDate',
+            'paidServiceUntil',
+            'trialUntil',
+            'giftUntil',
+            'entitlementSource',
+            'originSalesRepId',
+            'currentSalesRepId',
+            'shopSource',
+            'activationSourceSnapshot',
+            'activationCode',
+            'activationCodeId',
+            'activationFreeDays',
+            'nextPlan',
+            'nextPlanStarts',
+            'followingPlan',
+            'followingPlanStarts',
+            'lastSubscriptionPaymentId'
+          ]);
+      }
+
+      allow create: if false;
+      allow update: if shopCommercialUnchanged() && isRootAdmin()
   ||
   (
     (isShopMember(shopId) || isShopOwnerUid(shopId))
@@ -588,8 +828,11 @@ allow update: if signedIn() &&
       'blockedDates',
       'blockedDateReasons',
       'specialPrices',
-      'defaultPricePerNight'
+      'defaultPricePerNight',
+      'addressSetupCompleted',
+      'phoneSetupCompleted'
     ])
+    && shopSensitiveProfileUnchanged()
   );
       allow delete: if false;
 
@@ -2522,7 +2765,21 @@ match /action_logs/{logId} {
   allow read: if signedIn() &&
     (
       isShopMember(resource.data.shopId) ||
-      isRootAdmin()
+      isRootAdmin() ||
+      (
+        resource.data.targetType == 'platform_user'
+        && isEnabledPlatformUser()
+        && (
+          platformActor().role == 'super_admin'
+          || (
+            platformActor().permissions is list
+            && platformActor().permissions.hasAny([
+              'view_platform_logs',
+              'manage_platform_admins'
+            ])
+          )
+        )
+      )
     );
 
   allow create: if signedIn() &&
@@ -2991,7 +3248,9 @@ match /shop_change_requests/{requestId} {
   allow create: if signedIn() &&
     (
       request.resource.data.shopId is string &&
-      isShopMember(request.resource.data.shopId)
+      isShopMember(request.resource.data.shopId) &&
+      request.resource.data.status == 'pending' &&
+      request.resource.data.applicantUid == request.auth.uid
     );
 
   allow update: if isRootAdmin();
@@ -3039,43 +3298,87 @@ match /activation_codes/{codeId} {
   // 只有平台可建立 / 刪除激活碼
   allow create, delete: if isRootAdmin();
 
-  // 平台可管理；一般使用者只能在創店時更新使用紀錄欄位
-  allow update: if isRootAdmin()
-    ||
-    (
-      signedIn()
-      &&
-      request.resource.data.diff(resource.data).changedKeys().hasOnly([
-        'usedCount',
-        'usedShopIds',
-        'usedByUids',
-        'lastUsedAt',
-        'updatedAt',
-      ])
-      &&
-(
-  request.resource.data.usedCount == resource.data.usedCount + 1
-  ||
-  (
-    !('usedCount' in resource.data.keys())
-    &&
-    request.resource.data.usedCount == 1
-  )
-)
-    );
+  // 使用次數只由後端交易更新，避免客戶端重複扣次或超用。
+  allow update: if isRootAdmin();
 
   // 🎟 激活碼使用紀錄
   match /usage_logs/{logId} {
-    allow read: if isRootAdmin();
+    allow read: if isRootAdmin()
+      || hasPlatformPermission('manage_activation_codes');
 
-    allow create: if signedIn()
-      &&
-      request.resource.data.usedByUid == request.auth.uid
-      &&
-      request.resource.data.shopId == logId;
-
-    allow update, delete: if isRootAdmin();
+    allow create, update, delete: if isRootAdmin();
   }
+}
+
+match /activation_code_keys/{codeKey} {
+  allow read, write: if false;
+}
+
+match /shop_commercial/{shopId} {
+  allow read, write: if false;
+}
+
+match /platform_sales_rep_uids/{uid} {
+  allow read, write: if false;
+}
+
+match /activation_code_conflicts/{codeKey} {
+  allow read, write: if false;
+}
+
+match /commercial_migration/{docId} {
+  allow read, write: if false;
+}
+
+match /sales_summary_passes/{passId} {
+  allow read, write: if false;
+  match /seen/{entryId} {
+    allow read, write: if false;
+  }
+}
+
+match /sales_summary_rebuilds/{rowId} {
+  allow read, write: if false;
+}
+
+match /platform_sales_reps/{repId} {
+  allow read, write: if false;
+}
+
+match /sales_shop_create_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /sales_owner_locks/{uid} {
+  allow read, write: if false;
+}
+
+match /sales_summary_events/{eventId} {
+  allow read, write: if false;
+}
+
+match /sales_month_summaries/{summaryId} {
+  allow read, write: if false;
+}
+
+match /shop_subscription_payments/{paymentId} {
+  allow read, write: if false;
+}
+
+match /shop_entitlement_adjustments/{adjustmentId} {
+  allow read, write: if false;
+}
+
+match /shop_attribution_events/{eventId} {
+  allow read, write: if false;
+}
+
+match /commission_rules/{ruleId} {
+  allow read, write: if false;
+}
+
+match /commission_entries/{entryId} {
+  allow read, write: if false;
 }
 
     // 🖼 平台外觀圖庫
@@ -3092,8 +3395,19 @@ match /activation_codes/{codeId} {
 match /platform_users/{platformUid} {
 
   // 根管理員可查看全部資料。
-  // 一般平台人員只能查看自己的資料。
-  allow read: if isRootAdmin() || isSelf(platformUid);
+  // 具管理平台人員權限的啟用帳號可查看其他平台人員，仍不能直接改文件。
+  allow read: if isRootAdmin()
+    || isSelf(platformUid)
+    || (
+      isEnabledPlatformUser()
+      && (
+        platformActor().role == 'super_admin'
+        || (
+          platformActor().permissions is list
+          && platformActor().permissions.hasAny(['manage_platform_admins'])
+        )
+      )
+    );
 
   // 只有根管理員可以新增平台人員。
   allow create: if isRootAdmin()
@@ -3110,7 +3424,7 @@ match /platform_users/{platformUid} {
     );
 
   // 只有根管理員可以修改平台人員。
-  // 修改根管理員自己的文件時，必須維持最高權限。
+  // 不能把一般帳號提升為最高管理員，也不能新增加入最高管理員專屬權限。
   allow update: if isRootAdmin()
     && request.resource.data.uid == platformUid
     && (
@@ -3122,7 +3436,12 @@ match /platform_users/{platformUid} {
         && request.resource.data.permissions is list
         && request.resource.data.permissions.hasAll(['all'])
       )
-    );
+    )
+    && (
+      resource.data.role == 'super_admin'
+      || request.resource.data.role != 'super_admin'
+    )
+    && !platformUpdateAddsSuperOnly();
 
   // 可以刪除其他平台人員，
   // 但永遠不能透過 App 刪除根管理員。
@@ -3166,7 +3485,10 @@ match /shop_notifications/{notificationId} {
   allow read: if signedIn() &&
     (
       isRootAdmin() ||
-      isShopMember(resource.data.shopId)
+      (
+        resource.data.shopId is string &&
+        canReadShopNotice(resource.data.shopId)
+      )
     );
 
   allow create, delete: if isRootAdmin();
@@ -3571,6 +3893,50 @@ match /{path=**}/store_orders/{orderId} {
     );
 
   allow create, update, delete: if false;
+}
+
+// 農業部合法特定寵物業名單。店家不可讀整份名單，也不能改政府資料。
+match /legal_pet_businesses/{govId} {
+  allow read: if canViewLegalPetDirectory();
+  allow write: if false;
+}
+
+match /legal_pet_business_contacts/{govId} {
+  allow read: if canViewLegalPetDirectory();
+
+  allow create, update: if canViewLegalPetDirectory()
+    && request.resource.data.govId == govId
+    && request.resource.data.source == 'platform_staff'
+    && request.resource.data.updatedBy == request.auth.uid
+    && request.resource.data.contactStatus in [
+      'not_contacted',
+      'contacted',
+      'follow_up',
+      'no_interest'
+    ]
+    && request.resource.data.keys().hasOnly([
+      'govId',
+      'contactStatus',
+      'phone',
+      'website',
+      'note',
+      'nextFollowUpDate',
+      'source',
+      'updatedBy',
+      'updatedAt'
+    ]);
+
+  allow delete: if false;
+}
+
+match /legal_pet_sync/{syncId} {
+  allow read: if canViewLegalPetDirectory();
+  allow write: if false;
+}
+
+match /legal_pet_license_links/{linkId} {
+  allow read: if canViewLegalPetDirectory();
+  allow write: if false;
 }
 
     // 🚫 其他全部拒絕

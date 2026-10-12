@@ -39,6 +39,8 @@ class BookingPaymentProofRecord {
       case 'top_up':
       case 'additional':
         return '結算尾款';
+      case 'full':
+        return '全額付款';
       default:
         return '訂金';
     }
@@ -77,6 +79,8 @@ class BookingPaymentProof {
       case 'top_up':
       case 'additional':
         return 'balance';
+      case 'full':
+        return 'full';
       default:
         return 'deposit';
     }
@@ -268,16 +272,21 @@ class BookingPaymentProof {
     if (!shouldShow(data)) {
       return false;
     }
-    if (BookingPaymentStatus.isDepositConfirmed(data)) {
+    final InitialPaymentChoice choice =
+        BookingPaymentStatus.initialPaymentChoice(data);
+    if (choice.settled || choice.amount <= 0) {
       return false;
     }
-    if (BookingPaymentStatus.resolveDepositAmount(data) <= 0) {
-      return false;
-    }
-    return records(data).any(
-      (BookingPaymentProofRecord e) =>
-          e.purpose == 'deposit' && e.imageUrl.isNotEmpty,
-    );
+    return records(data).any((BookingPaymentProofRecord e) {
+      if (e.imageUrl.isEmpty) {
+        return false;
+      }
+      final String purpose = normalizePurpose(e.purpose);
+      if (choice.isFull) {
+        return purpose == 'full' || purpose == 'deposit';
+      }
+      return purpose == 'deposit';
+    });
   }
 }
 
@@ -318,6 +327,7 @@ class BookingPaymentProofButton extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return _PaymentProofDialog(
+          data: data,
           records: items,
           onConfirmDeposit: showConfirm ? onConfirmDeposit : null,
         );
@@ -327,8 +337,13 @@ class BookingPaymentProofButton extends StatelessWidget {
 }
 
 class _PaymentProofDialog extends StatefulWidget {
-  const _PaymentProofDialog({required this.records, this.onConfirmDeposit});
+  const _PaymentProofDialog({
+    required this.data,
+    required this.records,
+    this.onConfirmDeposit,
+  });
 
+  final Map<String, dynamic> data;
   final List<BookingPaymentProofRecord> records;
   final Future<void> Function()? onConfirmDeposit;
 
@@ -438,7 +453,13 @@ class _PaymentProofDialogState extends State<_PaymentProofDialog> {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                     ),
-                    child: Text(_busy ? '確認中…' : '確認收到訂金'),
+                    child: Text(
+                      _busy
+                          ? '確認中…'
+                          : BookingPaymentStatus.initialPaymentChoice(
+                              widget.data,
+                            ).confirmButtonLabel,
+                    ),
                   ),
                 ),
               ),

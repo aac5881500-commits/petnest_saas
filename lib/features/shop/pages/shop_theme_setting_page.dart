@@ -14,6 +14,7 @@ import 'package:petnest_saas/core/models/home_appearance_preset.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
@@ -36,6 +37,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settin
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_editor_preview.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_settings_card.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_quick_action_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/about_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_appearance_preset_strip.dart';
@@ -116,6 +118,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       const HomeQuickBookingSectionSetting();
   HomeInformationSectionsSetting _informationSections =
       const HomeInformationSectionsSetting();
+  HomeQuickActionSetting _quickActions = const HomeQuickActionSetting();
   int _environmentFocusToken = 0;
   int _aboutFocusToken = 0;
   int _newsFocusToken = 0;
@@ -361,6 +364,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       'informationSections': _informationSections.toMap(),
       homeAppearancePresetIdKey: ?_appearancePresetId,
       'showStayServiceStrip': _showStayServiceStrip,
+      HomeQuickActionSetting.mapKey: _quickActions.toMap(),
       ..._draftStoreHomeSetting.toMap(),
       ..._navigationConfig.toMap(),
     };
@@ -631,6 +635,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _informationSections = HomeInformationSectionsSetting.fromMap(
           modernAppearance['informationSections'],
         );
+        _quickActions = HomeQuickActionSetting.fromMap(
+          modernAppearance[HomeQuickActionSetting.mapKey],
+        );
         _appearancePresetId = homeAppearancePresetById(
           modernAppearance[homeAppearancePresetIdKey]?.toString(),
         )?.id;
@@ -853,6 +860,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 'informationSections': _informationSections.toMap(),
                 homeAppearancePresetIdKey: ?_appearancePresetId,
                 'showStayServiceStrip': _showStayServiceStrip,
+                HomeQuickActionSetting.mapKey: _quickActions.toMap(),
 
                 ...storeHomeForSave.toMap(),
                 ..._navigationConfig.toMap(),
@@ -2425,32 +2433,37 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       ),
       KeyedSubtree(
         key: _headerSettingsKey,
-        child: _editorCard(
-          title: '店家識別',
-          subtitle: '固定在海報上方。可在左側預覽左右拖曳。',
-          trailing: const Text(
-            '固定顯示',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF64748B),
-            ),
-          ),
-          child: StoreBrandSettingsCard(
-            style: _brandStyle,
-            theme: _modernTheme,
-            subtitleController: _modernHeaderSubtitleController,
-            logoSection: _buildModernLogoSettings(),
-            hasLogo:
-                _modernLogoUrl.trim().isNotEmpty ||
-                _modernLogoPreviewBytes != null,
-            onChanged: (StoreBrandStyle style) {
-              setState(() {
-                _brandStyle = style;
-                _appearanceDirty = true;
-              });
-            },
-          ),
+        child: StoreBrandSettingsCard(
+          style: _brandStyle,
+          theme: _modernTheme,
+          shopName: (_loadedShop['name'] ?? '').toString(),
+          subtitleController: _modernHeaderSubtitleController,
+          logoSection: _buildModernLogoSettings(),
+          hasLogo:
+              _modernLogoUrl.trim().isNotEmpty ||
+              _modernLogoPreviewBytes != null,
+          onChanged: (StoreBrandStyle style) {
+            setState(() {
+              _brandStyle = style;
+              _appearanceDirty = true;
+            });
+          },
+        ),
+      ),
+      _editorCard(
+        title: '首頁快捷功能列',
+        subtitle: '顯示在店名旁邊。左側預覽會立刻套用。',
+        child: HomeQuickActionSettingsPanel(
+          setting: _quickActions,
+          theme: _modernTheme,
+          storeEnabled: StorefrontAccess.isModuleEnabled(_loadedShop),
+          chatEnabled: ShopChatService.isEnabled(_loadedShop),
+          onChanged: (HomeQuickActionSetting value) {
+            setState(() {
+              _quickActions = value;
+              _appearanceDirty = true;
+            });
+          },
         ),
       ),
       KeyedSubtree(
@@ -2948,87 +2961,39 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       ),
     );
     final Widget logoThumb = Container(
-      width: 72,
-      height: 72,
-      padding: const EdgeInsets.all(8),
+      width: 56,
+      height: 56,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7EF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.shade100),
+        color: const Color(0xFFF8F9FB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6E8EC)),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         child: logoPreview,
       ),
     );
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool inline = constraints.maxWidth >= 520;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
           children: <Widget>[
-            if (inline)
-              Row(
-                children: <Widget>[
-                  logoThumb,
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          '店家 Logo',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          hasNetworkLogo || hasPreview
-                              ? '新版 Footer 會顯示目前圖片'
-                              : '尚未設定時，會顯示預設腳印',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  logoButton,
-                ],
-              )
-            else ...<Widget>[
-              Row(
-                children: <Widget>[
-                  logoThumb,
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      hasNetworkLogo || hasPreview
-                          ? '新版 Footer 會顯示目前圖片'
-                          : '尚未設定時，會顯示預設腳印',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Align(alignment: Alignment.centerLeft, child: logoButton),
-            ],
-            const SizedBox(height: 8),
-            const Text(
-              '建議 600 × 600 px，PNG 或 JPG，最大 5 MB。圖片會完整顯示。',
-              style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
-            ),
+            logoThumb,
+            const SizedBox(width: 12),
+            Flexible(child: logoButton),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '建議 600 × 600 px，PNG 或 JPG，最大 5 MB。',
+          style: TextStyle(
+            fontSize: 12,
+            color: Color(0xFF64748B),
+            height: 1.35,
+          ),
+        ),
+      ],
     );
   }
 

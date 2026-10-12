@@ -12,12 +12,14 @@ import 'package:petnest_saas/core/widgets/app_state_panel.dart';
 import '../../../core/constants/platform_permission_keys.dart';
 import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/services/platform_admin_service.dart';
+import '../../../core/services/shop_plan_access.dart';
 
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_send_shop_notification_page.dart';
 import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_device_manage_page.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_transfer_shop_owner_dialog.dart';
+import 'package:petnest_saas/features/platform/widgets/shop_commercial_summary_card.dart';
 
 const Color _kPageBackground = Color(0xFFF6F7FB);
 const Color _kCardBorder = Color(0xFFD7E0EA);
@@ -29,7 +31,9 @@ const double _kDesktopBreakpoint = 1000;
 const double _kContentMaxWidth = 1580;
 
 class PlatformShopManagePage extends StatelessWidget {
-  const PlatformShopManagePage({super.key});
+  const PlatformShopManagePage({super.key, this.initialShopId});
+
+  final String? initialShopId;
 
   String _formatDate(dynamic value) {
     if (value == null) return '尚未設定';
@@ -146,6 +150,7 @@ class PlatformShopManagePage extends StatelessWidget {
         }
 
         return _ShopManageScreen(
+          initialShopId: initialShopId,
           canManageShopStatus: canManageShopStatus,
           canManageShopSubscriptions: canManageShopSubscriptions,
           formatDate: _formatDate,
@@ -160,6 +165,7 @@ class PlatformShopManagePage extends StatelessWidget {
 
 class _ShopManageScreen extends StatefulWidget {
   const _ShopManageScreen({
+    this.initialShopId,
     required this.canManageShopStatus,
     required this.canManageShopSubscriptions,
     required this.formatDate,
@@ -168,6 +174,7 @@ class _ShopManageScreen extends StatefulWidget {
     required this.statusColor,
   });
 
+  final String? initialShopId;
   final bool canManageShopStatus;
   final bool canManageShopSubscriptions;
   final String Function(dynamic value) formatDate;
@@ -193,6 +200,13 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
 
   String? _desktopSelectedId;
   String? _mobileOpenId;
+
+  @override
+  void initState() {
+    super.initState();
+    _desktopSelectedId = widget.initialShopId;
+    _mobileOpenId = widget.initialShopId;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +247,7 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
         }).length;
         final trialShops = docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final plan = data['plan']?.toString() ?? 'free';
+          final plan = ShopPlanAccess.effectivePlan(data);
           return plan == 'free';
         }).length;
 
@@ -469,7 +483,7 @@ _ShopVisual _readShop({
   final licenseVerified = data['licenseVerified'] == true;
   final taxIdVerified = data['taxIdVerified'] == true;
   final externalLinksEnabled = data['externalLinksEnabled'] != false;
-  final plan = data['plan']?.toString() ?? 'free';
+  final plan = ShopPlanAccess.effectivePlan(data);
   final status = data['status']?.toString() ?? 'active';
   final accountStatus = data['accountStatus']?.toString() ?? 'normal';
   final paidUntil = data['paidUntil'];
@@ -855,6 +869,7 @@ Widget _buildDesktopShopWorkspace({
         padding: const EdgeInsets.all(22),
         children: [
           _ShopIdentityHeader(shop: shop, logoSize: 60),
+          ShopCommercialSummaryCard(shopId: shop.shopId),
           const SizedBox(height: 18),
           const _SectionLabel('營運概況'),
           const SizedBox(height: 8),
@@ -957,6 +972,7 @@ class _PlatformShopDetailPage extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(16, 12, 16, 24 + bottom),
       children: [
         _DetailSummaryCard(shop: shop),
+        ShopCommercialSummaryCard(shopId: shop.shopId),
         const SizedBox(height: 14),
         const _SectionLabel('營運概況'),
         const SizedBox(height: 8),

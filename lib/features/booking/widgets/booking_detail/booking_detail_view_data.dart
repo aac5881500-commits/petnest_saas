@@ -3,6 +3,7 @@
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
+import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
@@ -139,10 +140,7 @@ class BookingDetailViewData {
       !BookingSettlementMath.isSettlementLocked(raw) &&
       BookingDetailParse.parseString(raw['userId']).isNotEmpty;
 
-  String get payAmountType {
-    final String type = BookingDetailParse.parseString(raw['payAmountType']);
-    return type.isEmpty ? 'deposit' : type;
-  }
+  String get payAmountType => BookingPaymentStatus.resolvePayAmountType(raw);
 
   String get assignStatus =>
       BookingDetailParse.parseString(raw['assignStatus']);
@@ -491,6 +489,9 @@ class BookingDetailViewData {
       return '付款資料已送出，店家確認後會更新付款狀態。';
     }
     if (isDaycare && BookingPaymentStatus.isDepositConfirmed(raw)) {
+      if (payAmountType == 'full') {
+        return '已付全額 NT\$$paidAmount／尚餘 NT\$$remainingAmount';
+      }
       return BookingPaymentStatus.depositPaidSummary(raw);
     }
     if (status == 'confirmed') {
@@ -696,8 +697,14 @@ class BookingDetailViewData {
     if (depositStatus == 'pending_review') {
       return '付款資料審核中';
     }
+    if (payAmountType == 'full' && paidAmount > 0 && remainingAmount <= 0) {
+      return '全額已付';
+    }
     if (BookingPaymentStatus.isDepositConfirmed(raw)) {
       return '訂金已付';
+    }
+    if (payAmountType == 'full' && dueNowAmount > 0) {
+      return '待付全額';
     }
     if (depositAmount > 0) {
       return '待付訂金';
@@ -987,15 +994,21 @@ class BookingDetailViewData {
         BookingDetailParse.parseString(raw['shopId']).isNotEmpty;
   }
 
-  DateTime? dailyCareDownloadDeadline(int downloadHoursAfterCheckout) {
-    DateTime? end = checkOutAt;
-    if (isDaycare) {
-      end = actualEndAt ?? scheduledEndAt ?? checkOutAt;
-    }
+  /// 照片固定保留 24 小時。不讀店家 downloadHoursAfterCheckout，也不用預定結束時間。
+  DateTime? dailyCareDownloadDeadline() {
+    final DateTime? end = isDaycare
+        ? actualEndAt ??
+              BookingDetailParse.parseDate(raw['checkedOutAt']) ??
+              BookingDetailParse.parseDate(raw['completedAt'])
+        : checkOutAt ??
+              BookingDetailParse.parseDate(raw['checkedOutAt']) ??
+              BookingDetailParse.parseDate(raw['completedAt']);
     if (end == null) {
       return null;
     }
-    return end.add(Duration(hours: downloadHoursAfterCheckout));
+    return end.add(
+      const Duration(hours: DailyCareReportMode.retentionHours),
+    );
   }
 
   /// 文字照護紀錄在服務結束後仍可查看，不受照片下載期限影響。
@@ -1015,7 +1028,6 @@ class BookingDetailViewData {
   }
 
   bool canViewDailyCare({
-    required int downloadHoursAfterCheckout,
     DateTime? now,
     bool daycareCareEnabled = false,
   }) {
@@ -1030,9 +1042,7 @@ class BookingDetailViewData {
         return true;
       }
       if (status == 'completed' || status == 'checked_out') {
-        final DateTime? deadline = dailyCareDownloadDeadline(
-          downloadHoursAfterCheckout,
-        );
+        final DateTime? deadline = dailyCareDownloadDeadline();
         if (deadline == null) {
           return true;
         }
@@ -1046,25 +1056,18 @@ class BookingDetailViewData {
     if (status != 'completed') {
       return false;
     }
-    final DateTime? deadline = dailyCareDownloadDeadline(
-      downloadHoursAfterCheckout,
-    );
+    final DateTime? deadline = dailyCareDownloadDeadline();
     if (deadline == null) {
       return false;
     }
     return (now ?? DateTime.now()).isBefore(deadline);
   }
 
-  bool dailyCareDownloadExpired({
-    required int downloadHoursAfterCheckout,
-    DateTime? now,
-  }) {
+  bool dailyCareDownloadExpired({DateTime? now}) {
     if (status != 'completed') {
       return false;
     }
-    final DateTime? deadline = dailyCareDownloadDeadline(
-      downloadHoursAfterCheckout,
-    );
+    final DateTime? deadline = dailyCareDownloadDeadline();
     if (deadline == null) {
       return false;
     }

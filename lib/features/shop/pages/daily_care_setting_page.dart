@@ -1403,9 +1403,11 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ),
           const Text('每場最多 3 張'),
           const SizedBox(height: 6),
-          const Text('服務實際結束後保留 24 小時'),
+          const Text('照片於服務實際結束後保留 24 小時'),
           const SizedBox(height: 6),
           const Text('到期自動清除'),
+          const SizedBox(height: 6),
+          const Text('照護紀錄將持續保留，僅照片會於保存期限結束後自動清除。'),
         ],
       ),
     );

@@ -19,6 +19,18 @@ test("top_up 新資料寫成 balance，deposit 維持訂金", () => {
   assert.equal(normalizeProofPurpose("additional"), "balance");
 });
 
+test("全額回報維持 full，並寫入初次付款欄位", () => {
+  assert.equal(normalizeProofPurpose("full"), "full");
+  const keys = imageAppendBookingFields("full", true);
+  assert.equal(keys.includes("depositStatus"), true);
+  assert.equal(keys.includes("transferLast5"), true);
+  assert.equal(keys.includes("settlementTopUpStatus"), false);
+  const meta = last5LegacyMeta("full", "12345", "now");
+  assert.equal(meta.transferLast5, "12345");
+  assert.equal(meta.depositStatus, "pending_review");
+  assert.equal(meta.settlementTopUpStatus, undefined);
+});
+
 test("不支援的 purpose 拋錯", () => {
   assert.throws(() => normalizeProofPurpose("other"), /付款類型不正確/);
 });

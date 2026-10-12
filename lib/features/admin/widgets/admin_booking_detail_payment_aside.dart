@@ -34,6 +34,8 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
     final int paid = BookingPaymentStatus.resolvePaid(data);
     final int remaining = BookingSettlementMath.remainingDue(data: data);
     final int refundDue = BookingSettlementMath.refundDue(data: data);
+    final InitialPaymentChoice initial =
+        BookingPaymentStatus.initialPaymentChoice(data);
     final bool depositPaid = BookingPaymentStatus.isDepositConfirmed(data);
     final bool overdue = BookingPaymentStatus.isDeadlineOverdue(data);
     final bool daycare = BookingPaymentStatus.isDaycare(data);
@@ -61,12 +63,16 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _money(theme, '應付總額', total, emphasize: true),
-          if (BookingPaymentStatus.resolveDepositAmount(data) > 0)
+          if (initial.amount > 0 || initial.settled)
             _money(
               theme,
-              BookingPaymentStatus.isDepositConfirmed(data) ? '訂金' : '本次應付訂金',
-              BookingPaymentStatus.resolveDepositAmount(data),
-              color: BookingPaymentStatus.isDepositConfirmed(data)
+              initial.settled ? initial.typeLabel : initial.dueLabel,
+              initial.settled
+                  ? (initial.isFull
+                        ? total
+                        : BookingPaymentStatus.resolveDepositAmount(data))
+                  : initial.amount,
+              color: initial.settled
                   ? ShopFrontendTheme.successColor
                   : theme.primaryColor,
             ),
@@ -85,8 +91,12 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
             runSpacing: 6,
             children: <Widget>[
               _pill(
-                cleared ? '已付清' : (depositPaid ? '訂金已確認' : '尚未完成付款'),
                 cleared
+                    ? '已付清'
+                    : (initial.isFull && initial.settled
+                          ? '全額已付'
+                          : (depositPaid ? '訂金已確認' : '尚未完成付款')),
+                cleared || (initial.isFull && initial.settled)
                     ? ShopFrontendTheme.successColor
                     : ShopFrontendTheme.warningColor,
               ),

@@ -451,8 +451,7 @@ class DailyCarePhotoService {
       'downloadStoragePath': downloadStoragePath.trim(),
       'downloadBytes': downloadBytes,
 
-      // 真正退房後才會補上：
-      // checkOutAt + downloadHoursAfterCheckout
+      // 服務實際結束後由後端補上：結束時間 + 24 小時。
       'expiresAt': null,
 
       'createdAt': FieldValue.serverTimestamp(),

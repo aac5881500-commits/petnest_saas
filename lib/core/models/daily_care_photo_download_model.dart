@@ -43,8 +43,7 @@ class DailyCarePhotoDownloadModel {
 
   /// 高清照片到期時間
   ///
-  /// 真正值會使用：
-  /// checkOutAt + downloadHoursAfterCheckout
+  /// 真正值是服務實際結束時間加 24 小時。
   final DateTime? expiresAt;
 
   /// 建立時間

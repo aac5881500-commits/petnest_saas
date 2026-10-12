@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:petnest_saas/core/models/daily_care_photo_download_model.dart';
+import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/models/daily_care_stay_info.dart';
@@ -167,9 +168,9 @@ class _CustomerDailyCareDownloadPageState
                 ? stayInfo.roomName
                 : roomName;
 
-            final int retentionHours = setting.downloadHoursAfterCheckout;
+            const int retentionHours = DailyCareReportMode.retentionHours;
             final DateTime? actualDownloadDeadline = serviceEnd?.add(
-              Duration(hours: retentionHours),
+              const Duration(hours: retentionHours),
             );
 
             final bool isExpired =
@@ -213,7 +214,7 @@ class _CustomerDailyCareDownloadPageState
                     Text(
                       isExpired
                           ? '照片保存期限已結束'
-                          : '照片上傳完成即可下載。期限自實際結束起算 $retentionHours 小時，到期後由系統排程清除照片。',
+                          : '服務實際結束後 24 小時內可下載',
                     ),
 
                     const SizedBox(height: 8),
@@ -233,7 +234,7 @@ class _CustomerDailyCareDownloadPageState
 
                     Text(
                       actualDownloadDeadline == null
-                          ? '下載截止時間：服務結束後 $retentionHours 小時'
+                          ? '下載截止時間：服務實際結束後 24 小時'
                           : '下載截止時間：${_formatDateTime(actualDownloadDeadline)}',
                       style: TextStyle(
                         fontSize: 13,

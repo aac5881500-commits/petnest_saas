@@ -1,17 +1,12 @@
 // 檔案名稱：lib/core/services/auth_service.dart
-// 功能說明：登入認證服務：Email／Google 登入與使用者資料建立
-// 功能：
-// - Email 註冊 / 登入
-// - Google 登入
-// - 建立 users / user_profiles
-// - 自動補齊 email（🔥重點）
-// - 預留平台會員 & 店家會員架構
+// 功能說明：Firebase Auth 登入、註冊、信箱驗證、密碼重設與 Apple／Google 登入。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:petnest_saas/core/services/auth_access_policy.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 
 class AuthService {
   AuthService._();
@@ -26,35 +21,50 @@ class AuthService {
   /// 監聽登入狀態
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
-  /// 將 Firebase Auth 的原始錯誤轉為前台可讀的中文訊息。
-  static String authErrorMessage(Object error) {
-    if (error is! FirebaseAuthException) {
-      return '系統暫時無法處理，請稍後再試';
-    }
+  /// 取消操作回傳 null。其他錯誤回傳繁體中文，不回傳 Firebase 原文。
+  static String? authErrorMessage(Object error, {bool appleSignIn = false}) {
+    return AuthAccessPolicy.messageFor(error, appleSignIn: appleSignIn);
+  }
 
-    switch (error.code) {
-      case 'invalid-email':
-        return 'Email 格式不正確，請重新輸入';
-      case 'email-already-in-use':
-        return '此 Email 已被註冊，請直接登入或使用其他 Email';
-      case 'weak-password':
-        return '密碼強度不足，請至少輸入 6 個字元';
-      case 'user-not-found':
-        return '找不到此帳號，請確認 Email 或先註冊';
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Email 或密碼不正確，請重新輸入';
-      case 'user-disabled':
-        return '此帳號目前已被停用，請聯絡客服';
-      case 'too-many-requests':
-        return '嘗試次數過多，請稍後再試';
-      case 'network-request-failed':
-        return '網路連線異常，請確認網路後再試';
-      case 'operation-not-allowed':
-        return '此登入方式目前尚未開放';
-      default:
-        return '帳號操作失敗，請稍後再試';
+  bool mustVerifyEmail(User user) {
+    return AuthAccessPolicy.mustVerifyEmail(
+      emailVerified: user.emailVerified,
+      providerIds: user.providerData.map((UserInfo info) => info.providerId),
+    );
+  }
+
+  Future<User?> reloadCurrentUser() async {
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      return null;
     }
+    await user.reload();
+    return _auth.currentUser;
+  }
+
+  Future<void> sendEmailVerification() async {
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'no current user',
+      );
+    }
+    try {
+      await _auth.setLanguageCode('zh-TW');
+    } catch (error) {
+      debugPrint('驗證信語言設定略過');
+    }
+    await user.sendEmailVerification();
+  }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.setLanguageCode('zh-TW');
+    } catch (error) {
+      debugPrint('重設信語言設定略過');
+    }
+    await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
   // =========================================
@@ -86,8 +96,47 @@ class AuthService {
       }
 
       return userCredential;
-    } catch (e) {
-      debugPrint('Google 登入錯誤: $e');
+    } on FirebaseAuthException catch (error) {
+      if (AuthAccessPolicy.isCancelledCode(error.code)) {
+        return null;
+      }
+      debugPrint('Google 登入錯誤碼: ${error.code}');
+      rethrow;
+    }
+  }
+
+  Future<UserCredential?> signInWithApple() async {
+    final AppleAuthProvider provider = AppleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('name');
+    var stage = kIsWeb ? 'signInWithPopup' : 'signInWithProvider';
+    try {
+      final UserCredential credential =
+          AuthAccessPolicy.useApplePopup(isWeb: kIsWeb)
+          ? await _auth.signInWithPopup(provider)
+          : await _auth.signInWithProvider(provider);
+      final User? user = credential.user;
+      if (user != null) {
+        stage = 'member-profile';
+        await ensureCurrentUserBaseData(user);
+        await ShopService.instance.syncPendingInvitesForCurrentUser();
+        await ShopService.instance.syncOwnerMembershipForCurrentUser();
+      }
+      return credential;
+    } on FirebaseAuthException catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          'Apple 登入失敗 階段=$stage 錯誤碼=${error.code} 訊息=${AuthAccessPolicy.redactedAuthMessage(error.message)}',
+        );
+      }
+      if (AuthAccessPolicy.isCancelledCode(error.code)) {
+        return null;
+      }
+      rethrow;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Apple 登入失敗 階段=$stage 類型=${error.runtimeType}');
+      }
       rethrow;
     }
   }
@@ -110,11 +159,15 @@ class AuthService {
     /// ================================
     final now = FieldValue.serverTimestamp();
 
+    final Map<String, String> identity = AuthAccessPolicy.identityPatch(
+      email: user.email,
+      displayName: user.displayName,
+    );
     if (!userDoc.exists) {
       await userRef.set({
         'uid': user.uid,
-        'email': user.email,
-        'displayName': user.displayName ?? '',
+        'email': identity['email'] ?? '',
+        'displayName': identity['displayName'] ?? '',
         'role': 'user',
         'status': 'active',
         'createdAt': now,
@@ -122,43 +175,44 @@ class AuthService {
         'lastLoginAt': now,
       });
     } else {
-      await userRef.set({
-        'email': user.email,
-        'displayName': user.displayName ?? '',
+      final Map<String, dynamic> patch = <String, dynamic>{
         'updatedAt': now,
         'lastLoginAt': now,
-      }, SetOptions(merge: true));
+      };
+      patch.addAll(identity);
+      await userRef.set(patch, SetOptions(merge: true));
     }
 
     /// ================================
     /// 🟩 user_profiles（會員資料）
     /// ================================
-    if (!profileDoc.exists) {
-      await profileRef.set({
-        'uid': user.uid,
-        'email': user.email ?? '',
-        'name': user.displayName ?? '',
-        'phone': '',
-        'address': '',
-        'emergencyName': '',
-        'emergencyPhone': '',
-
-        /// 🔥 平台用（預留）
-        'globalNote': '',
-        'globalTags': [],
-
-        'petsCount': 0,
-
-        'createdAt': FieldValue.serverTimestamp(),
+    if (!AuthAccessPolicy.shouldCreateMemberRecord(profileDoc.exists)) {
+      final Map<String, dynamic> patch = <String, dynamic>{
         'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      /// 🔥 關鍵：每次登入都更新
-      await profileRef.update({
-        'email': user.email ?? '',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (identity.containsKey('email')) {
+        patch['email'] = identity['email'];
+      }
+      if (identity.containsKey('displayName')) {
+        patch['name'] = identity['displayName'];
+      }
+      await profileRef.update(patch);
+      return;
     }
+    await profileRef.set({
+      'uid': user.uid,
+      'email': identity['email'] ?? '',
+      'name': identity['displayName'] ?? '',
+      'phone': '',
+      'address': '',
+      'emergencyName': '',
+      'emergencyPhone': '',
+      'globalNote': '',
+      'globalTags': <String>[],
+      'petsCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   // =========================================
@@ -181,9 +235,16 @@ class AuthService {
 
     if (displayName != null && displayName.trim().isNotEmpty) {
       await user.updateDisplayName(displayName.trim());
+      await user.reload();
     }
 
-    await ensureCurrentUserBaseData(user);
+    final User current = _auth.currentUser ?? user;
+    await ensureCurrentUserBaseData(current);
+    try {
+      await sendEmailVerification();
+    } on FirebaseAuthException catch (error) {
+      debugPrint('驗證信寄送失敗: ${error.code}');
+    }
 
     // 🔥 同步店家邀請與店主成員文件
     await ShopService.instance.syncPendingInvitesForCurrentUser();

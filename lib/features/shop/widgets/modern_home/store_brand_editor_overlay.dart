@@ -17,6 +17,8 @@ class StoreBrandTopBar extends StatelessWidget {
     required this.theme,
     required this.backgroundColor,
     this.leading,
+    this.actions,
+    this.actionsAtStart = false,
     this.editable = false,
     this.onChanged,
   });
@@ -28,6 +30,8 @@ class StoreBrandTopBar extends StatelessWidget {
   final HomeThemeModel theme;
   final Color backgroundColor;
   final Widget? leading;
+  final Widget? actions;
+  final bool actionsAtStart;
   final bool editable;
   final ValueChanged<StoreBrandStyle>? onChanged;
 
@@ -37,11 +41,24 @@ class StoreBrandTopBar extends StatelessWidget {
       color: backgroundColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            SizedBox(width: leading == null ? 12 : 48, child: leading),
-            Expanded(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double maxWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : 360;
+            final double leadingSlot = leading == null ? 12 : 48;
+            final bool hasActions = actions != null;
+            final double endGap = hasActions ? 8 : 0;
+            final double budget = math.max(0, maxWidth - leadingSlot - endGap);
+            const double bellFloor = 44;
+            final double brandReserve = math.min(
+              96,
+              math.max(0, budget - bellFloor),
+            );
+            final double actionMax = hasActions
+                ? math.max(bellFloor, budget - brandReserve)
+                : 48;
+            final Widget brand = Expanded(
               child: StoreBrandLane(
                 style: style,
                 shopName: shopName,
@@ -51,9 +68,24 @@ class StoreBrandTopBar extends StatelessWidget {
                 editable: editable,
                 onChanged: onChanged,
               ),
-            ),
-            const SizedBox(width: 48),
-          ],
+            );
+            final Widget actionSlot = hasActions
+                ? ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: actionMax),
+                    child: actions,
+                  )
+                : const SizedBox(width: 48);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                SizedBox(width: leadingSlot, child: leading),
+                if (hasActions && actionsAtStart) actionSlot,
+                brand,
+                if (!hasActions || !actionsAtStart) actionSlot,
+                if (hasActions) const SizedBox(width: 8),
+              ],
+            );
+          },
         ),
       ),
     );

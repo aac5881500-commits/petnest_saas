@@ -16,8 +16,6 @@ const {
 } = require("./daycare_utils");
 const {
   quote,
-  remainingFromPaid,
-  paymentStatusOf,
   shopLatePickupBreakdown,
 } = require("./daycare_pricing");
 const {
@@ -36,6 +34,9 @@ const {
   readDailyCapacityRelease,
 } = require("./daycare_capacity");
 const {syncBookingPoints} = require("../points/sync_booking_points");
+const {
+  applyManualInitialPayment,
+} = require("../bookings/manual_initial_payment");
 const {
   prepareDaycareSupplyDeduct,
   prepareDaycareSupplyReturn,
@@ -145,103 +146,13 @@ function resolveDaycareCancelActor(params) {
  * @param {Object} params
  */
 async function applyManualDepositConfirm(params) {
-  const booking = params.booking || {};
-  const alreadyPaid = booking.depositPaid === true ||
-    normalizeString(booking.depositStatus) === "confirmed";
-  if (alreadyPaid) {
-    throw new HttpsError("failed-precondition", "訂金已確認，不可重複執行");
-  }
-  const deposit = toInt(booking.depositAmount, 0);
-  if (deposit <= 0) {
-    throw new HttpsError("failed-precondition", "此訂單無需確認訂金");
-  }
-  const total = toInt(booking.totalPayableAmount, 0) ||
-    toInt(booking.totalAmount, 0) ||
-    toInt(booking.totalPrice, 0);
-  const existingPaid = toInt(booking.paidAmount, 0);
-  const paid = Math.max(existingPaid, deposit);
-  const remaining = remainingFromPaid(total, paid);
-  const paymentStatus = paymentStatusOf(paid, total);
-  const now = admin.firestore.FieldValue.serverTimestamp();
-  const credited = Math.max(deposit, paid - existingPaid);
-  const paymentMethod = normalizeString(booking.paymentMethod) || "transfer";
-  const amountType = normalizeString(booking.payAmountType) === "full" ?
-    "full" : "deposit";
-  const firestore = admin.firestore();
-  const paymentRef = firestore.collection("payments").doc();
-  const currentStatus = normalizeString(booking.status);
-  const update = {
-    depositPaid: true,
-    depositStatus: "confirmed",
-    depositPaidAt: now,
-    paidAmount: paid,
-    remainingAmount: remaining,
-    paymentStatus,
-    paymentConfirmedAt: now,
-    paymentConfirmedBy: params.uid,
-    lastPaymentId: paymentRef.id,
-    lastPaymentAmount: credited,
-    lastPaymentMethod: paymentMethod,
-    lastPaymentPurpose: amountType === "full" ? "full" : "deposit",
-    paymentUpdatedAt: now,
-    updatedAt: now,
-  };
-  if (currentStatus === "pending" || currentStatus === "pending_confirmation") {
-    update.status = "confirmed";
-    update.confirmedAt = now;
-  }
-  const batch = firestore.batch();
-  batch.set(paymentRef, {
+  return applyManualInitialPayment({
+    firestore: admin.firestore(),
+    bookingRef: params.bookingRef,
+    booking: params.booking || {},
+    uid: params.uid,
     shopId: params.shopId,
-    bookingId: params.bookingRef.id,
-    bookingCode: booking.bookingCode || "",
-    userId: booking.userId || "",
-    customerName: booking.customerName || "",
-    sourceType: "booking",
-    sourceId: params.bookingRef.id,
-    gateway: "manual",
-    paymentMethod,
-    amountType,
-    paymentPurpose: amountType === "full" ? "full" : "deposit",
-    amount: credited,
-    currency: "TWD",
-    status: "paid",
-    requestId: `manual_deposit_${params.bookingRef.id}`,
-    merchantTradeNo: "",
-    description: "店家確認訂金",
-    paidAt: now,
-    createdBy: params.uid,
-    updatedBy: params.uid,
-    createdAt: now,
-    updatedAt: now,
   });
-  batch.update(params.bookingRef, update);
-  await batch.commit();
-  await writeActionLog({
-    shopId: params.shopId,
-    targetId: params.bookingRef.id,
-    action: "deposit_confirmed",
-    operatorUid: params.uid,
-    operatorRole: "staff",
-    payload: {
-      depositAmount: deposit,
-      paidAmount: paid,
-      remainingAmount: remaining,
-      paymentStatus,
-      paymentId: paymentRef.id,
-    },
-  });
-  return {
-    ok: true,
-    action: "confirmDeposit",
-    depositPaid: true,
-    depositStatus: "confirmed",
-    paidAmount: paid,
-    remainingAmount: remaining,
-    paymentStatus,
-    paymentId: paymentRef.id,
-    status: update.status || currentStatus,
-  };
 }
 
 exports.manageDaycareBooking = onCall(
@@ -312,6 +223,7 @@ exports.manageDaycareBooking = onCall(
           payload: {status: "confirmed"},
         });
       } else if (action === "confirmDeposit") {
+        // Legacy action name; supports both deposit and full initial payment.
         await requirePerm(uid, shopId, "manage_daycare_bookings");
         result = await applyManualDepositConfirm({
           bookingRef,

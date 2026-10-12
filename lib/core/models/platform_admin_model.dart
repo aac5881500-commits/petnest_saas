@@ -15,6 +15,7 @@ class PlatformAdminModel {
     this.createdBy,
     this.createdAt,
     this.updatedAt,
+    this.lastLoginAt,
   });
 
   final String uid;
@@ -35,6 +36,7 @@ class PlatformAdminModel {
 
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
+  final Timestamp? lastLoginAt;
 
   factory PlatformAdminModel.fromMap(Map<String, dynamic> map) {
     return PlatformAdminModel(
@@ -49,6 +51,7 @@ class PlatformAdminModel {
       createdBy: map['createdBy'],
       createdAt: map['createdAt'],
       updatedAt: map['updatedAt'],
+      lastLoginAt: map['lastLoginAt'] ?? map['lastLogin'],
     );
   }
 
@@ -76,6 +79,7 @@ class PlatformAdminModel {
     String? createdBy,
     Timestamp? createdAt,
     Timestamp? updatedAt,
+    Timestamp? lastLoginAt,
   }) {
     return PlatformAdminModel(
       uid: uid ?? this.uid,
@@ -87,6 +91,7 @@ class PlatformAdminModel {
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      lastLoginAt: lastLoginAt ?? this.lastLoginAt,
     );
   }
 }

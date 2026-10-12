@@ -16,10 +16,14 @@ function normalizeProofPurpose(value) {
   if (raw === "top_up" || raw === "additional") {
     return "balance";
   }
-  if (raw === "deposit" || raw === "balance") {
+  if (raw === "deposit" || raw === "balance" || raw === "full") {
     return raw;
   }
   throw new HttpsError("invalid-argument", "付款類型不正確");
+}
+
+function isInitialProof(purpose) {
+  return purpose === "deposit" || purpose === "full";
 }
 
 const LEGACY_IMAGE_FIELDS = [
@@ -100,7 +104,7 @@ function applyLast5ToProofs(proofs, purpose, last5) {
 }
 
 function last5LegacyMeta(purpose, last5, now) {
-  if (purpose === "deposit") {
+  if (isInitialProof(purpose)) {
     return {
       transferLast5: last5,
       depositStatus: "pending_review",
@@ -116,7 +120,7 @@ function last5LegacyMeta(purpose, last5, now) {
 
 function imageAppendBookingFields(purpose, hasLast5) {
   const keys = ["paymentProofs", "updatedAt"];
-  if (purpose === "deposit") {
+  if (isInitialProof(purpose)) {
     keys.push("depositStatus", "depositSubmittedAt");
     if (hasLast5) {
       keys.push("transferLast5");

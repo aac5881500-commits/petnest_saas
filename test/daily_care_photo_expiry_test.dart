@@ -89,6 +89,34 @@ void main() {
     expect(legacy.expiringSoon(now: DateTime(2026, 9, 24)), isFalse);
   });
 
+  test('已過期或已清理的照片不提供可顯示網址', () {
+    final DateTime now = DateTime.now();
+    final DailyCarePhotoModel open = photo(
+      expiresAt: now.add(const Duration(hours: 1)),
+    );
+    expect(open.canDisplayPreview, isTrue);
+    final DailyCarePhotoModel expired = photo(
+      expiresAt: now.subtract(const Duration(minutes: 1)),
+    );
+    expect(expired.canDisplayPreview, isFalse);
+    expect(expired.retentionEnded, isTrue);
+    final DailyCarePhotoModel cleaned = DailyCarePhotoModel(
+      id: 'p2',
+      shopId: 's1',
+      bookingId: 'stay-1',
+      roomId: 'r-1',
+      roomName: 'A1',
+      recordDate: day,
+      sessionIndex: 0,
+      sessionName: '上午場',
+      previewUrl: 'https://img.example/old.jpg',
+      previewStoragePath: 'path',
+      createdAt: day,
+      photoCleanupStatus: 'cleaned',
+    );
+    expect(cleaned.canDisplayPreview, isFalse);
+  });
+
   test('照片保存期限三種提示文案', () {
     // 一律用 UTC 基準，避免測試機時區影響。
     final DateTime now = DateTime.utc(2026, 9, 21, 2);

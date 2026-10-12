@@ -2,6 +2,7 @@
 // 功能說明：登入後首頁、建立店家、我的店家列表、登出
 // 🏠 HomePage（登入後首頁）
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/widgets/app_state_panel.dart';
@@ -17,9 +18,11 @@ import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dar
 import 'package:petnest_saas/features/platform/pages/platform_admin_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.dart';
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
+import 'package:petnest_saas/features/auth/widgets/desktop_pwa_install_button.dart';
 import 'package:petnest_saas/features/auth/widgets/shop_entry_panel.dart';
 import 'package:petnest_saas/core/services/notification_service.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
+import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/constants/platform_root_admin.dart';
 import 'package:petnest_saas/core/models/platform_admin_model.dart';
 import 'package:petnest_saas/core/services/platform_admin_service.dart';
@@ -35,6 +38,7 @@ class _HomePageState extends State<HomePage> {
   Future<List<Map<String, dynamic>>>? _shopsFuture;
   final PageController _shopPageController = PageController();
   int _selectedShopIndex = 0;
+  bool _hasShopIdentity = false;
   final Map<String, Future<Map<String, int>>> _shopStats = {};
 
   @override
@@ -252,10 +256,15 @@ class _HomePageState extends State<HomePage> {
               icon: const Icon(Icons.add_business, size: 18),
               label: const Text('開店'),
             ),
+            if (kIsWeb && _hasShopIdentity) const ShopDesktopAppNavButton(),
           ],
           _notificationButton(colors),
           _platformAdminButton(uid, compact: !tablet),
-          _accountMenu(user, uid),
+          _accountMenu(
+            user,
+            uid,
+            showDesktopApp: desktop && kIsWeb,
+          ),
         ],
       ),
       body: DecoratedBox(
@@ -291,6 +300,7 @@ class _HomePageState extends State<HomePage> {
                               return const _ShopHomeLoading();
                             }
                             if (snapshot.hasError) {
+                              _rememberShopIdentity(false);
                               return AppStatePanel(
                                 title: '店家列表暫時無法載入',
                                 message: '請確認網路連線後，重新載入你的店家。',
@@ -299,6 +309,14 @@ class _HomePageState extends State<HomePage> {
                             }
                             final List<Map<String, dynamic>> shops =
                                 snapshot.data ?? <Map<String, dynamic>>[];
+                            _rememberShopIdentity(
+                              shops.any((Map<String, dynamic> shop) {
+                                final String role = '${shop['role'] ?? ''}';
+                                return role == ShopRoles.owner ||
+                                    role == ShopRoles.manager ||
+                                    role == ShopRoles.staff;
+                              }),
+                            );
                             if (shops.isEmpty) {
                               return _EmptyShops(onCreate: _openCreateShopPage);
                             }
@@ -563,51 +581,80 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _accountMenu(User? user, String? uid) {
+  Widget _accountMenu(
+    User? user,
+    String? uid, {
+    required bool showDesktopApp,
+  }) {
     return PopupMenuButton<String>(
       tooltip: '帳號',
       icon: const CircleAvatar(radius: 16, child: Icon(Icons.person, size: 18)),
       onSelected: (String value) async {
+        if (value == 'desktop-app') {
+          await showShopDesktopAppDialog(context);
+          return;
+        }
         if (value == 'logout') {
           await _logout();
         }
       },
-      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Text(
-                '目前登入',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                user?.email ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              SelectableText(
-                uid ?? '',
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
-              ),
-            ],
+      itemBuilder: (BuildContext context) {
+        return <PopupMenuEntry<String>>[
+          PopupMenuItem<String>(
+            enabled: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  '目前登入',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user?.email ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(
+                  uid ?? '',
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
           ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.logout, size: 18),
-              SizedBox(width: 8),
-              Text('登出'),
-            ],
+          const PopupMenuDivider(),
+          if (showDesktopApp && _hasShopIdentity)
+            const PopupMenuItem<String>(
+              value: 'desktop-app',
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.computer_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('店家管理電腦版'),
+                ],
+              ),
+            ),
+          const PopupMenuItem<String>(
+            value: 'logout',
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.logout, size: 18),
+                SizedBox(width: 8),
+                Text('登出'),
+              ],
+            ),
           ),
-        ),
-      ],
+        ];
+      },
     );
+  }
+
+  void _rememberShopIdentity(bool value) {
+    if (_hasShopIdentity == value) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _hasShopIdentity == value) return;
+      setState(() => _hasShopIdentity = value);
+    });
   }
 }
 

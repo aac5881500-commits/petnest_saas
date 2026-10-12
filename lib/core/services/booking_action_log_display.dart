@@ -91,6 +91,9 @@ class BookingActionLogDisplay {
         type == 'payment_choice_changed') {
       return '變更付款方式';
     }
+    if (_isManualPaymentLog(type)) {
+      return _manualPaymentTitle(flattened(log));
+    }
     final String daycare = DaycareStatusLabels.actionName(type);
     if (daycare.isNotEmpty &&
         type != 'daycare_settle' &&
@@ -107,8 +110,6 @@ class BookingActionLogDisplay {
         return '更換房間';
       case 'booking_status_update':
         return '狀態變更';
-      case 'deposit_confirmed':
-        return '確認訂金';
       case 'booking_cancelled':
         return '取消訂單';
       case 'checkout_completed':
@@ -185,10 +186,17 @@ class BookingActionLogDisplay {
         type == 'settlement_switchTopUpMethod' ||
         type == 'settlement_requestAppTopUp') {
       lines.addAll(_paymentChangeLines(f));
-    } else if (type == 'deposit_confirmed') {
-      final String amount = _money(f['depositAmount'] ?? f['paidAmount']);
+    } else if (_isManualPaymentLog(type)) {
+      final bool full = (f['paymentPurpose'] ?? '').toString() == 'full';
+      final String amount = _money(
+        f['amount'] ?? f['paidAmount'] ?? f['depositAmount'],
+      );
       if (amount.isNotEmpty) {
-        lines.add('訂金 $amount');
+        lines.add(full ? '全額付款 $amount' : '訂金 $amount');
+      }
+      final String method = _first(f, <String>['paymentMethod']);
+      if (method.isNotEmpty) {
+        lines.add('方式：${BookingPaymentLabels.method(method)}');
       }
     } else if (type == 'settlement_confirmRefund') {
       lines.addAll(_refundLines(f));
@@ -218,6 +226,16 @@ class BookingActionLogDisplay {
       lines.add('原因：$reason');
     }
     return lines.where((String line) => !_containsDocumentId(line)).toList();
+  }
+
+  static bool _isManualPaymentLog(String type) {
+    return type == 'manual_payment_confirmed' || type == 'deposit_confirmed';
+  }
+
+  static String _manualPaymentTitle(Map<String, dynamic> fields) {
+    return (fields['paymentPurpose'] ?? '').toString() == 'full'
+        ? '確認全額入帳'
+        : '確認訂金';
   }
 
   static List<String> _paymentChangeLines(Map<String, dynamic> f) {

@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.
 import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/booking_inventory_function_service.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_assign_room_rules.dart';
@@ -23,6 +24,7 @@ import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_action_log_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_customer_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_action_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_payment_aside.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_policy_card.dart';
@@ -108,15 +110,17 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     result = await DaycareFunctionService.instance.manage(
       shopId: widget.shopId,
       bookingId: widget.bookingId,
+      // Legacy action name; supports both deposit and full initial payment.
       action: 'confirmDeposit',
       requestId:
           '${widget.bookingId}_confirmDeposit_${DateTime.now().millisecondsSinceEpoch}',
     );
     final bool written =
         result['depositPaid'] == true ||
-        (result['depositStatus'] ?? '').toString() == 'confirmed';
+        (result['depositStatus'] ?? '').toString() == 'confirmed' ||
+        (result['paymentStatus'] ?? '').toString() == 'paid';
     if (!written) {
-      throw const DaycareFunctionException('確認訂金未寫入付款狀態，請重試');
+      throw const DaycareFunctionException('確認付款未寫入付款狀態，請重試');
     }
   }
 
@@ -129,20 +133,25 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
       final bool? ok = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (BuildContext context) => AlertDialog(
-          title: const Text('確認操作'),
-          content: Text(confirm),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('確定'),
-            ),
-          ],
-        ),
+        builder: (BuildContext context) {
+          final InitialPaymentChoice choice =
+              BookingPaymentStatus.initialPaymentChoice(widget.data);
+          final bool paymentConfirm = action == 'confirmDeposit';
+          return AlertDialog(
+            title: Text(paymentConfirm ? choice.confirmButtonLabel : '確認操作'),
+            content: Text(confirm),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(paymentConfirm ? choice.confirmButtonLabel : '確定'),
+              ),
+            ],
+          );
+        },
       );
       if (ok != true || !mounted) {
         return;
@@ -164,11 +173,14 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     setState(() => _busy = true);
     try {
       if (action == 'confirmDeposit') {
+        final bool full = BookingPaymentStatus.initialPaymentChoice(
+          widget.data,
+        ).isFull;
         await _confirmDepositFromProof();
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('訂金已確認')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(full ? '全額已確認' : '訂金已確認')),
+          );
         }
       } else {
         await DaycareFunctionService.instance.manage(
@@ -279,23 +291,29 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     final ButtonStyle daycareTap = FilledButton.styleFrom(
       minimumSize: const Size(48, 48),
     );
+    final InitialPaymentChoice initialChoice =
+        BookingPaymentStatus.initialPaymentChoice(data);
     Widget? primaryAction() {
       if (!locked &&
-          (status == 'pending' || status == 'pending_confirmation') &&
-          DaycarePaymentDisplay.toInt(data['depositAmount']) > 0 &&
-          !BookingPaymentStatus.isDepositConfirmed(data)) {
+          BookingPaymentStatus.needsInitialPaymentConfirm(data)) {
         return FilledButton(
           style: daycareTap,
           onPressed: _busy
               ? null
-              : () => _run('confirmDeposit', confirm: '確認已收到訂金？'),
-          child: const Text('確認訂金'),
+              : () => _run(
+                  'confirmDeposit',
+                  confirm: initialChoice
+                      .confirmLines(
+                        BookingPaymentLabels.method(data['paymentMethod']),
+                      )
+                      .join('\n'),
+                ),
+          child: Text(initialChoice.confirmButtonLabel),
         );
       }
       if (!locked &&
           (status == 'pending' || status == 'pending_confirmation') &&
-          (DaycarePaymentDisplay.toInt(data['depositAmount']) <= 0 ||
-              BookingPaymentStatus.isDepositConfirmed(data))) {
+          !BookingPaymentStatus.needsInitialPaymentConfirm(data)) {
         return FilledButton(
           style: daycareTap,
           onPressed: _busy ? null : () => _run('confirm'),
@@ -467,6 +485,11 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                     spacing: 8,
                     runSpacing: 8,
                     children: <Widget>[
+                      if (BookingPaymentStatus.needsInitialPaymentConfirm(data))
+                        SizedBox(
+                          width: double.infinity,
+                          child: ManualPaymentConfirmSummary(data: data),
+                        ),
                       ?wrapPrimary,
                       ?wrapCompanion,
                       ?wrapDanger,
@@ -474,12 +497,22 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                   ),
                 )
               : null,
-          phoneInlineActions: widget.canEdit && daycareDanger != null
+          phoneInlineActions:
+              widget.canEdit &&
+                  (daycareDanger != null ||
+                      BookingPaymentStatus.needsInitialPaymentConfirm(data))
               ? AdminBookingDetailCard(
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: <Widget>[daycareDanger],
+                    children: <Widget>[
+                      if (BookingPaymentStatus.needsInitialPaymentConfirm(data))
+                        SizedBox(
+                          width: double.infinity,
+                          child: ManualPaymentConfirmSummary(data: data),
+                        ),
+                      ?daycareDanger,
+                    ],
                   ),
                 )
               : null,
@@ -692,11 +725,15 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               onConfirmDeposit:
                   widget.canEdit &&
                       !locked &&
-                      (status == 'pending' ||
-                          status == 'pending_confirmation') &&
-                      DaycarePaymentDisplay.toInt(data['depositAmount']) > 0 &&
-                      !BookingPaymentStatus.isDepositConfirmed(data)
-                  ? _confirmDepositFromProof
+                      BookingPaymentStatus.needsInitialPaymentConfirm(data)
+                  ? () => _run(
+                      'confirmDeposit',
+                      confirm: BookingPaymentStatus.initialPaymentChoice(data)
+                          .confirmLines(
+                            BookingPaymentLabels.method(data['paymentMethod']),
+                          )
+                          .join('\n'),
+                    )
                   : null,
             ),
             AdminBookingDetailPolicyCard(data: data),

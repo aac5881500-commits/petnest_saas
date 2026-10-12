@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
@@ -57,15 +58,17 @@ class AdminBookingPriceSection extends StatelessWidget {
         List<Map<String, dynamic>>.from(
           data['specialDateSurchargeDetails'] ?? const <dynamic>[],
         );
-    final depositPaid = data['depositPaid'] == true;
-    final depositAmount = data['depositAmount'] ?? 0;
-    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
+    final InitialPaymentChoice initialChoice =
+        BookingPaymentStatus.initialPaymentChoice(data);
+    final bool depositPaid = initialChoice.settled;
 
-    final paymentTitle = payAmountType == 'full' ? '全額' : '訂金';
+    final String paymentTitle = initialChoice.typeLabel;
 
-    final paymentAmount = payAmountType == 'full'
-        ? (data['totalPrice'] ?? 0)
-        : depositAmount;
+    final int paymentAmount = initialChoice.settled
+        ? (initialChoice.isFull
+              ? BookingPaymentStatus.resolveTotal(data)
+              : BookingPaymentStatus.resolveDepositAmount(data))
+        : initialChoice.amount;
     final paymentMethodText = adminBookingPaymentMethodText(
       data['paymentMethod'],
     );

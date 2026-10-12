@@ -69,3 +69,43 @@ flutter:
     - assets/images/
     - assets/daily_care/card_backgrounds/
     - assets/daily_care/illustrations/
+    
+  # PetNest 免費商用字體庫。店名使用 w800，單一字重檔案要同時登記 400 與 800。
+  fonts:
+    - family: jfOpenHuninn
+      fonts:
+        - asset: assets/fonts/jf-openhuninn-2.1.ttf
+          weight: 400
+        - asset: assets/fonts/jf-openhuninn-2.1.ttf
+          weight: 800
+
+    - family: NotoSansTC
+      fonts:
+        - asset: assets/fonts/NotoSansTC-VariableFont_wght.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansTC-VariableFont_wght.ttf
+          weight: 800
+
+    - family: NotoSerifTC
+      fonts:
+        - asset: assets/fonts/NotoSerifTC-VariableFont_wght.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSerifTC-VariableFont_wght.ttf
+          weight: 800
+
+    # Klee One 日系手寫楷書
+    - family: KleeOne
+      fonts:
+        - asset: assets/fonts/KleeOne-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/KleeOne-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/KleeOne-SemiBold.ttf
+          weight: 800
+
+    - family: ChironSungHK
+      fonts:
+        - asset: assets/fonts/ChironSungHKVF.ttf
+          weight: 400
+        - asset: assets/fonts/ChironSungHKVF.ttf
+          weight: 800

@@ -21,6 +21,11 @@ class ShopChangeRequestPage extends StatefulWidget {
     required this.currentLineUrl,
     required this.currentIgUrl,
     required this.currentFbUrl,
+    this.initialRequestType = 'phone',
+    this.initialNewCity,
+    this.initialNewDistrict,
+    this.initialNewAddress,
+    this.initialHint,
   });
 
   final String shopId;
@@ -34,6 +39,11 @@ class ShopChangeRequestPage extends StatefulWidget {
   final String currentLineUrl;
   final String currentIgUrl;
   final String currentFbUrl;
+  final String initialRequestType;
+  final String? initialNewCity;
+  final String? initialNewDistrict;
+  final String? initialNewAddress;
+  final String? initialHint;
 
   @override
   State<ShopChangeRequestPage> createState() => _ShopChangeRequestPageState();
@@ -46,6 +56,25 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
   String _requestType = 'phone';
   String _newCity = '新竹縣';
   String _newDistrict = '新埔鎮';
+
+  @override
+  void initState() {
+    super.initState();
+    _requestType = widget.initialRequestType;
+    final city = widget.initialNewCity;
+    if (city != null && cityData.containsKey(city)) {
+      _newCity = city;
+      final districts = cityData[city] ?? <String>[];
+      final district = widget.initialNewDistrict;
+      _newDistrict = district != null && districts.contains(district)
+          ? district
+          : (districts.isEmpty ? _newDistrict : districts.first);
+    }
+    final address = widget.initialNewAddress;
+    if (address != null && address.trim().isNotEmpty) {
+      _newValueController.text = address.trim();
+    }
+  }
 
   Future<void> _submitRequest() async {
     if (_reasonController.text.trim().isEmpty) {
@@ -246,6 +275,11 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
               });
             },
           ),
+
+          if ((widget.initialHint ?? '').isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(widget.initialHint!),
+          ],
 
           const SizedBox(height: 16),
 
