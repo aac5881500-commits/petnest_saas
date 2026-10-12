@@ -11,8 +11,7 @@ class ModernHomeAppearanceTabs {
   static const int faq = 8;
   static const int reviews = 9;
   static const int navigation = 10;
-  static const int features = 11;
-  static const int length = 12;
+  static const int length = 11;
 
   static int? sectionTab(String sectionId) {
     return switch (sectionId) {

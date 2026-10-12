@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
+import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
 import 'package:petnest_saas/core/models/shop_chat_message_model.dart';
 import 'package:petnest_saas/core/models/shop_chat_thread_model.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
@@ -58,24 +59,27 @@ class ShopChatService {
     return (floatingSetting(shop)['type'] ?? '').toString().trim();
   }
 
-  /// 前台浮動按鈕實際功能。舊資料若曾開 storeChatEnabled，只在 runtime / UI fallback。
+  /// 前台浮動按鈕實際功能。已儲存的類型優先，不再被 storeChatEnabled 改掉。
   static String resolvedFloatingType(Map<String, dynamic>? shop) {
     final String saved = savedFloatingType(shop);
-    if (saved == floatingTypePetnestChat) {
-      return floatingTypePetnestChat;
+    if (saved.isNotEmpty) {
+      return saved;
     }
     if (shop != null &&
         shop['storeChatEnabled'] == true &&
-        isFloatingEnabled(shop) &&
-        saved != floatingTypePetnestChat) {
+        isFloatingEnabled(shop)) {
       return floatingTypePetnestChat;
     }
     return saved;
   }
 
-  /// 店家聊天功能是否啟用：由快速聯絡「按鈕功能」判定，不再用獨立開關。
+  /// 聊天頁與選單是否可用。右上角明確選了聊天且店家已開通時也算。
   static bool isEnabled(Map<String, dynamic>? shop) {
-    return resolvedFloatingType(shop) == floatingTypePetnestChat;
+    if (savedFloatingType(shop) == floatingTypePetnestChat) {
+      return true;
+    }
+    return shop?['storeChatEnabled'] == true &&
+        HomeQuickActionSetting.savedSlotsUseChat(shop);
   }
 
   static String defaultLabelForType(String type) {

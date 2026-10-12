@@ -6,16 +6,13 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settin
 
 void main() {
   test('舊資料缺少新欄位時保持不透明並推算次要文字', () {
-    final HomeThemeModel theme = HomeThemeModel.fromMap(
-      <String, dynamic>{
-        'backgroundColor': 0xFFFFFBF7,
-        'cardColor': 0xFFFFFFFF,
-        'cardBorderColor': 0xFFFFD9B3,
-        'primaryColor': 0xFFFF8A00,
-        'textColor': 0xFF3A2A20,
-      },
-      fallback: HomeThemeModel.modernDefault,
-    );
+    final HomeThemeModel theme = HomeThemeModel.fromMap(<String, dynamic>{
+      'backgroundColor': 0xFFFFFBF7,
+      'cardColor': 0xFFFFFFFF,
+      'cardBorderColor': 0xFFFFD9B3,
+      'primaryColor': 0xFFFF8A00,
+      'textColor': 0xFF3A2A20,
+    }, fallback: HomeThemeModel.modernDefault);
     expect(theme.secondaryTextColorValue, isNull);
     expect(theme.buttonFollowsPrimary, isTrue);
     expect(theme.buttonTextMode, 'auto');
@@ -40,14 +37,65 @@ void main() {
       primaryColorValue: 0xFF112233,
     );
     expect(HomeColorPalette.matching(tweaked), isNull);
-    expect(HomeColorPalette.presets, hasLength(8));
+    expect(HomeColorPalette.presets, hasLength(15));
+    expect(
+      HomeColorPalette.presets.map((HomeColorPreset item) => item.id),
+      containsAll(<String>[
+        'warmCream',
+        'sakura',
+        'freshBlue',
+        'sage',
+        'grape',
+        'milkTea',
+        'minimal',
+        'dark',
+        'creamWhite',
+        'hinoki',
+        'mistBlue',
+        'apricot',
+        'nordic',
+        'warmStone',
+        'forest',
+      ]),
+    );
+  });
+
+  test('新增主題沿用同一組欄位，文字與按鈕維持可閱讀', () {
+    for (final HomeColorPreset preset in HomeColorPalette.presets) {
+      final HomeThemeModel theme = preset.apply(HomeThemeModel.modernDefault);
+      expect(theme.buttonFollowsPrimary, isTrue, reason: preset.name);
+      expect(theme.buttonTextMode, 'auto', reason: preset.name);
+      final Color nav = Color.alphaBlend(
+        theme.primaryColor.withValues(alpha: 0.12),
+        theme.cardColor,
+      );
+      expect(
+        HomeColorContrast.pageNeedsAttention(theme),
+        isFalse,
+        reason:
+            '${preset.name} '
+            'text/bg ${HomeColorContrast.ratio(theme.textColor, theme.backgroundColor).toStringAsFixed(2)} '
+            'text/card ${HomeColorContrast.ratio(theme.textColor, theme.cardColor).toStringAsFixed(2)} '
+            'button ${HomeColorContrast.ratio(theme.buttonForegroundColor, theme.buttonBackgroundColor).toStringAsFixed(2)} '
+            'nav ${HomeColorContrast.ratio(theme.primaryColor, nav).toStringAsFixed(2)}',
+      );
+    }
   });
 
   test('HEX 只接受正確格式', () {
-    expect(HomeColorPalette.tryParseHex('#AABBCC', allowAlpha: false), 0xFFAABBCC);
-    expect(HomeColorPalette.tryParseHex('#80AABBCC', allowAlpha: true), 0x80AABBCC);
+    expect(
+      HomeColorPalette.tryParseHex('#AABBCC', allowAlpha: false),
+      0xFFAABBCC,
+    );
+    expect(
+      HomeColorPalette.tryParseHex('#80AABBCC', allowAlpha: true),
+      0x80AABBCC,
+    );
     expect(HomeColorPalette.tryParseHex('zz', allowAlpha: false), isNull);
-    expect(HomeColorPalette.tryParseHex('#80AABBCC', allowAlpha: false), isNull);
+    expect(
+      HomeColorPalette.tryParseHex('#80AABBCC', allowAlpha: false),
+      isNull,
+    );
     expect(HomeColorPalette.hexOf(0xFFFFF8F3), '#FFF8F3');
   });
 
@@ -64,11 +112,11 @@ void main() {
                 return ListView(
                   children: <Widget>[
                     HomeColorSettingsPanel(
-                  theme: current,
-                  entryTheme: HomeThemeModel.modernDefault,
-                  onChanged: (HomeThemeModel value) {
-                    setState(() => current = value);
-                  },
+                      theme: current,
+                      entryTheme: HomeThemeModel.modernDefault,
+                      onChanged: (HomeThemeModel value) {
+                        setState(() => current = value);
+                      },
                     ),
                   ],
                 );
@@ -79,7 +127,10 @@ void main() {
       );
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(find.text('主題快速套用'), findsOneWidget);
+      expect(find.text('快速配色'), findsOneWidget);
+      expect(find.text('目前色彩'), findsNothing);
+      expect(find.text('恢復進入時的色彩'), findsOneWidget);
+      expect(find.text('奶油暖白'), findsOneWidget);
       final Finder preset = find.text('櫻花粉');
       await tester.ensureVisible(preset);
       await tester.pump();
@@ -87,6 +138,20 @@ void main() {
       await tester.pump();
       expect(current.primaryColorValue, 0xFFE06B84);
       expect(find.text('目前：櫻花粉'), findsOneWidget);
+      final Finder cream = find.text('奶油暖白');
+      await tester.ensureVisible(cream);
+      await tester.tap(cream);
+      await tester.pump();
+      expect(current.backgroundColorValue, 0xFFFFF9F0);
+      expect(find.text('目前：奶油暖白'), findsOneWidget);
+      final Finder adjust = find.widgetWithText(TextButton, '調整').first;
+      await tester.scrollUntilVisible(adjust, 200);
+      await tester.pump();
+      await tester.tap(adjust);
+      await tester.pump();
+      expect(find.text('自訂顏色'), findsOneWidget);
+      expect(find.text('恢復預設'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     }
 
     addTearDown(tester.view.resetPhysicalSize);

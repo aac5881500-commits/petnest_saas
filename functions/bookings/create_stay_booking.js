@@ -423,6 +423,12 @@ exports.createStayBooking = onCall(
       const memberState = await loadAppMemberState(firestore, shopId, userId);
       const shopSnap = await firestore.collection("shops").doc(shopId).get();
       const shopData = shopSnap.data() || {};
+      if (!shopSnap.exists || shopData.deletionState === "deleting") {
+        throw new HttpsError(
+            "failed-precondition",
+            "店家正在進行資料清除，無法建立新訂單",
+        );
+      }
       let stayCareEntitlement = {};
       let stayCareAddons = Array.isArray(booking.addons) ? booking.addons : [];
       let stayPayableAfterCoupon = Math.max(0, toInt(booking.totalPrice, 0));

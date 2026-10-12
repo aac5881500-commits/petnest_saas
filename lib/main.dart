@@ -22,6 +22,8 @@ import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/fcm_token_service.dart';
 import 'package:petnest_saas/core/services/fcm_message_service.dart';
 import 'package:petnest_saas/core/navigation/app_navigator.dart';
+import 'package:petnest_saas/core/web/web_update_controller.dart';
+import 'package:petnest_saas/core/web/web_update_prompt.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,12 +79,40 @@ Future<void> main() async {
   runApp(const PetNestApp());
 }
 
-class PetNestApp extends StatelessWidget {
+class PetNestApp extends StatefulWidget {
   const PetNestApp({super.key});
+
+  @override
+  State<PetNestApp> createState() => _PetNestAppState();
+}
+
+class _PetNestAppState extends State<PetNestApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WebUpdateController.instance.start();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      WebUpdateController.instance.onResumed();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      builder: (BuildContext context, Widget? child) {
+        return WebUpdateOverlay(child: child ?? const SizedBox.shrink());
+      },
       navigatorKey: AppNavigator.key,
       title: 'PetNest SaaS',
       debugShowCheckedModeBanner: false,

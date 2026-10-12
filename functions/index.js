@@ -883,6 +883,17 @@ exports.createPlatformUserByEmail =
 exports.updatePlatformUser =
   require("./platform/update_platform_user")
       .updatePlatformUser;
+
+/**
+ * 最高管理員店家完整刪除：預覽、建立工作、分批執行、查詢及驗證。
+ * 正式永久刪除目前由後端保護為不可執行。
+ */
+const shopDeletion = require("./platform/shop_deletion");
+exports.previewShopDeletion = shopDeletion.previewShopDeletion;
+exports.createShopDeletionJob = shopDeletion.createShopDeletionJob;
+exports.runShopDeletionBatch = shopDeletion.runShopDeletionBatch;
+exports.getShopDeletionJob = shopDeletion.getShopDeletionJob;
+exports.verifyShopDeletion = shopDeletion.verifyShopDeletion;
 /**
  * ⚙️ 更新店家收款方式營運設定
  *

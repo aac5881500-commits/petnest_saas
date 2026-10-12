@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/services/pwa_install.dart';
+import 'package:petnest_saas/core/web/web_update_controller.dart';
+import 'package:petnest_saas/core/web/web_update_prompt.dart';
 
 Future<void> showShopDesktopAppDialog(BuildContext context) {
   return showDialog<void>(
@@ -30,10 +32,11 @@ class ShopDesktopAppNavButton extends StatelessWidget {
 }
 
 class ShopDesktopAppDialog extends StatefulWidget {
-  const ShopDesktopAppDialog({super.key, this.preview});
+  const ShopDesktopAppDialog({super.key, this.preview, this.updates});
 
   /// 測試用狀態。正式畫面不傳入，改讀瀏覽器。
   final PwaInstallStatus? preview;
+  final WebUpdateController? updates;
 
   @override
   State<ShopDesktopAppDialog> createState() => _ShopDesktopAppDialogState();
@@ -169,6 +172,10 @@ class _ShopDesktopAppDialogState extends State<ShopDesktopAppDialog> {
                 const SizedBox(height: 8),
                 const Text('若你已經安裝過，請從桌面、開始選單或工作列自行開啟。這個網頁無法直接啟動已安裝的電腦版，也無法跨視窗確認安裝狀態。'),
               ],
+              if (kIsWeb || widget.updates != null)
+                WebUpdatePanel(
+                  controller: widget.updates ?? WebUpdateController.instance,
+                ),
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: () => setState(() => _showUninstall = !_showUninstall),

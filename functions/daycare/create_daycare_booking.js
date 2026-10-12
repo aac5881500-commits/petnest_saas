@@ -404,6 +404,12 @@ async function createDaycareBookingBody(params) {
         throw new HttpsError("not-found", "找不到店家");
       }
       const shopData = shopSnap.data() || {};
+      if (shopData.deletionState === "deleting") {
+        throw new HttpsError(
+            "failed-precondition",
+            "店家正在進行資料清除，無法建立新訂單",
+        );
+      }
       const settingsSnap = await firestore.collection("shops").doc(shopId)
           .collection("daycare_settings").doc("main").get();
       const settings = settingsSnap.data() || {};

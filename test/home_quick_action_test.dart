@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
+import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_quick_action_bar.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_quick_action_settings_panel.dart';
@@ -266,46 +267,242 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('owner can reorder and the cart switch waits for the store', (
+  test('stored slots stay put when a feature is unavailable', () {
+    final HomeQuickActionSetting setting = HomeQuickActionSetting.fromMap(
+      <String, dynamic>{
+        'slots': <String>[HomeQuickActionIds.cart, HomeQuickActionIds.chat],
+      },
+    );
+    final HomeShortcutGate blocked = HomeShortcutGate(
+      storeEnabled: false,
+      chatProvisioned: false,
+      phoneReady: false,
+      lineReady: false,
+      facebookReady: false,
+      instagramReady: false,
+      announcementsEnabled: true,
+      faqEnabled: true,
+      memberCenterEnabled: true,
+      showShopMenus: true,
+      paidPlan: true,
+      floatingEnabled: true,
+      floatingType: HomeQuickActionIds.chat,
+    );
+    expect(setting.slotOne, HomeQuickActionIds.cart);
+    expect(setting.slotTwo, HomeQuickActionIds.chat);
+    expect(blocked.visibleIds(setting), <String>[
+      HomeQuickActionIds.notifications,
+    ]);
+    final HomeShortcutGate open = HomeShortcutGate(
+      storeEnabled: true,
+      chatProvisioned: true,
+      phoneReady: true,
+      lineReady: false,
+      facebookReady: false,
+      instagramReady: false,
+      announcementsEnabled: true,
+      faqEnabled: true,
+      memberCenterEnabled: true,
+      showShopMenus: true,
+      paidPlan: true,
+      floatingEnabled: false,
+      floatingType: HomeQuickActionIds.phone,
+    );
+    expect(open.visibleIds(setting), <String>[
+      HomeQuickActionIds.notifications,
+      HomeQuickActionIds.cart,
+      HomeQuickActionIds.chat,
+    ]);
+    expect(
+      open.selectionReason(HomeQuickActionIds.phone, otherSlot: ''),
+      isNull,
+    );
+    expect(open.copyWith().blockReason(HomeQuickActionIds.line), '請先填寫 LINE');
+    final HomeQuickActionSetting phone = setting.assignSlot(
+      1,
+      HomeQuickActionIds.phone,
+    );
+    expect(phone.slotOne, HomeQuickActionIds.cart);
+    expect(phone.slotTwo, HomeQuickActionIds.phone);
+    expect(
+      open.selectionReason(HomeQuickActionIds.cart, otherSlot: phone.slotOne),
+      '已用於另一個快捷鍵',
+    );
+  });
+
+  testWidgets('unavailable shortcut keeps its saved choice and explains why', (
     WidgetTester tester,
   ) async {
     HomeQuickActionSetting setting = const HomeQuickActionSetting();
+    const HomeShortcutGate gate = HomeShortcutGate(
+      storeEnabled: false,
+      chatProvisioned: true,
+      phoneReady: false,
+      lineReady: true,
+      facebookReady: false,
+      instagramReady: false,
+      announcementsEnabled: true,
+      faqEnabled: true,
+      memberCenterEnabled: true,
+      showShopMenus: true,
+      paidPlan: true,
+      floatingEnabled: true,
+      floatingType: HomeQuickActionIds.chat,
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
-              return SingleChildScrollView(
-                child: HomeQuickActionSettingsPanel(
-                  setting: setting,
-                  theme: HomeThemeModel.modernDefault,
-                  storeEnabled: false,
-                  chatEnabled: true,
-                  onChanged: (HomeQuickActionSetting value) {
-                    setState(() => setting = value);
-                  },
-                ),
-              );
-            },
+          body: HomeQuickActionSettingsPanel(
+            setting: setting,
+            gate: gate,
+            onChanged: (HomeQuickActionSetting value) => setting = value,
           ),
         ),
       ),
     );
+    expect(find.text('請先啟用商城'), findsOneWidget);
+    expect(find.text('已由懸浮按鈕使用'), findsOneWidget);
+    expect(find.text('通知鈴鐺（固定顯示）'), findsOneWidget);
+    expect(setting.slotOne, HomeQuickActionIds.cart);
+    expect(setting.slotTwo, HomeQuickActionIds.chat);
+  });
 
-    final List<Switch> switches = tester
-        .widgetList<Switch>(find.byType(Switch))
-        .toList();
-    expect(switches[1].onChanged, isNull);
-    expect(switches[2].onChanged, isNull);
-    expect(switches[3].onChanged, isNotNull);
-
-    await tester.tap(find.byTooltip('下移').first);
-    await tester.pump();
-    expect(setting.knownItems.first.id, HomeQuickActionIds.cart);
-    expect(
-      setting.knownItems.map((HomeQuickActionItem item) => item.id),
-      contains(HomeQuickActionIds.notifications),
+  testWidgets('role cards fit a phone column and keep disabled values', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final TextEditingController label = TextEditingController(text: '聯絡店家');
+    addTearDown(label.dispose);
+    const HomeShortcutGate gate = HomeShortcutGate(
+      storeEnabled: false,
+      chatProvisioned: false,
+      phoneReady: true,
+      lineReady: false,
+      facebookReady: true,
+      instagramReady: false,
+      announcementsEnabled: false,
+      faqEnabled: false,
+      memberCenterEnabled: false,
+      showShopMenus: false,
+      paidPlan: false,
+      floatingEnabled: false,
+      floatingType: HomeQuickActionIds.facebook,
     );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: <Widget>[
+              FrontendRoleActionsPanel(
+                floatingEnabled: false,
+                floatingType: HomeQuickActionIds.facebook,
+                floatingSize: 'large',
+                labelController: label,
+                quickActions: const HomeQuickActionSetting(),
+                gate: gate,
+                onFloatingEnabled: (_) {},
+                onFloatingType: (_) {},
+                onFloatingSize: (_) {},
+                onQuickActions: (_) {},
+                onLabelChanged: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('前台快捷按鈕'), findsOneWidget);
+    expect(find.text('右上角快捷鍵'), findsOneWidget);
+    expect(find.text('懸浮聯絡按鈕'), findsOneWidget);
+    expect(find.text('快捷鍵一'), findsOneWidget);
+    expect(find.text('快捷鍵二'), findsOneWidget);
+    expect(find.text('通知鈴鐺（固定顯示）'), findsOneWidget);
+    expect(find.text('請先啟用商城'), findsOneWidget);
+    expect(find.text('店家聊天尚未開通'), findsOneWidget);
+    final Finder menus = find.byType(DropdownButtonFormField<String>);
+    expect(menus, findsWidgets);
+    expect(
+      tester.getTopLeft(menus.at(1)).dy,
+      greaterThan(tester.getTopLeft(menus.at(0)).dy + 20),
+    );
+    expect(find.text('小'), findsOneWidget);
+    expect(find.text('中'), findsOneWidget);
+    expect(find.text('大'), findsOneWidget);
+    expect(find.text('聯絡店家'), findsOneWidget);
+    expect(find.text('可直接在左側前台預覽拖曳位置。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shortcut menus sit side by side on a desktop settings column', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final TextEditingController label = TextEditingController();
+    addTearDown(label.dispose);
+    const HomeShortcutGate gate = HomeShortcutGate(
+      storeEnabled: true,
+      chatProvisioned: true,
+      phoneReady: true,
+      lineReady: true,
+      facebookReady: true,
+      instagramReady: true,
+      announcementsEnabled: true,
+      faqEnabled: true,
+      memberCenterEnabled: true,
+      showShopMenus: true,
+      paidPlan: true,
+      floatingEnabled: true,
+      floatingType: HomeQuickActionIds.chat,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 960,
+              height: 900,
+              child: ListView(
+                children: <Widget>[
+                  FrontendRoleActionsPanel(
+                    floatingEnabled: true,
+                    floatingType: HomeQuickActionIds.chat,
+                    floatingSize: 'medium',
+                    labelController: label,
+                    quickActions: const HomeQuickActionSetting(
+                      slotOne: HomeQuickActionIds.cart,
+                      slotTwo: HomeQuickActionIds.faq,
+                    ),
+                    gate: gate,
+                    onFloatingEnabled: (_) {},
+                    onFloatingType: (_) {},
+                    onFloatingSize: (_) {},
+                    onQuickActions: (_) {},
+                    onLabelChanged: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final Finder menus = find.byType(DropdownButtonFormField<String>);
+    expect(menus, findsWidgets);
+    final Offset first = tester.getTopLeft(menus.at(0));
+    final Offset second = tester.getTopLeft(menus.at(1));
+    expect((second.dy - first.dy).abs(), lessThan(8));
+    expect(second.dx, greaterThan(first.dx + 80));
+    await tester.tap(menus.at(0));
+    await tester.pumpAndSettle();
+    expect(find.text('PetNest 店家聊天（已由懸浮按鈕使用）'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

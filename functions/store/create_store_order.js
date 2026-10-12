@@ -81,6 +81,12 @@ exports.createStoreOrder = onCall(
       }
 
       const shopData = shopSnapshot.data() || {};
+      if (shopData.deletionState === "deleting") {
+        throw new HttpsError(
+            "failed-precondition",
+            "店家正在進行資料清除，無法建立商城訂單。",
+        );
+      }
       const enabledModules = require("../sales/commercial_policy")
           .effectiveModules(shopData);
       if (!enabledModules.includes("store")) {

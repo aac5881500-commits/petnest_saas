@@ -246,10 +246,9 @@ void main() {
     await tester.tap(find.text('副標顏色'));
     await tester.pump();
     expect(find.byTooltip('粉紅色 #E06B84'), findsNWidgets(2));
-    await tester.ensureVisible(find.text('進階調整'));
-    await tester.tap(find.text('進階調整'));
-    await tester.pump();
-    expect(find.text('重設位置'), findsOneWidget);
+    expect(find.text('店家品牌設定'), findsOneWidget);
+    expect(find.text('進階調整'), findsNothing);
+    expect(find.text('重設位置'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -661,7 +660,7 @@ void main() {
     expect(find.text('Noto Sans TC 現代黑體'), findsOneWidget);
     expect(find.text('Noto Serif TC 傳統宋體'), findsOneWidget);
     expect(find.text('Klee One 日系手寫'), findsOneWidget);
-    expect(find.text('昭源宋體'), findsOneWidget);
+    expect(find.text('昭源宋體 Chiron Sung HK'), findsOneWidget);
 
     await tester.tap(find.text('Klee One 日系手寫'));
     await tester.pumpAndSettle();

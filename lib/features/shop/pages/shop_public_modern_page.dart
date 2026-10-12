@@ -28,7 +28,7 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
-import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_quick_action_bar.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_layout_canvas.dart';
@@ -87,6 +87,8 @@ class ShopPublicModernPage extends StatefulWidget {
     this.focusSectionToken = 0,
     this.draftModernAppearance,
     this.draftLogoUrl,
+    this.draftFloatingContact,
+    this.draftStoreChatEnabled,
     this.draftHomeBanners,
     this.initialPreviewBannerId,
     this.onPreviewBannerChanged,
@@ -125,6 +127,12 @@ class ShopPublicModernPage extends StatefulWidget {
 
   /// 預覽用 Logo。正式前台不傳。
   final String? draftLogoUrl;
+
+  /// 外觀設定裡尚未儲存的懸浮按鈕。正式前台不傳。
+  final Map<String, dynamic>? draftFloatingContact;
+
+  /// 外觀設定裡的聊天開通狀態。正式前台不傳。
+  final bool? draftStoreChatEnabled;
 
   /// 後台海報預覽用的草稿清單。正式前台不傳，仍讀 Firestore。
   final List<StoreBannerModel>? draftHomeBanners;
@@ -640,9 +648,19 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           );
         }
 
-        final Map<String, dynamic> shop = widget.draftLogoUrl == null
-            ? loadedShop
-            : <String, dynamic>{...loadedShop, 'logoUrl': widget.draftLogoUrl};
+        Map<String, dynamic> shop = loadedShop;
+        if (widget.draftLogoUrl != null ||
+            widget.draftFloatingContact != null ||
+            widget.draftStoreChatEnabled != null) {
+          shop = <String, dynamic>{
+            ...loadedShop,
+            if (widget.draftLogoUrl != null) 'logoUrl': widget.draftLogoUrl,
+            if (widget.draftFloatingContact != null)
+              'floatingContactButton': widget.draftFloatingContact,
+            if (widget.draftStoreChatEnabled != null)
+              'storeChatEnabled': widget.draftStoreChatEnabled,
+          };
+        }
         final shopName = (shop['name'] ?? '店家').toString().trim();
         final rawHomeAppearance = shop['homeAppearance'];
 
@@ -807,14 +825,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             HomeQuickActionSetting.fromMap(
               modernAppearance[HomeQuickActionSetting.mapKey],
             );
+        final HomeShortcutGate shortcutGate = HomeShortcutGate.fromShop(
+          shop,
+          memberCenterEnabled: modernTheme.drawerSetting.showMemberCenter,
+          showShopMenus: modernTheme.drawerSetting.showShopMenus,
+        );
         final Widget quickActionBar = _quickActionBar(
           shop: shop,
           shopName: shopName,
           shopLogoUrl: logoUrl,
           theme: modernTheme,
           setting: quickActions,
-          storeEnabled: storeModuleEnabled,
-          chatEnabled: ShopChatService.isEnabled(shop),
+          gate: shortcutGate,
         );
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
@@ -1612,8 +1634,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required String shopLogoUrl,
     required HomeThemeModel theme,
     required HomeQuickActionSetting setting,
-    required bool storeEnabled,
-    required bool chatEnabled,
+    required HomeShortcutGate gate,
   }) {
     return HomeQuickActionHost(
       shopId: widget.shopId,
@@ -1622,8 +1643,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       shopLogoUrl: shopLogoUrl,
       theme: theme,
       setting: setting,
-      storeEnabled: storeEnabled,
-      chatEnabled: chatEnabled,
+      gate: gate,
       interactive: !widget.isPreview && !widget.layoutCanvas,
     );
   }

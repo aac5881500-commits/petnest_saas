@@ -20,6 +20,7 @@ import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.d
 import 'package:petnest_saas/features/platform/pages/platform_shop_device_manage_page.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_transfer_shop_owner_dialog.dart';
 import 'package:petnest_saas/features/platform/widgets/shop_commercial_summary_card.dart';
+import 'package:petnest_saas/features/platform/widgets/platform_shop_deletion_dialog.dart';
 
 const Color _kPageBackground = Color(0xFFF6F7FB);
 const Color _kCardBorder = Color(0xFFD7E0EA);
@@ -127,6 +128,7 @@ class PlatformShopManagePage extends StatelessWidget {
         PlatformAdminService.instance.hasPermission(
           PlatformPermissionKeys.manageShopSubscriptions,
         ),
+        PlatformAdminService.instance.isSuperAdmin(),
       ]),
       builder: (context, permissionSnapshot) {
         if (permissionSnapshot.connectionState == ConnectionState.waiting) {
@@ -136,11 +138,12 @@ class PlatformShopManagePage extends StatelessWidget {
         }
 
         final permissions =
-            permissionSnapshot.data ?? const <bool>[false, false, false];
+            permissionSnapshot.data ?? const <bool>[false, false, false, false];
 
         final canViewShops = permissions[0];
         final canManageShopStatus = permissions[1];
         final canManageShopSubscriptions = permissions[2];
+        final canDeleteShop = permissions[3];
 
         final canAccess =
             canViewShops || canManageShopStatus || canManageShopSubscriptions;
@@ -153,6 +156,7 @@ class PlatformShopManagePage extends StatelessWidget {
           initialShopId: initialShopId,
           canManageShopStatus: canManageShopStatus,
           canManageShopSubscriptions: canManageShopSubscriptions,
+          canDeleteShop: canDeleteShop,
           formatDate: _formatDate,
           planLabel: _planLabel,
           statusLabel: _statusLabel,
@@ -168,6 +172,7 @@ class _ShopManageScreen extends StatefulWidget {
     this.initialShopId,
     required this.canManageShopStatus,
     required this.canManageShopSubscriptions,
+    required this.canDeleteShop,
     required this.formatDate,
     required this.planLabel,
     required this.statusLabel,
@@ -177,6 +182,7 @@ class _ShopManageScreen extends StatefulWidget {
   final String? initialShopId;
   final bool canManageShopStatus;
   final bool canManageShopSubscriptions;
+  final bool canDeleteShop;
   final String Function(dynamic value) formatDate;
   final String Function(String value) planLabel;
   final String Function(String status) statusLabel;
@@ -271,6 +277,7 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
               data: doc.data() as Map<String, dynamic>,
               canManageShopStatus: widget.canManageShopStatus,
               canManageShopSubscriptions: widget.canManageShopSubscriptions,
+              canDeleteShop: widget.canDeleteShop,
               formatDate: widget.formatDate,
               planLabel: widget.planLabel,
               statusLabel: widget.statusLabel,
@@ -381,12 +388,14 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(successMessage)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('儲存失敗，請確認網路連線與管理權限後再試。')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('儲存失敗，請確認網路連線與管理權限後再試。')));
     } finally {
       if (mounted) setState(() => _busyShops.remove(shopId));
     }
@@ -466,6 +475,7 @@ _ShopVisual _readShop({
   required Map<String, dynamic> data,
   required bool canManageShopStatus,
   required bool canManageShopSubscriptions,
+  required bool canDeleteShop,
   required String Function(dynamic value) formatDate,
   required String Function(String value) planLabel,
   required String Function(String status) statusLabel,
@@ -641,6 +651,15 @@ _ShopVisual _readShop({
             }, nextStatus == 'suspended' ? '店家已停權' : '店家已恢復');
           }
         : null,
+    onDelete: canDeleteShop && !busy
+        ? () {
+            showPlatformShopDeletionDialog(
+              context: context,
+              shopId: shopId,
+              shopName: name,
+            );
+          }
+        : null,
   );
 }
 
@@ -676,6 +695,7 @@ class _ShopVisual {
     required this.onPreview,
     required this.onNotify,
     required this.onToggleSuspend,
+    required this.onDelete,
   });
 
   final String shopId;
@@ -708,6 +728,7 @@ class _ShopVisual {
   final VoidCallback onPreview;
   final VoidCallback onNotify;
   final VoidCallback? onToggleSuspend;
+  final VoidCallback? onDelete;
 
   String get publicShort => isPublic ? '前台公開' : '前台隱藏';
 }
@@ -1946,6 +1967,22 @@ class _ShopActionGrid extends StatelessWidget {
     }
     rows.add(SizedBox(height: gap));
     rows.add(SizedBox(height: buttonHeight, child: suspend));
+    if (shop.onDelete != null) {
+      rows.add(SizedBox(height: gap));
+      rows.add(
+        SizedBox(
+          height: buttonHeight,
+          child: _ShopActionButton(
+            icon: Icons.delete_forever_outlined,
+            label: '完整刪除店家',
+            onPressed: shop.onDelete,
+            foreground: const Color(0xFF991B1B),
+            border: const Color(0xFFFCA5A5),
+            background: const Color(0xFFFEF2F2),
+          ),
+        ),
+      );
+    }
     return Column(children: rows);
   }
 }

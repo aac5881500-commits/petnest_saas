@@ -17,6 +17,32 @@ class ShopContactShortcutService {
   static final ShopContactShortcutService instance =
       ShopContactShortcutService._();
 
+  Future<void> openConfigured({
+    required BuildContext context,
+    required String shopId,
+    required Map<String, dynamic> shop,
+    required String type,
+  }) async {
+    if (type == ShopChatService.floatingTypePetnestChat) {
+      await _openChat(context, shopId);
+      return;
+    }
+    final String? url = _urlForType(shop, type);
+    if (url == null || url.isEmpty || !context.mounted) {
+      return;
+    }
+    final Uri? uri = Uri.tryParse(url);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(
+      uri,
+      mode: type == ShopChatService.floatingTypePhone
+          ? LaunchMode.platformDefault
+          : LaunchMode.externalApplication,
+    );
+  }
+
   Future<void> contactShop({
     required BuildContext context,
     required String shopId,

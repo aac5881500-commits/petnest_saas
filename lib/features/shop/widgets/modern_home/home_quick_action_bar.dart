@@ -7,14 +7,20 @@ import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
+import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/notification_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/core/services/shop_contact_shortcut_service.dart';
 import 'package:petnest_saas/core/services/store_cart_service.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
+import 'package:petnest_saas/features/shop/navigation/frontend_navigation_actions.dart';
+import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/store_cart_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_shortcut_catalog.dart';
 
 class HomeQuickActionButton {
   const HomeQuickActionButton({
@@ -348,8 +354,7 @@ class HomeQuickActionHost extends StatefulWidget {
     required this.shopLogoUrl,
     required this.theme,
     required this.setting,
-    required this.storeEnabled,
-    required this.chatEnabled,
+    required this.gate,
     required this.interactive,
   });
 
@@ -359,8 +364,7 @@ class HomeQuickActionHost extends StatefulWidget {
   final String shopLogoUrl;
   final HomeThemeModel theme;
   final HomeQuickActionSetting setting;
-  final bool storeEnabled;
-  final bool chatEnabled;
+  final HomeShortcutGate gate;
   final bool interactive;
 
   @override
@@ -396,9 +400,12 @@ class _HomeQuickActionHostState extends State<HomeQuickActionHost> {
   void didUpdateWidget(HomeQuickActionHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.shopId != widget.shopId ||
-        oldWidget.storeEnabled != widget.storeEnabled ||
-        oldWidget.chatEnabled != widget.chatEnabled ||
-        !_sameVisible(oldWidget.setting, widget.setting)) {
+        !_sameVisible(
+          oldWidget.setting,
+          oldWidget.gate,
+          widget.setting,
+          widget.gate,
+        )) {
       _resubscribe();
     }
   }
@@ -412,21 +419,14 @@ class _HomeQuickActionHostState extends State<HomeQuickActionHost> {
     super.dispose();
   }
 
-  bool _sameVisible(HomeQuickActionSetting left, HomeQuickActionSetting right) {
-    final List<String> a = left
-        .visibleItems(
-          storeEnabled: widget.storeEnabled,
-          chatEnabled: widget.chatEnabled,
-        )
-        .map((HomeQuickActionItem item) => item.id)
-        .toList();
-    final List<String> b = right
-        .visibleItems(
-          storeEnabled: widget.storeEnabled,
-          chatEnabled: widget.chatEnabled,
-        )
-        .map((HomeQuickActionItem item) => item.id)
-        .toList();
+  bool _sameVisible(
+    HomeQuickActionSetting left,
+    HomeShortcutGate leftGate,
+    HomeQuickActionSetting right,
+    HomeShortcutGate rightGate,
+  ) {
+    final List<String> a = leftGate.visibleIds(left);
+    final List<String> b = rightGate.visibleIds(right);
     if (a.length != b.length) {
       return false;
     }
@@ -448,13 +448,7 @@ class _HomeQuickActionHostState extends State<HomeQuickActionHost> {
     _notes = 0;
     _cart = 0;
     _chat = 0;
-    final Set<String> ids = widget.setting
-        .visibleItems(
-          storeEnabled: widget.storeEnabled,
-          chatEnabled: widget.chatEnabled,
-        )
-        .map((HomeQuickActionItem item) => item.id)
-        .toSet();
+    final Set<String> ids = widget.gate.visibleIds(widget.setting).toSet();
     if (ids.contains(HomeQuickActionIds.notifications) && _uid.isNotEmpty) {
       _noteSub = NotificationService.instance.unreadCountStream().listen(
         (int count) {
@@ -511,21 +505,19 @@ class _HomeQuickActionHostState extends State<HomeQuickActionHost> {
 
   @override
   Widget build(BuildContext context) {
-    final List<HomeQuickActionItem> visible = widget.setting.visibleItems(
-      storeEnabled: widget.storeEnabled,
-      chatEnabled: widget.chatEnabled,
-    );
+    final List<String> visible = widget.gate.visibleIds(widget.setting);
     return HomeQuickActionBar(
       setting: widget.setting,
       theme: widget.theme,
       buttons: visible
-          .map((HomeQuickActionItem item) => _button(item.id))
+          .map(_button)
           .whereType<HomeQuickActionButton>()
           .toList(growable: false),
     );
   }
 
   HomeQuickActionButton? _button(String id) {
+    final HomeShortcutOption? option = HomeShortcutCatalog.find(id);
     switch (id) {
       case HomeQuickActionIds.notifications:
         return HomeQuickActionButton(
@@ -538,21 +530,30 @@ class _HomeQuickActionHostState extends State<HomeQuickActionHost> {
       case HomeQuickActionIds.cart:
         return HomeQuickActionButton(
           id: id,
-          icon: Icons.shopping_cart_outlined,
-          label: '購物車',
+          icon: option?.icon ?? Icons.shopping_cart_outlined,
+          label: option?.label ?? '購物車',
           badgeCount: _cart,
           onPressed: widget.interactive ? _openCart : () {},
         );
       case HomeQuickActionIds.chat:
         return HomeQuickActionButton(
           id: id,
-          icon: Icons.chat_bubble_outline_rounded,
-          label: '訊息',
+          icon: option?.icon ?? Icons.chat_bubble_outline,
+          label: option?.label ?? 'PetNest 店家聊天',
           badgeCount: _chat,
           onPressed: widget.interactive ? _openChat : () {},
         );
       default:
-        return null;
+        if (option == null) {
+          return null;
+        }
+        return HomeQuickActionButton(
+          id: id,
+          icon: option.icon,
+          label: option.label,
+          badgeCount: 0,
+          onPressed: widget.interactive ? () => _openShortcut(id) : () {},
+        );
     }
   }
 
@@ -601,6 +602,59 @@ class _HomeQuickActionHostState extends State<HomeQuickActionHost> {
         ),
       ),
     );
+  }
+
+  Future<void> _openShortcut(String id) async {
+    if (!mounted) {
+      return;
+    }
+    switch (id) {
+      case HomeQuickActionIds.phone:
+      case HomeQuickActionIds.line:
+      case HomeQuickActionIds.facebook:
+      case HomeQuickActionIds.instagram:
+        await ShopContactShortcutService.instance.openConfigured(
+          context: context,
+          shopId: widget.shopId,
+          shop: widget.shop,
+          type: id,
+        );
+        return;
+      case HomeQuickActionIds.promotions:
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ShopAnnouncementPage(
+              shopId: widget.shopId,
+              theme: widget.theme,
+              initialSection: ShopAnnouncementSection.campaigns,
+            ),
+          ),
+        );
+        return;
+      case HomeQuickActionIds.bookings:
+        await _openNav('orders');
+        return;
+      case HomeQuickActionIds.member:
+        await _openNav('member');
+        return;
+      case HomeQuickActionIds.faq:
+        await _openNav('faq');
+        return;
+      default:
+        return;
+    }
+  }
+
+  Future<void> _openNav(String id) async {
+    final FrontendNavigationItem? item = FrontendNavigationRegistry.find(id);
+    if (item == null || !mounted) {
+      return;
+    }
+    await FrontendNavigationLaunch(
+      shopId: widget.shopId,
+      shop: widget.shop,
+      theme: widget.theme,
+    ).open(context, item);
   }
 
   Future<void> _openLogin() async {

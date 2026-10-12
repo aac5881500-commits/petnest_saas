@@ -28,21 +28,53 @@ class StoreBrandSettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        _section(
-          title: '店家基本識別',
-          caption: '顯示在首頁最上方。店名來自基本資料。',
-          child: _identityBody(),
-        ),
-        _section(
-          title: '店名與副標文字',
-          caption: '調整字體、大小、顏色與對齊。',
-          child: _textBody(context),
-        ),
-        _AdvancedPlacement(style: style, onChanged: onChanged),
-      ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6E8EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Text(
+            '店家品牌設定',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            '顯示在首頁最上方。位置可在左側預覽直接拖曳。',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.35,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _subhead('品牌基本資料'),
+          _identityBody(),
+          _subhead('Logo 顯示方式'),
+          _logoBody(),
+          _subhead('店名與副標樣式'),
+          _textBody(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _subhead(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Divider(height: 1, thickness: 1, color: Color(0xFFE6E8EC)),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        ],
+      ),
     );
   }
 
@@ -87,8 +119,15 @@ class StoreBrandSettingsCard extends StatelessWidget {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 4),
-        const Text('Logo 顯示方式', style: TextStyle(fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+
+  Widget _logoBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text('Logo 顯示', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -152,13 +191,13 @@ class StoreBrandSettingsCard extends StatelessWidget {
                 label: 'Logo 位置',
                 children: <Widget>[
                   _toggle(
-                    label: '文字左側',
+                    label: '店名左側',
                     selected: style.logoPlacement == 'leading',
                     onSelected: () =>
                         onChanged(style.copyWith(logoPlacement: 'leading')),
                   ),
                   _toggle(
-                    label: '文字右側',
+                    label: '店名右側',
                     selected: style.logoPlacement == 'trailing',
                     onSelected: () =>
                         onChanged(style.copyWith(logoPlacement: 'trailing')),
@@ -426,42 +465,6 @@ class StoreBrandSettingsCard extends StatelessWidget {
     );
   }
 
-  Widget _section({
-    required String title,
-    required String caption,
-    required Widget child,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE6E8EC)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Text(
-            title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            caption,
-            style: const TextStyle(
-              fontSize: 12,
-              height: 1.35,
-              color: Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-
   Widget _fontSlider({
     required String label,
     required double value,
@@ -491,120 +494,6 @@ class StoreBrandSettingsCard extends StatelessWidget {
           onChanged: onChanged,
         ),
       ],
-    );
-  }
-}
-
-class _AdvancedPlacement extends StatefulWidget {
-  const _AdvancedPlacement({required this.style, required this.onChanged});
-
-  final StoreBrandStyle style;
-  final ValueChanged<StoreBrandStyle> onChanged;
-
-  @override
-  State<_AdvancedPlacement> createState() => _AdvancedPlacementState();
-}
-
-class _AdvancedPlacementState extends State<_AdvancedPlacement> {
-  bool _open = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final StoreBrandStyle style = widget.style;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE6E8EC)),
-      ),
-      child: Column(
-        children: <Widget>[
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(() => _open = !_open),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
-              child: Row(
-                children: <Widget>[
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          '進階調整',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          '水平位置。平時可在左側預覽直接拖曳。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.35,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(_open ? Icons.expand_less : Icons.expand_more),
-                ],
-              ),
-            ),
-          ),
-          if (_open)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _placeChip('靠左', (style.x - 0).abs() < 0.015, 0),
-                      _placeChip('置中', (style.x - 0.5).abs() < 0.015, 0.5),
-                      _placeChip('靠右', (style.x - 1).abs() < 0.015, 1),
-                      if (!StoreBrandStyle.isPresetX(style.x))
-                        const ChoiceChip(
-                          label: Text('自訂位置'),
-                          selected: true,
-                          onSelected: null,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text('水平位置 ${(style.x * 100).round()}%'),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton(
-                      onPressed: () => widget.onChanged(
-                        StoreBrandStyle.resetPlacement(style),
-                      ),
-                      child: const Text('重設位置'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _placeChip(String label, bool selected, double x) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (bool value) {
-        if (value) {
-          widget.onChanged(widget.style.copyWith(x: x));
-        }
-      },
     );
   }
 }
@@ -750,6 +639,6 @@ class _NameFontOption {
     _NameFontOption('NotoSansTC', 'Noto Sans TC 現代黑體'),
     _NameFontOption('NotoSerifTC', 'Noto Serif TC 傳統宋體'),
     _NameFontOption('KleeOne', 'Klee One 日系手寫'),
-    _NameFontOption('ChironSungHK', '昭源宋體'),
+    _NameFontOption('ChironSungHK', '昭源宋體 Chiron Sung HK'),
   ];
 }

@@ -5,8 +5,37 @@ class HomeQuickActionIds {
   static const String notifications = 'notifications';
   static const String cart = 'cart';
   static const String chat = 'chat';
+  static const String phone = 'phone';
+  static const String line = 'line';
+  static const String facebook = 'facebook';
+  static const String instagram = 'instagram';
+  static const String bookings = 'bookings';
+  static const String promotions = 'promotions';
+  static const String member = 'member';
+  static const String faq = 'faq';
+  static const String none = '';
 
+  /// 舊版只有這三個，缺資料時才補回，避免新功能被當成預設開啟。
   static const List<String> known = <String>[notifications, cart, chat];
+
+  static const List<String> shortcuts = <String>[
+    cart,
+    chat,
+    phone,
+    line,
+    facebook,
+    instagram,
+    bookings,
+    promotions,
+    member,
+    faq,
+  ];
+
+  static bool isShortcut(String id) => shortcuts.contains(id);
+
+  static bool isRecognized(String id) {
+    return id == notifications || isShortcut(id);
+  }
 }
 
 class HomeQuickActionItem {
@@ -38,6 +67,9 @@ class HomeQuickActionSetting {
     this.iconColorValue = 0xFF3A2A20,
     this.showBadges = true,
     this.items = defaultItems,
+    this.slotOne = HomeQuickActionIds.cart,
+    this.slotTwo = HomeQuickActionIds.chat,
+    this.slotsStored = false,
   });
 
   static const String mapKey = 'homeQuickActions';
@@ -72,6 +104,13 @@ class HomeQuickActionSetting {
   final bool showBadges;
   final List<HomeQuickActionItem> items;
 
+  /// 右上角兩個可選位置。空字串表示不顯示。通知鈴鐺不佔這兩個位置。
+  final String slotOne;
+  final String slotTwo;
+
+  /// 為 false 時，兩個位置是由舊版 items 推導，尚未寫入 slots。
+  final bool slotsStored;
+
   bool get atStart => placement == placementStart;
 
   List<HomeQuickActionItem> get knownItems {
@@ -91,6 +130,8 @@ class HomeQuickActionSetting {
       return const HomeQuickActionSetting();
     }
     final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
+    final List<HomeQuickActionItem> parsedItems = _items(map['items']);
+    final (String, String) slots = _slots(map, parsedItems);
     return HomeQuickActionSetting(
       placement: _oneOf(map['placement'], const <String>[
         placementEnd,
@@ -118,31 +159,73 @@ class HomeQuickActionSetting {
       ], iconTheme),
       iconColorValue: _color(map['iconColorValue'], 0xFF3A2A20),
       showBadges: map['showBadges'] != false,
-      items: _items(map['items']),
+      items: parsedItems,
+      slotOne: slots.$1,
+      slotTwo: slots.$2,
+      slotsStored: map.containsKey('slots'),
     );
   }
 
-  /// 前台實際畫出的按鈕。通知固定保留；購物車與聊天還要功能本身有開啟。
+  /// 改一個快捷鍵位置，保留另一個位置原本的選擇。
+  HomeQuickActionSetting assignSlot(int index, String id) {
+    final String next = id.trim();
+    if (index == 0) {
+      return next == slotOne
+          ? this
+          : copyWith(slotOne: next, slotsStored: true);
+    }
+    if (index == 1) {
+      return next == slotTwo
+          ? this
+          : copyWith(slotTwo: next, slotsStored: true);
+    }
+    return this;
+  }
+
+  /// 只有已經寫入 slots 且明確選了聊天，才算店家把聊天放在右上角。
+  static bool savedSlotsUseChat(Map<String, dynamic>? shop) {
+    final dynamic appearance = shop?['homeAppearance'];
+    if (appearance is! Map) {
+      return false;
+    }
+    final dynamic modern = appearance['modern'];
+    if (modern is! Map) {
+      return false;
+    }
+    final dynamic raw = modern[mapKey];
+    if (raw is! Map || !raw.containsKey('slots')) {
+      return false;
+    }
+    final dynamic slots = raw['slots'];
+    if (slots is! List) {
+      return false;
+    }
+    return slots.any(
+      (dynamic value) => value?.toString().trim() == HomeQuickActionIds.chat,
+    );
+  }
+
+  /// 舊版測試與相容用：只依兩個位置判斷購物車與聊天。
   List<HomeQuickActionItem> visibleItems({
     required bool storeEnabled,
     required bool chatEnabled,
   }) {
-    return knownItems
-        .where((HomeQuickActionItem item) {
-          if (item.id == HomeQuickActionIds.notifications) {
-            return true;
-          }
-          if (!item.enabled) {
-            return false;
-          }
-          if (item.id == HomeQuickActionIds.cart) {
-            return storeEnabled;
-          }
-          if (item.id == HomeQuickActionIds.chat) {
-            return chatEnabled;
-          }
-          return false;
-        })
+    final List<String> ids = <String>[HomeQuickActionIds.notifications];
+    for (final String slot in <String>[slotOne, slotTwo]) {
+      if (slot.isEmpty || ids.contains(slot)) {
+        continue;
+      }
+      final bool shown = switch (slot) {
+        HomeQuickActionIds.cart => storeEnabled,
+        HomeQuickActionIds.chat => chatEnabled,
+        _ => false,
+      };
+      if (shown) {
+        ids.add(slot);
+      }
+    }
+    return ids
+        .map((String id) => HomeQuickActionItem(id: id, enabled: true))
         .toList(growable: false);
   }
 
@@ -186,6 +269,9 @@ class HomeQuickActionSetting {
     int? iconColorValue,
     bool? showBadges,
     List<HomeQuickActionItem>? items,
+    String? slotOne,
+    String? slotTwo,
+    bool? slotsStored,
   }) {
     return HomeQuickActionSetting(
       placement: placement ?? this.placement,
@@ -197,6 +283,9 @@ class HomeQuickActionSetting {
       iconColorValue: iconColorValue ?? this.iconColorValue,
       showBadges: showBadges ?? this.showBadges,
       items: items ?? this.items,
+      slotOne: slotOne ?? this.slotOne,
+      slotTwo: slotTwo ?? this.slotTwo,
+      slotsStored: slotsStored ?? this.slotsStored,
     );
   }
 
@@ -210,13 +299,82 @@ class HomeQuickActionSetting {
       'iconColorMode': iconColorMode,
       'iconColorValue': iconColorValue,
       'showBadges': showBadges,
-      'items': items
+      'slots': <String>[slotOne, slotTwo],
+      'items': _savedItems()
           .map((HomeQuickActionItem item) => item.toMap())
           .toList(growable: false),
     };
   }
 
-  static bool _known(String id) => HomeQuickActionIds.known.contains(id);
+  List<HomeQuickActionItem> _savedItems() {
+    final List<HomeQuickActionItem> saved = <HomeQuickActionItem>[];
+    void add(String id, bool enabled) {
+      if (id.isEmpty ||
+          saved.any((HomeQuickActionItem item) => item.id == id)) {
+        return;
+      }
+      saved.add(HomeQuickActionItem(id: id, enabled: enabled));
+    }
+
+    add(HomeQuickActionIds.notifications, true);
+    add(
+      HomeQuickActionIds.cart,
+      slotOne == HomeQuickActionIds.cart || slotTwo == HomeQuickActionIds.cart,
+    );
+    add(
+      HomeQuickActionIds.chat,
+      slotOne == HomeQuickActionIds.chat || slotTwo == HomeQuickActionIds.chat,
+    );
+    if (slotOne.isNotEmpty) {
+      add(slotOne, true);
+    }
+    if (slotTwo.isNotEmpty) {
+      add(slotTwo, true);
+    }
+    for (final HomeQuickActionItem extra in extraItems) {
+      add(extra.id, extra.enabled);
+    }
+    return saved;
+  }
+
+  static bool _known(String id) => HomeQuickActionIds.isRecognized(id);
+
+  static (String, String) _slots(
+    Map<String, dynamic> map,
+    List<HomeQuickActionItem> parsedItems,
+  ) {
+    if (map.containsKey('slots')) {
+      return _readSlots(map['slots']);
+    }
+    final List<String> derived = <String>['', ''];
+    var index = 0;
+    for (final HomeQuickActionItem item in parsedItems) {
+      if (index >= 2) {
+        break;
+      }
+      if (!item.enabled || !HomeQuickActionIds.isShortcut(item.id)) {
+        continue;
+      }
+      derived[index] = item.id;
+      index += 1;
+    }
+    return (derived[0], derived[1]);
+  }
+
+  static (String, String) _readSlots(dynamic raw) {
+    final List<String> slots = <String>['', ''];
+    if (raw is List) {
+      var index = 0;
+      for (final dynamic value in raw) {
+        if (index >= 2) {
+          break;
+        }
+        slots[index] = value?.toString().trim() ?? '';
+        index += 1;
+      }
+    }
+    return (slots[0], slots[1]);
+  }
 
   static List<HomeQuickActionItem> _items(dynamic raw) {
     final List<HomeQuickActionItem> parsed = <HomeQuickActionItem>[];

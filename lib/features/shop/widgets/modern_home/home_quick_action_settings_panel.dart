@@ -1,242 +1,565 @@
 // 檔案名稱：lib/features/shop/widgets/modern_home/home_quick_action_settings_panel.dart
-// 功能說明：前台外觀設定裡的首頁快捷功能列。只改外觀草稿，不另寫通知或購物車資料。
+// 功能說明：首頁活動海報頁裡的前台快捷按鈕。右上角與懸浮按鈕同一張卡片，沿用既有互斥與儲存。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/features/shop/widgets/store/store_banner_color_field.dart';
+import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
+import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_shortcut_catalog.dart';
+
+class HomeSettingsFold extends StatefulWidget {
+  const HomeSettingsFold({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.initiallyExpanded = false,
+    this.trailing,
+    this.summary,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final bool initiallyExpanded;
+  final Widget? trailing;
+  final String? summary;
+
+  @override
+  State<HomeSettingsFold> createState() => _HomeSettingsFoldState();
+}
+
+class _HomeSettingsFoldState extends State<HomeSettingsFold> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE6E8EC)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            widget.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.subtitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          if (widget.summary != null) ...<Widget>[
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.summary!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF9A5B12),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (widget.trailing != null) widget.trailing!,
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: Icon(
+                      _expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                    ),
+                  ),
+                ],
+              ),
+              if (_expanded) ...<Widget>[
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+                widget.child,
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class FrontendRoleActionsPanel extends StatelessWidget {
+  const FrontendRoleActionsPanel({
+    super.key,
+    required this.floatingEnabled,
+    required this.floatingType,
+    required this.floatingSize,
+    required this.labelController,
+    required this.quickActions,
+    required this.gate,
+    required this.onFloatingEnabled,
+    required this.onFloatingType,
+    required this.onFloatingSize,
+    required this.onQuickActions,
+    required this.onLabelChanged,
+  });
+
+  final bool floatingEnabled;
+  final String floatingType;
+  final String floatingSize;
+  final TextEditingController labelController;
+  final HomeQuickActionSetting quickActions;
+  final HomeShortcutGate gate;
+  final ValueChanged<bool> onFloatingEnabled;
+  final ValueChanged<String> onFloatingType;
+  final ValueChanged<String> onFloatingSize;
+  final ValueChanged<HomeQuickActionSetting> onQuickActions;
+  final VoidCallback onLabelChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final String floatingSummary = floatingEnabled
+        ? (_optionLabel(floatingType) ?? '已啟用')
+        : '已關閉';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE6E8EC)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              const Text(
+                '前台快捷按鈕',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 2),
+              const Text(
+                '統一設定首頁右上角與懸浮按鈕，左側即時預覽。',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                '右上角快捷鍵',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '目前：${_shortcutSummary()}。通知鈴鐺固定顯示。',
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 10),
+              HomeQuickActionSettingsPanel(
+                setting: quickActions,
+                gate: gate,
+                onChanged: onQuickActions,
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  const Expanded(
+                    child: Text(
+                      '懸浮聯絡按鈕',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    '啟用',
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
+                  ),
+                  Switch(value: floatingEnabled, onChanged: onFloatingEnabled),
+                ],
+              ),
+              Text(
+                '目前：$floatingSummary。關閉後仍保留功能、大小與文字。',
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 10),
+              IgnorePointer(
+                ignoring: !floatingEnabled,
+                child: Opacity(
+                  opacity: floatingEnabled ? 1 : 0.45,
+                  child: _floatingBody(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _shortcutSummary() {
+    return '${_slotName(quickActions.slotOne)}、${_slotName(quickActions.slotTwo)}';
+  }
+
+  String _slotName(String id) {
+    if (id.isEmpty) {
+      return '不顯示';
+    }
+    return _optionLabel(id) ?? id;
+  }
+
+  String? _optionLabel(String id) {
+    return HomeShortcutCatalog.find(id)?.label;
+  }
+
+  Widget _floatingBody() {
+    final String size =
+        const <String>{'small', 'medium', 'large'}.contains(floatingSize)
+        ? floatingSize
+        : 'medium';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _ShortcutMenu(
+          label: '按鈕功能',
+          value: floatingType,
+          options: HomeShortcutCatalog.options
+              .where(
+                (HomeShortcutOption option) =>
+                    option.id == HomeQuickActionIds.chat ||
+                    option.id == HomeQuickActionIds.phone ||
+                    option.id == HomeQuickActionIds.line ||
+                    option.id == HomeQuickActionIds.facebook ||
+                    option.id == HomeQuickActionIds.instagram,
+              )
+              .toList(growable: false),
+          reasonFor: (String id) {
+            final bool usedByOtherSlot =
+                (quickActions.slotOne == id || quickActions.slotTwo == id) &&
+                id != floatingType;
+            if (usedByOtherSlot) {
+              return '已用於右上角快捷鍵';
+            }
+            if (id == HomeQuickActionIds.chat) {
+              return null;
+            }
+            final String? reason = gate.blockReason(id);
+            return reason == '已由懸浮按鈕使用' ? null : reason;
+          },
+          onChanged: onFloatingType,
+        ),
+        const SizedBox(height: 12),
+        const Text('按鈕大小', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            for (final (String id, String label) in const <(String, String)>[
+              ('small', '小'),
+              ('medium', '中'),
+              ('large', '大'),
+            ])
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: id == 'large' ? 0 : 8),
+                  child: _SizeChoice(
+                    label: label,
+                    selected: size == id,
+                    onTap: floatingEnabled ? () => onFloatingSize(id) : null,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: labelController,
+          enabled: floatingEnabled,
+          onChanged: (_) => onLabelChanged(),
+          decoration: InputDecoration(
+            labelText: '按鈕文字',
+            hintText: ShopChatService.defaultLabelForType(floatingType),
+            border: const OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '可直接在左側前台預覽拖曳位置。',
+          style: TextStyle(fontSize: 12, height: 1.35, color: Colors.black54),
+        ),
+      ],
+    );
+  }
+}
 
 class HomeQuickActionSettingsPanel extends StatelessWidget {
   const HomeQuickActionSettingsPanel({
     super.key,
     required this.setting,
-    required this.theme,
-    required this.storeEnabled,
-    required this.chatEnabled,
+    required this.gate,
     required this.onChanged,
   });
 
   final HomeQuickActionSetting setting;
-  final HomeThemeModel theme;
-  final bool storeEnabled;
-  final bool chatEnabled;
+  final HomeShortcutGate gate;
   final ValueChanged<HomeQuickActionSetting> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final List<HomeQuickActionItem> items = setting.knownItems;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        const Text(
-          '通知鈴鐺固定顯示。購物車與訊息要店家已啟用對應功能，才會出現在首頁。',
-          style: TextStyle(fontSize: 13, height: 1.4),
-        ),
-        const SizedBox(height: 12),
-        _label('顯示位置'),
-        _choices(
-          value: setting.placement,
-          options: const <_Choice>[
-            _Choice(HomeQuickActionSetting.placementEnd, '右上角'),
-            _Choice(HomeQuickActionSetting.placementStart, '左上角'),
-          ],
-          onChanged: (String value) =>
-              onChanged(setting.copyWith(placement: value)),
-        ),
-        _label('容器樣式'),
-        _choices(
-          value: setting.containerStyle,
-          options: const <_Choice>[
-            _Choice(HomeQuickActionSetting.containerCapsule, '膠囊'),
-            _Choice(HomeQuickActionSetting.containerCircles, '獨立圓形'),
-            _Choice(HomeQuickActionSetting.containerPlain, '透明'),
-          ],
-          onChanged: (String value) =>
-              onChanged(setting.copyWith(containerStyle: value)),
-        ),
-        _label('背景'),
-        _choices(
-          value: setting.backgroundMode,
-          options: const <_Choice>[
-            _Choice(HomeQuickActionSetting.backgroundTheme, '跟隨主題'),
-            _Choice(HomeQuickActionSetting.backgroundTranslucent, '半透明'),
-            _Choice(HomeQuickActionSetting.backgroundCustom, '自訂顏色'),
-          ],
-          onChanged: (String value) =>
-              onChanged(setting.copyWith(backgroundMode: value)),
-        ),
-        if (setting.backgroundMode == HomeQuickActionSetting.backgroundCustom)
-          StoreBannerColorField(
-            label: '背景顏色',
-            argb: setting.backgroundColorValue,
-            brandColor: theme.primaryColor,
-            onChanged: (int value) =>
-                onChanged(setting.copyWith(backgroundColorValue: value)),
-          ),
-        _label('圖示大小'),
-        _choices(
-          value: setting.iconSize,
-          options: const <_Choice>[
-            _Choice(HomeQuickActionSetting.sizeSmall, '小'),
-            _Choice(HomeQuickActionSetting.sizeMedium, '中'),
-            _Choice(HomeQuickActionSetting.sizeLarge, '大'),
-          ],
-          onChanged: (String value) =>
-              onChanged(setting.copyWith(iconSize: value)),
-        ),
-        _label('圖示顏色'),
-        _choices(
-          value: setting.iconColorMode,
-          options: const <_Choice>[
-            _Choice(HomeQuickActionSetting.iconTheme, '跟隨主題'),
-            _Choice(HomeQuickActionSetting.iconCustom, '自訂顏色'),
-          ],
-          onChanged: (String value) =>
-              onChanged(setting.copyWith(iconColorMode: value)),
-        ),
-        if (setting.iconColorMode == HomeQuickActionSetting.iconCustom)
-          StoreBannerColorField(
-            label: '圖示顏色',
-            argb: setting.iconColorValue,
-            brandColor: theme.primaryColor,
-            onChanged: (int value) =>
-                onChanged(setting.copyWith(iconColorValue: value)),
-          ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('未讀角標'),
-          subtitle: const Text('只影響是否顯示數字，不會更改未讀通知或訊息。'),
-          value: setting.showBadges,
-          onChanged: (bool value) =>
-              onChanged(setting.copyWith(showBadges: value)),
-        ),
-        const SizedBox(height: 4),
-        _label('功能與順序'),
-        for (var index = 0; index < items.length; index++)
-          _itemRow(items[index], index, items.length),
-      ],
-    );
-  }
-
-  Widget _itemRow(HomeQuickActionItem item, int index, int length) {
-    final _ActionMeta meta = _meta(item.id);
-    final bool available = _available(item.id);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: <Widget>[
-          IconButton(
-            tooltip: '上移',
-            onPressed: index == 0
-                ? null
-                : () => onChanged(setting.moveKnown(index, -1)),
-            icon: const Icon(Icons.arrow_upward_rounded),
-          ),
-          IconButton(
-            tooltip: '下移',
-            onPressed: index == length - 1
-                ? null
-                : () => onChanged(setting.moveKnown(index, 1)),
-            icon: const Icon(Icons.arrow_downward_rounded),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool sideBySide = constraints.maxWidth >= 560;
+        final Widget first = _ShortcutMenu(
+          label: '快捷鍵一',
+          value: setting.slotOne,
+          includeNone: true,
+          options: HomeShortcutCatalog.options,
+          reasonFor: (String id) =>
+              gate.selectionReason(id, otherSlot: setting.slotTwo),
+          onChanged: (String id) => onChanged(setting.assignSlot(0, id)),
+        );
+        final Widget second = _ShortcutMenu(
+          label: '快捷鍵二',
+          value: setting.slotTwo,
+          includeNone: true,
+          options: HomeShortcutCatalog.options,
+          reasonFor: (String id) =>
+              gate.selectionReason(id, otherSlot: setting.slotOne),
+          onChanged: (String id) => onChanged(setting.assignSlot(1, id)),
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (sideBySide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: first),
+                  const SizedBox(width: 12),
+                  Expanded(child: second),
+                ],
+              )
+            else ...<Widget>[first, const SizedBox(height: 12), second],
+            const SizedBox(height: 12),
+            const Row(
               children: <Widget>[
-                Text(
-                  meta.label,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  available ? meta.hint : meta.unavailable,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    height: 1.3,
-                    color: Color(0xFF64748B),
+                Icon(Icons.notifications_none_rounded, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '通知鈴鐺（固定顯示）',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ShortcutMenu extends StatelessWidget {
+  const _ShortcutMenu({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.reasonFor,
+    required this.onChanged,
+    this.includeNone = false,
+  });
+
+  final String label;
+  final String value;
+  final List<HomeShortcutOption> options;
+  final String? Function(String id) reasonFor;
+  final ValueChanged<String> onChanged;
+  final bool includeNone;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool listed =
+        value.isEmpty ||
+        options.any((HomeShortcutOption option) => option.id == value);
+    final String? currentReason = value.isEmpty ? null : reasonFor(value);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        DropdownButtonFormField<String>(
+          key: ValueKey<String>('$label-$value'),
+          initialValue: value,
+          isExpanded: true,
+          menuMaxHeight: 280,
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+            isDense: true,
           ),
-          Switch(
-            value: item.id == HomeQuickActionIds.notifications || item.enabled,
-            onChanged: item.id == HomeQuickActionIds.notifications || !available
-                ? null
-                : (bool value) => onChanged(setting.toggle(item.id, value)),
+          selectedItemBuilder: (BuildContext context) {
+            return <Widget>[
+              if (includeNone)
+                const Text('不顯示', overflow: TextOverflow.ellipsis),
+              for (final HomeShortcutOption option in options)
+                _closedLabel(option.icon, option.label),
+              if (!listed && value.isNotEmpty)
+                Text(value, overflow: TextOverflow.ellipsis),
+            ];
+          },
+          items: <DropdownMenuItem<String>>[
+            if (includeNone)
+              const DropdownMenuItem<String>(
+                value: HomeQuickActionIds.none,
+                child: Text('不顯示'),
+              ),
+            for (final HomeShortcutOption option in options)
+              DropdownMenuItem<String>(
+                value: option.id,
+                enabled: reasonFor(option.id) == null,
+                child: _menuLabel(
+                  option.icon,
+                  option.label,
+                  reasonFor(option.id),
+                ),
+              ),
+            if (!listed && value.isNotEmpty)
+              DropdownMenuItem<String>(
+                value: value,
+                enabled: false,
+                child: Text('$value（此功能目前無法使用）'),
+              ),
+          ],
+          onChanged: (String? next) {
+            if (next == null) {
+              return;
+            }
+            if (next.isNotEmpty && reasonFor(next) != null) {
+              return;
+            }
+            onChanged(next);
+          },
+        ),
+        if (currentReason != null) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            currentReason,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.3,
+              color: Color(0xFF9A5B12),
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  bool _available(String id) {
-    switch (id) {
-      case HomeQuickActionIds.cart:
-        return storeEnabled;
-      case HomeQuickActionIds.chat:
-        return chatEnabled;
-      default:
-        return true;
-    }
-  }
-
-  _ActionMeta _meta(String id) {
-    switch (id) {
-      case HomeQuickActionIds.cart:
-        return const _ActionMeta('購物車', '開啟後顯示在首頁。', '請先啟用商城，才可以開啟這個按鈕。');
-      case HomeQuickActionIds.chat:
-        return const _ActionMeta(
-          '聊天訊息',
-          '開啟後顯示在首頁。',
-          '請先把快速聯絡設為店內聊天，才可以開啟這個按鈕。',
-        );
-      default:
-        return const _ActionMeta('通知鈴鐺', '固定顯示，無法關閉。', '固定顯示，無法關閉。');
-    }
-  }
-
-  Widget _label(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 6),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
-    );
-  }
-
-  Widget _choices({
-    required String value,
-    required List<_Choice> options,
-    required ValueChanged<String> onChanged,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        for (final _Choice option in options)
-          ChoiceChip(
-            label: Text(option.label),
-            selected: value == option.value,
-            onSelected: (bool selected) {
-              if (selected && value != option.value) {
-                onChanged(option.value);
-              }
-            },
-          ),
       ],
     );
   }
 }
 
-class _Choice {
-  const _Choice(this.value, this.label);
+class _SizeChoice extends StatelessWidget {
+  const _SizeChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final String value;
   final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = Theme.of(context).colorScheme.primary;
+    return Material(
+      color: selected
+          ? accent.withValues(alpha: 0.12)
+          : const Color(0xFFF7F4EF),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: selected ? accent : const Color(0xFFE6E8EC)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: onTap == null
+                  ? Colors.black38
+                  : selected
+                  ? accent
+                  : Colors.black87,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _ActionMeta {
-  const _ActionMeta(this.label, this.hint, this.unavailable);
+Widget _closedLabel(IconData icon, String label) {
+  return Row(
+    children: <Widget>[
+      Icon(icon, size: 18),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    ],
+  );
+}
 
-  final String label;
-  final String hint;
-  final String unavailable;
+Widget _menuLabel(IconData icon, String label, String? reason) {
+  final String text = reason == null ? label : '$label（$reason）';
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      Icon(icon, size: 18),
+      const SizedBox(width: 8),
+      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
+    ],
+  );
 }

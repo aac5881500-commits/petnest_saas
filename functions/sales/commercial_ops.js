@@ -230,9 +230,17 @@ async function createShopWithActivation(request, data) {
     const next = Number((counterSnap.data() || {}).current || 0) + 1;
     const shopCode = `SHOP${String(next).padStart(4, "0")}`;
     const shopRef = db.collection("shops").doc(shopCode);
+    const retiredCodeRef = db.collection("retired_shop_codes").doc(shopCode);
     const shopExisting = await tx.get(shopRef);
+    const retiredCode = await tx.get(retiredCodeRef);
     if (shopExisting.exists) {
       throw new HttpsError("aborted", "店家編號衝突，請再試一次");
+    }
+    if (retiredCode.exists) {
+      throw new HttpsError(
+          "aborted",
+          "這個店家編號已永久停用，請再試一次",
+      );
     }
     const openEventRef = db.collection("sales_summary_events")
         .doc(`open_${shopCode}`);

@@ -392,8 +392,7 @@ void main() {
     expect(ModernHomeAppearanceTabs.faq, 8);
     expect(ModernHomeAppearanceTabs.reviews, 9);
     expect(ModernHomeAppearanceTabs.navigation, 10);
-    expect(ModernHomeAppearanceTabs.features, 11);
-    expect(ModernHomeAppearanceTabs.length, 12);
+    expect(ModernHomeAppearanceTabs.length, 11);
     expect(
       ModernHomeAppearanceTabs.sectionTab('policy'),
       ModernHomeAppearanceTabs.policy,
@@ -419,10 +418,13 @@ void main() {
     final int tabEnd = theme.indexOf('void _bindModernDraftListeners()');
     final String tabChanged = theme.substring(tabStart, tabEnd);
     expect(tabChanged.contains('_homeSectionOrder'), isFalse);
+    expect(theme.contains("text: '前台功能'"), isFalse);
+    expect(theme.contains('FrontendRoleActionsPanel('), isTrue);
     expect(
-      theme.contains('animateTo(ModernHomeAppearanceTabs.features)'),
+      theme.contains('ShopAnnouncementManagePage(shopId: widget.shopId)'),
       isTrue,
     );
+    expect(theme.contains('ShopFaqManagePage(shopId: widget.shopId)'), isTrue);
     expect(
       theme.contains("'informationSections': _informationSections.toMap()"),
       isTrue,

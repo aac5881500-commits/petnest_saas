@@ -344,112 +344,117 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         _finishContactDrag(bounds, safeLeft, safeTop, buttonSize);
       },
       child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
+        behavior: HitTestBehavior.opaque,
 
-      /// 開始拖曳時關閉吸附動畫。
-      onPanStart: (DragStartDetails details) {
-        if (bounds != null) {
-          return;
-        }
-        setState(() {
-          _didDrag = false;
-        });
-      },
-
-      /// 拖曳時持續更新按鈕位置。
-      onPanUpdate: (DragUpdateDetails details) {
-        if (bounds != null) {
-          return;
-        }
-        setState(() {
-          if (details.delta.distance > 0) {
-            _didDrag = true;
+        /// 開始拖曳時關閉吸附動畫。
+        onPanStart: (DragStartDetails details) {
+          if (bounds != null) {
+            return;
           }
+          setState(() {
+            _didDrag = false;
+          });
+        },
 
-          _left = (safeLeft + details.delta.dx)
-              .clamp(_screenPadding, maxLeft)
-              .toDouble();
+        /// 拖曳時持續更新按鈕位置。
+        onPanUpdate: (DragUpdateDetails details) {
+          if (bounds != null) {
+            return;
+          }
+          setState(() {
+            if (details.delta.distance > 0) {
+              _didDrag = true;
+            }
 
-          _top = (safeTop + details.delta.dy)
-              .clamp(_screenPadding, maxTop)
-              .toDouble();
-        });
-      },
+            _left = (safeLeft + details.delta.dx)
+                .clamp(_screenPadding, maxLeft)
+                .toDouble();
 
-      /// 放開後吸附到左側或右側。
-      onPanEnd: (_) {
-        if (bounds != null) {
-          return;
-        }
-        final currentLeft = _left ?? safeLeft;
-        final currentTop = _top ?? safeTop;
+            _top = (safeTop + details.delta.dy)
+                .clamp(_screenPadding, maxTop)
+                .toDouble();
+          });
+        },
 
-        final buttonCenter = currentLeft + (buttonSize / 2);
-        final screenCenter = screenWidth / 2;
+        /// 放開後吸附到左側或右側。
+        onPanEnd: (_) {
+          if (bounds != null) {
+            return;
+          }
+          final currentLeft = _left ?? safeLeft;
+          final currentTop = _top ?? safeTop;
 
-        setState(() {
-          _left = buttonCenter < screenCenter ? _screenPadding : maxLeft;
+          final buttonCenter = currentLeft + (buttonSize / 2);
+          final screenCenter = screenWidth / 2;
 
-          _top = currentTop.clamp(_screenPadding, maxTop).toDouble();
-        });
-      },
+          setState(() {
+            _left = buttonCenter < screenCenter ? _screenPadding : maxLeft;
 
-      child: Tooltip(
-        message: tooltip,
-        child: Semantics(
-          button: true,
-          label: tooltip,
-          child: Material(
-            key: FloatingContactButton.buttonKey,
-            color: isChat ? const Color(0xFFFF8A00) : contact!.backgroundColor,
-            elevation: 6,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () {
-                /// 本次手勢曾經拖曳過，就不開啟聯絡方式。
-                if (_didDrag) {
-                  _didDrag = false;
-                  return;
-                }
+            _top = currentTop.clamp(_screenPadding, maxTop).toDouble();
+          });
+        },
 
-                if (widget.isPreview) {
-                  _showPreviewMessage(
-                    context,
-                    isChat
-                        ? '預覽模式不會開啟聊天'
-                        : contact?.type == 'phone'
-                        ? '預覽模式不會撥打電話'
-                        : '預覽模式不會開啟聯絡方式',
-                  );
-                  return;
-                }
+        child: Tooltip(
+          message: tooltip,
+          child: Semantics(
+            button: true,
+            label: tooltip,
+            child: Material(
+              key: FloatingContactButton.buttonKey,
+              color: isChat
+                  ? const Color(0xFFFF8A00)
+                  : contact!.backgroundColor,
+              elevation: 6,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  /// 本次手勢曾經拖曳過，就不開啟聯絡方式。
+                  if (_didDrag) {
+                    _didDrag = false;
+                    return;
+                  }
 
-                if (isChat) {
-                  _openChat(context);
-                  return;
-                }
+                  if (widget.isPreview) {
+                    _showPreviewMessage(
+                      context,
+                      isChat
+                          ? '預覽模式不會開啟聊天'
+                          : contact?.type == 'phone'
+                          ? '預覽模式不會撥打電話'
+                          : '預覽模式不會開啟聯絡方式',
+                    );
+                    return;
+                  }
 
-                _openContact(context, contact!);
-              },
-              child: SizedBox(
-                width: buttonSize,
-                height: buttonSize,
-                child: isChat
-                    ? _ChatButtonFace(shopId: widget.shopId, iconSize: iconSize)
-                    : Center(
-                        child: FaIcon(
-                          contact!.icon,
-                          size: iconSize,
-                          color: Colors.white,
+                  if (isChat) {
+                    _openChat(context);
+                    return;
+                  }
+
+                  _openContact(context, contact!);
+                },
+                child: SizedBox(
+                  width: buttonSize,
+                  height: buttonSize,
+                  child: isChat
+                      ? _ChatButtonFace(
+                          shopId: widget.shopId,
+                          iconSize: iconSize,
+                        )
+                      : Center(
+                          child: FaIcon(
+                            contact!.icon,
+                            size: iconSize,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                ),
               ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -560,16 +565,14 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
       return null;
     }
 
-    /// 優先使用後台選擇的聯絡方式。
+    /// 只使用店家選到的聯絡方式。資料不存在時不改顯示別的功能。
     for (final contact in contacts) {
       if (contact.type == selectedType) {
         return contact;
       }
     }
 
-    /// 原本選擇的聯絡資料已不存在時，
-    /// 自動改用第一個仍然有效的聯絡方式。
-    return contacts.first;
+    return null;
   }
 
   Future<void> _openChat(BuildContext context) async {

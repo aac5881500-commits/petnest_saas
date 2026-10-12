@@ -15,6 +15,7 @@ import 'package:petnest_saas/core/models/home_information_sections_setting.dart'
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
 import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
+import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
@@ -28,6 +29,8 @@ import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
@@ -199,7 +202,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   final GlobalKey _bannerSettingsKey = GlobalKey();
   final GlobalKey _storeSettingsKey = GlobalKey();
   final GlobalKey _pendingSettingsKey = GlobalKey();
-  final ScrollController _featureScroll = ScrollController();
   // ========================
   // 快速聯絡按鈕
   // ========================
@@ -207,6 +209,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   bool _floatingButtonEnabled = false;
   String _floatingButtonSize = 'medium';
   String _floatingButtonType = ShopChatService.floatingTypePetnestChat;
+  bool _chatProvisioned = false;
   String _shopPhone = '';
   String _shopLineUrl = '';
   String _shopFacebookUrl = '';
@@ -335,7 +338,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _appearanceScroll.dispose();
     _colorScroll.dispose();
     _navigationScroll.dispose();
-    _featureScroll.dispose();
     super.dispose();
   }
 
@@ -479,8 +481,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         final floatingButton = Map<String, dynamic>.from(rawFloatingButton);
 
         _floatingButtonEnabled = floatingButton['enabled'] == true;
-
-        _floatingButtonType = (floatingButton['type'] ?? 'line').toString();
+        final String loadedType = (floatingButton['type'] ?? '')
+            .toString()
+            .trim();
+        _floatingButtonType = loadedType.isEmpty
+            ? ShopChatService.floatingTypePetnestChat
+            : loadedType;
 
         final loadedSize = (floatingButton['size'] ?? 'medium').toString();
 
@@ -489,22 +495,14 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ? loadedSize
             : 'medium';
 
-        final bool legacyChat =
-            shopData?['storeChatEnabled'] == true && _floatingButtonEnabled;
-        if (legacyChat &&
-            _floatingButtonType != ShopChatService.floatingTypePetnestChat) {
-          _floatingButtonType = ShopChatService.floatingTypePetnestChat;
-        }
-
-        final availableTypes = _availableFloatingTypes();
-
-        if (!availableTypes.contains(_floatingButtonType) &&
-            availableTypes.isNotEmpty) {
-          _floatingButtonType = availableTypes.first;
-        }
-
         _floatingButtonLabelController.text = (floatingButton['label'] ?? '')
             .toString();
+        _chatProvisioned =
+            shopData?['storeChatEnabled'] == true ||
+            loadedType == ShopChatService.floatingTypePetnestChat;
+      }
+      if (shopData?['storeChatEnabled'] == true) {
+        _chatProvisioned = true;
       }
 
       _modernLogoUrl = (shopData?['logoUrl'] ?? '').toString().trim();
@@ -873,6 +871,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
               'label': _floatingButtonLabelController.text.trim(),
             },
             'storeChatEnabled':
+                _chatProvisioned ||
                 _floatingButtonType == ShopChatService.floatingTypePetnestChat,
           }, SetOptions(merge: true));
 
@@ -922,9 +921,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final bool desktopModern =
         MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
-    final bool pinSaveOnEditor =
-        desktopModern &&
-        _tabController.index != ModernHomeAppearanceTabs.features;
+    final bool pinSaveOnEditor = desktopModern;
     return PopScope(
       canPop: !_hasUnsaved,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -960,7 +957,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                   Tab(icon: Icon(Icons.quiz_outlined), text: '常見問題'),
                   Tab(icon: Icon(Icons.star_outline), text: '顧客評價'),
                   Tab(icon: Icon(Icons.menu_rounded), text: '導覽設定'),
-                  Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
                 ],
               ),
             ),
@@ -981,142 +977,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             _buildFaqPane(desktopModern),
             _buildReviewPane(desktopModern),
             _buildNavigationPane(desktopModern),
-
-            Scrollbar(
-              controller: _featureScroll,
-              thumbVisibility: true,
-              child: ListView(
-                controller: _featureScroll,
-                primary: false,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                children: [
-                  _buildSectionTitle(
-                    icon: Icons.support_agent,
-                    title: '快速聯絡按鈕',
-                    description: '設定前台右下角固定顯示的快速聯絡按鈕',
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          SwitchListTile(
-                            value: _floatingButtonEnabled,
-                            onChanged: (value) {
-                              setState(() {
-                                _floatingButtonEnabled = value;
-                              });
-                            },
-                            title: const Text('啟用快速聯絡按鈕'),
-                            subtitle: const Text('開啟後，前台右下角會顯示一顆聯絡按鈕'),
-                          ),
-
-                          const Divider(),
-
-                          DropdownButtonFormField<String>(
-                            value:
-                                _availableFloatingTypes().contains(
-                                  _floatingButtonType,
-                                )
-                                ? _floatingButtonType
-                                : ShopChatService.floatingTypePetnestChat,
-                            decoration: const InputDecoration(
-                              labelText: '按鈕功能',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: _buildAvailableContactItems(),
-                            onChanged: (value) {
-                              if (value == null) return;
-
-                              setState(() {
-                                _floatingButtonType = value;
-                              });
-                            },
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          _buildFloatingTypeHint(),
-
-                          const SizedBox(height: 16),
-
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '按鈕大小',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          SizedBox(
-                            width: double.infinity,
-                            child: SegmentedButton<String>(
-                              segments: const [
-                                ButtonSegment<String>(
-                                  value: 'small',
-                                  label: Text('小'),
-                                  icon: Icon(Icons.circle, size: 12),
-                                ),
-                                ButtonSegment<String>(
-                                  value: 'medium',
-                                  label: Text('中'),
-                                  icon: Icon(Icons.circle, size: 16),
-                                ),
-                                ButtonSegment<String>(
-                                  value: 'large',
-                                  label: Text('大'),
-                                  icon: Icon(Icons.circle, size: 20),
-                                ),
-                              ],
-                              selected: {_floatingButtonSize},
-                              showSelectedIcon: false,
-                              onSelectionChanged: (selectedSizes) {
-                                if (selectedSizes.isEmpty) return;
-
-                                setState(() {
-                                  _floatingButtonSize = selectedSizes.first;
-                                });
-                              },
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Text(
-                            _floatingButtonSize == 'small'
-                                ? '小尺寸：44 px'
-                                : _floatingButtonSize == 'large'
-                                ? '大尺寸：58 px'
-                                : '中尺寸：52 px',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey.shade600),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          TextField(
-                            controller: _floatingButtonLabelController,
-                            decoration: InputDecoration(
-                              labelText: '按鈕文字',
-                              hintText: ShopChatService.defaultLabelForType(
-                                _floatingButtonType,
-                              ),
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
         bottomNavigationBar: pinSaveOnEditor ? null : _saveBar(),
@@ -1184,6 +1044,31 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       showStayServiceStrip: _showStayServiceStrip,
       featuredProductLayout: _featuredProductLayout,
       storeEntryLayout: _storeEntryLayout,
+    );
+  }
+
+  bool get _chatReady {
+    return _chatProvisioned ||
+        _floatingButtonType == ShopChatService.floatingTypePetnestChat;
+  }
+
+  Map<String, dynamic> get _draftFloatingContact {
+    return <String, dynamic>{
+      'enabled': _floatingButtonEnabled,
+      'type': _floatingButtonType,
+      'size': _floatingButtonSize,
+      'label': _floatingButtonLabelController.text.trim(),
+    };
+  }
+
+  HomeShortcutGate _shortcutGate() {
+    return HomeShortcutGate.fromShop(
+      _loadedShop,
+      memberCenterEnabled: _modernTheme.drawerSetting.showMemberCenter,
+      showShopMenus: _modernTheme.drawerSetting.showShopMenus,
+      floatingEnabled: _floatingButtonEnabled,
+      floatingType: _floatingButtonType,
+      chatProvisioned: _chatReady,
     );
   }
 
@@ -1511,7 +1396,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       theme: _modernTheme,
       locked: _loadedShop['showAnnouncementSection'] == false,
       onOpenFeatures: () {
-        _tabController.animateTo(ModernHomeAppearanceTabs.features);
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ShopAnnouncementManagePage(shopId: widget.shopId),
+          ),
+        );
       },
       onChanged: (HomeNewsSectionSetting value) {
         setState(() {
@@ -1849,7 +1738,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         theme: _modernTheme,
         locked: _loadedShop['showFaqSection'] == false,
         onOpenFeatures: () {
-          _tabController.animateTo(ModernHomeAppearanceTabs.features);
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ShopFaqManagePage(shopId: widget.shopId),
+            ),
+          );
         },
         onChanged: (HomeInformationSectionsSetting value) {
           setState(() {
@@ -2219,6 +2112,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       shopId: widget.shopId,
       draftModernAppearance: _previewModernAppearance,
       draftLogoUrl: _modernLogoUrl,
+      draftFloatingContact: _draftFloatingContact,
+      draftStoreChatEnabled: _chatReady,
       showCaption: showCaption,
       showPhoneChrome: false,
       layoutCanvas: true,
@@ -2285,6 +2180,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           const SizedBox(height: 10),
           _buildBackgroundSelector(),
           const SizedBox(height: 24),
+          _roleActionCards(),
         ],
       ),
     );
@@ -2330,7 +2226,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 860),
+              constraints: const BoxConstraints(maxWidth: 960),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
@@ -2450,31 +2346,17 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           },
         ),
       ),
-      _editorCard(
-        title: '首頁快捷功能列',
-        subtitle: '顯示在店名旁邊。左側預覽會立刻套用。',
-        child: HomeQuickActionSettingsPanel(
-          setting: _quickActions,
-          theme: _modernTheme,
-          storeEnabled: StorefrontAccess.isModuleEnabled(_loadedShop),
-          chatEnabled: ShopChatService.isEnabled(_loadedShop),
-          onChanged: (HomeQuickActionSetting value) {
-            setState(() {
-              _quickActions = value;
-              _appearanceDirty = true;
-            });
-          },
-        ),
-      ),
       KeyedSubtree(
         key: _bannerSettingsKey,
-        child: _editorCard(
+        child: HomeSettingsFold(
           title: '首頁活動海報',
           subtitle: '影響首頁上方活動海報的顯示大小。圖片與按鈕仍到活動海報管理編輯。',
           summary: _bannerStatusText,
+          initiallyExpanded: true,
           child: _buildHomeBannerDisplaySettings(),
         ),
       ),
+      _roleActionCards(),
       if (StorefrontAccess.isModuleEnabled(_loadedShop))
         KeyedSubtree(
           key: _storeSettingsKey,
@@ -2526,6 +2408,51 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         child: _buildModernDrawerSettings(),
       ),
     ];
+  }
+
+  Widget _roleActionCards() {
+    return FrontendRoleActionsPanel(
+      floatingEnabled: _floatingButtonEnabled,
+      floatingType: _floatingButtonType,
+      floatingSize: _floatingButtonSize,
+      labelController: _floatingButtonLabelController,
+      quickActions: _quickActions,
+      gate: _shortcutGate(),
+      onFloatingEnabled: (bool value) {
+        setState(() {
+          _floatingButtonEnabled = value;
+          if (value &&
+              _floatingButtonType == ShopChatService.floatingTypePetnestChat) {
+            _chatProvisioned = true;
+          }
+          _appearanceDirty = true;
+        });
+      },
+      onFloatingType: (String value) {
+        setState(() {
+          _floatingButtonType = value;
+          if (value == ShopChatService.floatingTypePetnestChat) {
+            _chatProvisioned = true;
+          }
+          _appearanceDirty = true;
+        });
+      },
+      onFloatingSize: (String value) {
+        setState(() {
+          _floatingButtonSize = value;
+          _appearanceDirty = true;
+        });
+      },
+      onQuickActions: (HomeQuickActionSetting value) {
+        setState(() {
+          _quickActions = value;
+          _appearanceDirty = true;
+        });
+      },
+      onLabelChanged: () {
+        setState(() => _appearanceDirty = true);
+      },
+    );
   }
 
   Widget _editorCard({
@@ -2621,151 +2548,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  List<String> _availableFloatingTypes() {
-    return <String>[
-      ShopChatService.floatingTypePetnestChat,
-      if (_shopPhone.isNotEmpty) ShopChatService.floatingTypePhone,
-      if (_shopLineUrl.isNotEmpty) ShopChatService.floatingTypeLine,
-      if (_shopFacebookUrl.isNotEmpty) ShopChatService.floatingTypeFacebook,
-      if (_shopInstagramUrl.isNotEmpty) ShopChatService.floatingTypeInstagram,
-    ];
-  }
-
-  Widget _buildFloatingTypeHint() {
-    switch (_floatingButtonType) {
-      case ShopChatService.floatingTypePetnestChat:
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '會員點擊後會直接開啟與目前店家的 PetNest 對話。',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-          ),
-        );
-      case ShopChatService.floatingTypePhone:
-        return _buildContactDataHint(
-          label: '電話號碼',
-          value: _shopPhone,
-          emptyHint: '請先在店家基本資料填寫電話。',
-        );
-      case ShopChatService.floatingTypeLine:
-        return _buildContactDataHint(
-          label: 'LINE 連結',
-          value: _shopLineUrl,
-          emptyHint: '請先在店家基本資料填寫 LINE 連結。',
-        );
-      case ShopChatService.floatingTypeFacebook:
-        return _buildContactDataHint(
-          label: 'Facebook 連結',
-          value: _shopFacebookUrl,
-          emptyHint: '請先在店家基本資料填寫 Facebook 連結。',
-        );
-      case ShopChatService.floatingTypeInstagram:
-        return _buildContactDataHint(
-          label: 'Instagram 連結',
-          value: _shopInstagramUrl,
-          emptyHint: '請先在店家基本資料填寫 Instagram 連結。',
-        );
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildContactDataHint({
-    required String label,
-    required String value,
-    required String emptyHint,
-  }) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        value.isEmpty ? emptyHint : '$label：$value',
-        style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-      ),
-    );
-  }
-
   bool get _hasAvailableContactMethod {
     return _shopPhone.isNotEmpty ||
         _shopLineUrl.isNotEmpty ||
         _shopFacebookUrl.isNotEmpty ||
         _shopInstagramUrl.isNotEmpty;
-  }
-
-  List<DropdownMenuItem<String>> _buildAvailableContactItems() {
-    final items = <DropdownMenuItem<String>>[
-      const DropdownMenuItem(
-        value: ShopChatService.floatingTypePetnestChat,
-        child: Row(
-          children: [
-            Icon(Icons.chat_bubble_outline, size: 20),
-            SizedBox(width: 10),
-            Text('PetNest 店家聊天'),
-          ],
-        ),
-      ),
-    ];
-
-    if (_shopPhone.isNotEmpty) {
-      items.add(
-        const DropdownMenuItem(
-          value: 'phone',
-          child: Row(
-            children: [
-              Icon(Icons.phone_outlined, size: 20),
-              SizedBox(width: 10),
-              Text('電話'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_shopLineUrl.isNotEmpty) {
-      items.add(
-        const DropdownMenuItem(
-          value: 'line',
-          child: Row(
-            children: [
-              Icon(Icons.chat_bubble_outline, size: 20),
-              SizedBox(width: 10),
-              Text('LINE'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_shopFacebookUrl.isNotEmpty) {
-      items.add(
-        const DropdownMenuItem(
-          value: 'facebook',
-          child: Row(
-            children: [
-              Icon(Icons.facebook_outlined, size: 20),
-              SizedBox(width: 10),
-              Text('Facebook'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_shopInstagramUrl.isNotEmpty) {
-      items.add(
-        const DropdownMenuItem(
-          value: 'instagram',
-          child: Row(
-            children: [
-              Icon(Icons.camera_alt_outlined, size: 20),
-              SizedBox(width: 10),
-              Text('Instagram'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return items;
   }
 
   Widget _buildSectionTitle({

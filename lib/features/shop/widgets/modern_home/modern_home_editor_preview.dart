@@ -14,6 +14,8 @@ class ModernHomeEditorPreview extends StatelessWidget {
     required this.shopId,
     this.draftModernAppearance,
     this.draftLogoUrl,
+    this.draftFloatingContact,
+    this.draftStoreChatEnabled,
     this.showCaption = true,
     this.showPhoneChrome = true,
     this.layoutCanvas = false,
@@ -41,6 +43,8 @@ class ModernHomeEditorPreview extends StatelessWidget {
   final String shopId;
   final Map<String, dynamic>? draftModernAppearance;
   final String? draftLogoUrl;
+  final Map<String, dynamic>? draftFloatingContact;
+  final bool? draftStoreChatEnabled;
   final bool showCaption;
   final bool showPhoneChrome;
 
@@ -101,6 +105,8 @@ class ModernHomeEditorPreview extends StatelessWidget {
       isPreview: true,
       draftModernAppearance: draftModernAppearance,
       draftLogoUrl: draftLogoUrl,
+      draftFloatingContact: draftFloatingContact,
+      draftStoreChatEnabled: draftStoreChatEnabled,
       draftHomeBanners: draftHomeBanners,
       initialPreviewBannerId: initialPreviewBannerId,
       onPreviewBannerChanged: onPreviewBannerChanged,
