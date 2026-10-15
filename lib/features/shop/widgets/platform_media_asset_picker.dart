@@ -31,6 +31,7 @@ Future<PlatformMediaAsset?> showPlatformMediaAssetPicker({
   required BuildContext context,
   required String category,
   String? selectedId,
+  String title = '',
   @visibleForTesting List<PlatformMediaAsset>? assetsOverride,
   @visibleForTesting Object? errorOverride,
   @visibleForTesting ImageProvider Function(String url)? imageProviderBuilder,
@@ -43,6 +44,7 @@ Future<PlatformMediaAsset?> showPlatformMediaAssetPicker({
       return PlatformMediaAssetPickerSheet(
         category: category,
         selectedId: selectedId ?? '',
+        title: title,
         assetsOverride: assetsOverride,
         errorOverride: errorOverride,
         imageProviderBuilder: imageProviderBuilder,

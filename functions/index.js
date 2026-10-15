@@ -890,6 +890,8 @@ exports.updatePlatformUser =
  */
 const shopDeletion = require("./platform/shop_deletion");
 exports.previewShopDeletion = shopDeletion.previewShopDeletion;
+exports.requestShopDeletionEmailCode =
+  shopDeletion.requestShopDeletionEmailCode;
 exports.createShopDeletionJob = shopDeletion.createShopDeletionJob;
 exports.runShopDeletionBatch = shopDeletion.runShopDeletionBatch;
 exports.getShopDeletionJob = shopDeletion.getShopDeletionJob;

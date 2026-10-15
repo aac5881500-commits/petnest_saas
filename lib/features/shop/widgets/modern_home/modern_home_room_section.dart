@@ -1,9 +1,13 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/platform_media_asset.dart';
+import 'package:petnest_saas/core/services/platform_media_library_service.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_entry_card.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/refined_image_entry_card.dart';
 
 /// 新版首頁房型展示。正式前台與外觀預覽共用這一個元件。
 class ModernHomeRoomSection extends StatelessWidget {
@@ -19,6 +23,8 @@ class ModernHomeRoomSection extends StatelessWidget {
     this.onOpenRoom,
     this.onOpenAllRooms,
     this.onManageRooms,
+    this.simpleImageUrl = '',
+    this.displayStyle,
   });
 
   final HomeThemeModel theme;
@@ -31,6 +37,10 @@ class ModernHomeRoomSection extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>>? onOpenRoom;
   final VoidCallback? onOpenAllRooms;
   final VoidCallback? onManageRooms;
+
+  /// 簡約入口的平台圖庫圖片。其他排版不使用，也不會寫回房型。
+  final String simpleImageUrl;
+  final HomeDisplayStyle? displayStyle;
 
   String get _title {
     final String title = setting.title.trim();
@@ -52,23 +62,49 @@ class ModernHomeRoomSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loadFailed) {
-      return _message('房型資料讀取失敗');
+      return _withFont(_message('房型資料讀取失敗'));
     }
     final bool published = HomeRoomSectionSetting.hasPublishedRooms(roomTypes);
     if (!published) {
       if (!preview) {
         return const SizedBox.shrink();
       }
-      return _emptyPreview();
+      return _withFont(_emptyPreview());
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        if (setting.layout != HomeRoomSectionLayouts.simpleEntry) _header(),
-        if (setting.layout != HomeRoomSectionLayouts.simpleEntry)
-          const SizedBox(height: 9),
-        _body(),
-      ],
+    return _withFont(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (setting.layout != HomeRoomSectionLayouts.simpleEntry) _header(),
+          if (setting.layout != HomeRoomSectionLayouts.simpleEntry)
+            const SizedBox(height: 9),
+          _body(),
+        ],
+      ),
+    );
+  }
+
+  Widget _withFont(Widget child) {
+    final String? family = setting.appliedFontFamily;
+    if (family == null) {
+      return child;
+    }
+    return Builder(
+      builder: (BuildContext context) {
+        final ThemeData current = Theme.of(context);
+        return Theme(
+          data: current.copyWith(
+            textTheme: current.textTheme.apply(fontFamily: family),
+            primaryTextTheme: current.primaryTextTheme.apply(
+              fontFamily: family,
+            ),
+          ),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(fontFamily: family),
+            child: child,
+          ),
+        );
+      },
     );
   }
 
@@ -124,6 +160,8 @@ class ModernHomeRoomSection extends StatelessWidget {
         return _featured(rooms);
       case HomeRoomSectionLayouts.cardGrid:
         return _cardGrid(rooms);
+      case HomeRoomSectionLayouts.refinedCards:
+        return _refined(rooms);
       default:
         return _horizontal(rooms);
     }
@@ -255,6 +293,181 @@ class ModernHomeRoomSection extends StatelessWidget {
                   Expanded(flex: 4, child: photo),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _refined(Map<String, Map<String, dynamic>> rooms) {
+    final List<String> ids = setting.homeRoomIds(roomTypes);
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 320;
+        final double cardWidth = maxWidth >= 640
+            ? 248
+            : (maxWidth * 0.78).clamp(196.0, 280.0);
+        final double imageHeight = cardWidth * 0.66;
+        final double textScale = MediaQuery.textScalerOf(context).scale(1);
+        final double cardHeight = imageHeight + 136 * textScale;
+        return SizedBox(
+          height: cardHeight,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: const <PointerDeviceKind>{
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.stylus,
+                PointerDeviceKind.trackpad,
+              },
+            ),
+            child: ListView.separated(
+              key: const Key('home-room-refined'),
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              primary: false,
+              itemCount: ids.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (BuildContext context, int index) {
+                if (index == ids.length) {
+                  return SizedBox(
+                    width: 132,
+                    child: _allRoomsCard(
+                      fullWidth: false,
+                      imageHeight: imageHeight,
+                    ),
+                  );
+                }
+                final String id = ids[index];
+                final Map<String, dynamic>? room = rooms[id];
+                if (room == null) {
+                  return const SizedBox.shrink();
+                }
+                return SizedBox(
+                  width: cardWidth,
+                  child: _refinedCard(room: room, roomTypeId: id),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _refinedCard({
+    required Map<String, dynamic> room,
+    required String roomTypeId,
+  }) {
+    final String name = (room['name'] ?? '未命名房型').toString().trim();
+    final String description = (room['description'] ?? '').toString().trim();
+    final String price = setting.showPrice
+        ? HomeRoomSectionSetting.priceLabel(room['price'])
+        : '';
+    final bool selected = selectedRoomTypeId == roomTypeId;
+    return Material(
+      color: theme.cardColor,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        key: Key('home-room-card-$roomTypeId'),
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          if (preview) {
+            onSelectRoomType?.call(roomTypeId);
+            return;
+          }
+          onOpenRoom?.call(room);
+        },
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected ? theme.primaryColor : theme.cardBorderColor,
+              width: selected ? 2 : 1,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: theme.textColor.withValues(alpha: 0.08),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Expanded(
+                child: HomeRoomCover(
+                  imageUrl: _firstImage(room),
+                  height: double.infinity,
+                  theme: theme,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(17),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      name.isEmpty ? '未命名房型' : name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
+                        color: theme.textColor,
+                      ),
+                    ),
+                    if (price.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        price,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.2,
+                          fontWeight: FontWeight.w800,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                    ],
+                    if (description.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.3,
+                          color: theme.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      '查看詳情',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
+                        color: theme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -424,16 +637,54 @@ class ModernHomeRoomSection extends StatelessWidget {
   }
 
   Widget _simpleEntry() {
-    return ModernHomeEntryCard(
+    final String imageUrl = simpleImageUrl.trim();
+    if (imageUrl.isEmpty) {
+      return ModernHomeEntryCard(
+        cardKey: const Key('home-room-simple'),
+        theme: theme,
+        title: _title,
+        subtitle: setting.simple.subtitle,
+        showSubtitle: setting.simple.showSubtitle,
+        cardSize: setting.simple.cardSize,
+        surface: setting.simple.surface,
+        icon: _simpleIcon(setting.simple.icon),
+        actionLabel: '查看全部房型',
+        onTap: _openAll,
+      );
+    }
+    final HomeRoomSimpleSetting simple = setting.simple;
+    return RefinedImageEntryCard(
       cardKey: const Key('home-room-simple'),
+      featureId: 'rooms',
       theme: theme,
       title: _title,
-      subtitle: setting.simple.subtitle,
-      showSubtitle: setting.simple.showSubtitle,
-      cardSize: setting.simple.cardSize,
-      surface: setting.simple.surface,
-      icon: _simpleIcon(setting.simple.icon),
-      actionLabel: '查看全部房型',
+      subtitle: simple.subtitle,
+      showSubtitle: simple.showSubtitle,
+      textMode: simple.textMode,
+      textAlign: simple.textAlign,
+      imageUrl: imageUrl,
+      surface: displayStyle?.cardBackground ?? simple.surface,
+      sizeMode: RefinedEntrySizeMode.independent,
+      placeholderIcon: _simpleIcon(simple.icon),
+      textPosition: displayStyle?.textPosition,
+      textSize: displayStyle?.titleSize ?? simple.textSize,
+      textWeight: displayStyle?.titleWeight ?? simple.textWeight,
+      textColor: displayStyle == null
+          ? simple.textColor
+          : HomeRoomSimpleTextColors.custom,
+      textColorValue: displayStyle?.titleColor ?? simple.textColorValue,
+      aspect: displayStyle?.imageAspect ?? simple.aspect,
+      radius: displayStyle?.imageRadius ?? simple.radius,
+      mask: displayStyle?.imageMask ?? simple.mask,
+      bodySize: displayStyle?.bodySize,
+      bodyWeight: displayStyle?.bodyWeight,
+      bodyColorValue: displayStyle?.effectiveBodyColor,
+      spacing: displayStyle?.spacing ?? HomeDisplaySpacings.normal,
+      cardPadding: displayStyle?.cardPadding ?? HomeDisplaySpacings.normal,
+      showBorder: displayStyle?.cardBorder ?? true,
+      cardShadow: displayStyle?.cardShadow ?? HomeDisplayShadows.none,
+      contentAlign: displayStyle?.titleAlign,
+      imageFit: displayStyle?.imageFit ?? HomeDisplayFits.cover,
       onTap: _openAll,
     );
   }
@@ -797,15 +1048,78 @@ class ModernHomeRoomSection extends StatelessWidget {
     return '';
   }
 
-  static IconData _simpleIcon(String icon) {
-    switch (icon) {
-      case HomeRoomSimpleIcons.home:
-        return Icons.home_outlined;
-      case HomeRoomSimpleIcons.hotel:
-        return Icons.holiday_village_outlined;
-      default:
-        return Icons.bed_outlined;
+  static IconData _simpleIcon(String icon) => homeRoomSimpleIcon(icon);
+}
+
+IconData homeRoomSimpleIcon(String icon) {
+  switch (icon) {
+    case HomeRoomSimpleIcons.home:
+      return Icons.home_outlined;
+    case HomeRoomSimpleIcons.hotel:
+      return Icons.holiday_village_outlined;
+    default:
+      return Icons.bed_outlined;
+  }
+}
+
+/// 讀取簡約入口的平台圖庫圖片。不會改房型照片。
+class ModernHomeRoomSectionHost extends StatefulWidget {
+  const ModernHomeRoomSectionHost({
+    super.key,
+    required this.assetId,
+    required this.builder,
+  });
+
+  final String assetId;
+  final Widget Function(String imageUrl) builder;
+
+  @override
+  State<ModernHomeRoomSectionHost> createState() =>
+      _ModernHomeRoomSectionHostState();
+}
+
+class _ModernHomeRoomSectionHostState extends State<ModernHomeRoomSectionHost> {
+  String _url = '';
+  int _token = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(ModernHomeRoomSectionHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetId != widget.assetId) {
+      _load();
     }
+  }
+
+  Future<void> _load() async {
+    final int token = ++_token;
+    final String id = widget.assetId.trim();
+    if (id.isEmpty) {
+      if (mounted && _url.isNotEmpty) {
+        setState(() => _url = '');
+      }
+      return;
+    }
+    final PlatformMediaAsset? asset = await PlatformMediaLibraryService.instance
+        .getEnabledAssetById(id);
+    if (!mounted || token != _token) {
+      return;
+    }
+    final String next = asset?.imageUrl.trim() ?? '';
+    if (next == _url) {
+      return;
+    }
+    setState(() => _url = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(_url);
   }
 }
 
@@ -832,28 +1146,28 @@ class HomeRoomCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ImageProvider<Object>? provider = imageProvider;
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: ClipRRect(
-        borderRadius: borderRadius,
-        child: provider != null
-            ? Image(
-                image: provider,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) => _fallback(),
-              )
-            : imageUrl.isEmpty
-            ? _fallback()
-            : Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) => _fallback(),
-              ),
-      ),
+    final Widget clipped = ClipRRect(
+      borderRadius: borderRadius,
+      child: provider != null
+          ? Image(
+              image: provider,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => _fallback(),
+            )
+          : imageUrl.isEmpty
+          ? _fallback()
+          : Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => _fallback(),
+            ),
     );
+    if (!height.isFinite) {
+      return SizedBox.expand(child: clipped);
+    }
+    return SizedBox(height: height, width: double.infinity, child: clipped);
   }
 
   Widget _fallback() {

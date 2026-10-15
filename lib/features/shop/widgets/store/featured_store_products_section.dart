@@ -3,6 +3,7 @@
 // 🛒 新版 Beta 首頁精選商品
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
@@ -24,12 +25,14 @@ class FeaturedStoreProductsSection extends StatelessWidget {
     required this.shop,
     required this.theme,
     required this.setting,
+    this.displayStyle,
   });
 
   final String shopId;
   final Map<String, dynamic> shop;
   final HomeThemeModel theme;
   final ModernStoreHomeSetting setting;
+  final HomeDisplayStyle? displayStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -119,10 +122,21 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontSize: 16,
+                                            fontSize: homeDisplayFontSize(
+                                              displayStyle?.titleSize ??
+                                                  HomeDisplaySizes.medium,
+                                              fallback: 16,
+                                            ),
                                             height: 1.2,
-                                            fontWeight: FontWeight.w800,
-                                            color: theme.textColor,
+                                            fontWeight: homeDisplayFontWeight(
+                                              displayStyle?.titleWeight ??
+                                                  HomeDisplayWeights.bold,
+                                            ),
+                                            color: displayStyle == null
+                                                ? theme.textColor
+                                                : Color(
+                                                    displayStyle!.titleColor,
+                                                  ),
                                           ),
                                         ),
                                       ),

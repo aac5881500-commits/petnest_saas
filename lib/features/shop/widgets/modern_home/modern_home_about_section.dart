@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_bridge.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_entry_card.dart';
 
@@ -16,6 +18,7 @@ class ModernHomeAboutSection extends StatelessWidget {
     required this.preview,
     required this.onOpen,
     this.imageProvider,
+    this.displayStyle,
   });
 
   final HomeThemeModel theme;
@@ -27,6 +30,15 @@ class ModernHomeAboutSection extends StatelessWidget {
   final bool preview;
   final VoidCallback onOpen;
   final ImageProvider<Object>? imageProvider;
+  final HomeDisplayStyle? displayStyle;
+
+  String get _surfaceStyle {
+    final HomeDisplayStyle? style = displayStyle;
+    if (style == null) {
+      return setting.surfaceStyle;
+    }
+    return aboutSurfaceForDisplay(style.cardBackground);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +102,42 @@ class ModernHomeAboutSection extends StatelessWidget {
     }
   }
 
+  TextStyle _titleLook(double fallback) {
+    return TextStyle(
+      fontSize: homeDisplayFontSize(
+        displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+        fallback: fallback,
+      ),
+      height: 1.2,
+      fontWeight: homeDisplayFontWeight(
+        displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+      ),
+      color: displayStyle == null
+          ? theme.textColor
+          : Color(displayStyle!.titleColor),
+    );
+  }
+
+  TextStyle _bodyLook(double fallback) {
+    return TextStyle(
+      fontSize: homeDisplayFontSize(
+        displayStyle?.bodySize ?? HomeDisplaySizes.small,
+        fallback: fallback,
+      ),
+      height: 1.35,
+      fontWeight: homeDisplayFontWeight(
+        displayStyle?.bodyWeight ?? HomeDisplayWeights.medium,
+      ),
+      color: displayStyle == null
+          ? theme.secondaryTextColor
+          : Color(displayStyle!.effectiveBodyColor),
+    );
+  }
+
   TextAlign get _textAlign {
+    if (displayStyle != null) {
+      return homeDisplayTextAlign(displayStyle!.titleAlign);
+    }
     return setting.textAlign == HomeAboutTextAligns.center
         ? TextAlign.center
         : TextAlign.start;
@@ -123,7 +170,7 @@ class ModernHomeAboutSection extends StatelessWidget {
       subtitle: _summary,
       showSubtitle: setting.showSubtitle && _summary.isNotEmpty,
       cardSize: size,
-      surface: HomeAboutSurfaces.entrySurface(setting.surfaceStyle),
+      surface: HomeAboutSurfaces.entrySurface(_surfaceStyle),
       icon: Icons.favorite_border_rounded,
       mark: _logoMark,
       showArrow: small ? false : setting.showArrow,
@@ -166,9 +213,7 @@ class ModernHomeAboutSection extends StatelessWidget {
   Widget _brandCard() {
     final String url = _photoUrl;
     final String name = _brandTitle;
-    final double scrim = switch (HomeAboutSurfaces.migrate(
-      setting.surfaceStyle,
-    )) {
+    final double scrim = switch (HomeAboutSurfaces.migrate(_surfaceStyle)) {
       HomeAboutSurfaces.transparent => 0,
       HomeAboutSurfaces.translucent => 0.45,
       _ => 0.88,
@@ -202,12 +247,7 @@ class ModernHomeAboutSection extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: _textAlign,
-                  style: TextStyle(
-                    fontSize: 18,
-                    height: 1.2,
-                    fontWeight: FontWeight.w800,
-                    color: theme.textColor,
-                  ),
+                  style: _titleLook(18),
                 ),
                 if (setting.showSubtitle) ...<Widget>[
                   const SizedBox(height: 6),
@@ -216,11 +256,7 @@ class ModernHomeAboutSection extends StatelessWidget {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     textAlign: _textAlign,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.35,
-                      color: theme.secondaryTextColor,
-                    ),
+                    style: _bodyLook(13),
                   ),
                 ],
                 if (setting.showButton) ...<Widget>[
@@ -247,12 +283,7 @@ class ModernHomeAboutSection extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: _textAlign,
-            style: TextStyle(
-              fontSize: 16,
-              height: 1.2,
-              fontWeight: FontWeight.w800,
-              color: theme.textColor,
-            ),
+            style: _titleLook(16),
           ),
           if (setting.showSubtitle) ...<Widget>[
             const SizedBox(height: 4),
@@ -261,11 +292,7 @@ class ModernHomeAboutSection extends StatelessWidget {
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
               textAlign: _textAlign,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.35,
-                color: theme.secondaryTextColor,
-              ),
+              style: _bodyLook(13),
             ),
           ],
           if (setting.showButton || setting.showArrow) ...<Widget>[
@@ -328,9 +355,7 @@ class ModernHomeAboutSection extends StatelessWidget {
   }
 
   Widget _shell({required Widget child}) {
-    final Color fill = switch (HomeAboutSurfaces.migrate(
-      setting.surfaceStyle,
-    )) {
+    final Color fill = switch (HomeAboutSurfaces.migrate(_surfaceStyle)) {
       HomeAboutSurfaces.transparent => Colors.transparent,
       HomeAboutSurfaces.translucent => theme.cardColor.withValues(alpha: 0.55),
       _ => theme.cardColor,
@@ -345,7 +370,7 @@ class ModernHomeAboutSection extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: setting.surfaceStyle == HomeAboutSurfaces.transparent
+            border: _surfaceStyle == HomeAboutSurfaces.transparent
                 ? null
                 : Border.all(color: theme.cardBorderColor),
           ),
@@ -370,6 +395,11 @@ class ModernHomeAboutSection extends StatelessWidget {
   }
 
   BoxFit get _fit {
+    if (displayStyle != null) {
+      return displayStyle!.imageFit == HomeDisplayFits.contain
+          ? BoxFit.contain
+          : BoxFit.cover;
+    }
     return setting.imageFit == HomeAboutImageFits.contain
         ? BoxFit.contain
         : BoxFit.cover;

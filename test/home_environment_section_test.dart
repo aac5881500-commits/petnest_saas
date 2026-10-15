@@ -222,6 +222,7 @@ void main() {
     );
     expect(next, <String>[
       'banners',
+      'sharedEntries',
       'quickBooking',
       'announcements',
       'facilities',

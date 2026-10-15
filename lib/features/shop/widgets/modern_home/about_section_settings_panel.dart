@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/about_section_layout_preview.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_bridge.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_editor.dart';
 
 /// 關於我們右側設定。只改草稿，不直接寫入 Firestore。
 class AboutSectionSettingsPanel extends StatefulWidget {
@@ -11,12 +14,16 @@ class AboutSectionSettingsPanel extends StatefulWidget {
     required this.theme,
     required this.imageChoices,
     required this.onChanged,
+    this.displayStyles,
+    this.onDisplayStyles,
   });
 
   final HomeAboutSectionSetting setting;
   final HomeThemeModel theme;
   final List<Map<String, String>> imageChoices;
   final ValueChanged<HomeAboutSectionSetting> onChanged;
+  final HomeDisplayStyleSetting? displayStyles;
+  final ValueChanged<HomeDisplayStyleSetting>? onDisplayStyles;
 
   @override
   State<AboutSectionSettingsPanel> createState() =>
@@ -266,27 +273,30 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
               _update(setting.copyWith(buttonText: value.trim()));
             },
           ),
-        const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        _chips(
-          values: HomeAboutTextAligns.all,
-          labelOf: HomeAboutTextAligns.label,
-          selected: setting.textAlign,
-          onChanged: (String value) {
-            _update(setting.copyWith(textAlign: value));
-          },
-        ),
-        const SizedBox(height: 12),
-        const Text('卡片外觀', style: TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        _chips(
-          values: HomeAboutSurfaces.all,
-          labelOf: HomeAboutSurfaces.label,
-          selected: setting.surfaceStyle,
-          onChanged: (String value) {
-            _update(setting.copyWith(surfaceStyle: value));
-          },
-        ),
+        if (widget.onDisplayStyles != null) _styleEditor(),
+        if (widget.onDisplayStyles == null) ...<Widget>[
+          const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          _chips(
+            values: HomeAboutTextAligns.all,
+            labelOf: HomeAboutTextAligns.label,
+            selected: setting.textAlign,
+            onChanged: (String value) {
+              _update(setting.copyWith(textAlign: value));
+            },
+          ),
+          const SizedBox(height: 12),
+          const Text('卡片外觀', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          _chips(
+            values: HomeAboutSurfaces.all,
+            labelOf: HomeAboutSurfaces.label,
+            selected: setting.surfaceStyle,
+            onChanged: (String value) {
+              _update(setting.copyWith(surfaceStyle: value));
+            },
+          ),
+        ],
       ],
     );
   }
@@ -376,6 +386,54 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
       subtitle: subtitle == null ? null : Text(subtitle),
       value: value,
       onChanged: onChanged,
+    );
+  }
+
+  Widget _styleEditor() {
+    final HomeDisplayStyleSetting display =
+        widget.displayStyles ?? HomeDisplayStyleSetting.unset;
+    final HomeDisplayStyle legacy = aboutDisplayLegacy(widget.setting);
+    final String mode = display.effectiveMode(
+      sectionId: HomeDisplaySections.about,
+      legacy: legacy,
+      baseline: HomeDisplayStyle.classic,
+    );
+    final HomeDisplayStyle effective = display.resolve(
+      sectionId: HomeDisplaySections.about,
+      legacy: legacy,
+      baseline: HomeDisplayStyle.classic,
+    );
+    return HomeDisplaySectionOverride(
+      label: '關於我們',
+      shared: display.style,
+      mode: mode,
+      effective: effective,
+      onInherit: () {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.about,
+            mode: HomeDisplayStyleModes.inherit,
+            clearOverride: true,
+          ),
+        );
+      },
+      onCustom: () {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.about,
+            mode: HomeDisplayStyleModes.custom,
+          ),
+        );
+      },
+      onEdit: (HomeDisplayStyle edited) {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.about,
+            mode: HomeDisplayStyleModes.custom,
+            override: edited.diff(display.style),
+          ),
+        );
+      },
     );
   }
 

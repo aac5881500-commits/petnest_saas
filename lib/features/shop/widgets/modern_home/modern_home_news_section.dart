@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_bridge.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_entry_card.dart';
@@ -14,6 +16,7 @@ class ModernHomeNewsSection extends StatelessWidget {
     required this.phase,
     required this.preview,
     required this.onOpen,
+    this.displayStyle,
   });
 
   final HomeThemeModel theme;
@@ -22,6 +25,17 @@ class ModernHomeNewsSection extends StatelessWidget {
   final HomeNewsSectionPhase phase;
   final bool preview;
   final ValueChanged<ShopAnnouncementSection> onOpen;
+  final HomeDisplayStyle? displayStyle;
+
+  String get _surface {
+    final HomeDisplayStyle? style = displayStyle;
+    if (style == null) {
+      return HomeNewsSurfaces.entrySurface(setting.surfaceStyle);
+    }
+    return HomeNewsSurfaces.entrySurface(
+      newsSurfaceForDisplay(style.cardBackground),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +85,7 @@ class ModernHomeNewsSection extends StatelessWidget {
       subtitle: item.title,
       showSubtitle: true,
       cardSize: 'small',
-      surface: HomeNewsSurfaces.entrySurface(setting.surfaceStyle),
+      surface: _surface,
       icon: homeNewsIcon(item.iconType),
       showArrow: false,
       textAlign: _textAlign,
@@ -87,7 +101,7 @@ class ModernHomeNewsSection extends StatelessWidget {
       subtitle: item.title,
       showSubtitle: true,
       cardSize: 'wide',
-      surface: HomeNewsSurfaces.entrySurface(setting.surfaceStyle),
+      surface: _surface,
       icon: homeNewsIcon(item.iconType),
       showArrow: setting.showArrow,
       textAlign: _textAlign,
@@ -113,10 +127,17 @@ class ModernHomeNewsSection extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: _textAlign,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: homeDisplayFontSize(
+                  displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+                  fallback: 15,
+                ),
                 height: 1.2,
-                fontWeight: FontWeight.w800,
-                color: theme.textColor,
+                fontWeight: homeDisplayFontWeight(
+                  displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+                ),
+                color: displayStyle == null
+                    ? theme.textColor
+                    : Color(displayStyle!.titleColor),
               ),
             ),
             const SizedBox(height: 8),
@@ -251,7 +272,7 @@ class ModernHomeNewsSection extends StatelessWidget {
       subtitle: message,
       showSubtitle: true,
       cardSize: layout == HomeNewsLayouts.compactCard ? 'small' : 'wide',
-      surface: HomeNewsSurfaces.entrySurface(setting.surfaceStyle),
+      surface: _surface,
       icon: Icons.campaign_outlined,
       showArrow: false,
       textAlign: _textAlign,
@@ -301,6 +322,9 @@ class ModernHomeNewsSection extends StatelessWidget {
   }
 
   TextAlign get _textAlign {
+    if (displayStyle != null) {
+      return homeDisplayTextAlign(displayStyle!.titleAlign);
+    }
     return setting.textAlign == HomeNewsTextAligns.center
         ? TextAlign.center
         : TextAlign.start;

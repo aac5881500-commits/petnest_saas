@@ -6,13 +6,23 @@ import 'package:cloud_functions/cloud_functions.dart';
 abstract interface class ShopDeletionGateway {
   Future<Map<String, dynamic>> preview(String shopId);
 
+  Future<Map<String, dynamic>> requestEmailCode({
+    required String shopId,
+    required String mode,
+    required String previewScanId,
+  });
+
   Future<Map<String, dynamic>> createJob({
     required String shopId,
     required String mode,
     required String reason,
     required String typedShopCode,
     required bool irreversibleAcknowledged,
+    required bool scopeConfirmed,
     required bool testDataConfirmed,
+    required String previewScanId,
+    required String emailChallengeId,
+    required String emailCode,
   });
 
   Future<Map<String, dynamic>> getJob({String? shopId, String? jobId});
@@ -37,13 +47,30 @@ class ShopDeletionService implements ShopDeletionGateway {
   }
 
   @override
+  Future<Map<String, dynamic>> requestEmailCode({
+    required String shopId,
+    required String mode,
+    required String previewScanId,
+  }) {
+    return _call('requestShopDeletionEmailCode', <String, dynamic>{
+      'shopId': shopId,
+      'mode': mode,
+      'previewScanId': previewScanId,
+    });
+  }
+
+  @override
   Future<Map<String, dynamic>> createJob({
     required String shopId,
     required String mode,
     required String reason,
     required String typedShopCode,
     required bool irreversibleAcknowledged,
+    required bool scopeConfirmed,
     required bool testDataConfirmed,
+    required String previewScanId,
+    required String emailChallengeId,
+    required String emailCode,
   }) {
     return _call('createShopDeletionJob', <String, dynamic>{
       'shopId': shopId,
@@ -51,7 +78,11 @@ class ShopDeletionService implements ShopDeletionGateway {
       'reason': reason,
       'typedShopCode': typedShopCode,
       'irreversibleAcknowledged': irreversibleAcknowledged,
+      'scopeConfirmed': scopeConfirmed,
       'testDataConfirmed': testDataConfirmed,
+      'previewScanId': previewScanId,
+      if (emailChallengeId.isNotEmpty) 'emailChallengeId': emailChallengeId,
+      if (emailCode.isNotEmpty) 'emailCode': emailCode,
     });
   }
 
@@ -113,6 +144,7 @@ class ShopDeletionService implements ShopDeletionGateway {
         scanId: '${detailMap['scanId'] ?? ''}',
         stage: '${detailMap['stage'] ?? ''}',
         retryable: detailMap['retryable'] == true,
+        mailConfigured: detailMap['mailConfigured'] != false,
       );
     }
   }
@@ -126,6 +158,7 @@ class ShopDeletionException implements Exception {
     this.scanId = '',
     this.stage = '',
     this.retryable = false,
+    this.mailConfigured = true,
   });
 
   final String message;
@@ -134,6 +167,7 @@ class ShopDeletionException implements Exception {
   final String scanId;
   final String stage;
   final bool retryable;
+  final bool mailConfigured;
 
   @override
   String toString() {

@@ -102,7 +102,8 @@ void main() {
       'rooms',
     ]);
     expect(order.contains('quickBooking'), isTrue);
-    expect(order.indexOf('quickBooking'), order.indexOf('banners') + 1);
+    expect(order.indexOf('sharedEntries'), order.indexOf('banners') + 1);
+    expect(order.indexOf('quickBooking'), order.indexOf('sharedEntries') + 1);
     expect(
       order.indexOf('facilities'),
       greaterThan(order.indexOf('quickBooking')),

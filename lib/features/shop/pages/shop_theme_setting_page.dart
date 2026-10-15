@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_appearance_preset.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
@@ -19,6 +20,7 @@ import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
+import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/home_banner_display.dart';
@@ -52,6 +54,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/news_section_sett
 import 'package:petnest_saas/features/shop/widgets/modern_home/quick_booking_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/environment_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/room_section_settings_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/shared_entry_settings_card.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
   const ShopThemeSettingPage({super.key, required this.shopId});
@@ -113,6 +116,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   StoreBrandStyle _brandStyle = const StoreBrandStyle();
   List<String> _homeSectionOrder = HomeSectionOrder.normalize(null);
   HomeRoomSectionSetting _roomSection = const HomeRoomSectionSetting();
+  HomeSharedEntrySectionSetting _sharedEntrySection =
+      const HomeSharedEntrySectionSetting();
+  HomeDisplayStyleSetting _displayStyle = HomeDisplayStyleSetting.unset;
   HomeEnvironmentSectionSetting _environmentSection =
       const HomeEnvironmentSectionSetting();
   HomeAboutSectionSetting _aboutSection = const HomeAboutSectionSetting();
@@ -200,6 +206,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   int _homeCanvasPane = 0;
   final GlobalKey _headerSettingsKey = GlobalKey();
   final GlobalKey _bannerSettingsKey = GlobalKey();
+  final GlobalKey _sharedEntrySettingsKey = GlobalKey();
   final GlobalKey _storeSettingsKey = GlobalKey();
   final GlobalKey _pendingSettingsKey = GlobalKey();
   // ========================
@@ -341,6 +348,63 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     super.dispose();
   }
 
+  void _applySharedSection(HomeSharedEntrySectionSetting value) {
+    setState(() {
+      _sharedEntrySection = value;
+      final String placement = value.isJoined(HomeSharedEntrySources.rooms)
+          ? HomeRoomSimplePlacements.shared
+          : HomeRoomSimplePlacements.independent;
+      if (_roomSection.simple.placement != placement) {
+        _roomSection = _roomSection.copyWith(
+          simple: _roomSection.simple.copyWith(placement: placement),
+        );
+      }
+      _appearanceDirty = true;
+    });
+  }
+
+  Widget _sharedJoin(String sourceId) {
+    return SharedEntryJoinSwitch(
+      joined: _sharedEntryForDraft.isJoined(sourceId),
+      zoneEnabled: _sharedEntrySection.enabled,
+      onChanged: (bool join) {
+        HomeSharedEntryCardSetting? seed;
+        if (join &&
+            sourceId == HomeSharedEntrySources.rooms &&
+            !_sharedEntrySection.cards.containsKey(sourceId)) {
+          final String title = _roomSection.title.trim();
+          seed = HomeSharedEntryCardSetting.fallback(sourceId).copyWith(
+            title: title.isEmpty ? null : title,
+            subtitle: _roomSection.simple.subtitle,
+            showSubtitle: _roomSection.simple.showSubtitle,
+          );
+        }
+        _applySharedSection(
+          join
+              ? _sharedEntrySection.including(sourceId, when: true, seed: seed)
+              : _sharedEntrySection.without(sourceId),
+        );
+      },
+    );
+  }
+
+  Widget _withSharedJoin(String sourceId, Widget settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _sharedJoin(sourceId),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  HomeSharedEntrySectionSetting get _sharedEntryForDraft {
+    return _sharedEntrySection.including(
+      HomeSharedEntrySources.rooms,
+      when: roomSimpleUsesSharedZone(_roomSection),
+    );
+  }
+
   Map<String, dynamic> get _draftModernAppearance {
     return <String, dynamic>{
       ...Map<String, String>.from(_layoutSettings['modern']!),
@@ -359,6 +423,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       ..._brandStyle.toMap(),
       'homeSectionOrder': _homeSectionOrder,
       'roomSection': _roomSection.toMap(),
+      HomeSharedEntrySectionSetting.mapKey: _sharedEntryForDraft.toMap(),
+      if (_displayStyle.saved)
+        HomeDisplayStyleSetting.mapKey: _displayStyle.toMap(),
       'environmentSection': _environmentSection.toMap(),
       'aboutSection': _aboutSection.toMap(),
       'newsSection': _newsSection.toMap(),
@@ -618,6 +685,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _roomSection = HomeRoomSectionSetting.fromMap(
           modernAppearance['roomSection'],
         );
+        _sharedEntrySection = HomeSharedEntrySectionSetting.fromMap(
+          modernAppearance[HomeSharedEntrySectionSetting.mapKey],
+        );
+        _displayStyle = HomeDisplayStyleSetting.fromMap(
+          modernAppearance[HomeDisplayStyleSetting.mapKey],
+        );
         _environmentSection = HomeEnvironmentSectionSetting.fromMap(
           modernAppearance['environmentSection'],
         );
@@ -851,6 +924,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 ..._brandStyle.toMap(),
                 'homeSectionOrder': _homeSectionOrder,
                 'roomSection': _roomSection.toMap(),
+                HomeSharedEntrySectionSetting.mapKey: _sharedEntryForDraft
+                    .toMap(),
+                if (_displayStyle.saved)
+                  HomeDisplayStyleSetting.mapKey: _displayStyle.toMap(),
                 'environmentSection': _environmentSection.toMap(),
                 'aboutSection': _aboutSection.toMap(),
                 'newsSection': _newsSection.toMap(),
@@ -1155,13 +1232,23 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       setting: _roomSection,
       theme: _modernTheme,
       selectedRoomTypeId: _selectedRoomTypeId,
+      sharedZoneEnabled: _sharedEntrySection.enabled,
+      hideSharedPlacement: true,
       onChanged: (HomeRoomSectionSetting value) {
         setState(() {
           _roomSection = value;
+          _sharedEntrySection = _sharedEntrySection.including(
+            HomeSharedEntrySources.rooms,
+            when: roomSimpleUsesSharedZone(value),
+          );
           _appearanceDirty = true;
         });
       },
       onManageRooms: _openRoomManagement,
+    );
+    final Widget roomSettings = _withSharedJoin(
+      HomeSharedEntrySources.rooms,
+      settings,
     );
     if (desktopModern) {
       return Padding(
@@ -1184,7 +1271,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             Expanded(
               child: Column(
                 children: <Widget>[
-                  Expanded(child: settings),
+                  Expanded(child: roomSettings),
                   _saveBar(),
                 ],
               ),
@@ -1206,7 +1293,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ),
           ),
         ),
-        Expanded(child: settings),
+        Expanded(child: roomSettings),
       ],
     );
   }
@@ -1230,6 +1317,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
+    final Widget environmentSettings = _withSharedJoin(
+      HomeSharedEntrySources.facilities,
+      settings,
+    );
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1251,7 +1342,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             Expanded(
               child: Column(
                 children: <Widget>[
-                  Expanded(child: settings),
+                  Expanded(child: environmentSettings),
                   _saveBar(),
                 ],
               ),
@@ -1273,7 +1364,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ),
           ),
         ),
-        Expanded(child: settings),
+        Expanded(child: environmentSettings),
       ],
     );
   }
@@ -1331,6 +1422,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
+    final Widget aboutSettings = _withSharedJoin(
+      HomeSharedEntrySources.about,
+      settings,
+    );
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1352,7 +1447,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             Expanded(
               child: Column(
                 children: <Widget>[
-                  Expanded(child: settings),
+                  Expanded(child: aboutSettings),
                   _saveBar(),
                 ],
               ),
@@ -1374,7 +1469,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ),
           ),
         ),
-        Expanded(child: settings),
+        Expanded(child: aboutSettings),
       ],
     );
   }
@@ -1409,6 +1504,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
+    final Widget newsSettings = _withSharedJoin(
+      HomeSharedEntrySources.announcements,
+      settings,
+    );
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1430,7 +1529,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             Expanded(
               child: Column(
                 children: <Widget>[
-                  Expanded(child: settings),
+                  Expanded(child: newsSettings),
                   _saveBar(),
                 ],
               ),
@@ -1452,7 +1551,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ),
           ),
         ),
-        Expanded(child: settings),
+        Expanded(child: newsSettings),
       ],
     );
   }
@@ -1689,6 +1788,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       focusSectionId: 'quickBooking',
       focusSectionToken: _quickBookingFocusToken,
       canvasMode: 'quickBooking',
+      sharedSourceId: HomeSharedEntrySources.quickBooking,
       settings: QuickBookingSectionSettingsPanel(
         setting: _quickBookingSection,
         theme: _modernTheme,
@@ -1712,6 +1812,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       focusSectionId: 'policy',
       focusSectionToken: _policyFocusToken,
       canvasMode: 'policy',
+      sharedSourceId: HomeSharedEntrySources.policy,
       settings: PolicySectionSettingsPanel(
         setting: _informationSections,
         theme: _modernTheme,
@@ -1733,6 +1834,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       focusSectionId: 'faq',
       focusSectionToken: _faqFocusToken,
       canvasMode: 'faq',
+      sharedSourceId: HomeSharedEntrySources.faq,
       settings: FaqSectionSettingsPanel(
         setting: _informationSections,
         theme: _modernTheme,
@@ -1762,6 +1864,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       focusSectionId: 'reviews',
       focusSectionToken: _reviewFocusToken,
       canvasMode: 'reviews',
+      sharedSourceId: HomeSharedEntrySources.reviews,
       settings: ReviewSectionSettingsPanel(
         setting: _informationSections,
         theme: _modernTheme,
@@ -1783,6 +1886,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     required int focusSectionToken,
     required String canvasMode,
     required Widget settings,
+    String? sharedSourceId,
   }) {
     if (_selectedLayout != 'modern') {
       return ListView(
@@ -1792,6 +1896,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         ],
       );
     }
+    final Widget settingsBody = sharedSourceId == null
+        ? settings
+        : _withSharedJoin(sharedSourceId, settings);
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1813,7 +1920,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             Expanded(
               child: Column(
                 children: <Widget>[
-                  Expanded(child: settings),
+                  Expanded(child: settingsBody),
                   _saveBar(),
                 ],
               ),
@@ -1839,7 +1946,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ),
           ),
         ),
-        Expanded(child: settings),
+        Expanded(child: settingsBody),
       ],
     );
   }
@@ -2063,6 +2170,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         return _headerSettingsKey;
       case 'banners':
         return _bannerSettingsKey;
+      case 'sharedEntries':
+        return _sharedEntrySettingsKey;
       case 'featured':
       case 'storeEntrance':
         return _storeSettingsKey;
@@ -2344,6 +2453,25 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
               _appearanceDirty = true;
             });
           },
+        ),
+      ),
+      KeyedSubtree(
+        key: _sharedEntrySettingsKey,
+        child: _editorCard(
+          title: '首頁共用精緻小卡區',
+          subtitle: '選擇要放上首頁的功能入口。外觀在這裡統一調整，每張小卡只編輯圖片、文字與顏色。',
+          summary: _sharedEntrySection.enabled ? '已啟用' : '未啟用',
+          child: SharedEntrySettingsCard(
+            setting: _sharedEntryForDraft,
+            cards: <SharedEntryCardRef>[
+              for (final String id in sharedEntryJoinedIds(
+                section: _sharedEntryForDraft,
+                rooms: _roomSection,
+              ))
+                SharedEntryCardRef(id: id, label: sharedEntryCardLabel(id)),
+            ],
+            onChanged: _applySharedSection,
+          ),
         ),
       ),
       KeyedSubtree(

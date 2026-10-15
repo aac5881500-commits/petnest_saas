@@ -34,6 +34,9 @@ void main() {
     expect(setting.mixed.defaultCardSize, HomeRoomCardSizes.small);
     expect(setting.showPrice, isTrue);
     expect(setting.title, '房型介紹');
+    expect(setting.fontFamily, isEmpty);
+    expect(setting.appliedFontFamily, isNull);
+    expect(setting.fallbackCoverAssetId, isEmpty);
     expect(setting.roomTypeOrder, isEmpty);
     expect(setting.simple.subtitle, '查看住宿空間與價格');
 
@@ -139,6 +142,49 @@ void main() {
     expect(back.toMap().containsKey('cardGrid'), isTrue);
     expect(back.toMap().containsKey('compact'), isFalse);
   });
+
+  test(
+    'refined layout and font survive a round trip without clearing order',
+    () {
+      final HomeRoomSectionSetting stored = HomeRoomSectionSetting.fromMap(
+        <String, dynamic>{
+          'layout': 'refinedCards',
+          'fontFamily': 'NotoSansTC',
+          'fallbackCoverAssetId': 'asset-1',
+          'roomTypeOrder': <String>['b', 'a'],
+          'hiddenRoomTypeIds': <String>['c'],
+          'showPrice': false,
+          'cardGrid': <String, dynamic>{
+            'itemSizes': <String, String>{'a': 'wide'},
+          },
+        },
+      );
+      expect(stored.layout, HomeRoomSectionLayouts.refinedCards);
+      expect(stored.fontFamily, 'NotoSansTC');
+      expect(stored.fallbackCoverAssetId, 'asset-1');
+      expect(stored.roomTypeOrder, <String>['b', 'a']);
+      expect(stored.showPrice, isFalse);
+      expect(stored.mixed.sizeOf('a'), HomeRoomCardSizes.wide);
+
+      final HomeRoomSectionSetting switched = stored.copyWith(
+        layout: HomeRoomSectionLayouts.cardGrid,
+      );
+      expect(switched.fontFamily, 'NotoSansTC');
+      expect(switched.fallbackCoverAssetId, 'asset-1');
+      expect(switched.roomTypeOrder, <String>['b', 'a']);
+      expect(switched.mixed.sizeOf('a'), HomeRoomCardSizes.wide);
+
+      final HomeRoomSectionSetting unknown =
+          HomeRoomSectionSetting.fromMap(<String, dynamic>{
+            'layout': 'not-a-layout',
+            'fontFamily': 'ComicSans',
+            'fallbackCoverAssetId': 'bad/id',
+          });
+      expect(unknown.layout, HomeRoomSectionLayouts.horizontalScroll);
+      expect(unknown.fontFamily, isEmpty);
+      expect(unknown.fallbackCoverAssetId, isEmpty);
+    },
+  );
 
   test('order drops duplicates and deleted ids, and appends new rooms', () {
     expect(
@@ -565,6 +611,288 @@ void main() {
     tester.takeException();
   });
 
+  testWidgets('refined cards use room data and the shared font', (
+    WidgetTester tester,
+  ) async {
+    Map<String, dynamic>? opened;
+    await _pumpSection(
+      tester,
+      width: 390,
+      setting: const HomeRoomSectionSetting(
+        layout: HomeRoomSectionLayouts.refinedCards,
+        fontFamily: 'NotoSerifTC',
+        showPrice: true,
+      ),
+      rooms: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'a',
+          'name': '景觀房',
+          'price': 3200,
+          'description': '含早餐',
+          'images': <String>[],
+        },
+        _room('b', '標準房', price: 1800),
+      ],
+      onOpenRoom: (Map<String, dynamic> room) => opened = room,
+    );
+    expect(find.byKey(const Key('home-room-refined')), findsOneWidget);
+    expect(find.text('景觀房'), findsOneWidget);
+    expect(find.text('NT\$3200／晚起'), findsOneWidget);
+    expect(find.text('含早餐'), findsOneWidget);
+    expect(find.text('查看詳情'), findsWidgets);
+    TextStyle effective(String label) {
+      final Text text = tester.widget<Text>(find.text(label).first);
+      final BuildContext context = tester.element(find.text(label).first);
+      return DefaultTextStyle.of(context).style.merge(text.style);
+    }
+
+    expect(effective('景觀房').fontFamily, 'NotoSerifTC');
+    expect(effective('NT\$3200／晚起').fontFamily, 'NotoSerifTC');
+    expect(effective('含早餐').fontFamily, 'NotoSerifTC');
+    expect(effective('查看詳情').fontFamily, 'NotoSerifTC');
+    final double first = tester.getTopLeft(find.text('景觀房')).dx;
+    final double second = tester.getTopLeft(find.text('標準房')).dx;
+    expect(second, greaterThan(first));
+    expect(second, lessThan(390));
+    await tester.tap(find.byKey(const Key('home-room-card-a')));
+    await tester.pump();
+    expect(opened?['id'], 'a');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shared font applies to horizontal cards and the simple entry', (
+    WidgetTester tester,
+  ) async {
+    TextStyle effective(String label) {
+      final Text text = tester.widget<Text>(find.text(label).first);
+      final BuildContext context = tester.element(find.text(label).first);
+      return DefaultTextStyle.of(context).style.merge(text.style);
+    }
+
+    await _pumpSection(
+      tester,
+      width: 390,
+      setting: const HomeRoomSectionSetting(fontFamily: 'KleeOne'),
+      rooms: <Map<String, dynamic>>[_room('a', '標準房')],
+    );
+    expect(effective('房型介紹').fontFamily, 'KleeOne');
+    expect(effective('標準房').fontFamily, 'KleeOne');
+
+    await _pumpSection(
+      tester,
+      width: 390,
+      setting: const HomeRoomSectionSetting(
+        layout: HomeRoomSectionLayouts.simpleEntry,
+        fontFamily: 'ChironSungHK',
+        title: '住宿空間',
+      ),
+      rooms: <Map<String, dynamic>>[_room('a', '標準房')],
+    );
+    expect(effective('住宿空間').fontFamily, 'ChironSungHK');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('other layouts keep room photos and ignore the entry image', (
+    WidgetTester tester,
+  ) async {
+    await _pumpSection(
+      tester,
+      width: 390,
+      simpleImageUrl: 'https://example.com/gallery.jpg',
+      setting: const HomeRoomSectionSetting(
+        layout: HomeRoomSectionLayouts.horizontalScroll,
+      ),
+      rooms: <Map<String, dynamic>>[
+        _room('a', '有照片', images: <String>['https://example.com/own.jpg']),
+        _room('b', '沒照片'),
+      ],
+    );
+    final List<String> urls = _networkUrls(tester);
+    expect(urls, contains('https://example.com/own.jpg'));
+    expect(urls, isNot(contains('https://example.com/gallery.jpg')));
+    expect(find.byKey(const Key('home-room-fallback-icon')), findsWidgets);
+    await tester.pump(const Duration(milliseconds: 50));
+    tester.takeException();
+  });
+
+  testWidgets('simple entry uses the gallery image and not room photos', (
+    WidgetTester tester,
+  ) async {
+    bool opened = false;
+    await _pumpSection(
+      tester,
+      width: 360,
+      simpleImageUrl: 'https://example.com/gallery.jpg',
+      setting: const HomeRoomSectionSetting(
+        layout: HomeRoomSectionLayouts.simpleEntry,
+        title: '觀看房型',
+        fontFamily: 'NotoSansTC',
+        simple: HomeRoomSimpleSetting(
+          subtitle: '探索舒適住宿空間',
+          showSubtitle: true,
+          textMode: HomeRoomSimpleTextModes.caption,
+          aspect: HomeRoomSimpleAspects.portrait,
+        ),
+      ),
+      rooms: <Map<String, dynamic>>[
+        _room('a', '標準房', images: <String>['https://example.com/own.jpg']),
+      ],
+      onOpenAllRooms: () => opened = true,
+    );
+    final List<String> urls = _networkUrls(tester);
+    expect(urls, <String>['https://example.com/gallery.jpg']);
+    expect(find.text('觀看房型'), findsOneWidget);
+    expect(find.text('探索舒適住宿空間'), findsOneWidget);
+    expect(find.text('標準房'), findsNothing);
+    final Text title = tester.widget<Text>(find.text('觀看房型'));
+    final BuildContext context = tester.element(find.text('觀看房型'));
+    expect(
+      DefaultTextStyle.of(context).style.merge(title.style).fontFamily,
+      'NotoSansTC',
+    );
+    final Rect image = tester.getRect(
+      find.byKey(const Key('refined-entry-image')),
+    );
+    final double titleTop = tester.getTopLeft(find.text('觀看房型')).dy;
+    expect(titleTop, greaterThan(image.top));
+    expect(titleTop, lessThan(image.bottom));
+    await tester.tap(find.byKey(const Key('home-room-simple')));
+    await tester.pump();
+    expect(opened, isTrue);
+    await tester.pump(const Duration(milliseconds: 50));
+    tester.takeException();
+
+    await _pumpSection(
+      tester,
+      width: 320,
+      textScale: 1.3,
+      setting: const HomeRoomSectionSetting(
+        layout: HomeRoomSectionLayouts.simpleEntry,
+        title: '很長的觀看房型標題用來確認不會溢出',
+        simple: HomeRoomSimpleSetting(
+          textMode: HomeRoomSimpleTextModes.below,
+          subtitle: '副標也要收成一行',
+        ),
+      ),
+      rooms: <Map<String, dynamic>>[_room('a', '標準房')],
+      simpleImageUrl: 'https://example.com/gallery.jpg',
+    );
+    final Rect belowImage = tester.getRect(
+      find.byKey(const Key('refined-entry-image')),
+    );
+    expect(
+      tester.getTopLeft(find.text('很長的觀看房型標題用來確認不會溢出')).dy,
+      greaterThan(belowImage.bottom - 1),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    Object? error = tester.takeException();
+    while (error != null) {
+      expect('$error', isNot(contains('A RenderFlex overflowed')));
+      error = tester.takeException();
+    }
+  });
+
+  testWidgets('independent simple entry keeps its own width', (
+    WidgetTester tester,
+  ) async {
+    Future<Size> measure(int columns) async {
+      await _pumpSection(
+        tester,
+        width: 360,
+        simpleImageUrl: 'https://example.com/gallery.jpg',
+        setting: HomeRoomSectionSetting(
+          layout: HomeRoomSectionLayouts.simpleEntry,
+          title: '觀看房型',
+          simple: HomeRoomSimpleSetting(
+            columns: columns,
+            aspect: HomeRoomSimpleAspects.square,
+            textMode: HomeRoomSimpleTextModes.below,
+            subtitle: '探索空間',
+          ),
+        ),
+        rooms: <Map<String, dynamic>>[_room('a', '標準房')],
+      );
+      final Size card = tester.getSize(
+        find.byKey(const Key('home-room-simple')),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      Object? failure = tester.takeException();
+      while (failure != null) {
+        expect('$failure', isNot(contains('A RenderFlex overflowed')));
+        failure = tester.takeException();
+      }
+      return card;
+    }
+
+    final Size two = await measure(2);
+    final Size four = await measure(4);
+    expect(two.width, greaterThan(220));
+    expect(two.width, four.width);
+    expect(two.height, four.height);
+  });
+
+  testWidgets('image selection disables only the fallback icon', (
+    WidgetTester tester,
+  ) async {
+    _useTallSurface(tester);
+    HomeRoomSectionSetting setting = const HomeRoomSectionSetting(
+      layout: HomeRoomSectionLayouts.simpleEntry,
+      simple: HomeRoomSimpleSetting(
+        imageAssetId: 'asset-room',
+        icon: HomeRoomSimpleIcons.hotel,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 1200,
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return RoomSectionSettingsPanel(
+                  shopId: 'shop',
+                  setting: setting,
+                  theme: HomeThemeModel.modernDefault,
+                  rooms: <Map<String, dynamic>>[_room('a', '標準房')],
+                  onChanged: (HomeRoomSectionSetting next) {
+                    setState(() => setting = next);
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ExpansionTile), findsNothing);
+    expect(
+      find.text('已使用圖片，移除圖片後可設定預設圖示。', skipOffstage: false),
+      findsOneWidget,
+    );
+    final Finder iconLabel = find.text('寵物旅館', skipOffstage: false);
+    final Iterable<Opacity> faded = tester.widgetList<Opacity>(
+      find.ancestor(of: iconLabel, matching: find.byType(Opacity)),
+    );
+    expect(faded.any((Opacity opacity) => opacity.opacity == 0.45), isTrue);
+    await tester.ensureVisible(find.text('清除圖片', skipOffstage: false));
+    await tester.tap(find.text('清除圖片'));
+    await tester.pumpAndSettle();
+    expect(setting.simple.imageAssetId, isEmpty);
+    expect(setting.simple.icon, HomeRoomSimpleIcons.hotel);
+    expect(find.text('已使用圖片，移除圖片後可設定預設圖示。', skipOffstage: false), findsNothing);
+    await tester.ensureVisible(
+      find.byKey(const Key('room-simple-color-ffa56b45'), skipOffstage: false),
+    );
+    await tester.tap(find.byKey(const Key('room-simple-color-ffa56b45')));
+    await tester.pumpAndSettle();
+    expect(setting.simple.textColor, HomeRoomSimpleTextColors.custom);
+    expect(setting.simple.textColorValue, 0xFFA56B45);
+    expect(setting.simple.icon, HomeRoomSimpleIcons.hotel);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('large text at 320px does not overflow', (
     WidgetTester tester,
   ) async {
@@ -597,6 +925,7 @@ void main() {
     addTearDown(() {
       debugDefaultTargetPlatformOverride = null;
     });
+    _useTallSurface(tester);
     HomeRoomSectionSetting? updated;
     final Map<String, dynamic> first = _room('a', '標準房', published: true);
     await tester.pumpWidget(
@@ -604,7 +933,7 @@ void main() {
         home: Scaffold(
           body: SizedBox(
             width: 420,
-            height: 640,
+            height: 1200,
             child: RoomSectionSettingsPanel(
               shopId: 'shop',
               theme: HomeThemeModel.modernDefault,
@@ -622,8 +951,6 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('房型排序'));
     await tester.pumpAndSettle();
     expect(find.text('陽光房'), findsNothing);
     expect(find.byType(ReorderableDragStartListener), findsNWidgets(2));
@@ -643,7 +970,7 @@ void main() {
     expect(updated?.roomTypeOrder, contains('c'));
     expect(first['isPublished'], isTrue);
 
-    await tester.tap(find.byType(Switch).first);
+    await tester.tap(find.byKey(const Key('room-visible-a')));
     await tester.pumpAndSettle();
     expect(updated?.hiddenRoomTypeIds, isNotEmpty);
     expect(first['isPublished'], isTrue);
@@ -757,6 +1084,7 @@ void main() {
   testWidgets('simple entry locks ordering without clearing saved sizes', (
     WidgetTester tester,
   ) async {
+    _useTallSurface(tester);
     HomeRoomSectionSetting setting = const HomeRoomSectionSetting(
       layout: HomeRoomSectionLayouts.cardGrid,
       roomTypeOrder: <String>['a', 'b'],
@@ -774,7 +1102,7 @@ void main() {
               refresh = setState;
               return SizedBox(
                 width: 420,
-                height: 720,
+                height: 1200,
                 child: RoomSectionSettingsPanel(
                   shopId: 'shop',
                   theme: HomeThemeModel.modernDefault,
@@ -794,8 +1122,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('房型排序'));
-    await tester.pumpAndSettle();
     expect(find.byKey(const Key('room-size-a')), findsOneWidget);
 
     refresh(() {
@@ -803,22 +1129,13 @@ void main() {
     });
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('room-layout-simpleEntry')), findsOneWidget);
-    expect(find.byType(ReorderableListView), findsNothing);
-    final TextButton orderButton = tester.widget<TextButton>(
-      find.ancestor(of: find.text('房型排序'), matching: find.byType(TextButton)),
-    );
-    expect(orderButton.onPressed, isNull);
-    expect(find.byTooltip('簡約入口不顯示個別房型，無需設定排序'), findsOneWidget);
-    await tester.tap(find.text('房型排序'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('room-layout-simpleEntry')), findsOneWidget);
+    expect(find.byType(SliverReorderableList), findsNothing);
+    expect(find.textContaining('已儲存的排序'), findsOneWidget);
     expect(setting.roomTypeOrder, <String>['a', 'b']);
     expect(setting.hiddenRoomTypeIds, <String>['b']);
     expect(setting.mixed.sizeOf('a'), HomeRoomCardSizes.wide);
 
     await tester.tap(find.byKey(const Key('room-layout-cardGrid')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('房型排序'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('room-size-a')), findsOneWidget);
     expect(setting.mixed.sizeOf('a'), HomeRoomCardSizes.wide);
@@ -828,6 +1145,7 @@ void main() {
   testWidgets(
     'room size choices stay on one row when the settings pane is wide',
     (WidgetTester tester) async {
+      _useTallSurface(tester);
       HomeRoomSectionSetting? updated;
       Future<void> pump(double width) {
         return tester.pumpWidget(
@@ -835,7 +1153,7 @@ void main() {
             home: Scaffold(
               body: SizedBox(
                 width: width,
-                height: 640,
+                height: 1200,
                 child: RoomSectionSettingsPanel(
                   shopId: 'shop',
                   theme: HomeThemeModel.modernDefault,
@@ -856,8 +1174,6 @@ void main() {
 
       await pump(760);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('房型排序'));
-      await tester.pumpAndSettle();
       expect(
         (tester.getTopLeft(find.text('小卡').first).dy -
                 tester.getTopLeft(find.text('標準房')).dy)
@@ -867,8 +1183,6 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await pump(340);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('房型排序'));
       await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(find.text('單卡').first).dy,
@@ -888,6 +1202,11 @@ void main() {
     expect(missing.cardSize, HomeRoomSimpleCardSizes.wide);
     expect(missing.subtitle, '舊副標');
     expect(missing.showSubtitle, isFalse);
+    expect(missing.imageAssetId, isEmpty);
+    expect(missing.textMode, HomeRoomSimpleTextModes.below);
+    expect(missing.mask, HomeRoomSimpleMasks.none);
+    expect(missing.columns, HomeRoomSimpleColumns.three);
+    expect(missing.placement, HomeRoomSimplePlacements.independent);
 
     for (final String size in HomeRoomSimpleCardSizes.all) {
       final HomeRoomSimpleSetting setting = HomeRoomSimpleSetting.fromMap(
@@ -1024,6 +1343,69 @@ void main() {
       expect(singleHeight!, greaterThan(wideHeight!));
     }
   });
+
+  testWidgets('font choice stays when the room layout changes', (
+    WidgetTester tester,
+  ) async {
+    _useTallSurface(tester);
+    HomeRoomSectionSetting setting = const HomeRoomSectionSetting(
+      roomTypeOrder: <String>['a'],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 1200,
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return RoomSectionSettingsPanel(
+                  shopId: 'shop',
+                  setting: setting,
+                  theme: HomeThemeModel.modernDefault,
+                  rooms: <Map<String, dynamic>>[_room('a', '標準房')],
+                  onChanged: (HomeRoomSectionSetting next) {
+                    setState(() => setting = next);
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('精緻圖片小卡'), findsOneWidget);
+    expect(find.text('統一字體'), findsOneWidget);
+    expect(find.text('顯示內容'), findsOneWidget);
+    expect(find.text('房型排列'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('room-font-family-')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Noto Sans TC 現代黑體').last);
+    await tester.pumpAndSettle();
+    expect(setting.fontFamily, 'NotoSansTC');
+    expect(setting.layout, HomeRoomSectionLayouts.horizontalScroll);
+    await tester.tap(find.byKey(const Key('room-layout-refinedCards')));
+    await tester.pumpAndSettle();
+    expect(setting.layout, HomeRoomSectionLayouts.refinedCards);
+    expect(setting.fontFamily, 'NotoSansTC');
+    expect(setting.roomTypeOrder, <String>['a']);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+List<String> _networkUrls(WidgetTester tester) {
+  return <String>[
+    for (final Image image in tester.widgetList<Image>(find.byType(Image)))
+      if (image.image is NetworkImage) (image.image as NetworkImage).url,
+  ];
+}
+
+void _useTallSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(900, 1400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
 }
 
 Future<void> _pumpSection(
@@ -1036,6 +1418,7 @@ Future<void> _pumpSection(
   ValueChanged<String>? onSelectRoomType,
   ValueChanged<Map<String, dynamic>>? onOpenRoom,
   VoidCallback? onOpenAllRooms,
+  String simpleImageUrl = '',
 }) {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -1060,6 +1443,7 @@ Future<void> _pumpSection(
               onOpenRoom: onOpenRoom,
               onOpenAllRooms: onOpenAllRooms,
               onManageRooms: () {},
+              simpleImageUrl: simpleImageUrl,
             ),
           ),
         ),

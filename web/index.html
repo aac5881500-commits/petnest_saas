@@ -33,6 +33,68 @@
 
   <title>PetNest</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #FFF8F0;
+    }
+    #petnest-startup {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #FFF8F0;
+      color: #3d342c;
+      font-family: sans-serif;
+    }
+    #petnest-startup .box {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 360px;
+      padding: 24px;
+      text-align: center;
+    }
+    #petnest-startup h1 {
+      margin: 0 0 16px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    #petnest-startup .spin {
+      width: 28px;
+      height: 28px;
+      margin: 0 auto 12px;
+      border: 3px solid #eadfd4;
+      border-top-color: #8d6e63;
+      border-radius: 50%;
+      animation: petnest-spin 0.8s linear infinite;
+    }
+    #petnest-startup p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #6b5e55;
+    }
+    #petnest-startup button {
+      margin-top: 16px;
+      border: 0;
+      border-radius: 8px;
+      background: #8d6e63;
+      color: #fff;
+      padding: 10px 16px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    @keyframes petnest-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #petnest-startup .spin { animation: none; }
+    }
+  </style>
   <script>
     // 記住瀏覽器的安裝提示，讓 Flutter 在店主點「下載電腦版」時呼叫。
     // 不註冊額外的 Service Worker，避免和 Flutter 產生的更新機制互相覆蓋。
@@ -128,6 +190,43 @@
   </script>
 </head>
 <body>
+  <div id="petnest-startup" role="status" aria-live="polite">
+    <div class="box">
+      <h1>PetNest</h1>
+      <div class="spin"></div>
+      <p>正在啟動</p>
+      <div id="petnest-startup-hint" hidden>
+        <p>載入時間較長。可以重新整理，不會清除登入資料。</p>
+        <button type="button" onclick="window.location.reload()">重新整理</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Flutter 畫出第一個畫面後移除。Dart 端也會再移除一次，避免遮住已啟動的 App。
+    document.addEventListener('flutter-first-frame', function () {
+      var root = document.getElementById('petnest-startup');
+      if (root && root.parentNode) {
+        root.parentNode.removeChild(root);
+      }
+    });
+
+    window.setTimeout(function () {
+      var root = document.getElementById('petnest-startup');
+      var hint = document.getElementById('petnest-startup-hint');
+      if (!root || !hint) return;
+      hint.hidden = false;
+      console.info('[PetNestStartup] Flutter bootstrap timeout');
+    }, 12000);
+
+    window.addEventListener('unhandledrejection', function (event) {
+      var reason = event && event.reason;
+      var message = reason && reason.message ? String(reason.message) : '';
+      if (message.indexOf('Database is closing') === -1) return;
+      if (window.__petnestPersistenceLogged) return;
+      window.__petnestPersistenceLogged = true;
+      console.warn('[PetNestStartup] Auth persistence fail reason=database-closing');
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/environment_section_layout_preview.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_bridge.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_editor.dart';
 
 /// 環境展示右側設定。版型與顯示細節只改草稿。
 class EnvironmentSectionSettingsPanel extends StatefulWidget {
@@ -10,11 +13,15 @@ class EnvironmentSectionSettingsPanel extends StatefulWidget {
     required this.setting,
     required this.theme,
     required this.onChanged,
+    this.displayStyles,
+    this.onDisplayStyles,
   });
 
   final HomeEnvironmentSectionSetting setting;
   final HomeThemeModel theme;
   final ValueChanged<HomeEnvironmentSectionSetting> onChanged;
+  final HomeDisplayStyleSetting? displayStyles;
+  final ValueChanged<HomeDisplayStyleSetting>? onDisplayStyles;
 
   @override
   State<EnvironmentSectionSettingsPanel> createState() =>
@@ -280,16 +287,18 @@ class _EnvironmentSectionSettingsPanelState
               _update(widget.setting.copyWith(simpleCardSize: value));
             },
           ),
-          const SizedBox(height: 12),
-          _label('卡片樣式'),
-          _segments(
-            values: HomeEnvironmentSurfaces.all,
-            labelOf: HomeEnvironmentSurfaces.label,
-            selected: widget.setting.simpleSurface,
-            onChanged: (String value) {
-              _update(widget.setting.copyWith(simpleSurface: value));
-            },
-          ),
+          if (widget.onDisplayStyles == null) ...<Widget>[
+            const SizedBox(height: 12),
+            _label('卡片樣式'),
+            _segments(
+              values: HomeEnvironmentSurfaces.all,
+              labelOf: HomeEnvironmentSurfaces.label,
+              selected: widget.setting.simpleSurface,
+              onChanged: (String value) {
+                _update(widget.setting.copyWith(simpleSurface: value));
+              },
+            ),
+          ],
           const SizedBox(height: 12),
           _label('圖示'),
           _segments(
@@ -311,18 +320,69 @@ class _EnvironmentSectionSettingsPanelState
               _update(widget.setting.copyWith(imageHeight: value));
             },
           ),
-          const SizedBox(height: 12),
-          _label('文字位置'),
-          _segments(
-            values: HomeEnvironmentTextPlacements.all,
-            labelOf: HomeEnvironmentTextPlacements.label,
-            selected: widget.setting.imageTextPlacement,
-            onChanged: (String value) {
-              _update(widget.setting.copyWith(imageTextPlacement: value));
-            },
-          ),
+          if (widget.onDisplayStyles == null) ...<Widget>[
+            const SizedBox(height: 12),
+            _label('文字位置'),
+            _segments(
+              values: HomeEnvironmentTextPlacements.all,
+              labelOf: HomeEnvironmentTextPlacements.label,
+              selected: widget.setting.imageTextPlacement,
+              onChanged: (String value) {
+                _update(widget.setting.copyWith(imageTextPlacement: value));
+              },
+            ),
+          ],
         ],
+        if (widget.onDisplayStyles != null) _styleEditor(),
       ],
+    );
+  }
+
+  Widget _styleEditor() {
+    final HomeDisplayStyleSetting display =
+        widget.displayStyles ?? HomeDisplayStyleSetting.unset;
+    final HomeDisplayStyle legacy = environmentDisplayLegacy(widget.setting);
+    final String mode = display.effectiveMode(
+      sectionId: HomeDisplaySections.facilities,
+      legacy: legacy,
+      baseline: HomeDisplayStyle.facilitiesBaseline,
+    );
+    final HomeDisplayStyle effective = display.resolve(
+      sectionId: HomeDisplaySections.facilities,
+      legacy: legacy,
+      baseline: HomeDisplayStyle.facilitiesBaseline,
+    );
+    return HomeDisplaySectionOverride(
+      label: '環境介紹',
+      shared: display.style,
+      mode: mode,
+      effective: effective,
+      onInherit: () {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.facilities,
+            mode: HomeDisplayStyleModes.inherit,
+            clearOverride: true,
+          ),
+        );
+      },
+      onCustom: () {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.facilities,
+            mode: HomeDisplayStyleModes.custom,
+          ),
+        );
+      },
+      onEdit: (HomeDisplayStyle edited) {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.facilities,
+            mode: HomeDisplayStyleModes.custom,
+            override: edited.diff(display.style),
+          ),
+        );
+      },
     );
   }
 

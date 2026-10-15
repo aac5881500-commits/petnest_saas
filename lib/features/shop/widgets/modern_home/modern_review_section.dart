@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/review_model.dart';
@@ -13,6 +14,7 @@ class ModernReviewSection extends StatelessWidget {
     required this.reviews,
     required this.phase,
     required this.onOpen,
+    this.displayStyle,
   });
 
   final HomeThemeModel theme;
@@ -20,6 +22,7 @@ class ModernReviewSection extends StatelessWidget {
   final List<ReviewModel> reviews;
   final HomeInfoSectionPhase phase;
   final VoidCallback onOpen;
+  final HomeDisplayStyle? displayStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -138,10 +141,17 @@ class ModernReviewSection extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: homeDisplayFontSize(
+                    displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+                    fallback: 15,
+                  ),
                   height: 1.2,
-                  fontWeight: FontWeight.w800,
-                  color: theme.textColor,
+                  fontWeight: homeDisplayFontWeight(
+                    displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+                  ),
+                  color: displayStyle == null
+                      ? theme.textColor
+                      : Color(displayStyle!.titleColor),
                 ),
               ),
               const SizedBox(height: 8),
@@ -154,9 +164,17 @@ class ModernReviewSection extends StatelessWidget {
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: homeDisplayFontSize(
+                    displayStyle?.bodySize ?? HomeDisplaySizes.small,
+                    fallback: 13,
+                  ),
                   height: 1.35,
-                  color: theme.textColor,
+                  fontWeight: homeDisplayFontWeight(
+                    displayStyle?.bodyWeight ?? HomeDisplayWeights.medium,
+                  ),
+                  color: displayStyle == null
+                      ? theme.textColor
+                      : Color(displayStyle!.effectiveBodyColor),
                 ),
               ),
               if (setting.showImages && review.imageUrls.isNotEmpty)

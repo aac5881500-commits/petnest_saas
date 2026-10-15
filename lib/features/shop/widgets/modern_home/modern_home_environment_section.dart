@@ -2,6 +2,7 @@ import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
@@ -18,6 +19,7 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
     required this.preview,
     required this.onOpen,
     this.imageProvider,
+    this.displayStyle,
   });
 
   final HomeThemeModel theme;
@@ -27,6 +29,7 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
   final bool preview;
   final VoidCallback onOpen;
   final ImageProvider<Object>? imageProvider;
+  final HomeDisplayStyle? displayStyle;
 
   static List<Map<String, dynamic>> facilitiesFor(List<String> keys) {
     return environmentFacilityOptions.where((Map<String, dynamic> item) {
@@ -97,10 +100,17 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: homeDisplayFontSize(
+              displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+              fallback: 18,
+            ),
             height: 1.25,
-            fontWeight: FontWeight.w800,
-            color: theme.textColor,
+            fontWeight: homeDisplayFontWeight(
+              displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+            ),
+            color: displayStyle == null
+                ? theme.textColor
+                : Color(displayStyle!.titleColor),
           ),
         ),
         if (setting.showSubtitle &&
@@ -111,9 +121,17 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: homeDisplayFontSize(
+                displayStyle?.bodySize ?? HomeDisplaySizes.small,
+                fallback: 13,
+              ),
               height: 1.45,
-              color: theme.secondaryTextColor,
+              fontWeight: homeDisplayFontWeight(
+                displayStyle?.bodyWeight ?? HomeDisplayWeights.medium,
+              ),
+              color: displayStyle == null
+                  ? theme.secondaryTextColor
+                  : Color(displayStyle!.effectiveBodyColor),
             ),
           ),
         ],
@@ -303,19 +321,30 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
       setting.imageHeight,
     );
     final Alignment alignment = _imageAlignment();
-    final bool overlay =
-        setting.imageTextPlacement == HomeEnvironmentTextPlacements.overlay;
+    final String textPosition =
+        displayStyle?.textPosition ??
+        (setting.imageTextPlacement == HomeEnvironmentTextPlacements.below
+            ? HomeDisplayTextPositions.below
+            : HomeDisplayTextPositions.overlay);
+    final bool overlay = textPosition == HomeDisplayTextPositions.overlay;
+    final bool above = textPosition == HomeDisplayTextPositions.above;
+    final double radius = displayStyle == null
+        ? 14
+        : HomeDisplayRadii.pixels(displayStyle!.cardRadius);
     return Material(
       color: theme.cardColor,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(radius),
+      elevation: displayStyle?.cardShadow == HomeDisplayShadows.soft ? 1 : 0,
       child: InkWell(
         key: const Key('home-environment-image'),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(radius),
         onTap: _open,
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: theme.cardBorderColor),
+            borderRadius: BorderRadius.circular(radius),
+            border: displayStyle?.cardBorder == false
+                ? null
+                : Border.all(color: theme.cardBorderColor),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(13),
@@ -368,15 +397,21 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
+                      if (above)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                          child: _imageCaption(onImage: false),
+                        ),
                       SizedBox(
                         height: height,
                         width: double.infinity,
                         child: _photo(imageUrl, height, alignment),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                        child: _imageCaption(onImage: false),
-                      ),
+                      if (!above)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                          child: _imageCaption(onImage: false),
+                        ),
                     ],
                   ),
           ),
@@ -426,10 +461,16 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
   }
 
   Widget _imageCaption({required bool onImage}) {
-    final Color titleColor = onImage ? Colors.white : theme.textColor;
+    final Color titleColor = onImage
+        ? Colors.white
+        : displayStyle == null
+        ? theme.textColor
+        : Color(displayStyle!.titleColor);
     final Color subtitleColor = onImage
         ? Colors.white.withValues(alpha: 0.92)
-        : theme.secondaryTextColor;
+        : displayStyle == null
+        ? theme.secondaryTextColor
+        : Color(displayStyle!.effectiveBodyColor);
     final Color hintColor = onImage ? Colors.white : theme.primaryColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,9 +481,14 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: homeDisplayFontSize(
+              displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+              fallback: 16,
+            ),
             height: 1.2,
-            fontWeight: FontWeight.w800,
+            fontWeight: homeDisplayFontWeight(
+              displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+            ),
             color: titleColor,
           ),
         ),
@@ -452,7 +498,17 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
             setting.subtitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, height: 1.2, color: subtitleColor),
+            style: TextStyle(
+              fontSize: homeDisplayFontSize(
+                displayStyle?.bodySize ?? HomeDisplaySizes.small,
+                fallback: 12,
+              ),
+              height: 1.2,
+              fontWeight: homeDisplayFontWeight(
+                displayStyle?.bodyWeight ?? HomeDisplayWeights.medium,
+              ),
+              color: subtitleColor,
+            ),
           ),
         ],
         const SizedBox(height: 4),

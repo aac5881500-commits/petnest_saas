@@ -4,6 +4,7 @@ class HomeSectionOrder {
 
   static const List<String> defaultOrder = <String>[
     'banners',
+    'sharedEntries',
     'quickBooking',
     'facilities',
     'announcements',
@@ -73,6 +74,8 @@ class HomeSectionOrder {
     bool showServices = true,
     bool showFeatured = true,
     bool showStoreEntrance = true,
+    bool showRooms = true,
+    bool showSharedEntries = false,
   }) {
     return order.where((String id) {
       if (id == 'announcements' && !showAnnouncements) {
@@ -103,6 +106,12 @@ class HomeSectionOrder {
         return false;
       }
       if (id == 'services' && !showServices) {
+        return false;
+      }
+      if (id == 'rooms' && !showRooms) {
+        return false;
+      }
+      if (id == 'sharedEntries' && !showSharedEntries) {
         return false;
       }
       return defaultOrder.contains(id);

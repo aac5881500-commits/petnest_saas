@@ -24,6 +24,7 @@ import 'package:petnest_saas/core/models/review_model.dart';
 import 'package:petnest_saas/core/services/discount_campaign_service.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
+import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -38,6 +39,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_news_
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_policy_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_flow.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/shared_entry_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_span.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_editor_overlay.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
@@ -743,6 +745,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
         final HomeRoomSectionSetting roomSection =
             HomeRoomSectionSetting.fromMap(modernAppearance['roomSection']);
+        final HomeSharedEntrySectionSetting sharedEntry =
+            HomeSharedEntrySectionSetting.fromMap(
+              modernAppearance[HomeSharedEntrySectionSetting.mapKey],
+            );
         final HomeEnvironmentSectionSetting environmentSection =
             HomeEnvironmentSectionSetting.fromMap(
               modernAppearance['environmentSection'],
@@ -818,8 +824,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             showAnnouncements &&
             !(newsPhase == HomeNewsSectionPhase.empty &&
                 !newsSection.showEmptyPlaceholder);
-        final bool showStayServiceStrip =
-            modernAppearance['showStayServiceStrip'] != false;
+        // 舊住宿服務快捷列已由精緻小卡區取代，預覽與正式前台都不再畫出。
+        const bool showStayServiceStrip = false;
         final bool storeModuleEnabled = StorefrontAccess.isModuleEnabled(shop);
         final HomeQuickActionSetting quickActions =
             HomeQuickActionSetting.fromMap(
@@ -841,11 +847,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
           showAnnouncements: showAnnouncementsOnHome,
-          showAbout: aboutVisible,
           showPolicy: homeInfoOccupiesSection(policyPhase),
           showFaq: homeInfoOccupiesSection(faqPhase),
           showReviews: homeInfoOccupiesSection(reviewPhase),
-          showFacilities: environmentVisible,
           showQuickBooking: homeQuickBookingVisible(
             setting: quickBookingSection,
             editorPreview: editorPreview,
@@ -857,6 +861,32 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               storeModuleEnabled && storeHomeSetting.showFeaturedProducts,
           showStoreEntrance:
               storeModuleEnabled && storeHomeSetting.showStoreBanner,
+          showRooms: !sharedEntryHidesSimpleSection(
+            sourceId: HomeSharedEntrySources.rooms,
+            layout: roomSection.layout,
+            simpleLayout: HomeRoomSectionLayouts.simpleEntry,
+            section: sharedEntry,
+            rooms: roomSection,
+          ),
+          showFacilities:
+              environmentVisible &&
+              !sharedEntryHidesSimpleSection(
+                sourceId: HomeSharedEntrySources.facilities,
+                layout: environmentSection.layout,
+                simpleLayout: HomeEnvironmentLayouts.simpleEntry,
+                section: sharedEntry,
+                rooms: roomSection,
+              ),
+          showAbout:
+              aboutVisible &&
+              !sharedEntryHidesSimpleSection(
+                sourceId: HomeSharedEntrySources.about,
+                layout: aboutSection.layout,
+                simpleLayout: HomeAboutLayouts.simpleEntry,
+                section: sharedEntry,
+                rooms: roomSection,
+              ),
+          showSharedEntries: sharedEntry.enabled,
         );
         Widget sectionBody(String sectionId) {
           return _homeSection(
@@ -893,6 +923,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             daycareAvailable: daycareAvailable,
             quickActionBar: quickActionBar,
             quickActionsAtStart: quickActions.atStart,
+            sharedEntry: sharedEntry,
           );
         }
 
@@ -1287,6 +1318,127 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     );
   }
 
+  Widget _buildSharedEntrySection({
+    required HomeThemeModel theme,
+    required HomeRoomSectionSetting roomSection,
+    required HomeSharedEntrySectionSetting sharedEntry,
+  }) {
+    final List<String> ids = sharedEntryJoinedIds(
+      section: sharedEntry,
+      rooms: roomSection,
+    );
+    final bool preview = widget.layoutCanvas || widget.isPreview;
+    return ModernHomeSharedEntrySection(
+      key: const Key('home-shared-entries'),
+      theme: theme,
+      setting: sharedEntry,
+      cardIds: ids,
+      cardBuilder: (String id) {
+        final HomeSharedEntryCardSetting card = _sharedCard(
+          sharedEntry,
+          id,
+          roomSection,
+        );
+        final String assetId = sharedEntryGalleryAssetId(card);
+        return ModernHomeRoomSectionHost(
+          assetId: assetId,
+          builder: (String loaded) {
+            final String imageUrl = loaded;
+            return SharedEntryRefinedCard(
+              card: card,
+              style: sharedEntry.style,
+              sourceId: id,
+              theme: theme,
+              imageUrl: imageUrl,
+              columns: sharedEntryColumns(sharedEntry.columns),
+              icon: _sharedEntryIcon(id),
+              onTap: () => _openSharedEntry(id, theme: theme, preview: preview),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  HomeSharedEntryCardSetting _sharedCard(
+    HomeSharedEntrySectionSetting section,
+    String id,
+    HomeRoomSectionSetting rooms,
+  ) {
+    final HomeSharedEntryCardSetting? stored = section.cards[id];
+    if (stored != null) {
+      return stored;
+    }
+    final HomeSharedEntryCardSetting fallback =
+        HomeSharedEntryCardSetting.fallback(id);
+    if (id != HomeSharedEntrySources.rooms) {
+      return fallback;
+    }
+    final String title = rooms.title.trim().isEmpty
+        ? fallback.title
+        : rooms.title.trim();
+    return fallback.copyWith(
+      title: title,
+      subtitle: rooms.simple.subtitle,
+      showSubtitle: rooms.simple.showSubtitle,
+    );
+  }
+
+  IconData _sharedEntryIcon(String id) {
+    return switch (id) {
+      HomeSharedEntrySources.rooms => Icons.bed_outlined,
+      HomeSharedEntrySources.facilities => Icons.home_outlined,
+      HomeSharedEntrySources.about => Icons.favorite_border_rounded,
+      HomeSharedEntrySources.announcements => Icons.campaign_outlined,
+      HomeSharedEntrySources.quickBooking => Icons.event_available_outlined,
+      HomeSharedEntrySources.policy => Icons.description_outlined,
+      HomeSharedEntrySources.faq => Icons.help_outline_rounded,
+      HomeSharedEntrySources.reviews => Icons.star_border_rounded,
+      _ => Icons.image_outlined,
+    };
+  }
+
+  void _openSharedEntry(
+    String id, {
+    required HomeThemeModel theme,
+    required bool preview,
+  }) {
+    widget.onSelectSection?.call('sharedEntries');
+    if (preview) {
+      return;
+    }
+    switch (id) {
+      case HomeSharedEntrySources.rooms:
+        _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
+      case HomeSharedEntrySources.facilities:
+        _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
+      case HomeSharedEntrySources.about:
+        _openPage(ShopAboutPage(shopId: widget.shopId, theme: theme));
+      case HomeSharedEntrySources.announcements:
+        _openPage(ShopAnnouncementPage(shopId: widget.shopId, theme: theme));
+      case HomeSharedEntrySources.quickBooking:
+        _openPage(
+          ShopBookingEntryPage(
+            shopId: widget.shopId,
+            theme: theme,
+            useModernDrawer: true,
+          ),
+        );
+      case HomeSharedEntrySources.policy:
+        _openPage(
+          ShopPolicyViewPage(
+            shopId: widget.shopId,
+            theme: theme,
+            readOnly: true,
+          ),
+        );
+      case HomeSharedEntrySources.faq:
+        _openPage(ShopFaqPage(shopId: widget.shopId, theme: theme));
+      case HomeSharedEntrySources.reviews:
+        _openPage(ShopReviewListPage(shopId: widget.shopId, theme: theme));
+    }
+  }
+
   Widget _buildPopularRoomSection({
     required HomeThemeModel theme,
     required HomeRoomSectionSetting roomSection,
@@ -1298,45 +1450,51 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
-    return ModernHomeRoomSection(
-      theme: theme,
-      setting: roomSection,
-      roomTypes: _roomTypes ?? const <Map<String, dynamic>>[],
-      preview: preview,
-      loadFailed: _roomTypesFailed && (_roomTypes?.isEmpty ?? true),
-      selectedRoomTypeId: widget.selectedRoomTypeId,
-      onSelectRoomType: (String roomTypeId) {
-        widget.onSelectRoomType?.call(roomTypeId);
-        widget.onSelectSection?.call('rooms');
-      },
-      onOpenRoom: preview
-          ? null
-          : (Map<String, dynamic> roomType) {
-              _openPage(
-                RoomTypeDetailPage(
-                  shopId: widget.shopId,
-                  roomType: roomType,
-                  startDate: DateTime.now(),
-                  endDate: DateTime.now().add(const Duration(days: 1)),
-                  theme: theme,
-                  isIntroMode: true,
-                ),
-              );
-            },
-      onOpenAllRooms: preview
-          ? null
-          : () {
-              _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
-            },
-      onManageRooms: preview
-          ? () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ShopRoomTypePage(shopId: widget.shopId),
-                ),
-              );
-            }
-          : null,
+    return ModernHomeRoomSectionHost(
+      assetId: roomSection.simple.imageAssetId,
+      builder: (String simpleImageUrl) => ModernHomeRoomSection(
+        theme: theme,
+        setting: roomSection,
+        simpleImageUrl: simpleImageUrl,
+        roomTypes: _roomTypes ?? const <Map<String, dynamic>>[],
+        preview: preview,
+        loadFailed: _roomTypesFailed && (_roomTypes?.isEmpty ?? true),
+        selectedRoomTypeId: widget.selectedRoomTypeId,
+        onSelectRoomType: (String roomTypeId) {
+          widget.onSelectRoomType?.call(roomTypeId);
+          widget.onSelectSection?.call('rooms');
+        },
+        onOpenRoom: preview
+            ? null
+            : (Map<String, dynamic> roomType) {
+                _openPage(
+                  RoomTypeDetailPage(
+                    shopId: widget.shopId,
+                    roomType: roomType,
+                    startDate: DateTime.now(),
+                    endDate: DateTime.now().add(const Duration(days: 1)),
+                    theme: theme,
+                    isIntroMode: true,
+                  ),
+                );
+              },
+        onOpenAllRooms: preview
+            ? null
+            : () {
+                _openPage(
+                  ShopRoomIntroPage(shopId: widget.shopId, theme: theme),
+                );
+              },
+        onManageRooms: preview
+            ? () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ShopRoomTypePage(shopId: widget.shopId),
+                  ),
+                );
+              }
+            : null,
+      ),
     );
   }
 
@@ -1374,6 +1532,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required bool daycareAvailable,
     required Widget quickActionBar,
     required bool quickActionsAtStart,
+    required HomeSharedEntrySectionSetting sharedEntry,
   }) {
     switch (sectionId) {
       case 'header':
@@ -1451,6 +1610,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
       case 'rooms':
         return _buildPopularRoomSection(theme: theme, roomSection: roomSection);
+      case 'sharedEntries':
+        return _buildSharedEntrySection(
+          theme: theme,
+          roomSection: roomSection,
+          sharedEntry: sharedEntry,
+        );
       case 'featured':
         return FeaturedStoreProductsSection(
           shopId: widget.shopId,

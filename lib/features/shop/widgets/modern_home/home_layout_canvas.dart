@@ -210,6 +210,7 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
             children: <Widget>[
               widget.buildSection(sectionId),
               if (sectionId == 'banners' ||
+                  sectionId == 'sharedEntries' ||
                   sectionId == 'rooms' ||
                   sectionId == 'facilities' ||
                   sectionId == 'about' ||
@@ -221,6 +222,7 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
                 _sectionDragHandle(
                   sectionId: sectionId,
                   tooltip: switch (sectionId) {
+                    'sharedEntries' => '拖曳整個共用精緻小卡區',
                     'rooms' => '拖曳整個房型介紹區塊',
                     'facilities' => '拖曳整個環境展示區塊',
                     'about' => '拖曳整個關於我們區塊',

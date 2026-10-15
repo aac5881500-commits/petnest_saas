@@ -97,6 +97,7 @@ void main() {
         saved,
         showAnnouncements: true,
         showQuickBooking: true,
+        showSharedEntries: true,
       ).indexOf('announcements'),
       slot,
     );

@@ -7,11 +7,13 @@ class HomeRoomSectionLayouts {
   static const String cardGrid = 'cardGrid';
   static const String simpleEntry = 'simpleEntry';
   static const String featured = 'featured';
+  static const String refinedCards = 'refinedCards';
   static const List<String> all = <String>[
     horizontalScroll,
     cardGrid,
     simpleEntry,
     featured,
+    refinedCards,
   ];
 
   static String label(String value) {
@@ -22,6 +24,8 @@ class HomeRoomSectionLayouts {
         return '簡約入口';
       case featured:
         return '精選大圖';
+      case refinedCards:
+        return '精緻圖片小卡';
       default:
         return '橫向滑動';
     }
@@ -42,6 +46,8 @@ class HomeRoomSectionLayouts {
         return simpleEntry;
       case featured:
         return featured;
+      case refinedCards:
+        return refinedCards;
       default:
         return horizontalScroll;
     }
@@ -279,6 +285,89 @@ class HomeRoomCompactSetting {
   }
 }
 
+class HomeRoomSimplePlacements {
+  static const String independent = 'independent';
+  static const String shared = 'shared';
+
+  /// 舊資料沒有這個欄位時，維持原本的獨立簡約入口。
+  static String migrate(Object? raw) {
+    return raw == shared ? shared : independent;
+  }
+}
+
+class HomeRoomSimpleColumns {
+  static const int two = 2;
+  static const int three = 3;
+  static const int four = 4;
+
+  /// 舊資料沒有這個欄位時，用一排 3 張的精緻尺寸。
+  static int migrate(Object? raw) {
+    final int value = raw is num
+        ? raw.toInt()
+        : int.tryParse(raw?.toString().trim() ?? '') ?? three;
+    if (value == two || value == four) {
+      return value;
+    }
+    return three;
+  }
+}
+
+class HomeRoomSimpleTextModes {
+  static const String below = 'below';
+  static const String overlay = 'overlay';
+  static const String caption = 'caption';
+  static const List<String> all = <String>[below, overlay, caption];
+}
+
+class HomeRoomSimpleTextAligns {
+  static const String bottomStart = 'bottomStart';
+  static const String center = 'center';
+  static const String bottomEnd = 'bottomEnd';
+  static const List<String> all = <String>[bottomStart, center, bottomEnd];
+}
+
+class HomeRoomSimpleTextSizes {
+  static const String small = 'small';
+  static const String medium = 'medium';
+  static const String large = 'large';
+  static const List<String> all = <String>[small, medium, large];
+}
+
+class HomeRoomSimpleTextWeights {
+  static const String regular = 'regular';
+  static const String medium = 'medium';
+  static const String bold = 'bold';
+  static const List<String> all = <String>[regular, medium, bold];
+}
+
+class HomeRoomSimpleTextColors {
+  static const String light = 'light';
+  static const String dark = 'dark';
+  static const String custom = 'custom';
+  static const List<String> all = <String>[light, dark, custom];
+}
+
+class HomeRoomSimpleAspects {
+  static const String square = 'square';
+  static const String portrait = 'portrait';
+  static const String landscape = 'landscape';
+  static const List<String> all = <String>[square, portrait, landscape];
+}
+
+class HomeRoomSimpleRadii {
+  static const String small = 'small';
+  static const String medium = 'medium';
+  static const String large = 'large';
+  static const List<String> all = <String>[small, medium, large];
+}
+
+class HomeRoomSimpleMasks {
+  static const String none = 'none';
+  static const String light = 'light';
+  static const String strong = 'strong';
+  static const List<String> all = <String>[none, light, strong];
+}
+
 class HomeRoomSimpleSetting {
   const HomeRoomSimpleSetting({
     this.subtitle = '查看住宿空間與價格',
@@ -286,7 +375,21 @@ class HomeRoomSimpleSetting {
     this.icon = HomeRoomSimpleIcons.bed,
     this.surface = HomeRoomSimpleSurfaces.filled,
     this.cardSize = HomeRoomSimpleCardSizes.wide,
+    this.columns = HomeRoomSimpleColumns.three,
+    this.placement = HomeRoomSimplePlacements.independent,
+    this.imageAssetId = '',
+    this.textMode = HomeRoomSimpleTextModes.below,
+    this.textAlign = HomeRoomSimpleTextAligns.bottomStart,
+    this.textSize = HomeRoomSimpleTextSizes.medium,
+    this.textWeight = HomeRoomSimpleTextWeights.bold,
+    this.textColor = HomeRoomSimpleTextColors.dark,
+    this.textColorValue,
+    this.aspect = HomeRoomSimpleAspects.square,
+    this.radius = HomeRoomSimpleRadii.medium,
+    this.mask = HomeRoomSimpleMasks.none,
   });
+
+  static const Object _keep = Object();
 
   final String subtitle;
   final bool showSubtitle;
@@ -294,19 +397,69 @@ class HomeRoomSimpleSetting {
   final String surface;
   final String cardSize;
 
+  /// 舊版簡約入口曾把每排張數存在這裡。共用區改讀自己的欄數，此欄位只保留相容。
+  final int columns;
+  final String placement;
+
+  /// 平台圖庫素材 ID。只給簡約入口使用，不寫進房型照片。
+  final String imageAssetId;
+  final String textMode;
+  final String textAlign;
+  final String textSize;
+  final String textWeight;
+  final String textColor;
+  final int? textColorValue;
+  final String aspect;
+  final String radius;
+  final String mask;
+
   HomeRoomSimpleSetting copyWith({
-    String? subtitle,
-    bool? showSubtitle,
-    String? icon,
-    String? surface,
-    String? cardSize,
+    Object? subtitle = _keep,
+    Object? showSubtitle = _keep,
+    Object? icon = _keep,
+    Object? surface = _keep,
+    Object? cardSize = _keep,
+    Object? columns = _keep,
+    Object? placement = _keep,
+    Object? imageAssetId = _keep,
+    Object? textMode = _keep,
+    Object? textAlign = _keep,
+    Object? textSize = _keep,
+    Object? textWeight = _keep,
+    Object? textColor = _keep,
+    Object? textColorValue = _keep,
+    Object? aspect = _keep,
+    Object? radius = _keep,
+    Object? mask = _keep,
   }) {
     return HomeRoomSimpleSetting(
-      subtitle: subtitle ?? this.subtitle,
-      showSubtitle: showSubtitle ?? this.showSubtitle,
-      icon: icon ?? this.icon,
-      surface: surface ?? this.surface,
-      cardSize: cardSize ?? this.cardSize,
+      subtitle: subtitle == _keep ? this.subtitle : subtitle as String,
+      showSubtitle: showSubtitle == _keep
+          ? this.showSubtitle
+          : showSubtitle as bool,
+      icon: icon == _keep ? this.icon : icon as String,
+      surface: surface == _keep ? this.surface : surface as String,
+      cardSize: cardSize == _keep ? this.cardSize : cardSize as String,
+      columns: columns == _keep
+          ? this.columns
+          : HomeRoomSimpleColumns.migrate(columns),
+      placement: placement == _keep
+          ? this.placement
+          : HomeRoomSimplePlacements.migrate(placement),
+      imageAssetId: imageAssetId == _keep
+          ? this.imageAssetId
+          : _assetId(imageAssetId),
+      textMode: textMode == _keep ? this.textMode : textMode as String,
+      textAlign: textAlign == _keep ? this.textAlign : textAlign as String,
+      textSize: textSize == _keep ? this.textSize : textSize as String,
+      textWeight: textWeight == _keep ? this.textWeight : textWeight as String,
+      textColor: textColor == _keep ? this.textColor : textColor as String,
+      textColorValue: textColorValue == _keep
+          ? this.textColorValue
+          : textColorValue as int?,
+      aspect: aspect == _keep ? this.aspect : aspect as String,
+      radius: radius == _keep ? this.radius : radius as String,
+      mask: mask == _keep ? this.mask : mask as String,
     );
   }
 
@@ -317,6 +470,18 @@ class HomeRoomSimpleSetting {
       'icon': icon,
       'surface': surface,
       'cardSize': HomeRoomSimpleCardSizes.migrate(cardSize),
+      'columns': HomeRoomSimpleColumns.migrate(columns),
+      'placement': HomeRoomSimplePlacements.migrate(placement),
+      'imageAssetId': imageAssetId,
+      'textMode': textMode,
+      'textAlign': textAlign,
+      'textSize': textSize,
+      'textWeight': textWeight,
+      'textColor': textColor,
+      if (textColorValue != null) 'textColorValue': textColorValue,
+      'aspect': aspect,
+      'radius': radius,
+      'mask': mask,
     };
   }
 
@@ -326,6 +491,7 @@ class HomeRoomSimpleSetting {
     }
     final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
     final String subtitle = _clip(map['subtitle'], 40);
+    final Object? colorValue = map['textColorValue'];
     return HomeRoomSimpleSetting(
       subtitle: subtitle.isEmpty ? '查看住宿空間與價格' : subtitle,
       showSubtitle: map['showSubtitle'] is bool
@@ -342,6 +508,50 @@ class HomeRoomSimpleSetting {
         HomeRoomSimpleSurfaces.filled,
       ),
       cardSize: HomeRoomSimpleCardSizes.migrate(map['cardSize']),
+      columns: HomeRoomSimpleColumns.migrate(map['columns']),
+      placement: HomeRoomSimplePlacements.migrate(map['placement']),
+      imageAssetId: _assetId(map['imageAssetId']),
+      textMode: _choice(
+        map['textMode'],
+        HomeRoomSimpleTextModes.all,
+        HomeRoomSimpleTextModes.below,
+      ),
+      textAlign: _choice(
+        map['textAlign'],
+        HomeRoomSimpleTextAligns.all,
+        HomeRoomSimpleTextAligns.bottomStart,
+      ),
+      textSize: _choice(
+        map['textSize'],
+        HomeRoomSimpleTextSizes.all,
+        HomeRoomSimpleTextSizes.medium,
+      ),
+      textWeight: _choice(
+        map['textWeight'],
+        HomeRoomSimpleTextWeights.all,
+        HomeRoomSimpleTextWeights.bold,
+      ),
+      textColor: _choice(
+        map['textColor'],
+        HomeRoomSimpleTextColors.all,
+        HomeRoomSimpleTextColors.dark,
+      ),
+      textColorValue: colorValue is num ? colorValue.toInt() : null,
+      aspect: _choice(
+        map['aspect'],
+        HomeRoomSimpleAspects.all,
+        HomeRoomSimpleAspects.square,
+      ),
+      radius: _choice(
+        map['radius'],
+        HomeRoomSimpleRadii.all,
+        HomeRoomSimpleRadii.medium,
+      ),
+      mask: _choice(
+        map['mask'],
+        HomeRoomSimpleMasks.all,
+        HomeRoomSimpleMasks.none,
+      ),
     );
   }
 }
@@ -452,6 +662,8 @@ class HomeRoomSectionSetting {
     this.layout = HomeRoomSectionLayouts.horizontalScroll,
     this.title = '房型介紹',
     this.showPrice = true,
+    this.fontFamily = '',
+    this.fallbackCoverAssetId = '',
     this.roomTypeOrder = const <String>[],
     this.hiddenRoomTypeIds = const <String>[],
     this.compact = const HomeRoomCompactSetting(),
@@ -459,15 +671,38 @@ class HomeRoomSectionSetting {
     this.mixed = const HomeRoomMixedSetting(),
   });
 
+  /// 與店名字體同一套已安裝字型。空字串代表房型展示維持原本字體。
+  static const List<String> fontFamilies = <String>[
+    'jfOpenHuninn',
+    'NotoSansTC',
+    'NotoSerifTC',
+    'KleeOne',
+    'ChironSungHK',
+  ];
+
   final int schemaVersion;
   final String layout;
   final String title;
   final bool showPrice;
+
+  /// 只影響房型展示文字。空字串不指定 fontFamily。
+  final String fontFamily;
+
+  /// 平台圖庫素材 ID。只在房型沒有自己的照片時當作預設圖，不寫回房型。
+  final String fallbackCoverAssetId;
   final List<String> roomTypeOrder;
   final List<String> hiddenRoomTypeIds;
   final HomeRoomCompactSetting compact;
   final HomeRoomSimpleSetting simple;
   final HomeRoomMixedSetting mixed;
+
+  /// 可套用的房型展示字體。未知代號回傳 null。
+  String? get appliedFontFamily {
+    if (fontFamilies.contains(fontFamily)) {
+      return fontFamily;
+    }
+    return null;
+  }
 
   static const Object _keep = Object();
 
@@ -476,6 +711,8 @@ class HomeRoomSectionSetting {
     Object? layout = _keep,
     Object? title = _keep,
     Object? showPrice = _keep,
+    Object? fontFamily = _keep,
+    Object? fallbackCoverAssetId = _keep,
     Object? roomTypeOrder = _keep,
     Object? hiddenRoomTypeIds = _keep,
     Object? compact = _keep,
@@ -489,6 +726,12 @@ class HomeRoomSectionSetting {
       layout: layout == _keep ? this.layout : layout as String,
       title: title == _keep ? this.title : title as String,
       showPrice: showPrice == _keep ? this.showPrice : showPrice as bool,
+      fontFamily: fontFamily == _keep
+          ? this.fontFamily
+          : _fontFamily(fontFamily),
+      fallbackCoverAssetId: fallbackCoverAssetId == _keep
+          ? this.fallbackCoverAssetId
+          : _assetId(fallbackCoverAssetId),
       roomTypeOrder: roomTypeOrder == _keep
           ? this.roomTypeOrder
           : List<String>.from(roomTypeOrder as List<String>),
@@ -509,6 +752,8 @@ class HomeRoomSectionSetting {
       'layout': layout,
       'title': title,
       'showPrice': showPrice,
+      'fontFamily': fontFamily,
+      'fallbackCoverAssetId': fallbackCoverAssetId,
       'roomTypeOrder': roomTypeOrder,
       'hiddenRoomTypeIds': hiddenRoomTypeIds,
       'cardGrid': <String, dynamic>{
@@ -536,6 +781,8 @@ class HomeRoomSectionSetting {
       layout: HomeRoomSectionLayouts.migrate(rawLayout),
       title: title.isEmpty ? '房型介紹' : title,
       showPrice: map['showPrice'] is bool ? map['showPrice'] as bool : true,
+      fontFamily: _fontFamily(map['fontFamily']),
+      fallbackCoverAssetId: _assetId(map['fallbackCoverAssetId']),
       roomTypeOrder: _stringList(map['roomTypeOrder']),
       hiddenRoomTypeIds: _stringList(map['hiddenRoomTypeIds']),
       compact: _placementFrom(map, compact),
@@ -890,4 +1137,20 @@ String _clip(Object? raw, int maxCharacters) {
     return value;
   }
   return value.characters.take(maxCharacters).toString();
+}
+
+String _fontFamily(Object? raw) {
+  final String value = raw?.toString().trim() ?? '';
+  if (HomeRoomSectionSetting.fontFamilies.contains(value)) {
+    return value;
+  }
+  return '';
+}
+
+String _assetId(Object? raw) {
+  final String value = raw?.toString().trim() ?? '';
+  if (value.isEmpty || value.length > 128 || value.contains('/')) {
+    return '';
+  }
+  return value;
 }

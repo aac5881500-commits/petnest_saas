@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_editor.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_layout_option_card.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/review_section_layout_preview.dart';
 
@@ -11,11 +13,15 @@ class ReviewSectionSettingsPanel extends StatefulWidget {
     required this.setting,
     required this.theme,
     required this.onChanged,
+    this.displayStyles,
+    this.onDisplayStyles,
   });
 
   final HomeInformationSectionsSetting setting;
   final HomeThemeModel theme;
   final ValueChanged<HomeInformationSectionsSetting> onChanged;
+  final HomeDisplayStyleSetting? displayStyles;
+  final ValueChanged<HomeDisplayStyleSetting>? onDisplayStyles;
 
   @override
   State<ReviewSectionSettingsPanel> createState() =>
@@ -28,6 +34,53 @@ class _ReviewSectionSettingsPanelState
   late final TextEditingController _subtitle;
 
   HomeReviewSectionSetting get _reviews => widget.setting.reviews;
+
+  Widget _styleEditor() {
+    final HomeDisplayStyleSetting display =
+        widget.displayStyles ?? HomeDisplayStyleSetting.unset;
+    final String mode = display.effectiveMode(
+      sectionId: HomeDisplaySections.reviews,
+      legacy: HomeDisplayStyle.classic,
+      baseline: HomeDisplayStyle.classic,
+    );
+    final HomeDisplayStyle effective = display.resolve(
+      sectionId: HomeDisplaySections.reviews,
+      legacy: HomeDisplayStyle.classic,
+      baseline: HomeDisplayStyle.classic,
+    );
+    return HomeDisplaySectionOverride(
+      label: '顧客評價',
+      shared: display.style,
+      mode: mode,
+      effective: effective,
+      onInherit: () {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.reviews,
+            mode: HomeDisplayStyleModes.inherit,
+            clearOverride: true,
+          ),
+        );
+      },
+      onCustom: () {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.reviews,
+            mode: HomeDisplayStyleModes.custom,
+          ),
+        );
+      },
+      onEdit: (HomeDisplayStyle edited) {
+        widget.onDisplayStyles?.call(
+          display.updateSection(
+            HomeDisplaySections.reviews,
+            mode: HomeDisplayStyleModes.custom,
+            override: edited.diff(display.style),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -66,6 +119,10 @@ class _ReviewSectionSettingsPanelState
       primary: false,
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
       children: <Widget>[
+        if (widget.onDisplayStyles != null) ...<Widget>[
+          _styleEditor(),
+          const SizedBox(height: 12),
+        ],
         HomeDraftSwitch(
           title: '首頁顯示',
           value: setting.showOnHome,
