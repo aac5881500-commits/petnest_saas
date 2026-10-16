@@ -508,6 +508,7 @@ async function inspectUserRelatedGroups(db, shopId, shop) {
   let usageStatus = "success";
   let usageComplete = true;
   let usageBlocksDeletion = false;
+  let usageRetentionCode = "";
   let usageReason = "店家沒有激活碼編號，沒有可定位的使用紀錄";
   let usageError = null;
   try {
@@ -522,11 +523,13 @@ async function inspectUserRelatedGroups(db, shopId, shop) {
       const log = await db.collection("activation_codes").doc(codeId)
           .collection("usage_logs").doc(shopId).get();
       usageCount = log.exists ? 1 : 0;
-      usageBlocksDeletion = log.exists &&
-        policy.hasRealCommercialObligation(log.data());
+      const usageCodes = log.exists ?
+        policy.commercialRetentionCodes(log.data()) : [];
+      usageBlocksDeletion = usageCodes.length > 0;
+      usageRetentionCode = policy.strongestCommercialCode(usageCodes);
       usageReason = usageBlocksDeletion ?
-        "激活紀錄包含付費方案或權益，不能直接刪除" :
-        "一般或免費激活使用紀錄，不阻止刪除店家";
+        policy.commercialRetentionMessage(usageRetentionCode) :
+        "免費激活或優惠碼使用紀錄，不阻止刪除店家";
     }
   } catch (error) {
     usageError = publicScanError(error);
@@ -542,6 +545,7 @@ async function inspectUserRelatedGroups(db, shopId, shop) {
     status: usageStatus,
     complete: usageComplete,
     blocksDeletion: usageBlocksDeletion,
+    commercialRetentionCode: usageRetentionCode,
     reason: usageReason,
   }, usageError || {}));
   return {
@@ -968,19 +972,21 @@ async function inspectTopLevelCollectionsV2(db, shopId, scanId) {
         continue;
       }
       if (collectionId === "shop_commercial" && result.status === "success") {
-        const realCount = result.docs.filter((doc) =>
-          policy.hasRealCommercialObligation(doc.data())).length;
+        const retentionCodes = result.docs.flatMap((doc) =>
+          policy.commercialRetentionCodes(doc.data()));
+        const retentionCode = policy.strongestCommercialCode(retentionCodes);
         rows.push({
           path: collectionId,
           collection: collectionId,
           relation: "shopId == 指定店號",
-          classification: realCount > 0 ? "retain" : "delete",
+          classification: retentionCode ? "retain" : "delete",
           status: result.status,
           complete: result.complete,
           count: result.count,
-          blocksDeletion: realCount > 0,
-          reason: realCount > 0 ?
-            "有付費方案、合約、發票或應收款" :
+          blocksDeletion: Boolean(retentionCode),
+          commercialRetentionCode: retentionCode,
+          reason: retentionCode ?
+            policy.commercialRetentionMessage(retentionCode) :
             "尚未發生真實付費的店家方案設定",
           latestActivityMillis: result.latestActivityMillis,
           latestActivitySource: result.latestActivitySource,
@@ -2965,10 +2971,18 @@ async function buildPreview(shopId) {
             .includes(text(row.prefix).split("/")[0]) &&
         row.category === "retain")
       .reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const shopCommercialCodes = policy.commercialRetentionCodes(shop);
+  const commercialCodes = shopCommercialCodes.concat(
+      inventoryRows.map((row) => row.commercialRetentionCode),
+      userRelated.rows.map((row) => row.commercialRetentionCode),
+  ).filter(Boolean);
+  transactions.commercialRetentionCode =
+    policy.strongestCommercialCode(commercialCodes);
   transactions.realCommercialCount =
     inventoryRows.filter((row) => row.blocksDeletion === true)
         .reduce((sum, row) => sum + Number(row.count || 0), 0) +
-    userRelated.rows.filter((row) => row.blocksDeletion === true).length;
+    userRelated.rows.filter((row) => row.blocksDeletion === true).length +
+    (shopCommercialCodes.length > 0 ? 1 : 0);
   const executionSummary = Object.assign({}, transactions, {
     manualCollectionCount: ownership.manual.firestoreCount,
     unknownStorageCount: ownership.manual.storageCount,
@@ -3229,6 +3243,38 @@ function previewFingerprint(preview) {
  * @param {Object} preview 預覽
  * @return {Promise<boolean>}
  */
+/**
+ * @param {FirebaseFirestore.DocumentSnapshot} grant 掃描授權
+ * @param {string} uid 管理員
+ * @param {string} shopId 店家
+ * @return {string}
+ */
+function previewGrantFailureCode(grant, uid, shopId) {
+  if (!grant.exists) return "scan-missing";
+  if (grant.get("uid") !== uid) return "scan-operator-mismatch";
+  if (grant.get("shopId") !== shopId) return "scan-shop-mismatch";
+  if (Number(grant.get("expiresAtMillis") || 0) < Date.now()) {
+    return "scan-expired";
+  }
+  if (Number(grant.get("contractVersion") || 0) !== PREVIEW_CONTRACT_VERSION) {
+    return "scan-version-mismatch";
+  }
+  return "";
+}
+
+/**
+ * @param {string} code 授權失敗分類
+ * @return {string}
+ */
+function previewGrantFailureMessage(code) {
+  if (code === "scan-expired") return "掃描授權已過期，請重新掃描。";
+  if (code === "scan-version-mismatch") return "掃描版本不符，請重新掃描。";
+  if (code === "scan-shop-mismatch") {
+    return "掃描店家與刪除目標不一致，請重新掃描。";
+  }
+  return "掃描授權無效，請重新掃描。";
+}
+
 async function savePreviewGrant(uid, shopId, preview) {
   await admin.firestore().collection(PREVIEW_GRANT_COLLECTION)
       .doc(preview.scan.scanId)
@@ -3520,42 +3566,76 @@ async function createJobHandler(request) {
     throw new HttpsError("invalid-argument", "缺少店家編號。");
   }
   const preview = await buildPreview(shopId);
-  if (preview.scan.complete !== true ||
-      preview.consistency.complete !== true) {
+  const scanGate = policy.previewJobGate(preview);
+  if (!scanGate.ok) {
+    console.error("shop deletion job scan gate failed", {
+      scanId: preview.scan.scanId,
+      shopId,
+      codes: scanGate.codes,
+      firestore: scanGate.firestore,
+      storage: scanGate.storage,
+    });
     throw new HttpsError(
         "failed-precondition",
-        "掃描未完整或分類統計不一致，禁止建立清理工作。",
+        scanGate.message,
         {
           scanId: preview.scan.scanId,
-          blockers: preview.blockers,
+          shopId,
+          reasonCode: scanGate.codes[0],
+          reasonCodes: scanGate.codes,
+          firestore: scanGate.firestore,
+          storage: scanGate.storage,
         },
     );
   }
   const requestedScanId = text(data.previewScanId);
   const grant = await admin.firestore().collection(PREVIEW_GRANT_COLLECTION)
       .doc(requestedScanId).get();
-  if (!grant.exists ||
-      grant.get("uid") !== operator.uid ||
-      grant.get("shopId") !== shopId ||
-      Number(grant.get("expiresAtMillis") || 0) < Date.now() ||
-      Number(grant.get("contractVersion") || 0) !== PREVIEW_CONTRACT_VERSION) {
+  const grantCode = previewGrantFailureCode(grant, operator.uid, shopId);
+  if (grantCode) {
+    console.error("shop deletion job grant rejected", {
+      scanId: requestedScanId,
+      shopId,
+      reasonCode: grantCode,
+    });
     throw new HttpsError(
         "failed-precondition",
-        "掃描授權已過期或版本不符，請重新掃描。",
+        previewGrantFailureMessage(grantCode),
+        {scanId: requestedScanId, shopId, reasonCode: grantCode},
     );
   }
   if (text(grant.get("fingerprint")) !== previewFingerprint(preview)) {
+    console.error("shop deletion job scan changed", {
+      scanId: requestedScanId,
+      shopId,
+      reasonCode: "scan-data-changed",
+    });
     throw new HttpsError(
         "failed-precondition",
         "店家資料已變更，請重新掃描後再確認。",
+        {
+          scanId: requestedScanId,
+          shopId,
+          reasonCode: "scan-data-changed",
+        },
     );
   }
   const auditReason = text(data.reason).length >= 10 ?
     text(data.reason) : "平台管理員清理無實際交易店家";
   if (text(preview.shop.shopId) !== shopId) {
+    console.error("shop deletion job shop mismatch", {
+      scanId: requestedScanId,
+      shopId,
+      reasonCode: "scan-shop-mismatch",
+    });
     throw new HttpsError(
         "failed-precondition",
         "刪除目標與掃描店家不一致，請重新掃描。",
+        {
+          scanId: requestedScanId,
+          shopId,
+          reasonCode: "scan-shop-mismatch",
+        },
     );
   }
   const confirmation = {
@@ -4213,9 +4293,30 @@ async function assertShopStillDeletable(shopId) {
   transactions.paidStoreOrderCount = tree.paidStoreOrderCount;
   transactions.completedStoreOrderCount = tree.completedStoreOrderCount;
   const commercial = await db.collection("shop_commercial").doc(shopId).get();
-  if (commercial.exists &&
-      policy.hasRealCommercialObligation(commercial.data())) {
+  const recheckCodes = policy.commercialRetentionCodes(shopSnap.data());
+  if (commercial.exists) {
+    recheckCodes.push(...policy.commercialRetentionCodes(commercial.data()));
+  }
+  let recheckCodeId = text(
+      shopSnap.get("activationCodeId") || shopSnap.get("codeId"),
+  );
+  if (!recheckCodeId) {
+    const requests = await db.collection("sales_shop_create_requests")
+        .where("shopId", "==", shopId).limit(5).get();
+    recheckCodeId = requests.docs
+        .map((doc) => text(doc.get("codeId"))).find(Boolean) || "";
+  }
+  if (recheckCodeId) {
+    const usageLog = await db.collection("activation_codes").doc(recheckCodeId)
+        .collection("usage_logs").doc(shopId).get();
+    if (usageLog.exists) {
+      recheckCodes.push(...policy.commercialRetentionCodes(usageLog.data()));
+    }
+  }
+  if (recheckCodes.length > 0) {
     transactions.realCommercialCount = 1;
+    transactions.commercialRetentionCode =
+      policy.strongestCommercialCode(recheckCodes);
   }
   const eligibility = policy.deletionEligibility(Object.assign(
       {},

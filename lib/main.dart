@@ -39,6 +39,7 @@ void _startupLog(
   int? elapsedMs,
   String? reason,
 }) {
+  if (!kDebugMode) return;
   final StringBuffer line = StringBuffer('[PetNestStartup] $stage $status');
   if (elapsedMs != null) {
     line.write(' elapsedMs=$elapsedMs');
@@ -59,12 +60,31 @@ String _startupReason(Object error) {
   return error.runtimeType.toString();
 }
 
+bool _webStartupShellDismissed = false;
+
 void _dismissWebStartupShell() {
-  if (!kIsWeb) return;
+  if (!kIsWeb || _webStartupShellDismissed) return;
+  _webStartupShellDismissed = true;
   html.document.getElementById('petnest-startup')?.remove();
 }
 
+/// 只比較會影響進入哪個畫面的身份狀態。
+/// authStateChanges 不會在每次 token 更新時通知，因此這裡不改監聽來源。
+String _authDecisionKey(User? user) {
+  if (user == null) return 'signed-out';
+  final bool mustVerify = AuthService.instance.mustVerifyEmail(user);
+  final List<String> providers = user.providerData
+      .map((UserInfo info) => info.providerId)
+      .toList()
+    ..sort();
+  return '${user.uid}|verify=$mustVerify|providers=${providers.join(',')}';
+}
+
+bool _webReloadStarted = false;
+
 void _reloadWebPage() {
+  if (!kIsWeb || _webReloadStarted) return;
+  _webReloadStarted = true;
   html.window.location.reload();
 }
 
@@ -294,19 +314,16 @@ class _PetNestWebBootstrapState extends State<PetNestWebBootstrap> {
   @override
   void initState() {
     super.initState();
-    final Stopwatch bootstrap = Stopwatch()..start();
-    _startupLog(
-      'Flutter bootstrap',
-      'done',
-      elapsedMs: bootstrap.elapsedMilliseconds,
-    );
     _startupLog('App Check initialize', 'skipped', reason: 'not-configured');
+    // 第一幀畫完後才拿掉 HTML 遮罩。initState 當下 Flutter 還沒畫出內容。
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _dismissWebStartupShell();
+      _startupLog('Flutter first frame submitted', 'done');
     });
     _slowTimer = Timer(_startupSlowHint, () {
       if (!mounted || _ready || _failed) return;
-      _startupLog('Firebase initialize', 'timeout');
+      _startupLog('Firebase initialize', 'slow');
       setState(() => _slow = true);
     });
     _startFirebase();
@@ -329,7 +346,6 @@ class _PetNestWebBootstrapState extends State<PetNestWebBootstrap> {
           options: DefaultFirebaseOptions.currentPlatform,
         );
       }
-      FcmTokenService.instance.listenTokenRefresh();
       _startupLog(
         'Firebase initialize',
         'done',
@@ -343,7 +359,6 @@ class _PetNestWebBootstrapState extends State<PetNestWebBootstrap> {
       });
     } catch (error) {
       if (Firebase.apps.isNotEmpty) {
-        FcmTokenService.instance.listenTokenRefresh();
         _startupLog(
           'Firebase initialize',
           'done',
@@ -394,6 +409,38 @@ class _PetNestWebBootstrapState extends State<PetNestWebBootstrap> {
   }
 }
 
+/// 正式登入頁或首頁被放進樹後，等這一幀提交再紀錄。rebuild 不會重跑 initState。
+class _EntryFrameSubmitted extends StatefulWidget {
+  const _EntryFrameSubmitted({
+    super.key,
+    required this.generation,
+    required this.onSubmitted,
+    required this.child,
+  });
+
+  final int generation;
+  final void Function(int generation) onSubmitted;
+  final Widget child;
+
+  @override
+  State<_EntryFrameSubmitted> createState() => _EntryFrameSubmittedState();
+}
+
+class _EntryFrameSubmittedState extends State<_EntryFrameSubmitted> {
+  @override
+  void initState() {
+    super.initState();
+    final int generation = widget.generation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onSubmitted(generation);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class AppEntryPage extends StatefulWidget {
   const AppEntryPage({super.key});
 
@@ -410,9 +457,9 @@ class _AppEntryPageState extends State<AppEntryPage> {
   bool _authReady = false;
   bool _authSlow = false;
   bool _entryFailed = false;
-  bool _loggedFirstScreen = false;
   bool _loggedAuthDone = false;
-  String? _pendingUid;
+  int? _loggedEntryGeneration;
+  String? _pendingAuthKey;
   User? _knownUser;
 
   @override
@@ -438,18 +485,19 @@ class _AppEntryPageState extends State<AppEntryPage> {
       if (!mounted || _authReady) return;
       _startupLog(
         'Auth state restore',
-        'timeout',
+        'slow',
         elapsedMs: _authWatch?.elapsedMilliseconds,
       );
       setState(() => _authSlow = true);
     });
+    _pendingAuthKey = null;
     _authSub = FirebaseAuth.instance.authStateChanges().listen(
       (User? user) {
-        final String uid = user?.uid ?? '';
-        if (!_entryFailed && uid == _pendingUid) {
+        final String key = _authDecisionKey(user);
+        if (!_entryFailed && key == _pendingAuthKey) {
           return;
         }
-        _pendingUid = uid;
+        _pendingAuthKey = key;
         _authSlowTimer?.cancel();
         if (!_loggedAuthDone) {
           _loggedAuthDone = true;
@@ -485,7 +533,6 @@ class _AppEntryPageState extends State<AppEntryPage> {
         _authReady = true;
         _authSlow = false;
         _entryFailed = false;
-        _loggedFirstScreen = false;
         _pageFuture = future;
       });
     });
@@ -530,25 +577,14 @@ class _AppEntryPageState extends State<AppEntryPage> {
         return const EmailVerificationPage();
       }
 
-      // 🔔 手機使用者登入後，自動同步 FCM Token
-      // Web 會由 FcmTokenService 自動略過
-      Future<void>.microtask(() async {
-        try {
-          print('[AppEntry] FCM microtask start');
-          await FcmTokenService.instance.saveCurrentUserToken();
-          await FcmMessageService.instance.initialize();
-          print('[AppEntry] FCM microtask success');
-        } catch (e, st) {
-          print('[AppEntry] FCM microtask failed');
-          ChatErrorProbe.dump('AppEntry FCM', e, st);
-        }
-      });
-
       final List<Map<String, dynamic>> myShops = await ShopService.instance
           .getMyShops()
           .timeout(_entryQueryLimit);
       if (generation != _generation) {
-        return const SizedBox.shrink();
+        return const PetNestStartupStatus(
+          title: 'PetNest',
+          message: '正在準備首頁',
+        );
       }
       if (myShops.isNotEmpty) {
         _startupLog(
@@ -562,7 +598,10 @@ class _AppEntryPageState extends State<AppEntryPage> {
       final SharedPreferences prefs = await SharedPreferences.getInstance()
           .timeout(_entryQueryLimit);
       if (generation != _generation) {
-        return const SizedBox.shrink();
+        return const PetNestStartupStatus(
+          title: 'PetNest',
+          message: '正在準備首頁',
+        );
       }
       final String? lastShopId = prefs.getString('last_customer_shop_id');
       _startupLog(
@@ -598,10 +637,22 @@ class _AppEntryPageState extends State<AppEntryPage> {
     }
   }
 
-  void _markFirstScreen() {
-    if (_loggedFirstScreen) return;
-    _loggedFirstScreen = true;
-    _startupLog('First screen ready', 'done');
+  void _onEntryFrameSubmitted(int generation) {
+    if (!mounted || generation != _generation) return;
+    if (_loggedEntryGeneration == generation) return;
+    _loggedEntryGeneration = generation;
+    _startupLog('Entry frame submitted', 'done');
+    if (kIsWeb || _knownUser == null) return;
+    Future<void>.microtask(() async {
+      _startupLog('background FCM', 'start');
+      try {
+        await FcmTokenService.instance.saveCurrentUserToken();
+        await FcmMessageService.instance.initialize();
+        _startupLog('background FCM', 'done');
+      } catch (error) {
+        _startupLog('background FCM', 'fail', reason: _startupReason(error));
+      }
+    });
   }
 
   @override
@@ -652,8 +703,12 @@ class _AppEntryPageState extends State<AppEntryPage> {
             ),
           );
         }
-        _markFirstScreen();
-        return pageSnapshot.data!;
+        return _EntryFrameSubmitted(
+          key: ValueKey<int>(_generation),
+          generation: _generation,
+          onSubmitted: _onEntryFrameSubmitted,
+          child: pageSnapshot.data!,
+        );
       },
     );
   }

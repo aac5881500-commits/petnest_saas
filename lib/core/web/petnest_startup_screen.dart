@@ -42,8 +42,15 @@ class PetNestStartupStatus extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
                       color: Color(0xFF3D342C),
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '寵物旅宿',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Color(0xFF8A7B72)),
                   ),
                   const SizedBox(height: 20),
                   if (busy) ...<Widget>[

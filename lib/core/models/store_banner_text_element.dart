@@ -109,6 +109,18 @@ class StoreBannerFontSizes {
     return designPx * bannerHeight / designHeight;
   }
 
+  /// 編輯器預覽最大寬 420、16:9 時的高度。內距、圓角、陰影依這個高度等比換算。
+  static const double editorReferenceWidth = 420;
+  static const double editorReferenceHeight = editorReferenceWidth * 9 / 16;
+
+  /// 編輯器上調過的像素換到目前畫布。420 寬預覽維持原值，1600×900 用同一比例放大。
+  static double scaleEditorPx(double editorPx, double bannerHeight) {
+    if (bannerHeight <= 0 || !bannerHeight.isFinite) {
+      return editorPx;
+    }
+    return editorPx * bannerHeight / editorReferenceHeight;
+  }
+
   static int maxLines(String value) {
     switch (value) {
       case display:

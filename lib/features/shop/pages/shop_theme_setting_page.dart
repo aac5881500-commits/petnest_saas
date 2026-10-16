@@ -23,7 +23,6 @@ import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
@@ -38,6 +37,7 @@ import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_page.
 import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/frontend_navigation_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_banner_display_settings.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_editor_preview.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_settings_card.dart';
@@ -167,7 +167,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   int _modernBannerButtonTextColorValue = 0xFFFFFFFF;
   ModernBannerFrameSetting _modernBannerFrame =
       const ModernBannerFrameSetting();
-  String _modernBannerPreviewImageUrl = '';
   int _enabledHomeBannerCount = 0;
   late final TabController _tabController;
   final Map<String, Map<String, String>> _layoutSettings = {
@@ -440,17 +439,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   String get _bannerStatusText {
-    final String width = switch (_modernBannerFrame.widthPreset) {
-      HomeBannerWidthPreset.narrow => '窄版',
-      HomeBannerWidthPreset.standard => '標準寬',
-      HomeBannerWidthPreset.full => '滿寬',
-    };
-    final String height = switch (_modernBannerFrame.heightPreset) {
-      HomeBannerHeightPreset.short => '矮版',
-      HomeBannerHeightPreset.standard => '標準高',
-      HomeBannerHeightPreset.tall => '高版',
-    };
-    return '已啟用・$_enabledHomeBannerCount 張海報・$width／$height';
+    final String mode = _modernBannerFrame.isActivity ? '活動滑動海報' : '經典完整海報';
+    return '已啟用・$_enabledHomeBannerCount 張海報・$mode';
   }
 
   ModernStoreHomeSetting get _draftStoreHomeSetting {
@@ -715,7 +705,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _browsingPresetId = null;
         _showStayServiceStrip =
             modernAppearance['showStayServiceStrip'] != false;
-        _modernBannerPreviewImageUrl = _firstActiveBannerUrl(shopData);
         _brandStyle = StoreBrandStyle.fromMap(
           modernAppearance,
           logoUrl: _modernLogoUrl,
@@ -822,27 +811,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         context,
       ).showSnackBar(SnackBar(content: Text('Logo 上傳失敗：$error')));
     }
-  }
-
-  String _firstActiveBannerUrl(Map<String, dynamic>? shopData) {
-    final Object? rawBanners = shopData?['banners'];
-    if (rawBanners is! List) {
-      return '';
-    }
-
-    for (final Object? item in rawBanners) {
-      if (item is! Map) {
-        continue;
-      }
-      if (item['isActive'] == false) {
-        continue;
-      }
-      final String imageUrl = (item['imageUrl'] ?? '').toString().trim();
-      if (imageUrl.isNotEmpty) {
-        return imageUrl;
-      }
-    }
-    return '';
   }
 
   void _storeSelectedLayoutSettings() {
@@ -2478,7 +2446,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         key: _bannerSettingsKey,
         child: HomeSettingsFold(
           title: '首頁活動海報',
-          subtitle: '影響首頁上方活動海報的顯示大小。圖片與按鈕仍到活動海報管理編輯。',
+          subtitle: '同一個海報區域可切換經典完整海報或活動滑動海報。圖片與連結仍到活動海報管理編輯。',
           summary: _bannerStatusText,
           initiallyExpanded: true,
           child: _buildHomeBannerDisplaySettings(),
@@ -2912,209 +2880,21 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  Widget _buildFrameChoiceChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onSelected,
-  }) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (bool value) {
-        if (value) {
-          onSelected();
-        }
-      },
-    );
-  }
-
-  Widget _buildModernBannerFramePreview() {
-    return Padding(
-      padding: HomeBannerDisplay.outerPadding(_modernBannerFrame.widthPreset),
-      child: AspectRatio(
-        aspectRatio: _modernBannerFrame.frameAspectRatio,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: ColoredBox(
-            color: Colors.black,
-            child: _modernBannerPreviewImageUrl.isEmpty
-                ? Center(
-                    child: Text(
-                      '尚未設定活動海報',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 12,
-                      ),
-                    ),
-                  )
-                : Image.network(
-                    _modernBannerPreviewImageUrl,
-                    fit: _modernBannerFrame.completePosterFit,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorBuilder:
-                        (
-                          BuildContext context,
-                          Object error,
-                          StackTrace? stackTrace,
-                        ) {
-                          return const Center(
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              color: Colors.white70,
-                            ),
-                          );
-                        },
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildHomeBannerDisplaySettings() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '海報顯示尺寸',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    return HomeBannerDisplaySettings(
+      frame: _modernBannerFrame,
+      bannerCount: _enabledHomeBannerCount,
+      onChanged: (ModernBannerFrameSetting next) {
+        setState(() => _modernBannerFrame = next);
+      },
+      onManage: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => ShopMediaPage(shopId: widget.shopId),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            '分別設定首頁海報的寬度與高度，所有輪播海報會使用相同尺寸。',
-            style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
-          ),
-          const SizedBox(height: 12),
-          _buildModernBannerFramePreview(),
-          const SizedBox(height: 14),
-          const Text('海報寬度', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _buildFrameChoiceChip(
-                label: '窄版',
-                selected:
-                    _modernBannerFrame.widthPreset ==
-                    HomeBannerWidthPreset.narrow,
-                onSelected: () {
-                  setState(() {
-                    _modernBannerFrame = _modernBannerFrame.copyWith(
-                      widthPreset: HomeBannerWidthPreset.narrow,
-                    );
-                  });
-                },
-              ),
-              _buildFrameChoiceChip(
-                label: '標準',
-                selected:
-                    _modernBannerFrame.widthPreset ==
-                    HomeBannerWidthPreset.standard,
-                onSelected: () {
-                  setState(() {
-                    _modernBannerFrame = _modernBannerFrame.copyWith(
-                      widthPreset: HomeBannerWidthPreset.standard,
-                    );
-                  });
-                },
-              ),
-              _buildFrameChoiceChip(
-                label: '滿寬',
-                selected:
-                    _modernBannerFrame.widthPreset ==
-                    HomeBannerWidthPreset.full,
-                onSelected: () {
-                  setState(() {
-                    _modernBannerFrame = _modernBannerFrame.copyWith(
-                      widthPreset: HomeBannerWidthPreset.full,
-                    );
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Text('海報高度', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _buildFrameChoiceChip(
-                label: '矮版',
-                selected:
-                    _modernBannerFrame.heightPreset ==
-                    HomeBannerHeightPreset.short,
-                onSelected: () {
-                  setState(() {
-                    _modernBannerFrame = _modernBannerFrame.copyWith(
-                      heightPreset: HomeBannerHeightPreset.short,
-                    );
-                  });
-                },
-              ),
-              _buildFrameChoiceChip(
-                label: '標準',
-                selected:
-                    _modernBannerFrame.heightPreset ==
-                    HomeBannerHeightPreset.standard,
-                onSelected: () {
-                  setState(() {
-                    _modernBannerFrame = _modernBannerFrame.copyWith(
-                      heightPreset: HomeBannerHeightPreset.standard,
-                    );
-                  });
-                },
-              ),
-              _buildFrameChoiceChip(
-                label: '高版',
-                selected:
-                    _modernBannerFrame.heightPreset ==
-                    HomeBannerHeightPreset.tall,
-                onSelected: () {
-                  setState(() {
-                    _modernBannerFrame = _modernBannerFrame.copyWith(
-                      heightPreset: HomeBannerHeightPreset.tall,
-                    );
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '標準高度完整顯示16:9海報；矮版或高版會填滿版面，可能裁切圖片邊緣。',
-            style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            '矮版或高版可能裁切海報邊緣，重要文字請放在圖片中央安全範圍。',
-            style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => ShopMediaPage(shopId: widget.shopId),
-                ),
-              );
-            },
-            icon: const Icon(Icons.collections_outlined),
-            label: const Text('管理活動海報'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

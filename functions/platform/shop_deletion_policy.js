@@ -172,24 +172,89 @@ function isRequiredAuditAction(value) {
 }
 
 /**
- * 只有實際付費、合約、發票或應收款才算必須留下的商業資料。
+ * 金額欄位缺席不代表付費；無法解讀才視為未知。明確 0 不是收款證據。
+ * @param {*} value 金額
+ * @return {"absent"|"zero"|"positive"|"unknown"}
+ */
+function amountSignal(value) {
+  if (value === null || value === undefined || value === "") return "absent";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "unknown";
+  return amount > 0 ? "positive" : "zero";
+}
+
+/**
+ * 真實付款、合約、發票、應收款或無法確認的付款歷史。
+ * 方案代碼、權益到期日、優惠碼與贈送本身不是收款證據。
+ * paidServiceUntil 只在確認平台訂閱收款時寫入，不同於 paidUntilDate。
+ * @param {Object} value 店家、商業紀錄或激活使用紀錄
+ * @return {string[]}
+ */
+function commercialRetentionCodes(value) {
+  const data = value || {};
+  const codes = [];
+  if (normalizeString(
+      data.invoiceNo || data.invoiceNumber || data.contractId ||
+      data.contractNo,
+  )) {
+    codes.push("contract");
+  }
+  const receivable = amountSignal(data.receivableAmount);
+  if (receivable === "positive") codes.push("receivable");
+  if (receivable === "unknown") codes.push("unknown");
+  for (const field of ["paidAmount", "amountPaid", "amountReceivedMinor"]) {
+    const signal = amountSignal(data[field]);
+    if (signal === "positive") codes.push("paid");
+    if (signal === "unknown") codes.push("unknown");
+  }
+  if (normalizeString(data.paidServiceUntil)) codes.push("paid");
+  if (normalizeString(data.lastSubscriptionPaymentId)) codes.push("paid");
+  const source = normalizeString(data.entitlementSource).toLowerCase();
+  if (source === "paid") codes.push("paid");
+  if (source === "legacy_unconfirmed") codes.push("unknown");
+  const paymentStatus = normalizeString(
+      data.paymentStatus || data.subscriptionPaymentStatus,
+  ).toLowerCase();
+  if (["confirmed", "paid", "success", "refunded", "partial_refund"]
+      .includes(paymentStatus)) {
+    codes.push("paid");
+  }
+  if (["unknown", "unconfirmed", "pending", "draft"].includes(paymentStatus)) {
+    codes.push("unknown");
+  }
+  return [...new Set(codes)];
+}
+
+/**
+ * @param {string[]} codes 商業保存原因
+ * @return {string}
+ */
+function strongestCommercialCode(codes) {
+  for (const code of ["unknown", "contract", "receivable", "paid"]) {
+    if ((codes || []).includes(code)) return code;
+  }
+  return "";
+}
+
+/**
+ * @param {string} code 最主要原因
+ * @return {string}
+ */
+function commercialRetentionMessage(code) {
+  if (code === "unknown") return "付款歷史無法確認，暫不支援永久刪除。";
+  if (code === "contract") return "此店家有合約或發票保存義務，暫不支援永久刪除。";
+  if (code === "receivable") return "此店家有未結清應收款，暫不支援永久刪除。";
+  if (code === "paid") return "此店家曾有實際平台付款紀錄，暫不支援永久刪除。";
+  return "此店家有必須保存的商業紀錄，暫不支援永久刪除。";
+}
+
+/**
+ * 只有實際付費、合約、發票、應收款或無法確認的付款歷史才留下。
  * @param {Object} value 商業或激活紀錄
  * @return {boolean}
  */
 function hasRealCommercialObligation(value) {
-  const data = value || {};
-  if (normalizeString(data.paidServiceUntil)) return true;
-  if (normalizeString(
-      data.invoiceNo || data.invoiceNumber || data.contractId,
-  )) {
-    return true;
-  }
-  const amount = Number(
-      data.receivableAmount || data.paidAmount || data.amountPaid || 0,
-  );
-  if (amount > 0) return true;
-  const plan = normalizeString(data.plan).toLowerCase();
-  return plan === "basic" || plan === "pro";
+  return commercialRetentionCodes(value).length > 0;
 }
 
 /**
@@ -409,6 +474,48 @@ function hasRefundOrDispute(value) {
 }
 
 /**
+ * 判斷預覽是否能進入清理工作。只讀已計算的掃描契約，不重新估算數量。
+ * @param {Object} preview 後端預覽
+ * @return {{ok: boolean, codes: string[], message: string, firestore: Object, storage: Object}}
+ */
+function previewJobGate(preview) {
+  const value = preview || {};
+  const scan = value.scan || {};
+  const consistency = value.consistency || {};
+  const firestore = consistency.firestore || {};
+  const storage = consistency.storage || {};
+  const firestoreDifference = Number(firestore.difference || 0);
+  const storageDifference = Number(storage.difference || 0);
+  const codes = [];
+  if (firestoreDifference !== 0) codes.push("firestore-count-mismatch");
+  if (storageDifference !== 0) codes.push("storage-count-mismatch");
+  if (scan.complete !== true) codes.push("scan-incomplete");
+  if (codes.length === 0 && consistency.complete !== true) {
+    codes.push("category-count-mismatch");
+  }
+  const countMismatch = codes.includes("firestore-count-mismatch") ||
+    codes.includes("storage-count-mismatch") ||
+    codes.includes("category-count-mismatch");
+  return {
+    ok: codes.length === 0,
+    codes,
+    message: countMismatch ?
+      "掃描資料統計不一致，請重新掃描後再試。" :
+      "掃描未完整，請重新掃描後再試。",
+    firestore: {
+      scanned: Number(firestore.scannedCount || 0),
+      classified: Number(firestore.classifiedCount || 0),
+      difference: firestoreDifference,
+    },
+    storage: {
+      scanned: Number(storage.scannedFileCount || 0),
+      classified: Number(storage.classifiedFileCount || 0),
+      difference: storageDifference,
+    },
+  };
+}
+
+/**
  * 由交易掃描結果決定是否可完整刪除。不看店家年齡或設定數量。
  * @param {Object} summary 交易與掃描摘要
  * @return {{allowed: boolean, category: string, label: string, blockers: string[]}}
@@ -463,7 +570,7 @@ function deletionEligibility(summary) {
     blockers.push("此店家有無法確認的付款紀錄，暫不支援永久刪除。");
   }
   if (Number(input.realCommercialCount || 0) > 0) {
-    blockers.push("此店家有付費方案、合約或必須保存的商業紀錄，暫不支援永久刪除。");
+    blockers.push(commercialRetentionMessage(input.commercialRetentionCode));
   }
   const unique = [...new Set(blockers)];
   if (unique.length > 0) {
@@ -634,6 +741,9 @@ module.exports = {
   isCompletedService,
   isRequiredAuditAction,
   hasRealCommercialObligation,
+  commercialRetentionCodes,
+  strongestCommercialCode,
+  commercialRetentionMessage,
   hasGatewaySuccess,
   isPaidOrExternalPayment,
   isOrderPaidOrExternal,
@@ -643,5 +753,6 @@ module.exports = {
   validateConfirmation,
   jobStartBlockers,
   deletionEligibility,
+  previewJobGate,
   storagePrefixes,
 };

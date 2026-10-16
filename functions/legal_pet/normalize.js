@@ -141,6 +141,32 @@ function licenseLookupFields(row) {
 }
 
 /**
+ * licenseCore 不含尾碼。查核鍵 V1140460-00 要對到核心 V1140460，再做完整字號過濾。
+ * @param {string} key parseLicenseLookup 的標準查核鍵
+ * @return {string}
+ */
+function licenseCoreQueryToken(key) {
+  const value = text(key);
+  const dash = value.indexOf("-");
+  return dash === -1 ? value : value.slice(0, dash);
+}
+
+/**
+ * 只保留 validnum 正規化後與查核鍵完全相同的政府資料。
+ * 不接受少一碼、多一碼、不同尾碼或繁字證照。
+ * @param {Object[]} records 政府文件
+ * @param {string} key 標準查核鍵
+ * @return {Object[]}
+ */
+function selectExactLicenseRecords(records, key) {
+  const wanted = text(key);
+  return (Array.isArray(records) ? records : []).filter((record) => {
+    const parsed = parseLicenseLookup(licenseLookupSource(record));
+    return parsed.ok && parsed.kind === "standard" && parsed.key === wanted;
+  });
+}
+
+/**
  * 衍生欄位已是目前版本且內容相同才跳過。
  * @param {Object} row 既有文件
  * @param {Object} patch 預計寫入
@@ -196,7 +222,8 @@ function planLookupBackfillResult(input) {
 }
 
 /**
- * 決定要不要查詢。資料未補齊與格式不符都不當成查無。
+ * 決定要不要查詢。格式不符與來源失敗都不當成查無。
+ * 字號查核鍵版本未寫入時仍可查，改由完整 licenseCore 精確比對。
  * @param {Object} input 字號、版本與相符筆數
  * @return {Object}
  */
@@ -209,15 +236,6 @@ function lookupStatusFor(input) {
       key: "",
       shouldQuery: false,
       reason: parsed.reason || parsed.kind,
-    };
-  }
-  const version = Number(data.licenseLookupVersion) || 0;
-  if (version < LOOKUP_KEY_VERSION) {
-    return {
-      status: "incomplete",
-      key: parsed.key,
-      shouldQuery: false,
-      reason: "not_backfilled",
     };
   }
   if (data.sourceFailed === true) {
@@ -620,6 +638,9 @@ module.exports = {
   LOOKUP_KEY_VERSION,
   parseLicenseLookup,
   licenseLookupFields,
+  licenseLookupSource,
+  licenseCoreQueryToken,
+  selectExactLicenseRecords,
   licenseLookupCurrent,
   selectLicenseLookupWrites,
   planLookupBackfillResult,

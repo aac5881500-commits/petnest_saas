@@ -58,10 +58,15 @@
       text-align: center;
     }
     #petnest-startup h1 {
-      margin: 0 0 16px;
+      margin: 0;
       font-size: 28px;
       font-weight: 700;
       letter-spacing: 0.4px;
+    }
+    #petnest-startup .brand {
+      margin: 4px 0 16px;
+      font-size: 13px;
+      color: #8a7b72;
     }
     #petnest-startup .spin {
       width: 28px;
@@ -193,11 +198,12 @@
   <div id="petnest-startup" role="status" aria-live="polite">
     <div class="box">
       <h1>PetNest</h1>
+      <p class="brand">寵物旅宿</p>
       <div class="spin"></div>
       <p>正在啟動</p>
       <div id="petnest-startup-hint" hidden>
         <p>載入時間較長。可以重新整理，不會清除登入資料。</p>
-        <button type="button" onclick="window.location.reload()">重新整理</button>
+        <button type="button" id="petnest-startup-reload">重新整理</button>
       </div>
     </div>
   </div>
@@ -217,6 +223,17 @@
       hint.hidden = false;
       console.info('[PetNestStartup] Flutter bootstrap timeout');
     }, 12000);
+
+    var reloadStarted = false;
+    var reloadButton = document.getElementById('petnest-startup-reload');
+    if (reloadButton) {
+      reloadButton.addEventListener('click', function () {
+        if (reloadStarted) return;
+        reloadStarted = true;
+        reloadButton.disabled = true;
+        window.location.reload();
+      });
+    }
 
     window.addEventListener('unhandledrejection', function (event) {
       var reason = event && event.reason;

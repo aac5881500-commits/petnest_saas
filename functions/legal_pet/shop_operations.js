@@ -10,6 +10,8 @@ const {
   chooseGovernmentRecord,
   compareAddress,
   parseGovernmentAddress,
+  licenseCoreQueryToken,
+  selectExactLicenseRecords,
 } = require("./normalize");
 const {
   canReviewShopRequests,
@@ -25,8 +27,8 @@ const {loadPlatformUser, assertShopStaff} = require("./staff_access");
 const {mirrorLicenseLink} = require("./directory_operations");
 
 const LOOKUP_MESSAGES = {
-  none: "政府名單目前沒有相符字號。這不是平台認證結果，新核發證照仍可送人工補審。",
-  unavailable: "暫時無法查核政府資料，不代表字號無效。",
+  none: "政府名單目前沒有相符字號，請確認輸入的字號是否正確。",
+  unavailable: "政府資料查核暫時失敗，請稍後重試。",
   stale: "政府資料同步已逾時，不能把這次結果當成查無資料。",
   multiple: "有多筆相符證照，請依地址確認，不能併成同一家。",
   expired: "找到相符資料，但許可有效日期已過。這不是平台認證。",
@@ -88,8 +90,25 @@ function publicMatch(record, addressComparison, syncedAt) {
   };
 }
 
+const LICENSE_LOOKUP_LIMIT = 10;
+
 /**
- * 只做 licenseLookupKey 完全相符。不掃描整份名單。
+ * 權限不足、連線失敗或查詢被上限截斷。不可顯示成查無資料。
+ * @param {Object} sync 同步狀態
+ * @return {Object}
+ */
+function lookupFailureResult(sync) {
+  return {
+    status: "unavailable",
+    message: LOOKUP_MESSAGES.unavailable,
+    syncedAt: (sync && sync.lastSuccessAt) || "",
+    matches: [],
+  };
+}
+
+/**
+ * 先查查核鍵。沒有完全相符時，再以 licenseCore 等值查最多 10 筆並過濾完整字號。
+ * 不掃描整份政府名單。查詢失敗或結果被上限截斷時丟出錯誤，不回傳空陣列。
  * @param {FirebaseFirestore.Firestore} db Firestore
  * @param {string} key 查核鍵
  * @return {Promise<Object[]>}
@@ -98,13 +117,35 @@ async function queryByLookupKey(db, key) {
   if (!key) {
     return [];
   }
-  const snap = await db.collection("legal_pet_businesses")
+  const byKey = await db.collection("legal_pet_businesses")
       .where("licenseLookupKey", "==", key)
-      .limit(10)
+      .limit(LICENSE_LOOKUP_LIMIT)
       .get();
-  return snap.docs.map((doc) => {
-    return doc.data();
-  });
+  const fromKey = selectExactLicenseRecords(
+      byKey.docs.map((doc) => doc.data()),
+      key,
+  );
+  if (fromKey.length > 0) {
+    return fromKey;
+  }
+  const core = licenseCoreQueryToken(key);
+  if (!core) {
+    return [];
+  }
+  const byCore = await db.collection("legal_pet_businesses")
+      .where("licenseCore", "==", core)
+      .limit(LICENSE_LOOKUP_LIMIT)
+      .get();
+  const fromCore = selectExactLicenseRecords(
+      byCore.docs.map((doc) => doc.data()),
+      key,
+  );
+  if (byCore.size >= LICENSE_LOOKUP_LIMIT && fromCore.length === 0) {
+    const error = new Error("license core lookup truncated");
+    error.code = "lookup-truncated";
+    throw error;
+  }
+  return fromCore;
 }
 
 /**
@@ -146,12 +187,7 @@ async function lookupLegalPetLicense(request) {
     matches = await queryByLookupKey(db, gate.key);
   } catch (error) {
     console.error("lookup license", error);
-    return {
-      status: "unavailable",
-      message: LOOKUP_MESSAGES.unavailable,
-      syncedAt: sync.lastSuccessAt || "",
-      matches: [],
-    };
+    return lookupFailureResult(sync);
   }
   const status = lookupStatusFor({
     license: license,
@@ -514,7 +550,10 @@ async function reviewShopChangeRequest(request) {
 
 module.exports = {
   LOOKUP_MESSAGES,
+  LICENSE_LOOKUP_LIMIT,
+  lookupFailureResult,
   publicMatch,
+  queryByLookupKey,
   lookupLegalPetLicense,
   saveShopInitialProfile,
   submitShopCertification,

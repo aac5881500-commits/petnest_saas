@@ -75,6 +75,13 @@ class ShopStoreBannerEditorPage extends StatefulWidget {
 
 typedef PetNestBannerEditorPage = ShopStoreBannerEditorPage;
 
+/// 合成當下的編輯資料簽名。確認期間內容變了就必須重新合成。
+String posterComposeSignature(StoreBannerModel banner) {
+  final Map<String, dynamic> data = banner.toMap();
+  final List<String> keys = data.keys.toList()..sort();
+  return keys.map((String key) => '$key=${data[key]}').join('\n');
+}
+
 class StoreBannerEditorController {
   _ShopStoreBannerEditorPageState? _state;
 
@@ -132,12 +139,27 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   String _retiredSourcePath = '';
   final HomeBannerImageCleanup _images = HomeBannerImageCleanup();
   bool _saving = false;
+  String _savePhase = '';
   bool _saved = false;
   bool _uploading = false;
   bool _dirty = false;
   final GlobalKey _captureKey = GlobalKey();
 
   StoreBannerModel get currentDraft => _draft.copyWith(ctaText: _cta.text);
+
+  String get _saveLabel {
+    if (!_saving) {
+      return widget.isHomeScope ? '完成海報' : '確認並發布';
+    }
+    switch (_savePhase) {
+      case 'compose':
+        return '合成中…';
+      case 'confirm':
+        return '請確認成品';
+      default:
+        return '發布中…';
+    }
+  }
 
   void _updateEnabled(bool enabled) {
     _dirty = true;
@@ -454,164 +476,261 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     });
   }
 
+  void _showSaveMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _waitForPosterFrame() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    final WidgetsBinding binding = WidgetsBinding.instance;
+    binding.scheduleFrame();
+    await binding.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    final BuildContext? captureContext = _captureKey.currentContext;
+    final Uint8List? bytes = _localImageBytes;
+    if (bytes != null && bytes.isNotEmpty) {
+      await StoreBannerRenderService.waitForEncodedImage(bytes);
+      if (captureContext != null && captureContext.mounted) {
+        await precacheImage(MemoryImage(bytes), captureContext);
+      }
+    } else {
+      final String url = currentDraft.imageUrl.trim();
+      if (url.isNotEmpty) {
+        final NetworkImage provider = NetworkImage(url);
+        await StoreBannerRenderService.waitForImageProvider(provider);
+        if (captureContext != null && captureContext.mounted) {
+          await precacheImage(provider, captureContext);
+        }
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    binding.scheduleFrame();
+    await binding.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    binding.scheduleFrame();
+    await binding.endOfFrame;
+  }
+
   Future<void> _save() async {
     if (_saving) {
       return;
     }
-    setState(() => _saving = true);
-    final DateTime now = DateTime.now();
-    StoreBannerModel next = _draft.copyWith(
-      ctaText: _cta.text,
-      createdAt: _draft.createdAt ?? now,
-      updatedAt: now,
-    );
-    if (!next.hasImage && _localImageBytes == null) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請先上傳海報圖片')));
-      return;
-    }
-    if (widget.isHomeScope) {
-      final String? actionError = HomeBannerDisplay.validateAction(next);
-      if (actionError != null) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(actionError)));
+    setState(() {
+      _saving = true;
+      _savePhase = widget.isHomeScope ? 'compose' : 'upload';
+    });
+    Uint8List? confirmedJpeg;
+    try {
+      final DateTime now = DateTime.now();
+      _draft = _draft.copyWith(
+        ctaText: _cta.text,
+        createdAt: _draft.createdAt ?? now,
+        updatedAt: now,
+      );
+      StoreBannerModel next = currentDraft;
+      if (!next.hasImage && _localImageBytes == null) {
+        _showSaveMessage('請先上傳海報圖片');
         return;
       }
-    }
-    String uploadedUrl = '';
-    String uploadedPath = '';
-    String freshSourceUrl = '';
-    String freshSourcePath = '';
-    final String oldRenderedUrl = next.renderedImageUrl;
-    final String oldRenderedPath = next.renderedImageStoragePath;
-    final String oldSourceUrl = next.imageUrl;
-    final String oldSourcePath = next.imageStoragePath;
-    try {
-      if (widget.isHomeScope && _localImageBytes != null) {
-        final InventoryImageUploadResult source = await InventoryImageService
-            .instance
-            .uploadBytes(
-              shopId: widget.shopId,
-              itemId: '${next.id}/p_${DateTime.now().millisecondsSinceEpoch}',
-              bytes: _localImageBytes!,
-              folder: HomeBannerService.imageFolder,
-              imageType: 'home_banner',
-              idMetadataKey: 'bannerId',
-            );
-        freshSourceUrl = source.imageUrl;
-        freshSourcePath = source.imageStoragePath;
-        next = next.copyWith(
-          imageUrl: freshSourceUrl,
-          imageStoragePath: freshSourcePath,
-        );
-        _draft = next;
-      }
-      await WidgetsBinding.instance.endOfFrame;
-      final bytes = await StoreBannerRenderService.instance.captureJpeg(
-        _captureKey,
-        fixedHomeCanvas: widget.isHomeScope,
-      );
-      final int version = DateTime.now().millisecondsSinceEpoch;
-      final InventoryImageUploadResult rendered = await StoreBannerRenderService
-          .instance
-          .uploadRendered(
-            shopId: widget.shopId,
-            bannerId: next.id,
-            bytes: bytes,
-            version: version,
-            scope: widget.scope,
+      if (widget.isHomeScope) {
+        final String? actionError = HomeBannerDisplay.validateAction(next);
+        if (actionError != null) {
+          _showSaveMessage(actionError);
+          return;
+        }
+        try {
+          await _waitForPosterFrame();
+          if (!mounted) {
+            return;
+          }
+          confirmedJpeg = await StoreBannerRenderService.instance.captureJpeg(
+            _captureKey,
+            fixedHomeCanvas: true,
           );
-      uploadedUrl = rendered.imageUrl;
-      uploadedPath = rendered.imageStoragePath;
-      next = next.copyWith(
-        renderedImageUrl: uploadedUrl,
-        renderedImageStoragePath: uploadedPath,
-        renderedAt: now,
-        renderVersion: version,
-      );
-      final List<StoreBannerModel> all = List<StoreBannerModel>.from(
-        widget.existingBanners,
-      );
-      final int index = all.indexWhere(
-        (StoreBannerModel item) => item.id == next.id,
-      );
-      if (index >= 0) {
-        all[index] = next;
-      } else {
-        all.add(next);
+          StoreBannerRenderService.validateHomeJpeg(confirmedJpeg);
+        } catch (error) {
+          if (mounted) {
+            _showSaveMessage('海報合成失敗，尚未上傳：$error');
+          }
+          return;
+        }
+        if (!mounted) {
+          return;
+        }
+        final Uint8List jpeg = confirmedJpeg;
+        final String signature = posterComposeSignature(currentDraft);
+        final Uint8List? bytesAtCompose = _localImageBytes;
+        setState(() => _savePhase = 'confirm');
+        final bool? confirmed = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) {
+            return HomePosterConfirmDialog(jpegBytes: jpeg);
+          },
+        );
+        if (!mounted || confirmed != true) {
+          return;
+        }
+        if (posterComposeSignature(currentDraft) != signature ||
+            !identical(bytesAtCompose, _localImageBytes)) {
+          _showSaveMessage('海報內容已變更，請重新完成合成後再發布');
+          return;
+        }
+        setState(() => _savePhase = 'upload');
+        next = currentDraft;
       }
-      for (int i = 0; i < all.length; i++) {
-        all[i] = all[i].copyWith(sortOrder: i);
-      }
-      final Future<void> Function(List<StoreBannerModel> banners) persist =
-          widget.persistBanners ??
-          (List<StoreBannerModel> banners) {
-            return StoreSettingsService.instance.saveBanners(
-              shopId: widget.shopId,
-              banners: banners,
-            );
-          };
-      await persist(all);
-      if (oldRenderedPath.isNotEmpty || oldRenderedUrl.isNotEmpty) {
-        if (oldRenderedPath != uploadedPath) {
-          _images.retireSaved(
-            HomeBannerStoredImage(url: oldRenderedUrl, path: oldRenderedPath),
+      String uploadedUrl = '';
+      String uploadedPath = '';
+      String freshSourceUrl = '';
+      String freshSourcePath = '';
+      final String oldRenderedUrl = next.renderedImageUrl;
+      final String oldRenderedPath = next.renderedImageStoragePath;
+      final String oldSourceUrl = next.imageUrl;
+      final String oldSourcePath = next.imageStoragePath;
+      try {
+        if (widget.isHomeScope && _localImageBytes != null) {
+          final InventoryImageUploadResult source = await InventoryImageService
+              .instance
+              .uploadBytes(
+                shopId: widget.shopId,
+                itemId: '${next.id}/p_${DateTime.now().millisecondsSinceEpoch}',
+                bytes: _localImageBytes!,
+                folder: HomeBannerService.imageFolder,
+                imageType: 'home_banner',
+                idMetadataKey: 'bannerId',
+              );
+          freshSourceUrl = source.imageUrl;
+          freshSourcePath = source.imageStoragePath;
+          next = next.copyWith(
+            imageUrl: freshSourceUrl,
+            imageStoragePath: freshSourcePath,
+          );
+          _draft = next;
+        }
+        final Uint8List bytes;
+        if (widget.isHomeScope) {
+          bytes = confirmedJpeg!;
+        } else {
+          await WidgetsBinding.instance.endOfFrame;
+          bytes = await StoreBannerRenderService.instance.captureJpeg(
+            _captureKey,
+            fixedHomeCanvas: widget.isHomeScope,
           );
         }
-      }
-      final List<HomeBannerStoredImage> retired = _images.commitSave();
-      await _deleteImages(retired);
-      final String dropSourcePath = oldSourcePath.isNotEmpty
-          ? oldSourcePath
-          : _retiredSourcePath;
-      final String dropSourceUrl = oldSourcePath.isNotEmpty
-          ? oldSourceUrl
-          : _retiredSourceUrl;
-      if (freshSourcePath.isNotEmpty &&
-          dropSourcePath.isNotEmpty &&
-          dropSourcePath != freshSourcePath) {
-        await InventoryImageService.instance.tryDeleteImage(
-          imageUrl: dropSourceUrl,
-          imageStoragePath: dropSourcePath,
+        final int version = DateTime.now().millisecondsSinceEpoch;
+        final InventoryImageUploadResult rendered =
+            await StoreBannerRenderService.instance.uploadRendered(
+              shopId: widget.shopId,
+              bannerId: next.id,
+              bytes: bytes,
+              version: version,
+              scope: widget.scope,
+            );
+        uploadedUrl = rendered.imageUrl;
+        uploadedPath = rendered.imageStoragePath;
+        next = next.copyWith(
+          renderedImageUrl: uploadedUrl,
+          renderedImageStoragePath: uploadedPath,
+          renderedAt: now,
+          renderVersion: version,
         );
-      }
-      _retiredSourceUrl = '';
-      _retiredSourcePath = '';
-      _localImageBytes = null;
-      widget.onLocalImageBytes?.call(null);
-      _draft = next;
-      _saved = true;
-      widget.onPublished?.call(all);
-      if (!mounted || widget.embedded) {
-        return;
-      }
-      Navigator.pop(context, all);
-    } catch (error) {
-      if (uploadedPath.isNotEmpty || uploadedUrl.isNotEmpty) {
-        await InventoryImageService.instance.tryDeleteImage(
-          imageUrl: uploadedUrl,
-          imageStoragePath: uploadedPath,
+        final List<StoreBannerModel> all = List<StoreBannerModel>.from(
+          widget.existingBanners,
         );
-      }
-      if (freshSourcePath.isNotEmpty || freshSourceUrl.isNotEmpty) {
-        await InventoryImageService.instance.tryDeleteImage(
-          imageUrl: freshSourceUrl,
-          imageStoragePath: freshSourcePath,
+        final int index = all.indexWhere(
+          (StoreBannerModel item) => item.id == next.id,
         );
+        if (index >= 0) {
+          all[index] = next;
+        } else {
+          all.add(next);
+        }
+        for (int i = 0; i < all.length; i++) {
+          all[i] = all[i].copyWith(sortOrder: i);
+        }
+        final Future<void> Function(List<StoreBannerModel> banners) persist =
+            widget.persistBanners ??
+            (List<StoreBannerModel> banners) {
+              return StoreSettingsService.instance.saveBanners(
+                shopId: widget.shopId,
+                banners: banners,
+              );
+            };
+        await persist(all);
+        if (oldRenderedPath.isNotEmpty || oldRenderedUrl.isNotEmpty) {
+          if (oldRenderedPath != uploadedPath) {
+            _images.retireSaved(
+              HomeBannerStoredImage(url: oldRenderedUrl, path: oldRenderedPath),
+            );
+          }
+        }
+        final List<HomeBannerStoredImage> retired = _images.commitSave();
+        await _deleteImages(retired);
+        final String dropSourcePath = oldSourcePath.isNotEmpty
+            ? oldSourcePath
+            : _retiredSourcePath;
+        final String dropSourceUrl = oldSourcePath.isNotEmpty
+            ? oldSourceUrl
+            : _retiredSourceUrl;
+        if (freshSourcePath.isNotEmpty &&
+            dropSourcePath.isNotEmpty &&
+            dropSourcePath != freshSourcePath) {
+          await InventoryImageService.instance.tryDeleteImage(
+            imageUrl: dropSourceUrl,
+            imageStoragePath: dropSourcePath,
+          );
+        }
+        _retiredSourceUrl = '';
+        _retiredSourcePath = '';
+        _localImageBytes = null;
+        widget.onLocalImageBytes?.call(null);
+        _draft = next;
+        _saved = true;
+        widget.onPublished?.call(all);
+        if (!mounted || widget.embedded) {
+          return;
+        }
+        Navigator.pop(context, all);
+      } catch (error) {
+        if (uploadedPath.isNotEmpty || uploadedUrl.isNotEmpty) {
+          await InventoryImageService.instance.tryDeleteImage(
+            imageUrl: uploadedUrl,
+            imageStoragePath: uploadedPath,
+          );
+        }
+        if (freshSourcePath.isNotEmpty || freshSourceUrl.isNotEmpty) {
+          await InventoryImageService.instance.tryDeleteImage(
+            imageUrl: freshSourceUrl,
+            imageStoragePath: freshSourcePath,
+          );
+        }
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('發布失敗，目前已發布海報未變更：$error')));
       }
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('發布失敗，目前已發布海報未變更：$error')));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+          _savePhase = '';
+        });
       }
     }
   }
@@ -799,6 +918,27 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   Widget _captureLayer(StoreBannerModel banner, HomeThemeModel theme) {
+    final Widget poster = RepaintBoundary(
+      key: _captureKey,
+      child: StoreBannerView(
+        banner: banner,
+        theme: theme,
+        scope: widget.scope,
+        composeLive: true,
+        borderRadius: 0,
+        homeFrameAspectRatio: widget.isHomeScope
+            ? HomeBannerDisplay.aspectRatio
+            : null,
+        previewImageBytes: _localImageBytes,
+      ),
+    );
+    if (widget.isHomeScope) {
+      return Positioned(
+        left: -4000,
+        top: 0,
+        child: HomePosterCaptureFrame(child: poster),
+      );
+    }
     return Positioned(
       left: -4000,
       top: 0,
@@ -811,17 +951,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
           child: SizedBox(
             width: StoreBannerRenderService.targetWidth.toDouble(),
             height: StoreBannerRenderService.targetHeight.toDouble(),
-            child: RepaintBoundary(
-              key: _captureKey,
-              child: StoreBannerView(
-                banner: banner,
-                theme: theme,
-                scope: widget.scope,
-                composeLive: true,
-                borderRadius: 0,
-                previewImageBytes: _localImageBytes,
-              ),
-            ),
+            child: poster,
           ),
         ),
       ),
@@ -900,6 +1030,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
                   banner: _draft.copyWith(ctaText: _cta.text),
                   theme: theme,
                   scope: widget.scope,
+                  previewImageBytes: _localImageBytes,
                   interactMode: _interactMode,
                   selectedTextId: _interactMode == StoreBannerInteractMode.text
                       ? _selectedTextId
@@ -942,13 +1073,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: FilledButton(
               onPressed: _saving ? null : _save,
-              child: Text(
-                _saving
-                    ? '發布中…'
-                    : widget.isHomeScope
-                    ? '發布海報'
-                    : '確認並發布',
-              ),
+              child: Text(_saveLabel),
             ),
           ),
         ),
@@ -967,11 +1092,13 @@ class _PreviewBlock extends StatelessWidget {
     required this.onChanged,
     required this.onTextSelected,
     required this.onTemplate,
+    this.previewImageBytes,
   });
 
   final StoreBannerModel banner;
   final HomeThemeModel theme;
   final PetNestBannerScope scope;
+  final Uint8List? previewImageBytes;
   final StoreBannerInteractMode interactMode;
   final String? selectedTextId;
   final ValueChanged<StoreBannerModel> onChanged;
@@ -997,6 +1124,7 @@ class _PreviewBlock extends StatelessWidget {
                     banner: banner,
                     theme: theme,
                     scope: scope,
+                    previewImageBytes: previewImageBytes,
                     interactMode: interactMode,
                     selectedTextId: selectedTextId,
                     onChanged: onChanged,
@@ -2362,5 +2490,143 @@ class StoreBannerActionTargetPicker extends StatelessWidget {
         }
       },
     );
+  }
+}
+
+class HomePosterConfirmDialog extends StatefulWidget {
+  const HomePosterConfirmDialog({super.key, required this.jpegBytes});
+
+  final Uint8List jpegBytes;
+
+  @override
+  State<HomePosterConfirmDialog> createState() =>
+      _HomePosterConfirmDialogState();
+}
+
+class _HomePosterConfirmDialogState extends State<HomePosterConfirmDialog> {
+  bool _publishing = false;
+  bool _imageFailed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screen = MediaQuery.sizeOf(context);
+    final bool phone = screen.width < 600;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: phone ? 12 : 32,
+        vertical: phone ? 16 : 24,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: phone ? screen.width : 760,
+          maxHeight: screen.height - (phone ? 32 : 48),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double imageMaxHeight = (constraints.maxHeight - 168).clamp(
+                120.0,
+                constraints.maxHeight,
+              );
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text('確認海報成品', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(
+                    '請確認文字、圖片及排版是否正確。確認後將使用這張完整圖片發布。',
+                    style: TextStyle(height: 1.4, color: Colors.grey.shade800),
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: imageMaxHeight),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF6F3EF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: _imageFailed
+                            ? const SizedBox(
+                                height: 120,
+                                child: Center(child: Text('成品圖片無法顯示，請返回修改後再試')),
+                              )
+                            : Image.memory(
+                                widget.jpegBytes,
+                                fit: BoxFit.contain,
+                                gaplessPlayback: true,
+                                filterQuality: FilterQuality.medium,
+                                errorBuilder: (BuildContext context, _, _) {
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (mounted && !_imageFailed) {
+                                      setState(() => _imageFailed = true);
+                                    }
+                                  });
+                                  return const SizedBox(
+                                    height: 120,
+                                    child: Center(
+                                      child: Text('成品圖片無法顯示，請返回修改後再試'),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (phone)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _backButton(),
+                        const SizedBox(height: 8),
+                        _publishButton(),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        _backButton(),
+                        const SizedBox(width: 8),
+                        _publishButton(),
+                      ],
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _backButton() {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+      onPressed: _publishing ? null : () => Navigator.of(context).pop(false),
+      child: const Text('返回修改'),
+    );
+  }
+
+  Widget _publishButton() {
+    return FilledButton(
+      style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+      onPressed: _publishing || _imageFailed ? null : _confirm,
+      child: Text(_publishing ? '發布中…' : '確認並發布'),
+    );
+  }
+
+  void _confirm() {
+    if (_publishing || _imageFailed) {
+      return;
+    }
+    setState(() => _publishing = true);
+    Navigator.of(context).pop(true);
   }
 }

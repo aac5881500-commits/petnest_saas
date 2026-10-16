@@ -57,6 +57,8 @@ class _PlatformShopDeletionDialogState
   bool get _scanComplete =>
       _preview?['scan'] is Map &&
       (_preview!['scan'] as Map)['complete'] == true;
+  bool get _consistencyComplete =>
+      _map(_preview?['consistency'])['complete'] == true;
   bool get _scanCurrent {
     final Map<String, dynamic> scan = _map(_preview?['scan']);
     final int expiresAt = scan['expiresAtMillis'] is num
@@ -133,7 +135,11 @@ class _PlatformShopDeletionDialogState
 
   Future<void> _requestEmailCode() async {
     final String scanId = '${_map(_preview?['scan'])['scanId'] ?? ''}';
-    if (scanId.isEmpty || _working || !_scanComplete || !_cleanupAllowed) {
+    if (scanId.isEmpty ||
+        _working ||
+        !_scanComplete ||
+        !_consistencyComplete ||
+        !_cleanupAllowed) {
       return;
     }
     setState(() {
@@ -200,6 +206,7 @@ class _PlatformShopDeletionDialogState
       _job == null &&
       _contractCompatible &&
       _scanComplete &&
+      _consistencyComplete &&
       _scanCurrent &&
       _emailReady &&
       _irreversible &&
@@ -491,6 +498,8 @@ class _PlatformShopDeletionDialogState
               ? '後端預覽契約版本過舊，不能刪除。'
               : !_scanComplete
               ? '掃描未完成，不能刪除。'
+              : !_consistencyComplete
+              ? '掃描結果需要重新確認。掃描資料統計不一致，請重新掃描後再試。'
               : _cleanupAllowed
               ? '狀態：符合刪除條件'
               : '狀態：不可刪除，原因：${_cleanupBlockers.join('；')}',
@@ -565,6 +574,7 @@ class _PlatformShopDeletionDialogState
         _job == null &&
         _contractCompatible &&
         _scanComplete &&
+        _consistencyComplete &&
         _scanCurrent &&
         _cleanupAllowed;
     return Column(

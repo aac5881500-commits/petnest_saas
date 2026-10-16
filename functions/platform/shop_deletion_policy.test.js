@@ -519,18 +519,155 @@ test("一般操作紀錄與未付費商業設定不構成真實交易", () => {
       policy.hasRealCommercialObligation({paidServiceUntil: "2026-12-31"}),
       true,
   );
-  assert.equal(
-      policy.hasRealCommercialObligation({plan: "pro"}),
-      true,
-  );
+  assert.equal(policy.hasRealCommercialObligation({plan: "pro"}), false);
+  assert.equal(policy.hasRealCommercialObligation({plan: "basic"}), false);
   assert.match(
       policy.deletionEligibility(eligibilityInput({
         realCommercialCount: 1,
+        commercialRetentionCode: "paid",
       })).blockers.join(" "),
-      /商業紀錄/,
+      /實際平台付款/,
   );
   assert.equal(
       policy.deletionEligibility(eligibilityInput({})).allowed,
       true,
   );
+});
+
+test("免費權益可以刪除，真實付款與不明歷史仍阻擋", () => {
+  const freeCases = [
+    {plan: "free", paidUntilDate: "2026-12-26"},
+    {plan: "basic", freeDays: 30, campaignName: "開幕優惠"},
+    {plan: "pro", freeDays: 30, entitlementSource: "trial"},
+    {plan: "basic", entitlementSource: "gift", giftUntil: "2026-12-26"},
+    {plan: "pro", entitlementSource: "gift", giftUntil: "2026-11-01", days: 7},
+    {plan: "basic", entitlementSource: "gift", days: 30},
+    {plan: "pro", entitlementSource: "gift", days: 14},
+    {plan: "basic", entitlementSource: "none", paidUntilDate: "2026-12-26"},
+    {plan: "pro", paidAmount: 0, amountReceivedMinor: 0},
+  ];
+  for (const value of freeCases) {
+    assert.equal(
+        policy.hasRealCommercialObligation(value),
+        false,
+        JSON.stringify(value),
+    );
+    assert.equal(
+        policy.deletionEligibility(eligibilityInput({
+          realCommercialCount: 0,
+        })).allowed,
+        true,
+    );
+  }
+  assert.equal(
+      policy.deletionEligibility(eligibilityInput({
+        bookingCount: 1,
+        paidBookingCount: 1,
+      })).allowed,
+      false,
+  );
+  assert.equal(
+      policy.deletionEligibility(eligibilityInput({
+        bookingCount: 1,
+        completedDaycareCount: 1,
+      })).allowed,
+      false,
+  );
+  assert.equal(
+      policy.deletionEligibility(eligibilityInput({
+        storeOrderCount: 1,
+        paidStoreOrderCount: 1,
+      })).allowed,
+      false,
+  );
+  const blocked = [
+    [{paidServiceUntil: "2026-06-01", plan: "free"}, "paid"],
+    [{entitlementSource: "paid", plan: "free"}, "paid"],
+    [{lastSubscriptionPaymentId: "pay_1", plan: "free"}, "paid"],
+    [{plan: "free", invoiceNo: "AB123"}, "contract"],
+    [{plan: "basic", contractId: "c1"}, "contract"],
+    [{receivableAmount: 100, plan: "free"}, "receivable"],
+    [{paidAmount: 999, plan: "free"}, "paid"],
+    [{entitlementSource: "legacy_unconfirmed", plan: "basic"}, "unknown"],
+    [{paymentStatus: "pending", plan: "pro"}, "unknown"],
+    [{paidAmount: "unknown", plan: "free"}, "unknown"],
+  ];
+  for (const [value, code] of blocked) {
+    assert.equal(
+        policy.strongestCommercialCode(policy.commercialRetentionCodes(value)),
+        code,
+        JSON.stringify(value),
+    );
+    assert.equal(policy.hasRealCommercialObligation(value), true);
+  }
+  const paidThenFree = policy.deletionEligibility(eligibilityInput({
+    realCommercialCount: 1,
+    commercialRetentionCode: "paid",
+  }));
+  assert.equal(paidThenFree.allowed, false);
+  assert.match(paidThenFree.blockers.join(" "), /實際平台付款/);
+  const unknown = policy.deletionEligibility(eligibilityInput({
+    realCommercialCount: 1,
+    commercialRetentionCode: "unknown",
+  }));
+  assert.match(unknown.blockers.join(" "), /無法確認/);
+});
+
+test("建立清理工作前會分辨掃描統計失敗原因", () => {
+  const ready = {
+    scan: {complete: true},
+    consistency: {
+      complete: true,
+      firestore: {scannedCount: 25, classifiedCount: 25, difference: 0},
+      storage: {scannedFileCount: 14, classifiedFileCount: 14, difference: 0},
+    },
+  };
+  assert.equal(policy.previewJobGate(ready).ok, true);
+
+  const firestoreMismatch = policy.previewJobGate({
+    scan: {complete: false},
+    consistency: {
+      complete: false,
+      firestore: {scannedCount: 25, classifiedCount: 23, difference: 2},
+      storage: {scannedFileCount: 14, classifiedFileCount: 14, difference: 0},
+    },
+  });
+  assert.equal(firestoreMismatch.ok, false);
+  assert.equal(firestoreMismatch.codes.includes("firestore-count-mismatch"), true);
+  assert.equal(firestoreMismatch.codes.includes("scan-incomplete"), true);
+  assert.match(firestoreMismatch.message, /統計不一致/);
+  assert.equal(JSON.stringify(firestoreMismatch).includes("password"), false);
+
+  const storageMismatch = policy.previewJobGate({
+    scan: {complete: true},
+    consistency: {
+      complete: false,
+      firestore: {scannedCount: 25, classifiedCount: 25, difference: 0},
+      storage: {scannedFileCount: 14, classifiedFileCount: 11, difference: 3},
+    },
+  });
+  assert.equal(storageMismatch.codes.includes("storage-count-mismatch"), true);
+  assert.equal(storageMismatch.firestore.scanned, 25);
+  assert.equal(storageMismatch.storage.classified, 11);
+
+  const incomplete = policy.previewJobGate({
+    scan: {complete: false},
+    consistency: {
+      complete: true,
+      firestore: {difference: 0},
+      storage: {difference: 0},
+    },
+  });
+  assert.deepEqual(incomplete.codes, ["scan-incomplete"]);
+  assert.match(incomplete.message, /掃描未完整/);
+
+  const categoryMismatch = policy.previewJobGate({
+    scan: {complete: true},
+    consistency: {complete: false, firestore: {}, storage: {}},
+  });
+  assert.deepEqual(categoryMismatch.codes, ["category-count-mismatch"]);
+
+  const missing = policy.previewJobGate({});
+  assert.equal(missing.ok, false);
+  assert.equal(missing.codes.includes("scan-incomplete"), true);
 });

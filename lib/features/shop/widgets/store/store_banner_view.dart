@@ -902,6 +902,15 @@ class _RenderBannerPlaced extends RenderShiftedBox {
   }
 }
 
+EdgeInsets _scaledInsets(EdgeInsets raw, double Function(double) scale) {
+  return EdgeInsets.fromLTRB(
+    scale(raw.left),
+    scale(raw.top),
+    scale(raw.right),
+    scale(raw.bottom),
+  );
+}
+
 class _BannerTextChip extends StatelessWidget {
   const _BannerTextChip({
     required this.element,
@@ -932,6 +941,13 @@ class _BannerTextChip extends StatelessWidget {
         element.fontSizePreset == StoreBannerFontSizes.display ||
         element.fontSizePreset == StoreBannerFontSizes.subhead;
     final double fontSize = element.previewFontSize(bannerHeight);
+    double chrome(double editorPx) {
+      if (!designScale) {
+        return editorPx;
+      }
+      return StoreBannerFontSizes.scaleEditorPx(editorPx, bannerHeight);
+    }
+
     final Widget label = Text(
       element.hasText ? element.text : '文字',
       maxLines: designScale ? 2 : element.maxLines,
@@ -949,8 +965,8 @@ class _BannerTextChip extends StatelessWidget {
                   color: lightText
                       ? const Color(0xCC000000)
                       : const Color(0x99FFFFFF),
-                  blurRadius: 8,
-                  offset: const Offset(0, 1),
+                  blurRadius: chrome(8),
+                  offset: Offset(0, chrome(1)),
                 ),
               ],
       ),
@@ -961,15 +977,21 @@ class _BannerTextChip extends StatelessWidget {
       final Color background = Color(element.backgroundColor).withValues(
         alpha: StoreBannerBgOpacities.opacity(element.backgroundOpacityPreset),
       );
+      final double radius = StoreBannerTextBgStyles.radius(
+        element.backgroundStyle,
+      );
       child = DecoratedBox(
         decoration: BoxDecoration(
           color: background,
           borderRadius: BorderRadius.circular(
-            StoreBannerTextBgStyles.radius(element.backgroundStyle),
+            radius >= 100 ? radius : chrome(radius),
           ),
         ),
         child: Padding(
-          padding: StoreBannerTextPaddings.insets(element.paddingPreset),
+          padding: _scaledInsets(
+            StoreBannerTextPaddings.insets(element.paddingPreset),
+            chrome,
+          ),
           child: label,
         ),
       );
@@ -979,7 +1001,7 @@ class _BannerTextChip extends StatelessWidget {
         (bannerWidth *
                 StoreBannerTextWidthPresets.ratio(element.maxWidthPreset))
             .clamp(
-              48.0,
+              chrome(48),
               bannerWidth * (1 - StoreBannerPlacement.safeFraction * 2),
             );
     final bool stretch = align == TextAlign.center;

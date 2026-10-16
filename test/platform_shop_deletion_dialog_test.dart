@@ -130,6 +130,29 @@ void main() {
     expect(find.text('版本不符'), findsWidgets);
     expect(find.text('0'), findsNothing);
   });
+
+  testWidgets('統計不一致時不會顯示符合刪除條件', (WidgetTester tester) async {
+    final _FakeDeletionService service = _FakeDeletionService(
+      consistencyMismatch: true,
+    );
+    await _surface(tester, const Size(1200, 900));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlatformShopDeletionDialog(
+          shopId: 'SHOP9001',
+          shopName: '隔離測試店',
+          service: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('掃描資料統計不一致'), findsOneWidget);
+    expect(find.textContaining('符合刪除條件'), findsNothing);
+    final Finder sendFinder = find.widgetWithText(OutlinedButton, '寄送驗證碼');
+    final OutlinedButton sendButton = tester.widget<OutlinedButton>(sendFinder);
+    expect(sendButton.onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _FakeDeletionService implements ShopDeletionGateway {
@@ -137,11 +160,13 @@ class _FakeDeletionService implements ShopDeletionGateway {
     Map<String, dynamic>? existingJob,
     this.storageFailed = false,
     this.legacyContract = false,
+    this.consistencyMismatch = false,
   }) : currentJob = existingJob;
 
   Map<String, dynamic>? currentJob;
   final bool storageFailed;
   final bool legacyContract;
+  final bool consistencyMismatch;
   int runCount = 0;
   int getJobCount = 0;
   int previewCount = 0;
@@ -332,8 +357,8 @@ class _FakeDeletionService implements ShopDeletionGateway {
         },
       },
       'consistency': <String, dynamic>{
-        'status': 'success',
-        'complete': true,
+        'status': consistencyMismatch ? 'failed' : 'success',
+        'complete': !consistencyMismatch,
         'firestore': <String, dynamic>{
           'scannedCount': 30,
           'classifiedCount': 30,
@@ -387,8 +412,8 @@ class _FakeDeletionService implements ShopDeletionGateway {
       },
       'execution': <String, dynamic>{
         'enabled': true,
-        'cleanupAllowed': false,
-        'cleanupCategory': 'blocked',
+        'cleanupAllowed': consistencyMismatch,
+        'cleanupCategory': consistencyMismatch ? 'no_transaction' : 'blocked',
         'cleanupLabel': '',
         'cleanupBlockers': <String>['仍有待人工確認項目'],
         'testResetAllowed': false,

@@ -10,8 +10,18 @@ const {
   planLookupBackfillResult,
   lookupStatusFor,
   chooseGovernmentRecord,
+  licenseCoreQueryToken,
+  selectExactLicenseRecords,
   LOOKUP_KEY_VERSION,
 } = require("./normalize");
+const {planDirectorySearch} = require("./directory_index");
+const {
+  LOOKUP_MESSAGES,
+  LICENSE_LOOKUP_LIMIT,
+  lookupFailureResult,
+  publicMatch,
+  queryByLookupKey,
+} = require("./shop_operations");
 
 const fresh = new Date().toISOString();
 
@@ -82,15 +92,24 @@ test("多筆同鍵不自動取第一筆", () => {
 });
 
 test("未補齊、查無與來源失敗分開", () => {
-  const incomplete = lookupStatusFor({
+  const missingVersion = lookupStatusFor({
     license: "W1070485",
     licenseLookupVersion: 0,
     sync: {lastSuccessAt: fresh},
     matchCount: 0,
     nowMs: Date.now(),
   });
-  assert.equal(incomplete.status, "incomplete");
-  assert.equal(incomplete.shouldQuery, false);
+  assert.equal(missingVersion.status, "none");
+  assert.equal(missingVersion.shouldQuery, true);
+  assert.equal(missingVersion.key, "W1070485");
+  const foundWithoutKeyVersion = lookupStatusFor({
+    license: "W1070485",
+    licenseLookupVersion: 0,
+    sync: {lastSuccessAt: fresh},
+    matchCount: 1,
+    nowMs: Date.now(),
+  });
+  assert.equal(foundWithoutKeyVersion.status, "matched");
   const none = lookupStatusFor({
     license: "W1070485",
     licenseLookupVersion: LOOKUP_KEY_VERSION,
@@ -196,4 +215,224 @@ test("補齊失敗不標完成，未變資料不需再寫", () => {
     licenseLookupVersion: LOOKUP_KEY_VERSION,
   });
   assert.equal(same.licenseLookupKey, "W1070485");
+});
+
+function governmentRow(overrides) {
+  return Object.assign({
+    govId: "59",
+    validnum: "特寵業字第W1070485號",
+    normalizedLicense: "特寵業字第W1070485號",
+    licenseCore: "W1070485",
+    linkStatus: "none",
+    licenseStatus: "valid",
+  }, overrides || {});
+}
+
+function fakeLicenseDb(rows) {
+  const calls = [];
+  const db = {
+    calls: calls,
+    collection(name) {
+      return {
+        where(field, op, value) {
+          return {
+            limit(limit) {
+              return {
+                get() {
+                  calls.push({
+                    collection: name,
+                    field: field,
+                    op: op,
+                    value: value,
+                    limit: limit,
+                  });
+                  const matched = rows.filter((row) => row[field] === value);
+                  return Promise.resolve({
+                    size: matched.length,
+                    docs: matched.map((row) => ({
+                      data: () => row,
+                    })),
+                  });
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  return db;
+}
+
+test("缺少查核鍵時仍以完整字號比對政府資料", () => {
+  const row = governmentRow();
+  delete row.licenseLookupKey;
+  delete row.licenseLookupVersion;
+  assert.deepEqual(
+      selectExactLicenseRecords([row], "W1070485").map((item) => item.govId),
+      ["59"],
+  );
+  assert.deepEqual(
+      selectExactLicenseRecords([row], "特寵業字第W1070485號"),
+      [],
+  );
+  const folded = governmentRow({
+    validnum: "  特寵業字第ｗ１０７０４８５號  ",
+  });
+  assert.equal(selectExactLicenseRecords([folded], "W1070485").length, 1);
+});
+
+test("少一碼、不同字號與不同尾碼不能通過", () => {
+  const row = governmentRow();
+  assert.equal(selectExactLicenseRecords([row], "W107048").length, 0);
+  assert.equal(selectExactLicenseRecords([row], "W1070486").length, 0);
+  assert.equal(selectExactLicenseRecords([row], "W10704850").length, 0);
+  const suffixed = governmentRow({
+    validnum: "特寵業字第V1140460-00號",
+    licenseCore: "V1140460",
+    licenseLookupKey: "V1140460-00",
+  });
+  assert.equal(selectExactLicenseRecords([suffixed], "V1140460").length, 0);
+  assert.equal(selectExactLicenseRecords([suffixed], "V1140460-01").length, 0);
+  assert.equal(selectExactLicenseRecords([suffixed], "V1140460-00").length, 1);
+  assert.equal(licenseCoreQueryToken("V1140460-00"), "V1140460");
+  assert.equal(licenseCoreQueryToken("W1070485"), "W1070485");
+});
+
+test("繁字與已對應其他店家都不會被當成這張一般字號", () => {
+  const breeding = governmentRow({
+    validnum: "特寵業繁字第W1070485號",
+    licenseCore: "W1070485",
+  });
+  assert.equal(selectExactLicenseRecords([breeding], "W1070485").length, 0);
+  const linked = governmentRow({
+    linkStatus: "linked",
+    certifiedShopId: "other-shop",
+    licenseLookupVersion: 0,
+  });
+  const kept = selectExactLicenseRecords([linked], "W1070485");
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].certifiedShopId, "other-shop");
+  assert.equal(kept[0].linkStatus, "linked");
+  const shown = publicMatch(kept[0], "match", fresh);
+  assert.equal(shown.licenseVerified, undefined);
+  assert.equal(shown.certifiedShopId, undefined);
+  assert.equal(shown.govId, "59");
+});
+
+test("查核鍵存在時不再讀取 licenseCore", async () => {
+  const row = governmentRow({
+    licenseLookupKey: "W1070485",
+    licenseLookupVersion: 1,
+  });
+  const db = fakeLicenseDb([row]);
+  const found = await queryByLookupKey(db, "W1070485");
+  assert.equal(found.length, 1);
+  assert.equal(db.calls.length, 1);
+  assert.equal(db.calls[0].collection, "legal_pet_businesses");
+  assert.equal(db.calls[0].field, "licenseLookupKey");
+  assert.equal(db.calls[0].op, "==");
+  assert.equal(db.calls[0].value, "W1070485");
+  assert.equal(db.calls[0].limit, LICENSE_LOOKUP_LIMIT);
+});
+
+test("查核鍵缺失時只用 licenseCore 等值查詢", async () => {
+  const row = governmentRow();
+  delete row.licenseLookupKey;
+  const db = fakeLicenseDb([row]);
+  const found = await queryByLookupKey(db, "W1070485");
+  assert.equal(found.length, 1);
+  assert.equal(found[0].govId, "59");
+  assert.equal(db.calls.length, 2);
+  assert.equal(db.calls[1].field, "licenseCore");
+  assert.equal(db.calls[1].op, "==");
+  assert.equal(db.calls[1].value, "W1070485");
+  assert.equal(db.calls[1].limit, 10);
+  assert.equal(found[0].linkStatus, "none");
+});
+
+test("索引版本不同仍以原始字號為準", async () => {
+  const row = governmentRow({
+    licenseLookupKey: "W1070486",
+    licenseLookupVersion: 99,
+    licenseCore: "W1070485",
+  });
+  const db = fakeLicenseDb([row]);
+  const found = await queryByLookupKey(db, "W1070485");
+  assert.equal(found.length, 1);
+  assert.equal(db.calls[1].field, "licenseCore");
+});
+
+test("政府資料不存在時回傳空結果且不掃描", async () => {
+  const db = fakeLicenseDb([]);
+  const found = await queryByLookupKey(db, "W1070485");
+  assert.deepEqual(found, []);
+  assert.equal(db.calls.length, 2);
+  db.calls.forEach((call) => {
+    assert.equal(call.collection, "legal_pet_businesses");
+    assert.equal(call.op, "==");
+    assert.equal(call.limit, 10);
+  });
+});
+
+test("備援查詢達到上限且沒有完整相符時視為查詢失敗", async () => {
+  const rows = [];
+  for (let index = 0; index < 10; index += 1) {
+    rows.push(governmentRow({
+      govId: "other-" + index,
+      validnum: "特寵業字第V1140460-0" + index,
+      licenseCore: "V1140460",
+      licenseLookupKey: "V1140460-0" + index,
+    }));
+  }
+  const db = fakeLicenseDb(rows);
+  await assert.rejects(
+      () => queryByLookupKey(db, "V1140460"),
+      (error) => error.code === "lookup-truncated",
+  );
+  assert.equal(db.calls.length, 2);
+});
+
+test("權限與查詢錯誤顯示暫時失敗，不是查無資料", async () => {
+  const db = {
+    collection() {
+      return {
+        where() {
+          return {
+            limit() {
+              return {
+                get() {
+                  const error = new Error("permission");
+                  error.code = "permission-denied";
+                  return Promise.reject(error);
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  await assert.rejects(
+      () => queryByLookupKey(db, "W1070485"),
+      (error) => error.code === "permission-denied",
+  );
+  const failed = lookupFailureResult({lastSuccessAt: fresh});
+  assert.equal(failed.status, "unavailable");
+  assert.equal(failed.message, "政府資料查核暫時失敗，請稍後重試。");
+  assert.notEqual(failed.status, "none");
+  assert.deepEqual(failed.matches, []);
+  assert.equal(
+      LOOKUP_MESSAGES.none,
+      "政府名單目前沒有相符字號，請確認輸入的字號是否正確。",
+  );
+  assert.equal(LOOKUP_MESSAGES.unavailable, failed.message);
+});
+
+test("平台後台字號搜尋仍使用前綴索引", () => {
+  const search = planDirectorySearch("W1070485");
+  assert.equal(search.kind, "license");
+  assert.equal(search.field, "licensePrefixes");
+  assert.equal(search.op, "array-contains");
+  assert.equal(search.value, "W1070485");
 });
