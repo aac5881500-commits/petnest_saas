@@ -136,10 +136,14 @@ class ModernHomeEditorPreview extends StatelessWidget {
           final double height = constraints.maxHeight.isFinite
               ? constraints.maxHeight
               : 640;
+          final double maxWidth = constraints.maxWidth;
+          final double width = maxWidth.isFinite && maxWidth < frameWidth
+              ? maxWidth
+              : frameWidth;
           return Align(
             alignment: Alignment.topCenter,
             child: SizedBox(
-              width: frameWidth,
+              width: width,
               height: height,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -151,7 +155,7 @@ class ModernHomeEditorPreview extends StatelessWidget {
                   borderRadius: BorderRadius.circular(15),
                   child: MediaQuery(
                     data: MediaQuery.of(context).copyWith(
-                      size: Size(frameWidth, height),
+                      size: Size(width, height),
                       padding: EdgeInsets.zero,
                       viewPadding: EdgeInsets.zero,
                       viewInsets: EdgeInsets.zero,

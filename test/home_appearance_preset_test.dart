@@ -225,12 +225,16 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: HomeAppearancePresetStrip(
-            draft: draft,
-            presetId: null,
-            accent: const Color(0xFF2255AA),
-            onPreview: (HomeAppearancePreset preset) => previewed = preset,
-            onApply: (HomeAppearancePreset preset) => applied = preset,
+          body: ListView(
+            children: <Widget>[
+              HomeAppearancePresetStrip(
+                draft: draft,
+                presetId: null,
+                accent: const Color(0xFF2255AA),
+                onPreview: (HomeAppearancePreset preset) => previewed = preset,
+                onApply: (HomeAppearancePreset preset) => applied = preset,
+              ),
+            ],
           ),
         ),
       ),
@@ -258,20 +262,9 @@ void main() {
     await tester.tap(find.text('套用模板'));
     await tester.pumpAndSettle();
     expect(applied?.id, 'minimal');
-    final Finder carouselScroll = find.descendant(
-      of: find.byKey(const Key('home-preset-carousel')),
-      matching: find.byType(Scrollable),
-    );
-    await tester.tap(find.byIcon(Icons.chevron_right));
-    await tester.pumpAndSettle();
-    final ScrollableState carousel = tester.state(carouselScroll);
-    expect(carousel.position.pixels, greaterThan(0));
-    await tester.scrollUntilVisible(
-      find.text('溫暖生活'),
-      280,
-      scrollable: carouselScroll,
-    );
+    await tester.scrollUntilVisible(find.text('溫暖生活'), 300);
     expect(find.text('溫暖生活'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

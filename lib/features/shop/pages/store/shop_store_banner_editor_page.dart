@@ -248,6 +248,11 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     if (_draft.textElements.isNotEmpty) {
       _selectText(_draft.textElements.first.id, updateController: true);
     }
+    StoreBannerFonts.ensureLoaded(StoreBannerFonts.families).then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     if (widget.isNew && _draft.hasImage) {
       _images.replacePending(
         HomeBannerStoredImage(
@@ -327,10 +332,24 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   void _replaceText(StoreBannerTextElement next) {
+    final String previousFont =
+        _draft.resolvedTextElements
+            .where((StoreBannerTextElement item) => item.id == next.id)
+            .map((StoreBannerTextElement item) => item.fontFamily)
+            .firstOrNull ??
+        '';
     final List<StoreBannerTextElement> items = _draft.resolvedTextElements
         .map((StoreBannerTextElement item) => item.id == next.id ? next : item)
         .toList();
     setState(() => _draft = _draft.copyWith(textElements: items));
+    if (next.fontFamily.isEmpty || next.fontFamily == previousFont) {
+      return;
+    }
+    StoreBannerFonts.ensureLoaded(<String>[next.fontFamily]).then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   Future<void> _cleanupPending() async {
@@ -513,6 +532,14 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
         }
       }
     }
+    if (!mounted) {
+      return;
+    }
+    await StoreBannerFonts.ensureLoaded(
+      currentDraft.resolvedTextElements.map(
+        (StoreBannerTextElement item) => item.fontFamily,
+      ),
+    );
     if (!mounted) {
       return;
     }
@@ -1881,13 +1908,15 @@ class _TextPanel extends StatelessWidget {
               : draft.overlayColor(theme),
         );
     return ListView(
+      key: const ValueKey<String>('poster-text-editor'),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: <Widget>[
+        const _PosterSectionTitle('文字內容'),
         if (scope == PetNestBannerScope.home) ...<Widget>[
           for (final String role in const <String>['title', 'sub'])
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(role == 'title' ? '標題' : '副標題'),
+              title: Text(role == 'title' ? '顯示標題' : '顯示副標題'),
               value: items.any(
                 (StoreBannerTextElement item) =>
                     item.id.endsWith(role == 'title' ? '_title' : '_sub'),
@@ -1958,53 +1987,88 @@ class _TextPanel extends StatelessWidget {
               onReplaceText(current.copyWith(text: value));
             },
           ),
-          const SizedBox(height: 8),
-          const Text('水平位置', style: TextStyle(fontWeight: FontWeight.w700)),
-          Slider(
-            min: 0,
-            max: 1,
-            divisions: 20,
-            value: current.positionX.clamp(0.0, 1.0),
-            onChanged: (double value) {
-              onReplaceText(current.copyWith(positionX: value));
-            },
-          ),
-          const Text('垂直位置', style: TextStyle(fontWeight: FontWeight.w700)),
-          Slider(
-            min: 0,
-            max: 1,
-            divisions: 20,
-            value: current.positionY.clamp(0.0, 1.0),
-            onChanged: (double value) {
-              onReplaceText(current.copyWith(positionY: value));
-            },
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '完成海報字級（1600 × 900）',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          _PosterFontSizeField(
-            value: current.sliderFontSize,
-            onChanged: (double px) {
-              onReplaceText(
-                current.copyWith(
-                  fontSize: px,
-                  fontSizePreset: StoreBannerFontSizes.nearestPreset(px),
-                ),
-              );
+          const _PosterSectionTitle('字體與樣式'),
+          _PosterFontMenu(
+            elementId: current.id,
+            fontFamily: current.fontFamily,
+            onSelected: (String value) {
+              onReplaceText(current.copyWith(fontFamily: value));
             },
           ),
           const SizedBox(height: 12),
-          const Text('粗細', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('快速文字樣式', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          _ChipRow(
-            values: StoreBannerFontWeights.all,
-            selected: current.fontWeightPreset,
-            labelOf: StoreBannerFontWeights.label,
-            onSelected: (String value) {
-              onReplaceText(current.copyWith(fontWeightPreset: value));
+          _PosterStyleCards(
+            element: current,
+            onSelected: (StoreBannerTextStylePreset preset) {
+              onReplaceText(preset.apply(current));
+            },
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool wide = constraints.maxWidth >= 560;
+              final Widget sizeField = const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '完成海報字級（1600 × 900）',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              );
+              final Widget size = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  sizeField,
+                  const SizedBox(height: 4),
+                  _PosterFontSizeField(
+                    value: current.sliderFontSize,
+                    onChanged: (double px) {
+                      onReplaceText(
+                        current.copyWith(
+                          fontSize: px,
+                          fontSizePreset: StoreBannerFontSizes.nearestPreset(
+                            px,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              );
+              final Widget weight = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    '粗細',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  _ChipRow(
+                    values: StoreBannerFontWeights.all,
+                    selected: current.fontWeightPreset,
+                    labelOf: StoreBannerFontWeights.label,
+                    onSelected: (String value) {
+                      onReplaceText(current.copyWith(fontWeightPreset: value));
+                    },
+                  ),
+                ],
+              );
+              if (!wide) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[size, const SizedBox(height: 12), weight],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: size),
+                  const SizedBox(width: 12),
+                  Expanded(child: weight),
+                ],
+              );
             },
           ),
           const SizedBox(height: 12),
@@ -2111,7 +2175,28 @@ class _TextPanel extends StatelessWidget {
               ),
             ],
           ],
-          const SizedBox(height: 12),
+          const _PosterSectionTitle('位置與排版'),
+          const Text('水平位置', style: TextStyle(fontWeight: FontWeight.w700)),
+          Slider(
+            min: 0,
+            max: 1,
+            divisions: 20,
+            value: current.positionX.clamp(0.0, 1.0),
+            onChanged: (double value) {
+              onReplaceText(current.copyWith(positionX: value));
+            },
+          ),
+          const Text('垂直位置', style: TextStyle(fontWeight: FontWeight.w700)),
+          Slider(
+            min: 0,
+            max: 1,
+            divisions: 20,
+            value: current.positionY.clamp(0.0, 1.0),
+            onChanged: (double value) {
+              onReplaceText(current.copyWith(positionY: value));
+            },
+          ),
+          const SizedBox(height: 8),
           const Text('文字區寬度', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           _ChipRow(
@@ -2133,7 +2218,7 @@ class _TextPanel extends StatelessWidget {
               onReplaceText(current.copyWith(textAlign: value));
             },
           ),
-          const SizedBox(height: 8),
+          const _PosterSectionTitle('圖層管理'),
           Wrap(
             spacing: 8,
             children: <Widget>[
@@ -2151,6 +2236,180 @@ class _TextPanel extends StatelessWidget {
           TextButton(onPressed: onDeleteText, child: const Text('刪除此文字')),
         ],
       ],
+    );
+  }
+}
+
+class _PosterSectionTitle extends StatelessWidget {
+  const _PosterSectionTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _PosterFontMenu extends StatelessWidget {
+  const _PosterFontMenu({
+    required this.elementId,
+    required this.fontFamily,
+    required this.onSelected,
+  });
+
+  final String elementId;
+  final String fontFamily;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final String selected = StoreBannerFonts.normalize(fontFamily);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Text('字體', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          key: ValueKey<String>('poster-font-$elementId-$selected'),
+          initialValue: selected,
+          isExpanded: true,
+          menuMaxHeight: 320,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          selectedItemBuilder: (BuildContext context) {
+            return <Widget>[
+              for (final ({String family, String label}) option
+                  in StoreBannerFonts.options)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    option.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: option.family.isEmpty ? null : option.family,
+                    ),
+                  ),
+                ),
+            ];
+          },
+          items: <DropdownMenuItem<String>>[
+            for (final ({String family, String label}) option
+                in StoreBannerFonts.options)
+              DropdownMenuItem<String>(
+                value: option.family,
+                child: Text(
+                  option.label,
+                  style: TextStyle(
+                    fontFamily: option.family.isEmpty ? null : option.family,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+          ],
+          onChanged: (String? value) {
+            if (value == null || value == selected) {
+              return;
+            }
+            onSelected(value);
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _PosterStyleCards extends StatelessWidget {
+  const _PosterStyleCards({required this.element, required this.onSelected});
+
+  final StoreBannerTextElement element;
+  final ValueChanged<StoreBannerTextStylePreset> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        for (final StoreBannerTextStylePreset preset
+            in StoreBannerTextStylePreset.all)
+          _PosterStyleCard(
+            preset: preset,
+            selected: preset.matches(element),
+            onTap: () => onSelected(preset),
+          ),
+      ],
+    );
+  }
+}
+
+class _PosterStyleCard extends StatelessWidget {
+  const _PosterStyleCard({
+    required this.preset,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final StoreBannerTextStylePreset preset;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color border = selected
+        ? Theme.of(context).colorScheme.primary
+        : const Color(0xFFE4DDD4);
+    return SizedBox(
+      width: 108,
+      child: Material(
+        color: selected ? const Color(0xFFFFF7EF) : const Color(0xFFF7F4F0),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: border, width: selected ? 1.6 : 1),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  preset.sample,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: StoreBannerFonts.applied(preset.fontFamily),
+                    fontSize: 18,
+                    fontWeight: StoreBannerFontWeights.weight(
+                      preset.fontWeightPreset,
+                    ),
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  preset.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, height: 1.2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_hero_section.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_message_section.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_philosophy_section.dart';
@@ -76,34 +77,37 @@ class _ShopAboutPageState extends State<ShopAboutPage> {
           ),
         ),
       ),
-      body: ListView(
-        children: [
-          AboutHeroSection(
-            shopId: widget.shopId,
-            theme: widget.theme,
-            previewTitle: widget.previewTitle,
-            previewDescription: widget.previewDescription,
-            previewImageUrl: widget.previewImageUrl,
-            previewFrame: widget.previewFrame,
-          ),
-          const SizedBox(height: 28),
-          AboutPhilosophySection(theme: widget.theme),
-          const SizedBox(height: 30),
-          AboutMessageSection(
-            shopId: widget.shopId,
-            theme: widget.theme,
-            previewMessage: widget.previewMessage,
-          ),
-          const SizedBox(height: 30),
-          KeyedSubtree(
-            key: _contactKey,
-            child: AboutShopInfoSection(
+      body: ShopAppBackdrop.behind(
+        theme: widget.theme,
+        child: ListView(
+          children: [
+            AboutHeroSection(
               shopId: widget.shopId,
               theme: widget.theme,
+              previewTitle: widget.previewTitle,
+              previewDescription: widget.previewDescription,
+              previewImageUrl: widget.previewImageUrl,
+              previewFrame: widget.previewFrame,
             ),
-          ),
-          const SizedBox(height: 40),
-        ],
+            const SizedBox(height: 28),
+            AboutPhilosophySection(theme: widget.theme),
+            const SizedBox(height: 30),
+            AboutMessageSection(
+              shopId: widget.shopId,
+              theme: widget.theme,
+              previewMessage: widget.previewMessage,
+            ),
+            const SizedBox(height: 30),
+            KeyedSubtree(
+              key: _contactKey,
+              child: AboutShopInfoSection(
+                shopId: widget.shopId,
+                theme: widget.theme,
+              ),
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }

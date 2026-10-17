@@ -5,6 +5,7 @@ import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/platform_media_asset.dart';
+import 'package:petnest_saas/core/services/platform_media_library_service.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/platform_media_asset_picker.dart';
 
@@ -22,11 +23,15 @@ class SharedEntrySettingsCard extends StatefulWidget {
     required this.setting,
     required this.cards,
     required this.onChanged,
+    this.assetLookup,
   });
 
   final HomeSharedEntrySectionSetting setting;
   final List<SharedEntryCardRef> cards;
   final ValueChanged<HomeSharedEntrySectionSetting> onChanged;
+
+  /// 測試可代入圖庫查詢。正式畫面沿用平台圖庫快取與單筆讀取。
+  final Future<PlatformMediaAsset?> Function(String assetId)? assetLookup;
 
   @override
   State<SharedEntrySettingsCard> createState() =>
@@ -139,59 +144,129 @@ class _SharedEntrySettingsCardState extends State<SharedEntrySettingsCard> {
 
   Future<void> _addCard() async {
     final List<String> joined = <String>[
-      for (final SharedEntryCardRef card in widget.cards) card.id,
+      for (final String id in widget.setting.cardOrder)
+        if (HomeSharedEntrySources.canJoin(id)) id,
     ];
-    final String? picked = await showDialog<String>(
+    final List<String>? picked = await showDialog<List<String>>(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('加入小卡'),
-          content: SizedBox(
-            width: 360,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                for (final String id in HomeSharedEntrySources.joinable)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(HomeSharedEntrySources.label(id)),
-                    enabled: !joined.contains(id),
-                    trailing: joined.contains(id)
-                        ? const Text('已加入', style: TextStyle(fontSize: 12))
-                        : null,
-                    onTap: joined.contains(id)
-                        ? null
-                        : () => Navigator.of(context).pop(id),
-                  ),
-                const SizedBox(height: 8),
-                const Text(
-                  '每日照護、商城與服務捷徑沒有獨立的顧客入口頁，暫不加入。',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: Colors.black54,
-                  ),
+        final Set<String> selected = joined.toSet();
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setLocal) {
+            final Size size = MediaQuery.sizeOf(context);
+            final double width = math.min(440, math.max(280, size.width - 40));
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: width,
+                  maxHeight: size.height * 0.86,
                 ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-          ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+                      child: Text(
+                        '加入小卡',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: <Widget>[
+                          for (final String id
+                              in HomeSharedEntrySources.joinable)
+                            CheckboxListTile(
+                              key: Key('shared-entry-option-$id'),
+                              value: selected.contains(id),
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text(HomeSharedEntrySources.label(id)),
+                              subtitle: joined.contains(id)
+                                  ? const Text('已加入')
+                                  : null,
+                              onChanged: (bool? value) {
+                                setLocal(() {
+                                  if (value ?? false) {
+                                    selected.add(id);
+                                  } else {
+                                    selected.remove(id);
+                                  }
+                                });
+                              },
+                            ),
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
+                            child: Text(
+                              '取消勾選只會從首頁小卡區移出，已編輯的圖片與文字會保留。每日照護、商城與服務捷徑沒有獨立的顧客入口頁，暫不加入。',
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              '已選 ${selected.length} 張',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            key: const Key('shared-entry-add-cancel'),
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('取消'),
+                          ),
+                          const SizedBox(width: 4),
+                          FilledButton(
+                            key: const Key('shared-entry-add-apply'),
+                            onPressed: () {
+                              Navigator.of(context).pop(<String>[
+                                for (final String id
+                                    in HomeSharedEntrySources.joinable)
+                                  if (selected.contains(id)) id,
+                              ]);
+                            },
+                            child: const Text('確認套用'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
-    if (picked == null) {
+    if (picked == null || !mounted) {
       return;
     }
-    widget.onChanged(widget.setting.including(picked, when: true));
+    widget.onChanged(widget.setting.applyJoined(picked));
   }
 
   Future<void> _editCard(String id) async {
-    HomeSharedEntryCardSetting draft = widget.setting.cardOf(id);
+    final HomeSharedEntryCardSetting saved = widget.setting.cardOf(id);
+    HomeSharedEntryCardSetting draft = saved.rememberImage(saved.imageAssetId);
     final HomeSharedEntryCardSetting? next =
         await showDialog<HomeSharedEntryCardSetting>(
           context: context,
@@ -201,29 +276,36 @@ class _SharedEntrySettingsCardState extends State<SharedEntrySettingsCard> {
                 final double screenWidth = MediaQuery.sizeOf(context).width;
                 final double screenHeight = MediaQuery.sizeOf(context).height;
                 final double keyboard = MediaQuery.viewInsetsOf(context).bottom;
+                final bool wide = screenWidth >= 720;
                 final Widget form = _SharedEntryCardForm(
                   card: draft,
+                  assetLookup: widget.assetLookup,
                   onChanged: (HomeSharedEntryCardSetting value) {
                     setLocal(() => draft = value);
                   },
                 );
                 return AlertDialog(
+                  insetPadding: EdgeInsets.fromLTRB(16, 24, 16, 24 + keyboard),
                   title: Text('編輯${HomeSharedEntrySources.label(id)}'),
                   content: SizedBox(
-                    width: math.min(420, math.max(260, screenWidth - 64)),
+                    width: wide
+                        ? math.min(640, screenWidth - 80)
+                        : math.max(260, screenWidth - 48),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: math.max(160, screenHeight - keyboard - 180),
+                        maxHeight: math.max(160, screenHeight - keyboard - 210),
                       ),
                       child: SingleChildScrollView(child: form),
                     ),
                   ),
                   actions: <Widget>[
                     TextButton(
+                      key: const Key('shared-entry-edit-cancel'),
                       onPressed: () => Navigator.of(context).pop(),
                       child: const Text('取消'),
                     ),
                     FilledButton(
+                      key: const Key('shared-entry-edit-done'),
                       onPressed: () => Navigator.of(context).pop(draft),
                       child: const Text('完成'),
                     ),
@@ -233,7 +315,7 @@ class _SharedEntrySettingsCardState extends State<SharedEntrySettingsCard> {
             );
           },
         );
-    if (next == null) {
+    if (next == null || !mounted) {
       return;
     }
     widget.onChanged(widget.setting.updateCard(id, next));
@@ -422,113 +504,188 @@ class SharedEntryJoinSwitch extends StatelessWidget {
 }
 
 class _SharedEntryCardForm extends StatelessWidget {
-  const _SharedEntryCardForm({required this.card, required this.onChanged});
+  const _SharedEntryCardForm({
+    required this.card,
+    required this.onChanged,
+    this.assetLookup,
+  });
 
   final HomeSharedEntryCardSetting card;
   final ValueChanged<HomeSharedEntryCardSetting> onChanged;
+  final Future<PlatformMediaAsset?> Function(String assetId)? assetLookup;
 
   @override
   Widget build(BuildContext context) {
-    final Widget content = _group('基本內容', <Widget>[
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: <Widget>[
-          OutlinedButton(
-            onPressed: () async {
-              final PlatformMediaAsset? asset =
-                  await showPlatformMediaAssetPicker(
-                    context: context,
-                    category: PlatformMediaCategories.dailyCareCard,
-                    selectedId: card.imageAssetId,
-                    title: '選擇小卡圖片',
-                  );
-              if (asset == null) {
-                return;
-              }
-              onChanged(
-                card.copyWith(imageAssetId: asset.id, useSourceImage: false),
-              );
-            },
-            child: Text(card.imageAssetId.isEmpty ? '選擇圖片' : '更換圖片'),
-          ),
-          if (card.imageAssetId.isNotEmpty)
-            TextButton(
-              onPressed: () => onChanged(
-                card.copyWith(imageAssetId: '', useSourceImage: false),
-              ),
-              child: const Text('清除圖片'),
-            ),
-        ],
-      ),
-      TextFormField(
-        initialValue: card.title,
-        maxLength: 24,
-        decoration: const InputDecoration(
-          labelText: '主標題',
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        onChanged: (String value) => onChanged(card.copyWith(title: value)),
-      ),
-      TextFormField(
-        initialValue: card.subtitle,
-        maxLength: 40,
-        decoration: const InputDecoration(
-          labelText: '副標題',
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        onChanged: (String value) => onChanged(card.copyWith(subtitle: value)),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('顯示主標題'),
-        value: card.showTitle,
-        onChanged: (bool value) => onChanged(card.copyWith(showTitle: value)),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('顯示副標題'),
-        value: card.showSubtitle,
-        onChanged: (bool value) =>
-            onChanged(card.copyWith(showSubtitle: value)),
-      ),
-    ]);
+    final bool hasImage = card.imageAssetId.isNotEmpty;
+    final List<String> recent = card.recentImageAssetIds;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        content,
-        const SizedBox(height: 8),
-        _colorPicker(
-          label: '主標題顏色',
-          custom: card.titleColorMode == HomeSharedEntryColorModes.custom,
-          color: card.textColor,
-          onTheme: () => onChanged(
-            card.copyWith(titleColorMode: HomeSharedEntryColorModes.theme),
+        _group('基本內容', <Widget>[
+          TextFormField(
+            key: const Key('shared-entry-card-title'),
+            initialValue: card.title,
+            maxLength: 24,
+            decoration: const InputDecoration(
+              labelText: '主標題',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: (String value) => onChanged(card.copyWith(title: value)),
           ),
-          onColor: (int value) => onChanged(
-            card.copyWith(
-              titleColorMode: HomeSharedEntryColorModes.custom,
-              textColor: value,
+          TextFormField(
+            key: const Key('shared-entry-card-subtitle'),
+            initialValue: card.subtitle,
+            maxLength: 40,
+            decoration: const InputDecoration(
+              labelText: '副標題',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: (String value) =>
+                onChanged(card.copyWith(subtitle: value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('顯示主標題'),
+            value: card.showTitle,
+            onChanged: (bool value) =>
+                onChanged(card.copyWith(showTitle: value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('顯示副標題'),
+            value: card.showSubtitle,
+            onChanged: (bool value) =>
+                onChanged(card.copyWith(showSubtitle: value)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        _group('圖片', <Widget>[
+          Row(
+            children: <Widget>[
+              _SharedEntryAssetThumb(
+                key: const Key('shared-entry-current-image'),
+                assetId: card.imageAssetId,
+                selected: hasImage,
+                size: 72,
+                lookup: assetLookup,
+                onTap: null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  hasImage ? '目前使用圖庫圖片' : '目前沒有圖片，前台會顯示固定圖示',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Colors.black54,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('最近使用', style: TextStyle(fontSize: 13)),
+          const SizedBox(height: 6),
+          if (recent.isEmpty)
+            const Text(
+              '尚無最近使用的圖片',
+              style: TextStyle(fontSize: 12, color: Colors.black45),
+            )
+          else
+            SizedBox(
+              height: 64,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: recent.length,
+                separatorBuilder: (BuildContext context, int index) {
+                  return const SizedBox(width: 8);
+                },
+                itemBuilder: (BuildContext context, int index) {
+                  final String id = recent[index];
+                  return _SharedEntryAssetThumb(
+                    key: Key('shared-entry-recent-$id'),
+                    assetId: id,
+                    selected: id == card.imageAssetId,
+                    lookup: assetLookup,
+                    onTap: () => onChanged(
+                      card
+                          .copyWith(imageAssetId: id, useSourceImage: false)
+                          .rememberImage(id),
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              OutlinedButton(
+                key: const Key('shared-entry-pick-image'),
+                onPressed: () async {
+                  final PlatformMediaAsset? asset =
+                      await showPlatformMediaAssetPicker(
+                        context: context,
+                        category: PlatformMediaCategories.dailyCareCard,
+                        selectedId: card.imageAssetId,
+                        title: '選擇小卡圖片',
+                      );
+                  if (asset == null) {
+                    return;
+                  }
+                  onChanged(
+                    card
+                        .copyWith(imageAssetId: asset.id, useSourceImage: false)
+                        .rememberImage(asset.id),
+                  );
+                },
+                child: Text(hasImage ? '更換圖片' : '從圖庫選擇'),
+              ),
+              if (hasImage)
+                TextButton(
+                  key: const Key('shared-entry-clear-image'),
+                  onPressed: () => onChanged(
+                    card.copyWith(imageAssetId: '', useSourceImage: false),
+                  ),
+                  child: const Text('清除目前圖片'),
+                ),
+            ],
+          ),
+        ]),
+        const SizedBox(height: 12),
+        _group('文字外觀', <Widget>[
+          _colorPicker(
+            label: '主標題顏色',
+            custom: card.titleColorMode == HomeSharedEntryColorModes.custom,
+            color: card.textColor,
+            onTheme: () => onChanged(
+              card.copyWith(titleColorMode: HomeSharedEntryColorModes.theme),
+            ),
+            onColor: (int value) => onChanged(
+              card.copyWith(
+                titleColorMode: HomeSharedEntryColorModes.custom,
+                textColor: value,
+              ),
             ),
           ),
-        ),
-        _colorPicker(
-          label: '副標題顏色',
-          custom: card.bodyColorMode == HomeSharedEntryColorModes.custom,
-          color: card.bodyColor,
-          onTheme: () => onChanged(
-            card.copyWith(bodyColorMode: HomeSharedEntryColorModes.theme),
-          ),
-          onColor: (int value) => onChanged(
-            card.copyWith(
-              bodyColorMode: HomeSharedEntryColorModes.custom,
-              bodyColor: value,
+          _colorPicker(
+            label: '副標題顏色',
+            custom: card.bodyColorMode == HomeSharedEntryColorModes.custom,
+            color: card.bodyColor,
+            onTheme: () => onChanged(
+              card.copyWith(bodyColorMode: HomeSharedEntryColorModes.theme),
+            ),
+            onColor: (int value) => onChanged(
+              card.copyWith(
+                bodyColorMode: HomeSharedEntryColorModes.custom,
+                bodyColor: value,
+              ),
             ),
           ),
-        ),
+        ]),
       ],
     );
   }
@@ -596,6 +753,118 @@ class _SharedEntryCardForm extends StatelessWidget {
   }
 }
 
+class _SharedEntryAssetThumb extends StatefulWidget {
+  const _SharedEntryAssetThumb({
+    super.key,
+    required this.assetId,
+    required this.selected,
+    required this.lookup,
+    required this.onTap,
+    this.size = 56,
+  });
+
+  final String assetId;
+  final bool selected;
+  final Future<PlatformMediaAsset?> Function(String assetId)? lookup;
+  final VoidCallback? onTap;
+  final double size;
+
+  @override
+  State<_SharedEntryAssetThumb> createState() => _SharedEntryAssetThumbState();
+}
+
+class _SharedEntryAssetThumbState extends State<_SharedEntryAssetThumb> {
+  String _url = '';
+  int _token = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_SharedEntryAssetThumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetId != widget.assetId) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final int token = ++_token;
+    final String id = widget.assetId.trim();
+    if (id.isEmpty) {
+      if (mounted && _url.isNotEmpty) {
+        setState(() => _url = '');
+      }
+      return;
+    }
+    String next = '';
+    try {
+      final PlatformMediaAsset? asset =
+          await (widget.lookup ??
+              PlatformMediaLibraryService.instance.getEnabledAssetById)(id);
+      final String thumb = asset?.thumbnailUrl.trim() ?? '';
+      next = thumb.isEmpty ? (asset?.imageUrl.trim() ?? '') : thumb;
+    } catch (_) {
+      next = '';
+    }
+    if (!mounted || token != _token || next == _url) {
+      return;
+    }
+    setState(() => _url = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget image = _url.isEmpty
+        ? const Icon(Icons.image_outlined, size: 22, color: Color(0xFF8A7568))
+        : Image.network(
+            _url,
+            fit: BoxFit.cover,
+            width: widget.size,
+            height: widget.size,
+            gaplessPlayback: true,
+            errorBuilder:
+                (BuildContext context, Object error, StackTrace? stack) {
+                  return const Icon(
+                    Icons.image_outlined,
+                    size: 22,
+                    color: Color(0xFF8A7568),
+                  );
+                },
+          );
+    return Material(
+      color: const Color(0xFFF6F1EA),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(
+          color: widget.selected
+              ? const Color(0xFFA56B45)
+              : const Color(0xFFE6E8EC),
+          width: widget.selected ? 2 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: ColoredBox(
+              color: const Color(0xFFF6F1EA),
+              child: Center(child: image),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 const List<int> _sharedEntryColorSwatches = <int>[
   0xFF3A2A20,
   0xFFFFFFFF,
@@ -641,28 +910,24 @@ class _SharedEntryStylePanel extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: <Widget>[
-                  for (final (int index, String label) in <(int, String)>[
-                    (0, '快速風格'),
-                    (1, '排列'),
-                    (2, '尺寸間距'),
-                    (3, '文字'),
-                    (4, '卡片外觀'),
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: ChoiceChip(
-                        label: Text(label),
-                        selected: pane == index,
-                        visualDensity: VisualDensity.compact,
-                        onSelected: (_) => onPane(index),
-                      ),
-                    ),
-                ],
-              ),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                for (final (int index, String label) in <(int, String)>[
+                  (0, '快速風格'),
+                  (1, '排列'),
+                  (2, '尺寸間距'),
+                  (3, '文字'),
+                  (4, '卡片外觀'),
+                ])
+                  ChoiceChip(
+                    label: Text(label),
+                    selected: pane == index,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (_) => onPane(index),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             switch (pane) {

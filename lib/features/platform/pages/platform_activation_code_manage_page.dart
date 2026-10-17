@@ -9,7 +9,12 @@ import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 
 class PlatformActivationCodeManagePage extends StatefulWidget {
-  const PlatformActivationCodeManagePage({super.key});
+  const PlatformActivationCodeManagePage({
+    super.key,
+    this.initialSalesRepId = '',
+  });
+
+  final String initialSalesRepId;
 
   @override
   State<PlatformActivationCodeManagePage> createState() =>
@@ -20,7 +25,9 @@ class _PlatformActivationCodeManagePageState
     extends State<PlatformActivationCodeManagePage> {
   final _search = TextEditingController();
   String _status = '';
+  String _source = '';
   String _salesRepId = '';
+  String? _selectedCodeId;
   List<Map<String, dynamic>> _reps = const [];
   List<Map<String, dynamic>> _items = const [];
   bool _loading = true;
@@ -32,6 +39,7 @@ class _PlatformActivationCodeManagePageState
   @override
   void initState() {
     super.initState();
+    _salesRepId = widget.initialSalesRepId;
     _loadReps();
     _load();
   }
@@ -85,6 +93,7 @@ class _PlatformActivationCodeManagePageState
       final data = await ShopCommercialService.instance.listActivationCodes(
         query: _search.text.trim(),
         status: _status,
+        source: _source,
         salesRepId: _salesRepId,
         cursor: more ? _cursor : '',
       );
@@ -175,23 +184,30 @@ class _PlatformActivationCodeManagePageState
                     ),
                     DropdownButtonFormField<String>(
                       initialValue: source,
-                      decoration: const InputDecoration(labelText: '開店來源'),
+                      decoration: const InputDecoration(labelText: '來源'),
                       items: const [
-                        DropdownMenuItem(value: 'platform_direct', child: Text('平台直客')),
-                        DropdownMenuItem(value: 'sales', child: Text('業務')),
-                        DropdownMenuItem(value: 'campaign', child: Text('活動')),
-                        DropdownMenuItem(value: 'other', child: Text('其他')),
+                        DropdownMenuItem(value: 'platform_direct', child: Text('平台發放')),
+                        DropdownMenuItem(value: 'sales', child: Text('業務專屬')),
                       ],
                       onChanged: (value) {
-                        setLocal(() => source = value ?? 'platform_direct');
+                        setLocal(() {
+                          source = value ?? 'platform_direct';
+                          if (source != 'sales') repId = '';
+                        });
                       },
                     ),
+                    if (source == 'sales')
                     DropdownButtonFormField<String>(
-                      initialValue: repId,
+                      initialValue: _reps.any((rep) => rep['repId'] == repId)
+                          ? repId
+                          : '',
                       decoration: const InputDecoration(labelText: '所屬業務'),
                       items: [
-                        const DropdownMenuItem(value: '', child: Text('平台直客')),
-                        ..._reps.map((rep) {
+                        const DropdownMenuItem(value: '', child: Text('請選擇業務')),
+                        ..._reps.where((rep) {
+                          return rep['enabled'] != false &&
+                              rep['bindingStatus'] != 'pending';
+                        }).map((rep) {
                           return DropdownMenuItem(
                             value: '${rep['repId']}',
                             child: Text('${rep['displayName'] ?? ''}'),
@@ -234,6 +250,13 @@ class _PlatformActivationCodeManagePageState
       },
     );
     if (saved == true) {
+      if (source == 'sales' && repId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('業務專屬激活碼必須選擇已綁定的業務')),
+          );
+        }
+      } else {
       try {
         await ShopCommercialService.instance.saveActivationCode({
           'code': code.text.trim(),
@@ -243,7 +266,7 @@ class _PlatformActivationCodeManagePageState
           'maxUses': int.tryParse(uses.text.trim()) ?? 1,
           'freeDays': int.tryParse(days.text.trim()) ?? 0,
           'shopSource': source,
-          'salesRepId': repId,
+          'salesRepId': source == 'sales' ? repId : '',
           'campaignName': campaign.text.trim(),
           'useByDate': deadline.text.trim(),
           'note': note.text.trim(),
@@ -256,6 +279,7 @@ class _PlatformActivationCodeManagePageState
             SnackBar(content: Text(error.message)),
           );
         }
+      }
       }
     }
     code.dispose();
@@ -376,50 +400,33 @@ class _PlatformActivationCodeManagePageState
                     child: const Text('補齊舊激活碼欄位'),
                   ),
                 ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('全部'),
-                      selected: _status.isEmpty,
-                      onSelected: (_) {
-                        setState(() => _status = '');
-                        _load();
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('啟用中'),
-                      selected: _status == 'active',
-                      onSelected: (_) {
-                        setState(() => _status = 'active');
-                        _load();
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('已停用'),
-                      selected: _status == 'disabled',
-                      onSelected: (_) {
-                        setState(() => _status = 'disabled');
-                        _load();
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('已到期'),
-                      selected: _status == 'expired',
-                      onSelected: (_) {
-                        setState(() => _status = 'expired');
-                        _load();
-                      },
-                    ),
-                    ChoiceChip(
-                      label: const Text('已用完'),
-                      selected: _status == 'exhausted',
-                      onSelected: (_) {
-                        setState(() => _status = 'exhausted');
-                        _load();
-                      },
-                    ),
+                DropdownButtonFormField<String>(
+                  initialValue: _source,
+                  decoration: const InputDecoration(labelText: '來源'),
+                  items: const [
+                    DropdownMenuItem(value: '', child: Text('全部來源')),
+                    DropdownMenuItem(value: 'platform', child: Text('平台發放')),
+                    DropdownMenuItem(value: 'sales', child: Text('業務專屬')),
                   ],
+                  onChanged: (value) {
+                    setState(() => _source = value ?? '');
+                    _load();
+                  },
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: _status,
+                  decoration: const InputDecoration(labelText: '狀態'),
+                  items: const [
+                    DropdownMenuItem(value: '', child: Text('全部狀態')),
+                    DropdownMenuItem(value: 'active', child: Text('啟用中')),
+                    DropdownMenuItem(value: 'disabled', child: Text('已停用')),
+                    DropdownMenuItem(value: 'expired', child: Text('已到期')),
+                    DropdownMenuItem(value: 'exhausted', child: Text('已用完')),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _status = value ?? '');
+                    _load();
+                  },
                 ),
                 if (_reps.isNotEmpty)
                   DropdownButtonFormField<String>(
@@ -486,7 +493,9 @@ class _PlatformActivationCodeManagePageState
       );
     }
     if (_items.isEmpty) return const Center(child: Text('查無激活碼'));
-    return ListView.builder(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final list = ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _items.length + (_cursor.isEmpty ? 0 : 1),
       itemBuilder: (context, index) {
@@ -499,74 +508,62 @@ class _PlatformActivationCodeManagePageState
         final item = _items[index];
         final code = '${item['code'] ?? ''}';
         final status = commercialStatusLabel('${item['status']}');
+        final maxUses = item['maxUses'] ?? 0;
+        final used = item['usedCount'] ?? 0;
+        final remaining = item['remainingUses'] ?? 0;
+        final deadline = '${item['useByDate'] ?? ''}';
         return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (item['name'] ?? '').toString().isEmpty ? code : '${item['name']}',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                Text('代碼：$code'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _InfoPill(label: commercialPlanLabel('${item['plan']}')),
-                    _InfoPill(label: _repName('${item['salesRepId'] ?? ''}')),
-                    _InfoPill(label: '試用 ${item['freeDays'] ?? 0} 天'),
-                    _InfoPill(
-                      label: '使用 ${item['usedCount'] ?? 0} / ${item['maxUses'] ?? 0}',
-                    ),
-                    _InfoPill(label: status),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    IconButton(
-                      tooltip: '複製',
-                      onPressed: () async {
-                        await Clipboard.setData(ClipboardData(text: code));
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已複製激活碼')),
-                        );
-                      },
-                      icon: const Icon(Icons.copy),
-                    ),
-                    IconButton(
-                      tooltip: '分享',
-                      onPressed: () => Share.share('PetNest 創店激活碼：$code'),
-                      icon: const Icon(Icons.share),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => _usage('${item['codeId']}'),
-                      child: const Text('使用紀錄'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () async {
-                        await ShopCommercialService.instance.saveActivationCode({
-                          'codeId': item['codeId'],
-                          'code': code,
-                          'name': item['name'] ?? '',
-                          'salesRepId': item['salesRepId'] ?? '',
-                          'campaignName': item['campaignName'] ?? '',
-                          'useByDate': item['useByDate'] ?? '',
-                          'note': item['note'] ?? '',
-                          'shopSource': item['shopSource'] ?? '',
-                          'module': item['module'] ?? '',
-                          'enabled': item['enabled'] != true,
-                        });
-                        await _load();
-                      },
-                      child: Text(item['enabled'] == true ? '停用' : '啟用'),
-                    ),
-                  ],
+          color: item['codeId'] == _selectedCodeId
+              ? const Color(0xFFF3F8FF)
+              : null,
+          child: ListTile(
+            title: Text(
+              (item['name'] ?? '').toString().isEmpty ? code : '${item['name']}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              '$code\n${_repName('${item['salesRepId'] ?? ''}')} · $status\n'
+              '已用 $used / $maxUses，剩餘 $remaining'
+              '${deadline.isEmpty ? '' : '\n期限 $deadline'}',
+            ),
+            isThreeLine: true,
+            onTap: () => setState(() => _selectedCodeId = '${item['codeId']}'),
+            trailing: PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'copy') {
+                  await Clipboard.setData(ClipboardData(text: code));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('已複製激活碼')),
+                  );
+                } else if (value == 'share') {
+                  await Share.share('PetNest 創店激活碼：$code');
+                } else if (value == 'usage') {
+                  await _usage('${item['codeId']}');
+                } else if (value == 'toggle') {
+                  await ShopCommercialService.instance.saveActivationCode({
+                    'codeId': item['codeId'],
+                    'code': code,
+                    'name': item['name'] ?? '',
+                    'salesRepId': item['salesRepId'] ?? '',
+                    'campaignName': item['campaignName'] ?? '',
+                    'useByDate': item['useByDate'] ?? '',
+                    'note': item['note'] ?? '',
+                    'shopSource': item['shopSource'] ?? '',
+                    'module': item['module'] ?? '',
+                    'enabled': item['enabled'] != true,
+                  });
+                  await _load();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'copy', child: Text('複製')),
+                const PopupMenuItem(value: 'share', child: Text('分享')),
+                const PopupMenuItem(value: 'usage', child: Text('使用紀錄')),
+                PopupMenuItem(
+                  value: 'toggle',
+                  child: Text(item['enabled'] == true ? '停用' : '啟用'),
                 ),
               ],
             ),
@@ -574,23 +571,56 @@ class _PlatformActivationCodeManagePageState
         );
       },
     );
-  }
-}
-
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label),
+        Map<String, dynamic>? selected;
+        for (final item in _items) {
+          if (item['codeId'] == _selectedCodeId) selected = item;
+        }
+        final detail = selected == null
+            ? const Center(child: Text('選擇一筆激活碼查看期限、次數與業務'))
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    '${selected['name'] ?? selected['code']}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('代碼：${selected['code'] ?? ''}'),
+                  Text('方案：${commercialPlanLabel('${selected['plan']}')}'),
+                  Text('業務：${_repName('${selected['salesRepId'] ?? ''}')}'),
+                  Text('已用 ${selected['usedCount'] ?? 0} / ${selected['maxUses'] ?? 0}'),
+                  Text('剩餘 ${selected['remainingUses'] ?? 0}'),
+                  Text(
+                    '期限：${'${selected['useByDate'] ?? ''}'.isEmpty ? '無' : selected['useByDate']}',
+                  ),
+                  Text('狀態：${commercialStatusLabel('${selected['status']}')}'),
+                  if ('${selected['note'] ?? ''}'.isNotEmpty)
+                    Text('備註：${selected['note']}'),
+                ],
+              );
+        if (constraints.maxWidth < 1000) return list;
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('本頁 ${_items.length} 筆'),
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(child: list),
+                  const VerticalDivider(width: 1),
+                  SizedBox(width: 320, child: detail),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
+

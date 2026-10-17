@@ -1,5 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/editable_home_section.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_flow.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_geometry_reporter.dart';
@@ -11,6 +13,7 @@ class HomeLayoutCanvas extends StatefulWidget {
   const HomeLayoutCanvas({
     super.key,
     required this.background,
+    this.theme,
     required this.sectionIds,
     required this.sectionOrder,
     required this.spanOf,
@@ -26,6 +29,7 @@ class HomeLayoutCanvas extends StatefulWidget {
   });
 
   final Color background;
+  final HomeThemeModel? theme;
   final List<String> sectionIds;
   final List<String> sectionOrder;
   final HomeSectionSpan Function(String sectionId) spanOf;
@@ -452,53 +456,56 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: widget.background,
-      child: Column(
-        children: <Widget>[
-          _fixedSection('header'),
-          Expanded(
-            child: Stack(
-              key: _flowStackKey,
-              clipBehavior: Clip.none,
-              children: <Widget>[
-                LayoutBuilder(
-                  builder: (BuildContext context, BoxConstraints constraints) {
-                    return ListView(
-                      controller: _scrollController,
-                      primary: false,
-                      physics: _dragSectionId == null
-                          ? const ClampingScrollPhysics()
-                          : const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        12,
-                        5,
-                        12,
-                        widget.bottomInset,
+    final Widget page = Column(
+      children: <Widget>[
+        _fixedSection('header'),
+        Expanded(
+          child: Stack(
+            key: _flowStackKey,
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return ListView(
+                    controller: _scrollController,
+                    primary: false,
+                    physics: _dragSectionId == null
+                        ? const ClampingScrollPhysics()
+                        : const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(12, 5, 12, widget.bottomInset),
+                    children: <Widget>[
+                      ...buildHomeSectionRows(
+                        sectionIds: widget.sectionIds,
+                        spanOf: widget.spanOf,
+                        gap: constraints.maxWidth < 760 ? 8 : 10,
+                        itemBuilder: _orderedSection,
                       ),
-                      children: <Widget>[
-                        ...buildHomeSectionRows(
-                          sectionIds: widget.sectionIds,
-                          spanOf: widget.spanOf,
-                          gap: constraints.maxWidth < 760 ? 8 : 10,
-                          itemBuilder: _orderedSection,
+                      if (widget.shopInfo != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: widget.shopInfo,
                         ),
-                        if (widget.shopInfo != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: widget.shopInfo,
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                if (_dragSectionId != null) _dragFeedback(),
-              ],
-            ),
+                    ],
+                  );
+                },
+              ),
+              if (_dragSectionId != null) _dragFeedback(),
+            ],
           ),
-          if (widget.pinFooter) _fixedSection('footer'),
-        ],
-      ),
+        ),
+        if (widget.pinFooter) _fixedSection('footer'),
+      ],
+    );
+    final HomeThemeModel? theme = widget.theme;
+    if (theme == null) {
+      return ColoredBox(color: widget.background, child: page);
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Positioned.fill(child: ShopAppBackdrop(theme: theme)),
+        Positioned.fill(child: page),
+      ],
     );
   }
 }

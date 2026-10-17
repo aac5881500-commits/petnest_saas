@@ -7,8 +7,12 @@ import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_owner_policy_page.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
 
+enum ShopCreateExit { created, recheckActivation }
+
 class CreateShopPage extends StatefulWidget {
-  const CreateShopPage({super.key});
+  const CreateShopPage({super.key, required this.activationCode});
+
+  final String activationCode;
 
   @override
   State<CreateShopPage> createState() => _CreateShopPageState();
@@ -18,7 +22,6 @@ class _CreateShopPageState extends State<CreateShopPage> {
   final _nameController = TextEditingController();
   final _cityController = TextEditingController();
   final _districtController = TextEditingController();
-  final _activationCodeController = TextEditingController();
 
   bool _loading = false;
   String? _createRequestId;
@@ -409,7 +412,7 @@ class _CreateShopPageState extends State<CreateShopPage> {
     final city = _cityController.text.trim();
     final district = _districtController.text.trim();
 
-    final activationCode = _activationCodeController.text.trim();
+    final activationCode = widget.activationCode.trim();
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(
@@ -432,9 +435,8 @@ class _CreateShopPageState extends State<CreateShopPage> {
       return;
     }
     if (activationCode.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請輸入創店激活碼')));
+      if (!mounted) return;
+      Navigator.pop(context, ShopCreateExit.recheckActivation);
       return;
     }
 
@@ -476,24 +478,59 @@ class _CreateShopPageState extends State<CreateShopPage> {
 
       if (!mounted) return;
 
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('建立成功')));
-    } catch (e, st) {
-      debugPrint('建立店家失敗: $e');
-      debugPrintStack(stackTrace: st);
+      Navigator.pop(context, ShopCreateExit.created);
+    } catch (error, stackTrace) {
+      debugPrint('建立店家失敗: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('建立失敗: $e')));
+      final String message = _createFailureMessage(error);
+      if (message.contains('激活碼')) {
+        await _askToRecheckActivation(message);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  String _createFailureMessage(Object error) {
+    if (error is ShopCommercialException) return error.message;
+    final String text = error.toString();
+    const String prefix = 'Exception: ';
+    if (text.startsWith(prefix)) return text.substring(prefix.length);
+    return '建立店家失敗，請稍後再試';
+  }
+
+  Future<void> _askToRecheckActivation(String message) async {
+    final bool? leave = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('激活碼無法使用'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('留在此頁'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('返回驗證'),
+            ),
+          ],
+        );
+      },
+    );
+    if (leave == true && mounted) {
+      Navigator.pop(context, ShopCreateExit.recheckActivation);
     }
   }
 
@@ -502,7 +539,6 @@ class _CreateShopPageState extends State<CreateShopPage> {
     _nameController.dispose();
     _cityController.dispose();
     _districtController.dispose();
-    _activationCodeController.dispose();
     super.dispose();
   }
 
@@ -518,16 +554,6 @@ class _CreateShopPageState extends State<CreateShopPage> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: '店家名稱',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: _activationCodeController,
-              decoration: const InputDecoration(
-                labelText: '創店激活碼',
-                hintText: '請輸入平台提供的激活碼',
                 border: OutlineInputBorder(),
               ),
             ),

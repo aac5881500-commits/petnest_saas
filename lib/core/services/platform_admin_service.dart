@@ -9,6 +9,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../constants/platform_permission_keys.dart';
 import 'platform_permission_catalog.dart';
 import '../constants/platform_root_admin.dart';
+import '../models/platform_account_display.dart';
 import '../models/platform_admin_model.dart';
 
 class PlatformAdminService {
@@ -42,6 +43,59 @@ class PlatformAdminService {
     data['uid'] = snapshot.id;
 
     return PlatformAdminModel.fromMap(data);
+  }
+
+  /// 只整理畫面要顯示的姓名與 Email，不寫回平台人員或 Auth。
+  Future<PlatformAccountDisplay> resolveAccountText(
+    PlatformAdminModel admin,
+  ) async {
+    String platformName = admin.name;
+    String platformDisplayName = '';
+    String platformEmail = admin.email;
+    try {
+      final snapshot = await _adminsReference.doc(admin.uid).get();
+      final Map<String, dynamic>? data = snapshot.data();
+      if (data != null) {
+        platformName = _accountText(data['name'], fallback: platformName);
+        platformDisplayName = _accountText(data['displayName']);
+        platformEmail = _accountText(data['email'], fallback: platformEmail);
+      }
+    } catch (_) {}
+
+    final User? user = _auth.currentUser;
+    final bool self = user != null && user.uid == admin.uid;
+    String? profileName;
+    String? profileEmail;
+    if (user != null && (self || PlatformRootAdmin.isRoot(user.uid))) {
+      try {
+        final snapshot =
+            await _firestore.collection('user_profiles').doc(admin.uid).get();
+        final Map<String, dynamic>? data = snapshot.data();
+        if (data != null) {
+          profileName = _accountText(
+            data['name'],
+            fallback: _accountText(data['displayName']),
+          );
+          profileEmail = _accountText(data['email']);
+        }
+      } catch (_) {}
+    }
+
+    return PlatformAccountDisplay.resolve(
+      platformName: platformName,
+      platformDisplayName: platformDisplayName,
+      authDisplayName: self ? user.displayName : null,
+      profileName: profileName,
+      authEmail: self ? user.email : null,
+      platformEmail: platformEmail,
+      profileEmail: profileEmail,
+      uid: admin.uid,
+    );
+  }
+
+  String _accountText(Object? value, {String fallback = ''}) {
+    final String text = (value ?? '').toString().trim();
+    return text.isEmpty ? fallback : text;
   }
 
   /// 讀取目前登入者的平台管理員資料
@@ -146,7 +200,7 @@ class PlatformAdminService {
   /// 監聽全部平台管理員與平台員工
   Stream<List<PlatformAdminModel>> streamAdmins() {
     return _adminsReference
-        .orderBy('createdAt', descending: false)
+        .orderBy(FieldPath.documentId)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((document) {

@@ -5,7 +5,7 @@
 
 const admin = require("firebase-admin");
 const {HttpsError} = require("firebase-functions/v2/https");
-const {hasPlatformAccess} = require("../legal_pet/access");
+const {hasPlatformAccess, ROOT_ADMIN_UID} = require("../legal_pet/access");
 const policy = require("./commercial_policy");
 
 const FINANCE_PERMISSIONS = ["manage_subscription_finance"];
@@ -450,6 +450,45 @@ async function saveActivationCode(user, data) {
   const note = String(data.note || "").trim().slice(0, 500);
   const shopSource = policy.SOURCES.indexOf(data.shopSource) >= 0 ?
     data.shopSource : (salesRepId ? "sales" : "platform_direct");
+  const previousSnap = codeId ?
+    await db.collection("activation_codes").doc(codeId).get() : null;
+  const previousCode = previousSnap && previousSnap.exists ?
+    previousSnap.data() : {};
+  let repExists = false;
+  let repAccountExists = false;
+  let repAccountEnabled = false;
+  let repEnabled = false;
+  let repUid = "";
+  if (salesRepId) {
+    const repSnap = await db.collection("platform_sales_reps")
+        .doc(salesRepId).get();
+    repExists = repSnap.exists;
+    if (repSnap.exists) {
+      repEnabled = repSnap.get("enabled") !== false;
+      repUid = String(repSnap.get("platformUid") || "");
+      if (repUid) {
+        const account = await db.collection("platform_users").doc(repUid).get();
+        repAccountExists = account.exists;
+        repAccountEnabled = account.exists && account.get("enabled") !== false;
+      }
+    }
+  }
+  const binding = policy.planActivationRepBinding({
+    updating: Boolean(codeId),
+    salesRepId: salesRepId,
+    previousSalesRepId: previousCode.salesRepId || "",
+    shopSource: shopSource,
+    usedCount: previousCode.usedCount || 0,
+    reason: data.attributionReason,
+    repExists: repExists,
+    repEnabled: repEnabled,
+    platformUid: repUid,
+    accountExists: repAccountExists,
+    accountEnabled: repAccountEnabled,
+  });
+  if (!binding.ok) {
+    throw new HttpsError("failed-precondition", binding.error);
+  }
   const ref = codeId ?
     db.collection("activation_codes").doc(codeId) :
     db.collection("activation_codes").doc();
@@ -517,6 +556,17 @@ async function saveActivationCode(user, data) {
       tx.delete(oldKeyRef);
     }
     tx.set(keyRef, {codeId: ref.id, normalizedCode: normalized});
+    if (binding.recordAttributionChange) {
+      tx.set(db.collection("activation_code_attribution_events").doc(), {
+        codeId: ref.id,
+        fromRepId: String(previousCode.salesRepId || ""),
+        toRepId: salesRepId,
+        reason: String(data.attributionReason || "").trim().slice(0, 200),
+        createdBy: user.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        rewritesCommission: false,
+      });
+    }
   });
   return {codeId: ref.id};
 }
@@ -530,98 +580,485 @@ async function saveSalesRep(user, data) {
   assertPermission(user, SALES_MANAGE_PERMISSIONS);
   const db = admin.firestore();
   const repId = String(data.repId || "").trim();
-  const displayName = String(data.displayName || "").trim().slice(0, 40);
-  if (!displayName) {
-    throw new HttpsError("invalid-argument", "請輸入業務名稱");
-  }
   const ref = repId ?
     db.collection("platform_sales_reps").doc(repId) :
     db.collection("platform_sales_reps").doc();
   const platformUid = String(data.platformUid || "").trim();
-  if (platformUid) {
-    const account = await db.collection("platform_users")
-        .doc(platformUid).get();
-    if (!account.exists) {
-      throw new HttpsError("not-found", "找不到要綁定的平台帳號");
-    }
+  const existing = repId ? await ref.get() : null;
+  if (repId && (!existing || !existing.exists)) {
+    throw new HttpsError("not-found", "找不到業務");
   }
+  const previousUid = existing && existing.exists ?
+    String(existing.get("platformUid") || "") : "";
+  let account = null;
+  if (platformUid) {
+    account = await db.collection("platform_users").doc(platformUid).get();
+  }
+  const uidRef = platformUid ?
+    db.collection("platform_sales_rep_uids").doc(platformUid) : null;
+  const uidSnap = uidRef ? await uidRef.get() : null;
+  const plan = policy.planSalesRepWrite({
+    creating: !repId,
+    platformUid: platformUid,
+    previousUid: previousUid,
+    enabled: data.enabled !== false,
+    accountExists: Boolean(account && account.exists),
+    accountEnabled: Boolean(account && account.exists &&
+      account.get("enabled") !== false),
+    uidTaken: Boolean(uidSnap && uidSnap.exists &&
+      uidSnap.get("repId") !== ref.id),
+  });
+  if (!plan.ok) {
+    throw new HttpsError("failed-precondition", plan.error);
+  }
+  const accountName = account && account.exists ?
+    String(account.get("name") || account.get("email") || "").trim() : "";
+  const named = existing && existing.exists ?
+    policy.repDisplayName(existing.data()) :
+    {displayName: "", nameMissing: true};
+  const displayName = (named.nameMissing ? accountName : named.displayName)
+      .trim()
+      .slice(0, 40);
+  const phone = data.phone != null && String(data.phone).trim() ?
+    String(data.phone).trim().slice(0, 40) :
+    String(
+        (existing && existing.exists && existing.get("phone")) ||
+        (account && account.exists && account.get("phone")) ||
+        "",
+    ).trim().slice(0, 40);
+  const email = data.email != null && String(data.email).trim() ?
+    String(data.email).trim().slice(0, 80) :
+    String(
+        (existing && existing.exists && existing.get("email")) ||
+        (account && account.exists && account.get("email")) ||
+        "",
+    ).trim().slice(0, 80);
+  const note = Object.prototype.hasOwnProperty.call(data, "note") ?
+    String(data.note || "").trim().slice(0, 500) :
+    String(existing && existing.exists ? existing.get("note") || "" : "")
+        .slice(0, 500);
   const payload = {
     displayName: displayName,
     platformUid: platformUid,
-    phone: String(data.phone || "").trim().slice(0, 40),
-    email: String(data.email || "").trim().slice(0, 80),
+    phone: phone,
+    email: email,
     enabled: data.enabled !== false,
-    note: String(data.note || "").trim().slice(0, 500),
+    note: note,
+    bindingStatus: plan.bindingStatus,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
   if (!repId) {
     payload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+    payload.createdByUid = user.uid;
   }
-  const uidRef = platformUid ?
-    db.collection("platform_sales_rep_uids").doc(platformUid) : null;
   await db.runTransaction(async (tx) => {
     const current = repId ? await tx.get(ref) : null;
-    const previousUid = current && current.exists ?
+    const currentUid = current && current.exists ?
       String(current.get("platformUid") || "") : "";
-    const previousUidRef = previousUid && previousUid !== platformUid ?
-      db.collection("platform_sales_rep_uids").doc(previousUid) : null;
-    const previousUidSnap = previousUidRef ?
-      await tx.get(previousUidRef) : null;
-    const uidSnap = uidRef ? await tx.get(uidRef) : null;
-    if (uidSnap && uidSnap.exists && uidSnap.get("repId") !== ref.id) {
+    const currentUidRef = currentUid && currentUid !== platformUid ?
+      db.collection("platform_sales_rep_uids").doc(currentUid) : null;
+    const currentUidSnap = currentUidRef ? await tx.get(currentUidRef) : null;
+    const freshUid = uidRef ? await tx.get(uidRef) : null;
+    if (freshUid && freshUid.exists && freshUid.get("repId") !== ref.id) {
       throw new HttpsError("already-exists", "這個平台帳號已綁定其他業務");
     }
-    if (previousUidSnap && previousUidSnap.exists &&
-        previousUidSnap.get("repId") === ref.id) {
-      tx.delete(previousUidRef);
+    if (currentUidSnap && currentUidSnap.exists &&
+        currentUidSnap.get("repId") === ref.id) {
+      tx.delete(currentUidRef);
     }
+    const events = current && current.exists &&
+      Array.isArray(current.get("recentEvents")) ?
+      current.get("recentEvents").slice(0, 7) : [];
+    events.unshift({
+      action: repId ? "update" : "assign",
+      platformUid: platformUid,
+      actorUid: user.uid,
+      at: new Date().toISOString(),
+    });
+    payload.recentEvents = events;
     if (uidRef) tx.set(uidRef, {repId: ref.id});
     tx.set(ref, payload, {merge: true});
   });
-  return {repId: ref.id};
+  return {repId: ref.id, bindingStatus: plan.bindingStatus};
 }
 
 /**
+ * 依文件編號分頁。缺少 displayName 的舊業務仍會出現。
+ * 單次最多掃 8 批、每批 40 筆，游標與排序都使用文件編號。
  * @param {Object} user 平台使用者
+ * @param {Object=} data 篩選與游標
  * @return {Promise<Object>}
  */
-async function listSalesReps(user) {
-  const ownOnly = !hasPlatformAccess(user, SALES_MANAGE_PERMISSIONS) &&
-    !hasPlatformAccess(user, FINANCE_PERMISSIONS);
+async function listSalesReps(user, data) {
+  const request = data || {};
+  const manage = hasPlatformAccess(user, SALES_MANAGE_PERMISSIONS);
+  const finance = hasPlatformAccess(user, FINANCE_PERMISSIONS);
+  const viewList = hasPlatformAccess(user, ["view_sales"]);
   const db = admin.firestore();
-  if (ownOnly) {
+  if (!manage && !finance && !viewList) {
     if (!hasPlatformAccess(user, ["view_own_sales"])) {
       throw new HttpsError("permission-denied", "沒有這項權限");
     }
     const snap = await db.collection("platform_sales_reps")
         .where("platformUid", "==", user.uid)
-        .limit(1)
+        .limit(2)
         .get();
-    return {reps: snap.docs.map(presentRep)};
+    return {
+      reps: snap.docs.slice(0, 1).map((doc) => presentRep(doc, true)),
+      nextCursor: "",
+      conflict: snap.size > 1,
+    };
   }
-  assertPermission(user, SALES_MANAGE_PERMISSIONS.concat(FINANCE_PERMISSIONS));
-  const snap = await db.collection("platform_sales_reps")
-      .orderBy("displayName")
-      .limit(100)
-      .get();
-  return {reps: snap.docs.map(presentRep)};
+  const pageSize = 40;
+  const status = ["enabled", "disabled", "pending"].indexOf(request.status) >= 0 ?
+    request.status : "";
+  const needle = String(request.query || "").trim().toLowerCase().slice(0, 40);
+  let cursor = String(request.cursor || "").trim();
+  const matches = [];
+  let exhausted = false;
+  let resume = "";
+  for (let batch = 0; batch < 8 && matches.length < pageSize; batch++) {
+    let query = db.collection("platform_sales_reps")
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .limit(40);
+    if (cursor) query = query.startAfter(cursor);
+    const snap = await query.get();
+    if (snap.empty) {
+      exhausted = true;
+      break;
+    }
+    let pageFull = false;
+    for (const doc of snap.docs) {
+      const row = doc.data() || {};
+      if (!policy.matchesSalesRep(row, {status: status, needle: needle})) {
+        cursor = doc.id;
+        continue;
+      }
+      if (matches.length >= pageSize) {
+        pageFull = true;
+        break;
+      }
+      const own = String(row.platformUid || "") === String(user.uid);
+      matches.push(presentRep(doc, manage || own));
+      cursor = doc.id;
+      resume = doc.id;
+    }
+    if (pageFull) break;
+    if (snap.size < 40) {
+      exhausted = true;
+      break;
+    }
+    cursor = snap.docs[snap.docs.length - 1].id;
+    resume = cursor;
+  }
+  return {
+    reps: matches,
+    nextCursor: exhausted ? "" : resume,
+  };
 }
 
 /**
  * @param {FirebaseFirestore.QueryDocumentSnapshot} doc 文件
  * @return {Object}
  */
-function presentRep(doc) {
+function presentRep(doc, revealPrivate) {
   const data = doc.data() || {};
-  return {
+  const named = policy.repDisplayName(data);
+  const platformUid = String(data.platformUid || "").trim();
+  const row = {
     repId: doc.id,
-    displayName: data.displayName || "",
-    platformUid: data.platformUid || "",
-    phone: data.phone || "",
-    email: data.email || "",
+    displayName: named.displayName,
+    nameMissing: named.nameMissing,
+    platformUid: revealPrivate ? platformUid : "",
+    bindingStatus: platformUid ? "bound" : "pending",
     enabled: data.enabled !== false,
-    note: data.note || "",
+    phone: revealPrivate ? (data.phone || "") : "",
+    email: revealPrivate ? (data.email || "") : "",
+    note: revealPrivate ? (data.note || "") : "",
+    recentEvents: revealPrivate && Array.isArray(data.recentEvents) ?
+      data.recentEvents.slice(0, 8) : [],
   };
+  return row;
+}
+
+const SALES_IDENTITY_PERMISSIONS = [
+  "view_own_sales",
+  "view_own_activation_codes",
+  "issue_own_activation_codes",
+  "view_own_commission",
+  "view_sales",
+  "manage_sales",
+  "manage_activation_codes",
+  "transfer_shop_sales",
+  "manage_subscription_finance",
+];
+
+/**
+ * @param {FirebaseFirestore.Firestore} db Firestore
+ * @param {string} uid 平台帳號
+ * @return {Promise<Object>}
+ */
+async function findSalesRepForUid(db, uid) {
+  const uidSnap = await db.collection("platform_sales_rep_uids").doc(uid).get();
+  const indexedId = uidSnap.exists ? String(uidSnap.get("repId") || "") : "";
+  const found = await db.collection("platform_sales_reps")
+      .where("platformUid", "==", uid)
+      .limit(2)
+      .get();
+  return {
+    indexedId: indexedId,
+    ids: found.docs.map((doc) => doc.id),
+  };
+}
+
+/**
+ * @param {Object} user 平台使用者
+ * @param {Object} data 輸入
+ * @return {Promise<Object>}
+ */
+async function getSalesIdentity(user, data) {
+  const uid = String((data || {}).uid || "").trim();
+  if (!uid) {
+    throw new HttpsError("invalid-argument", "缺少平台人員");
+  }
+  const own = uid === String(user.uid || "");
+  const manage = hasPlatformAccess(user, SALES_MANAGE_PERMISSIONS);
+  const viewList = hasPlatformAccess(user, ["view_sales"]);
+  if (!manage && !viewList && !own) {
+    throw new HttpsError("permission-denied", "沒有查看業務身分的權限");
+  }
+  const db = admin.firestore();
+  try {
+    const account = await db.collection("platform_users").doc(uid).get();
+    const verifiedRoot = uid === ROOT_ADMIN_UID;
+    const located = await findSalesRepForUid(db, uid);
+    if (located.ids.length > 1 ||
+        (located.indexedId && located.ids.length === 1 &&
+          located.indexedId !== located.ids[0])) {
+      return {
+        exists: true,
+        conflict: true,
+        accountExists: account.exists,
+        missingPlatformUser: !account.exists,
+        verifiedRoot: verifiedRoot,
+        role: account.exists ? (account.get("role") || "") :
+          (verifiedRoot ? "super_admin" : ""),
+        roleUnchanged: true,
+      };
+    }
+    const repId = located.ids[0] || located.indexedId || "";
+    const rep = repId ?
+      await db.collection("platform_sales_reps").doc(repId).get() : null;
+    const role = account.exists ?
+      String(account.get("role") || "") :
+      (verifiedRoot ? "super_admin" : "");
+    const permissions = account.exists && Array.isArray(account.get("permissions")) ?
+      account.get("permissions") : [];
+    const salesPermissions = role === "super_admin" ?
+      SALES_IDENTITY_PERMISSIONS.slice() :
+      SALES_IDENTITY_PERMISSIONS.filter((key) => permissions.indexOf(key) >= 0);
+    const base = {
+      accountExists: account.exists,
+      missingPlatformUser: !account.exists,
+      verifiedRoot: verifiedRoot,
+      role: role,
+      roleUnchanged: true,
+      inheritedFromRole: role === "super_admin",
+      salesPermissions: manage || own ? salesPermissions : [],
+      accountEnabled: verifiedRoot ||
+        (account.exists && account.get("enabled") !== false),
+    };
+    if (!rep || !rep.exists) {
+      return Object.assign({exists: false, conflict: false}, base);
+    }
+    const presented = presentRep(rep, manage || own);
+    return Object.assign(presented, base, {
+      exists: true,
+      conflict: false,
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("failed-precondition", "無法讀取業務資料，請稍後再試");
+  }
+}
+
+/**
+ * 開啟或停用既有平台帳號的業務身分。不改角色、不刪歷史、不歸屬店家。
+ * @param {Object} user 平台使用者
+ * @param {Object} data 輸入
+ * @return {Promise<Object>}
+ */
+async function setSalesIdentity(user, data) {
+  assertPermission(user, SALES_MANAGE_PERMISSIONS);
+  const request = data || {};
+  const uid = String(request.uid || request.platformUid || "").trim();
+  if (!uid) {
+    throw new HttpsError("invalid-argument", "缺少平台人員");
+  }
+  const enabling = request.enabled === true;
+  const db = admin.firestore();
+  const located = await findSalesRepForUid(db, uid);
+  if (located.ids.length > 1 ||
+      (located.indexedId && located.ids.length === 1 &&
+        located.indexedId !== located.ids[0])) {
+    throw new HttpsError(
+        "failed-precondition",
+        "這個帳號的業務資料不一致，沒有自動合併或刪除",
+    );
+  }
+  const accountRef = db.collection("platform_users").doc(uid);
+  const uidRef = db.collection("platform_sales_rep_uids").doc(uid);
+  const preferredId = located.ids[0] || located.indexedId || "";
+  const verifiedRoot = uid === ROOT_ADMIN_UID;
+  let authName = "";
+  let authEmail = "";
+  if (verifiedRoot) {
+    try {
+      const authUser = await admin.auth().getUser(uid);
+      authName = String(authUser.displayName || "").trim().slice(0, 40);
+      authEmail = String(authUser.email || "").trim().slice(0, 80);
+    } catch (error) {
+      authName = "";
+      authEmail = "";
+    }
+  }
+  try {
+    return await db.runTransaction(async (tx) => {
+      const account = await tx.get(accountRef);
+      const uidSnap = await tx.get(uidRef);
+      const indexedId = uidSnap.exists ? String(uidSnap.get("repId") || "") : "";
+      if (preferredId && indexedId && preferredId !== indexedId) {
+        throw new Error("這個帳號的業務資料不一致，沒有自動合併或刪除");
+      }
+      const repId = preferredId || indexedId;
+      const repRef = repId ?
+        db.collection("platform_sales_reps").doc(repId) :
+        null;
+      const repSnap = repRef ? await tx.get(repRef) : null;
+      const role = account.exists ?
+        String(account.get("role") || "") :
+        (verifiedRoot ? "super_admin" : "");
+      const rootWithoutProfile = verifiedRoot && !account.exists;
+      const profileName = account.exists ?
+        String(
+            account.get("name") ||
+            account.get("displayName") ||
+            authName ||
+            account.get("email") ||
+            "",
+        ).trim() :
+        authName;
+      const profileEmail = account.exists ?
+        String(account.get("email") || authEmail || "").trim() :
+        authEmail;
+      const profilePhone = account.exists ?
+        String(account.get("phone") || "").trim() :
+        "";
+      const plan = policy.planSalesIdentity({
+        enabled: enabling,
+        accountExists: account.exists,
+        accountEnabled: account.exists && account.get("enabled") !== false,
+        verifiedRoot: rootWithoutProfile,
+        role: role,
+        repExists: Boolean(repSnap && repSnap.exists),
+        uidTakenByOther: false,
+      });
+      if (!plan.ok) throw new Error(plan.error);
+      if (plan.action === "noop") {
+        return {
+          changed: false,
+          exists: false,
+          role: role,
+          roleUnchanged: true,
+        };
+      }
+      const now = new Date().toISOString();
+      if (plan.action === "create") {
+        const target = repRef || db.collection("platform_sales_reps").doc();
+        const accountName = profileName.slice(0, 40);
+        tx.set(target, {
+          displayName: accountName,
+          platformUid: uid,
+          email: profileEmail.slice(0, 80),
+          phone: profilePhone.slice(0, 40),
+          enabled: true,
+          bindingStatus: "bound",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdByUid: user.uid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          recentEvents: [{
+            action: "assign",
+            platformUid: uid,
+            actorUid: user.uid,
+            at: now,
+          }],
+        });
+        tx.set(uidRef, {
+          repId: target.id,
+          boundBy: user.uid,
+          boundAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return {
+          changed: true,
+          exists: true,
+          repId: target.id,
+          enabled: true,
+          role: role,
+          roleUnchanged: true,
+        };
+      }
+      const current = repSnap.data() || {};
+      const already = (current.enabled !== false) === enabling &&
+        String(current.platformUid || "") === uid;
+      if (already) {
+        return {
+          changed: false,
+          exists: true,
+          repId: repRef.id,
+          enabled: enabling,
+          role: role,
+          roleUnchanged: true,
+        };
+      }
+      const named = policy.repDisplayName(current);
+      const accountName = profileName;
+      const events = Array.isArray(current.recentEvents) ?
+        current.recentEvents.slice(0, 7) : [];
+      events.unshift({
+        action: enabling ? "enable" : "disable",
+        platformUid: uid,
+        actorUid: user.uid,
+        at: now,
+      });
+      tx.set(repRef, {
+        displayName: named.nameMissing ? accountName : named.displayName,
+        platformUid: uid,
+        bindingStatus: "bound",
+        enabled: enabling,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        recentEvents: events,
+      }, {merge: true});
+      tx.set(uidRef, {
+        repId: repRef.id,
+        boundBy: user.uid,
+        boundAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+      return {
+        changed: true,
+        exists: true,
+        repId: repRef.id,
+        enabled: enabling,
+        role: role,
+        roleUnchanged: true,
+      };
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    const message = error && error.message ?
+      error.message :
+      "更新業務身分失敗";
+    throw new HttpsError("failed-precondition", message);
+  }
 }
 
 /**
@@ -962,16 +1399,21 @@ async function grantShopEntitlement(user, data) {
  * @return {Promise<Object>}
  */
 async function assignShopSales(user, data) {
-  assertPermission(user, SALES_MANAGE_PERMISSIONS);
   const shopId = String(data.shopId || "").trim();
   const mode = String(data.mode || "");
   const repId = String(data.salesRepId || "");
   const reason = String(data.reason || "").trim();
-  if (!shopId || (mode !== "current" && mode !== "origin")) {
-    throw new HttpsError("invalid-argument", "歸屬調整不正確");
-  }
-  if (mode === "origin" && reason.length < 2) {
-    throw new HttpsError("invalid-argument", "更正原始開發業務需要填寫理由");
+  const handoff = policy.planSalesHandoff({
+    mode: mode,
+    reason: reason,
+    canManageSales: hasPlatformAccess(user, SALES_MANAGE_PERMISSIONS),
+    canTransfer: hasPlatformAccess(user, ["transfer_shop_sales"]),
+  });
+  if (!shopId || !handoff.ok) {
+    throw new HttpsError(
+        "failed-precondition",
+        handoff.error || "歸屬調整不正確",
+    );
   }
   const db = admin.firestore();
   const shopRef = db.collection("shops").doc(shopId);
@@ -1819,6 +2261,203 @@ async function applyDueShopPlans(user, data) {
   };
 }
 
+/**
+ * 只給指派業務用。不建立登入帳號，也不回傳權限內容。
+ * @param {Object} user 平台使用者
+ * @return {Promise<Object>}
+ */
+async function listAssignablePlatformMembers(user, data) {
+  assertPermission(user, SALES_MANAGE_PERMISSIONS);
+  const request = data || {};
+  const needle = String(request.query || "").trim().toLowerCase().slice(0, 80);
+  const pageSize = 20;
+  const db = admin.firestore();
+  let cursor = String(request.cursor || "").trim();
+  const matches = [];
+  const seen = new Set();
+  let exhausted = false;
+  for (let batch = 0; batch < 8 && matches.length < pageSize; batch++) {
+    let query = db.collection("platform_users")
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .limit(40);
+    if (cursor) query = query.startAfter(cursor);
+    const snap = await query.get();
+    if (snap.empty) {
+      exhausted = true;
+      break;
+    }
+    let pageFull = false;
+    for (const doc of snap.docs) {
+      const row = doc.data() || {};
+      const name = String(row.name || "").toLowerCase();
+      const email = String(row.email || "").toLowerCase();
+      if (needle && name.indexOf(needle) < 0 && email.indexOf(needle) < 0) {
+        cursor = doc.id;
+        continue;
+      }
+      if (matches.length >= pageSize) {
+        pageFull = true;
+        break;
+      }
+      if (!seen.has(doc.id)) {
+        seen.add(doc.id);
+        const binding = await db.collection("platform_sales_rep_uids")
+            .doc(doc.id)
+            .get();
+        matches.push({
+          uid: doc.id,
+          name: row.name || "",
+          email: row.email || "",
+          enabled: row.enabled !== false,
+          role: row.role || "",
+          boundRepId: binding.exists ? String(binding.get("repId") || "") : "",
+        });
+      }
+      cursor = doc.id;
+    }
+    if (pageFull) break;
+    if (snap.size < 40) {
+      exhausted = true;
+      break;
+    }
+    cursor = snap.docs[snap.docs.length - 1].id;
+  }
+  return {
+    members: matches,
+    nextCursor: exhausted ? "" : cursor,
+  };
+}
+
+const PREVIEW_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const PREVIEW_ATTEMPT_LIMIT = 5;
+const previewAttemptBuckets = new Map();
+const PREVIEW_CODE_STATUSES = {
+  "激活碼已停用": "disabled",
+  "此激活碼不能用來開店": "wrong_type",
+  "激活碼已用完": "exhausted",
+  "激活碼已超過使用期限": "expired",
+};
+
+/**
+ * 只在目前這個 Function 執行個體計數。
+ * 冷啟動與其他執行個體會各自重算，不能單獨防止分散猜碼。
+ * @param {string} uid 已驗證的使用者
+ * @param {number=} nowMs 測試可代入的時間
+ * @return {{ok: boolean, retryAfterSeconds: number}}
+ */
+function consumeShopActivationPreviewAttempt(uid, nowMs) {
+  const now = Number(nowMs) || Date.now();
+  if (previewAttemptBuckets.size > 5000) {
+    for (const [key, bucket] of previewAttemptBuckets) {
+      if (now - bucket.start >= PREVIEW_ATTEMPT_WINDOW_MS) {
+        previewAttemptBuckets.delete(key);
+      }
+    }
+  }
+  const current = previewAttemptBuckets.get(uid);
+  if (!current || now - current.start >= PREVIEW_ATTEMPT_WINDOW_MS) {
+    previewAttemptBuckets.set(uid, {start: now, count: 1});
+    return {ok: true, retryAfterSeconds: 0};
+  }
+  if (current.count >= PREVIEW_ATTEMPT_LIMIT) {
+    const remain = PREVIEW_ATTEMPT_WINDOW_MS - (now - current.start);
+    return {
+      ok: false,
+      retryAfterSeconds: Math.max(1, Math.ceil(remain / 1000)),
+    };
+  }
+  current.count += 1;
+  return {ok: true, retryAfterSeconds: 0};
+}
+
+/**
+ * @param {string} status 前端可判斷的狀態
+ * @param {string} message 既有中文說明
+ * @return {{ok: boolean, status: string, message: string}}
+ */
+function previewShopActivationFailure(status, message) {
+  return {ok: false, status: status, message: message};
+}
+
+/**
+ * 與創店交易相同的店主資格：鎖定已有店家，或 shop_members 為 owner。
+ * @param {Object} db Firestore
+ * @param {string} uid 已驗證的使用者
+ * @return {Promise<boolean>}
+ */
+async function accountAlreadyHasShop(db, uid) {
+  const lock = await db.collection("sales_owner_locks").doc(uid).get();
+  if (lock.exists && lock.get("shopId")) return true;
+  const owned = await db.collection("shop_members")
+      .where("uid", "==", uid)
+      .where("role", "==", "owner")
+      .limit(1)
+      .get();
+  return !owned.empty;
+}
+
+/**
+ * 只回傳創店交易會採用的已知模板。空值或未知值不補成貓咪住宿。
+ * @param {Object} code 激活碼文件
+ * @return {string}
+ */
+function publicActivationModule(code) {
+  const moduleName = String((code || {}).module || "");
+  return LOCKABLE.indexOf(moduleName) >= 0 ? moduleName : "";
+}
+
+/**
+ * 創店前確認激活碼與帳號資格。只讀，不建立店家，也不消耗激活碼。
+ * 通過此檢查不代表創店成功；createShopWithActivation 仍會再驗證一次。
+ * @param {Object} request Callable request
+ * @param {Object} data 只讀 activationCode
+ * @param {Object=} db 測試可注入的 Firestore
+ * @return {Promise<Object>}
+ */
+async function validateShopActivationCode(request, data, db) {
+  if (!request || !request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "請先登入");
+  }
+  const uid = String(request.auth.uid);
+  const rawCode = String((data || {}).activationCode || "").trim();
+  const normalized = policy.normalizeActivationCode(rawCode);
+  const gate = consumeShopActivationPreviewAttempt(uid);
+  if (!gate.ok) {
+    throw new HttpsError("resource-exhausted", "嘗試次數過多，請稍後再試");
+  }
+  const database = db || admin.firestore();
+  if (await accountAlreadyHasShop(database, uid)) {
+    return previewShopActivationFailure(
+        "already_has_shop",
+        "這個帳號已經有店家",
+    );
+  }
+  if (!normalized || normalized.length > 40) {
+    return previewShopActivationFailure("invalid", "激活碼不正確");
+  }
+  const codeDoc = await findActivationCode(database, normalized, rawCode);
+  if (!codeDoc) {
+    return previewShopActivationFailure("not_found", "找不到此激活碼");
+  }
+  const code = codeDoc.data() || {};
+  const today = policy.taipeiDateKey(new Date());
+  const decision = policy.canUseActivationCode(code, today);
+  if (!decision.ok) {
+    const status = PREVIEW_CODE_STATUSES[decision.reason] || "unavailable";
+    const message = PREVIEW_CODE_STATUSES[decision.reason] ?
+      decision.reason : "激活碼目前無法使用";
+    return previewShopActivationFailure(status, message);
+  }
+  const result = {
+    ok: true,
+    status: "ready",
+    message: "激活碼可以用於開店",
+  };
+  const moduleName = publicActivationModule(code);
+  if (moduleName) result.module = moduleName;
+  return result;
+}
+
 module.exports = {
   FINANCE_PERMISSIONS,
   SALES_MANAGE_PERMISSIONS,
@@ -1827,6 +2466,9 @@ module.exports = {
   saveActivationCode,
   saveSalesRep,
   listSalesReps,
+  listAssignablePlatformMembers,
+  getSalesIdentity,
+  setSalesIdentity,
   registerSubscriptionPayment,
   previewSubscriptionPayment,
   confirmSubscriptionPayment,
@@ -1840,6 +2482,7 @@ module.exports = {
   reconcileSalesSummaries,
   shopCommercialSummary,
   findActivationCode,
+  validateShopActivationCode,
   updateShopPlan,
   applyDueShopPlans,
 };

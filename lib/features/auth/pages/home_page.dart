@@ -12,7 +12,7 @@ import 'package:petnest_saas/core/services/shop_home_stats_service.dart';
 import 'package:petnest_saas/core/models/shop_house_appearance.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
-import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
+import 'package:petnest_saas/features/auth/pages/shop_activation_code_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_admin_page.dart';
@@ -69,13 +69,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openCreateShopPage() async {
-    await Navigator.push(
+    final bool created = await ShopActivationCodePage.open(context);
+    if (!mounted || !created) return;
+    ScaffoldMessenger.of(
       context,
-      MaterialPageRoute(builder: (_) => const CreateShopPage()),
-    );
-
-    if (!mounted) return;
-
+    ).showSnackBar(const SnackBar(content: Text('建立成功')));
     await _reloadShops();
   }
 

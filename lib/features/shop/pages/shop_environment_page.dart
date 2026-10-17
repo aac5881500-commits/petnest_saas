@@ -9,6 +9,7 @@ import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_intro_view.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 
 const String _environmentHeroImageUrl =
     'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=1200';
@@ -212,22 +213,25 @@ class ShopEnvironmentPage extends StatelessWidget {
                   ),
                 ),
               ),
-              body: EnvironmentIntroView(
-                style: resolvedStyle,
+              body: ShopAppBackdrop.behind(
                 theme: theme,
-                heroTitle: displayHeroTitle,
-                heroSubtitle: displayHeroSubtitle,
-                heroImageUrl: displayHeroImageUrl,
-                heroFrame: resolvedHeroFrame,
-                bannerTitle: displayBannerTitle,
-                bannerImageUrl: displayBannerImageUrl,
-                bannerFrame: resolvedBannerFrame,
-                features: displayFeatures,
-                galleryImages: displayGalleryImages,
-                careItems: displayCareItems,
-                bottomNote: displayBottomNote,
-                imageBuilder: _networkImage,
-                featureIconOf: _environmentIcon,
+                child: EnvironmentIntroView(
+                  style: resolvedStyle,
+                  theme: theme,
+                  heroTitle: displayHeroTitle,
+                  heroSubtitle: displayHeroSubtitle,
+                  heroImageUrl: displayHeroImageUrl,
+                  heroFrame: resolvedHeroFrame,
+                  bannerTitle: displayBannerTitle,
+                  bannerImageUrl: displayBannerImageUrl,
+                  bannerFrame: resolvedBannerFrame,
+                  features: displayFeatures,
+                  galleryImages: displayGalleryImages,
+                  careItems: displayCareItems,
+                  bottomNote: displayBottomNote,
+                  imageBuilder: _networkImage,
+                  featureIconOf: _environmentIcon,
+                ),
               ),
             );
           },

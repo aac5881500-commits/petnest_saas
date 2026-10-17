@@ -12,6 +12,7 @@ import 'package:petnest_saas/features/shop/navigation/frontend_navigation_action
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_bottom_navigation.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/shop_menu_button.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
 import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
@@ -1057,6 +1058,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             child: Stack(
               fit: StackFit.expand,
               children: [
+                Positioned.fill(child: ShopAppBackdrop(theme: modernTheme)),
                 Positioned.fill(
                   child: Column(
                     children: <Widget>[
@@ -1757,6 +1759,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         children: <Widget>[
           HomeLayoutCanvas(
             background: theme.backgroundColor,
+            theme: theme,
             sectionIds: visibleSectionIds,
             sectionOrder: sectionOrder,
             spanOf: spanOf,

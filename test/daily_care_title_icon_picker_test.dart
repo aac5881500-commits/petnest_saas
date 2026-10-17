@@ -132,6 +132,7 @@ void main() {
       ),
     );
     expect(find.text(PlatformMediaAssetPickerLabels.loadError), findsOneWidget);
+    expect(find.text('fail'), findsOneWidget);
     expect(find.text(PlatformMediaAssetPickerLabels.retry), findsOneWidget);
     final PlatformMediaAssetPickerSheet sheet = tester
         .widget<PlatformMediaAssetPickerSheet>(

@@ -5,10 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_subscription_payment_page.dart';
 
+enum ShopCommercialSection { all, subscription, development }
+
 class ShopCommercialSummaryCard extends StatefulWidget {
-  const ShopCommercialSummaryCard({super.key, required this.shopId});
+  const ShopCommercialSummaryCard({
+    super.key,
+    required this.shopId,
+    this.section = ShopCommercialSection.all,
+  });
 
   final String shopId;
+  final ShopCommercialSection section;
 
   @override
   State<ShopCommercialSummaryCard> createState() =>
@@ -65,6 +72,9 @@ class _ShopCommercialSummaryCardState extends State<ShopCommercialSummaryCard> {
       );
     }
     if (_permissionDenied) {
+      if (widget.section == ShopCommercialSection.development) {
+        return const Text('沒有查看這間店業務資料的權限');
+      }
       return const SizedBox.shrink();
     }
     if (_error != null) {
@@ -72,6 +82,13 @@ class _ShopCommercialSummaryCardState extends State<ShopCommercialSummaryCard> {
     }
     final data = _data ?? const <String, dynamic>{};
     final renewal = data['renewalDue'] == true ? '，30 天內需留意續費' : '';
+    final showSales = widget.section != ShopCommercialSection.subscription;
+    final showSubscription = widget.section != ShopCommercialSection.development;
+    final title = switch (widget.section) {
+      ShopCommercialSection.subscription => '訂閱與收款',
+      ShopCommercialSection.development => '開發與業務',
+      ShopCommercialSection.all => '開發與訂閱',
+    };
     return Card(
       margin: const EdgeInsets.only(top: 12),
       child: Padding(
@@ -79,46 +96,60 @@ class _ShopCommercialSummaryCardState extends State<ShopCommercialSummaryCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('開發與訂閱', style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 6),
-            Text('開店來源：${commercialSourceLabel('${data['shopSource'] ?? ''}')}'),
-            Text('激活碼：${data['activationCode'] ?? '無'}'),
-            Text('活動：${data['campaignName'] ?? '無'}'),
-            Text('開發業務：${_name(data['originSalesName'])}'),
-            Text('目前負責業務：${_name(data['currentSalesName'])}'),
-            Text('方案：${commercialPlanLabel('${data['plan'] ?? ''}')}'),
-            Text(
-              '狀態：${commercialStatusLabel('${data['listStatus'] ?? ''}')}$renewal',
-            ),
-            Text('試用至：${_date(data['trialUntil'])}'),
-            Text('付費至：${_date(data['paidServiceUntil'])}'),
-            Text('贈送至：${_date(data['giftUntil'])}'),
-            Text('可用至：${_date(data['paidUntilDate'])}'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: () => _assign('current'),
-                  child: const Text('交接目前負責人'),
-                ),
-                OutlinedButton(
-                  onPressed: () => _assign('origin'),
-                  child: const Text('更正原始開發業務'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const PlatformSubscriptionPaymentPage(),
+            if (showSales) ...[
+              Text('開店來源：${commercialSourceLabel('${data['shopSource'] ?? ''}')}'),
+              Text('激活碼：${data['activationCode'] ?? '無'}'),
+              Text('活動：${data['campaignName'] ?? '無'}'),
+              Text('原始開發業務：${_name(data['originSalesName'])}'),
+              Text('目前維護業務：${_name(data['currentSalesName'])}'),
+            ],
+            if (showSubscription) ...[
+              Text('方案：${commercialPlanLabel('${data['plan'] ?? ''}')}'),
+              Text(
+                '狀態：${commercialStatusLabel('${data['listStatus'] ?? ''}')}$renewal',
+              ),
+              Text('試用至：${_date(data['trialUntil'])}'),
+              Text('付費至：${_date(data['paidServiceUntil'])}'),
+              Text('贈送至：${_date(data['giftUntil'])}'),
+              Text('可用至：${_date(data['paidUntilDate'])}'),
+            ],
+            if (data['financeVisible'] == true && showSales)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('分潤明細在業務業績頁，依財務權限顯示。'),
+              ),
+            if (showSales) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => _assign('current'),
+                    child: const Text('交接目前負責人'),
                   ),
-                );
-              },
-              child: const Text('訂閱收款'),
-            ),
+                  OutlinedButton(
+                    onPressed: () => _assign('origin'),
+                    child: const Text('更正原始開發業務'),
+                  ),
+                ],
+              ),
+            ],
+            if (showSubscription) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PlatformSubscriptionPaymentPage(),
+                    ),
+                  );
+                },
+                child: const Text('訂閱收款'),
+              ),
+            ],
           ],
         ),
       ),

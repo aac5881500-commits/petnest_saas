@@ -574,6 +574,7 @@ class HomeSharedEntryCardSetting {
     this.radius = HomeRoomSimpleRadii.medium,
     this.mask = HomeRoomSimpleMasks.none,
     this.surface = HomeRoomSimpleSurfaces.filled,
+    this.recentImageAssetIds = const <String>[],
   });
 
   final String title;
@@ -598,6 +599,11 @@ class HomeSharedEntryCardSetting {
   final String radius;
   final String mask;
   final String surface;
+
+  /// 這張入口最近選過的平台圖庫編號，最多 5 個。只記引用，不記圖片檔。
+  final List<String> recentImageAssetIds;
+
+  static const int recentImageLimit = 5;
 
   static HomeSharedEntryCardSetting fallback(String sourceId) {
     return HomeSharedEntryCardSetting(
@@ -636,6 +642,7 @@ class HomeSharedEntryCardSetting {
     String? radius,
     String? mask,
     String? surface,
+    List<String>? recentImageAssetIds,
   }) {
     return HomeSharedEntryCardSetting(
       title: title ?? this.title,
@@ -660,7 +667,25 @@ class HomeSharedEntryCardSetting {
       radius: radius ?? this.radius,
       mask: mask ?? this.mask,
       surface: surface ?? this.surface,
+      recentImageAssetIds: recentImageAssetIds ?? this.recentImageAssetIds,
     );
+  }
+
+  /// 把成功選用的圖庫編號放到最前面。重複的只留一筆，超過 5 筆去掉最舊的。
+  HomeSharedEntryCardSetting rememberImage(String assetId) {
+    final String id = _assetId(assetId);
+    if (id.isEmpty) {
+      return this;
+    }
+    final List<String> next = <String>[
+      id,
+      for (final String existing in recentImageAssetIds)
+        if (existing != id) existing,
+    ];
+    if (next.length > recentImageLimit) {
+      next.removeRange(recentImageLimit, next.length);
+    }
+    return copyWith(recentImageAssetIds: next);
   }
 
   Map<String, dynamic> toMap() {
@@ -715,6 +740,7 @@ class HomeSharedEntryCardSetting {
         HomeRoomSimpleSurfaces.all,
         HomeRoomSimpleSurfaces.filled,
       ),
+      'recentImageAssetIds': recentImageAssetIds,
     };
   }
 
@@ -792,6 +818,7 @@ class HomeSharedEntryCardSetting {
         HomeRoomSimpleSurfaces.all,
         HomeRoomSimpleSurfaces.filled,
       ),
+      recentImageAssetIds: _recentIds(map['recentImageAssetIds']),
     );
   }
 }
@@ -871,6 +898,42 @@ class HomeSharedEntrySectionSetting {
       cardOrder: known ? cardOrder : <String>[...cardOrder, sourceId],
       cards: nextCards,
     );
+  }
+
+  /// 一次套用勾選結果。已顯示的維持原順序，新勾選的依清單順序接在最後。
+  /// 取消勾選只移出首頁，不刪除卡片內容。
+  HomeSharedEntrySectionSetting applyJoined(Iterable<String> selected) {
+    final List<String> wanted = <String>[];
+    for (final String raw in selected) {
+      final String id = raw.trim();
+      if (!HomeSharedEntrySources.canJoin(id) || wanted.contains(id)) {
+        continue;
+      }
+      wanted.add(id);
+    }
+    final Set<String> keep = wanted.toSet();
+    final List<String> order = <String>[
+      for (final String id in cardOrder)
+        if (!HomeSharedEntrySources.canJoin(id) || keep.contains(id)) id,
+    ];
+    for (final String id in wanted) {
+      if (!order.contains(id)) {
+        order.add(id);
+      }
+    }
+    if (order.length == cardOrder.length) {
+      var same = true;
+      for (var index = 0; index < order.length; index++) {
+        if (order[index] != cardOrder[index]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        return this;
+      }
+    }
+    return copyWith(cardOrder: order);
   }
 
   /// 移出小卡區。卡片內容留著，之後再加入會沿用。
@@ -1025,6 +1088,24 @@ String _assetId(Object? raw) {
     return '';
   }
   return value;
+}
+
+List<String> _recentIds(Object? raw) {
+  if (raw is! List) {
+    return const <String>[];
+  }
+  final List<String> ids = <String>[];
+  for (final Object? item in raw) {
+    final String id = _assetId(item);
+    if (id.isEmpty || ids.contains(id)) {
+      continue;
+    }
+    ids.add(id);
+    if (ids.length == HomeSharedEntryCardSetting.recentImageLimit) {
+      break;
+    }
+  }
+  return ids;
 }
 
 Map<String, HomeSharedEntryCardSetting> _cards(Object? raw) {

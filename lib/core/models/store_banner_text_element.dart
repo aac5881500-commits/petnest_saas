@@ -2,6 +2,7 @@
 // 功能說明：商城海報自由文字元件。位置用 0~1，不存 pixel。
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/store_banner_placement.dart';
 
 class StoreBannerFontSizes {
@@ -388,6 +389,8 @@ class StoreBannerTextElement {
     this.backgroundStyle = StoreBannerTextBgStyles.none,
     this.paddingPreset = StoreBannerTextPaddings.standard,
     this.maxWidthPreset = StoreBannerTextWidthPresets.standard,
+    this.fontFamily = '',
+    this.letterSpacing = 0,
     this.sortOrder = 0,
   });
 
@@ -406,7 +409,15 @@ class StoreBannerTextElement {
   final String backgroundStyle;
   final String paddingPreset;
   final String maxWidthPreset;
+
+  /// 空字串代表沿用系統預設字體。只接受已安裝的字型代號。
+  final String fontFamily;
+
+  /// 1600×900 畫布上的字距。預覽依畫布高度等比縮小。
+  final double letterSpacing;
   final int sortOrder;
+
+  String? get appliedFontFamily => StoreBannerFonts.applied(fontFamily);
 
   bool get hasText => text.trim().isNotEmpty;
 
@@ -511,6 +522,8 @@ class StoreBannerTextElement {
         data['maxWidthPreset'],
         StoreBannerTextWidthPresets.standard,
       ),
+      fontFamily: StoreBannerFonts.normalize(data['fontFamily']),
+      letterSpacing: _letterSpacingOf(data['letterSpacing']),
       sortOrder: data['sortOrder'] is int
           ? data['sortOrder'] as int
           : int.tryParse(data['sortOrder']?.toString() ?? '') ?? 0,
@@ -537,6 +550,8 @@ class StoreBannerTextElement {
       'backgroundStyle': backgroundStyle,
       'paddingPreset': paddingPreset,
       'maxWidthPreset': maxWidthPreset,
+      'fontFamily': fontFamily,
+      if (letterSpacing != 0) 'letterSpacing': letterSpacing,
       'sortOrder': sortOrder,
     };
   }
@@ -556,6 +571,8 @@ class StoreBannerTextElement {
     String? backgroundStyle,
     String? paddingPreset,
     String? maxWidthPreset,
+    String? fontFamily,
+    double? letterSpacing,
     int? sortOrder,
   }) {
     return StoreBannerTextElement(
@@ -575,6 +592,8 @@ class StoreBannerTextElement {
       backgroundStyle: backgroundStyle ?? this.backgroundStyle,
       paddingPreset: paddingPreset ?? this.paddingPreset,
       maxWidthPreset: maxWidthPreset ?? this.maxWidthPreset,
+      fontFamily: fontFamily ?? this.fontFamily,
+      letterSpacing: letterSpacing ?? this.letterSpacing,
       sortOrder: sortOrder ?? this.sortOrder,
     );
   }
@@ -597,6 +616,16 @@ class StoreBannerTextElement {
     return StoreBannerFontSizes.clampPx(parsed);
   }
 
+  static double _letterSpacingOf(dynamic raw) {
+    final double parsed = raw is num
+        ? raw.toDouble()
+        : double.tryParse(raw?.toString() ?? '') ?? 0;
+    if (!parsed.isFinite) {
+      return 0;
+    }
+    return parsed.clamp(-8.0, 24.0);
+  }
+
   static StoreBannerTextElement create({
     required String id,
     required String text,
@@ -612,6 +641,8 @@ class StoreBannerTextElement {
     String backgroundOpacityPreset = StoreBannerBgOpacities.full,
     String backgroundStyle = StoreBannerTextBgStyles.none,
     String maxWidthPreset = StoreBannerTextWidthPresets.standard,
+    String fontFamily = '',
+    double letterSpacing = 0,
     int sortOrder = 0,
   }) {
     return StoreBannerTextElement(
@@ -629,7 +660,164 @@ class StoreBannerTextElement {
       backgroundOpacityPreset: backgroundOpacityPreset,
       backgroundStyle: backgroundStyle,
       maxWidthPreset: maxWidthPreset,
+      fontFamily: fontFamily,
+      letterSpacing: letterSpacing,
       sortOrder: sortOrder,
+    );
+  }
+}
+
+class StoreBannerFonts {
+  static const String sans = 'NotoSansTC';
+  static const String serif = 'NotoSerifTC';
+  static const String rounded = 'jfOpenHuninn';
+  static const String handwritten = 'KleeOne';
+  static const String modernSerif = 'ChironSungHK';
+
+  static const List<({String family, String label})> options =
+      <({String family, String label})>[
+        (family: '', label: '系統預設'),
+        (family: sans, label: '思源黑體'),
+        (family: serif, label: '思源宋體'),
+        (family: rounded, label: '粉圓・圓體'),
+        (family: handwritten, label: 'Klee One・手寫'),
+        (family: modernSerif, label: '昭源宋體・現代簡約'),
+      ];
+
+  static const Map<String, List<String>> _assets = <String, List<String>>{
+    rounded: <String>['assets/fonts/jf-openhuninn-2.1.ttf'],
+    sans: <String>['assets/fonts/NotoSansTC-VariableFont_wght.ttf'],
+    serif: <String>['assets/fonts/NotoSerifTC-VariableFont_wght.ttf'],
+    handwritten: <String>[
+      'assets/fonts/KleeOne-Regular.ttf',
+      'assets/fonts/KleeOne-SemiBold.ttf',
+    ],
+    modernSerif: <String>['assets/fonts/ChironSungHKVF.ttf'],
+  };
+
+  static List<String> get families => _assets.keys.toList();
+
+  static final Map<String, Future<void>> _pending = <String, Future<void>>{};
+
+  static String normalize(dynamic raw) {
+    final String value = (raw ?? '').toString().trim();
+    if (_assets.containsKey(value)) {
+      return value;
+    }
+    return '';
+  }
+
+  static String? applied(String family) {
+    if (_assets.containsKey(family)) {
+      return family;
+    }
+    return null;
+  }
+
+  /// 等到字型進入引擎後才返回。已載入的字型不會重複讀檔。
+  static Future<void> ensureLoaded(Iterable<String> families) {
+    final List<Future<void>> jobs = <Future<void>>[];
+    for (final String family in families) {
+      final List<String>? assets = _assets[family];
+      if (assets == null) {
+        continue;
+      }
+      jobs.add(_pending.putIfAbsent(family, () => _load(family, assets)));
+    }
+    return Future.wait(jobs);
+  }
+
+  static Future<void> _load(String family, List<String> assets) async {
+    final FontLoader loader = FontLoader(family);
+    for (final String asset in assets) {
+      loader.addFont(rootBundle.load(asset));
+    }
+    await loader.load();
+  }
+}
+
+class StoreBannerTextStylePreset {
+  const StoreBannerTextStylePreset({
+    required this.id,
+    required this.label,
+    required this.sample,
+    required this.fontFamily,
+    required this.fontSize,
+    required this.fontWeightPreset,
+    required this.letterSpacing,
+  });
+
+  final String id;
+  final String label;
+  final String sample;
+  final String fontFamily;
+  final double fontSize;
+  final String fontWeightPreset;
+  final double letterSpacing;
+
+  static const List<StoreBannerTextStylePreset> all =
+      <StoreBannerTextStylePreset>[
+        StoreBannerTextStylePreset(
+          id: 'classic',
+          label: '經典標題',
+          sample: '經典',
+          fontFamily: StoreBannerFonts.sans,
+          fontSize: 104,
+          fontWeightPreset: StoreBannerFontWeights.extraBold,
+          letterSpacing: 0,
+        ),
+        StoreBannerTextStylePreset(
+          id: 'minimal',
+          label: '極簡細字',
+          sample: '簡約',
+          fontFamily: StoreBannerFonts.sans,
+          fontSize: 40,
+          fontWeightPreset: StoreBannerFontWeights.regular,
+          letterSpacing: 6,
+        ),
+        StoreBannerTextStylePreset(
+          id: 'elegant',
+          label: '優雅質感',
+          sample: '質感',
+          fontFamily: StoreBannerFonts.serif,
+          fontSize: 72,
+          fontWeightPreset: StoreBannerFontWeights.regular,
+          letterSpacing: 2,
+        ),
+        StoreBannerTextStylePreset(
+          id: 'promo',
+          label: '活動強調',
+          sample: '優惠',
+          fontFamily: StoreBannerFonts.sans,
+          fontSize: 128,
+          fontWeightPreset: StoreBannerFontWeights.extraBold,
+          letterSpacing: 0,
+        ),
+        StoreBannerTextStylePreset(
+          id: 'soft',
+          label: '柔和日系',
+          sample: '日系',
+          fontFamily: StoreBannerFonts.rounded,
+          fontSize: 64,
+          fontWeightPreset: StoreBannerFontWeights.regular,
+          letterSpacing: 1,
+        ),
+      ];
+
+  bool matches(StoreBannerTextElement element) {
+    return element.fontFamily == fontFamily &&
+        element.posterFontPx.round() == fontSize.round() &&
+        element.fontWeightPreset == fontWeightPreset &&
+        (element.letterSpacing - letterSpacing).abs() < 0.05;
+  }
+
+  StoreBannerTextElement apply(StoreBannerTextElement element) {
+    return element.copyWith(
+      fontFamily: fontFamily,
+      fontSize: fontSize,
+      fontSizePreset: StoreBannerFontSizes.nearestPreset(fontSize),
+      fontWeightPreset: fontWeightPreset,
+      letterSpacing: letterSpacing,
     );
   }
 }

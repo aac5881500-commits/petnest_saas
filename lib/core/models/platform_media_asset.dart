@@ -9,12 +9,14 @@ abstract final class PlatformMediaCategories {
   static const String dailyCareCard = 'dailyCareCard';
   static const String dailyCareIcon = 'dailyCareIcon';
   static const String shopHouse = 'shopHouse';
+  static const String appBackground = 'appBackground';
 
   static const List<String> known = <String>[
     dailyCarePage,
     dailyCareCard,
     dailyCareIcon,
     shopHouse,
+    appBackground,
   ];
 
   static String label(String category) {
@@ -27,6 +29,8 @@ abstract final class PlatformMediaCategories {
         return '每日照護小圖示';
       case shopHouse:
         return '店家小屋';
+      case appBackground:
+        return '顧客端背景';
       default:
         return category;
     }
@@ -42,6 +46,8 @@ abstract final class PlatformMediaCategories {
         return '建議 256 × 256 正方形、透明背景 PNG 或 WebP，四周保留安全空間';
       case shopHouse:
         return '依允許使用區域的建議選擇圖片。不符仍可上傳。';
+      case appBackground:
+        return '建議直式或可裁切的大圖，作為顧客端頁面背景';
       default:
         return '';
     }

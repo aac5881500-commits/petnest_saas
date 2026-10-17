@@ -60,8 +60,13 @@ class PlatformPermissionCatalog {
       title: '業務與激活碼',
       keys: <String>[
         PlatformPermissionKeys.viewOwnSales,
+        PlatformPermissionKeys.viewSales,
         PlatformPermissionKeys.manageSales,
+        PlatformPermissionKeys.transferShopSales,
+        PlatformPermissionKeys.viewOwnCommission,
         PlatformPermissionKeys.manageActivationCodes,
+        PlatformPermissionKeys.viewOwnActivationCodes,
+        PlatformPermissionKeys.issueOwnActivationCodes,
       ],
     ),
     PlatformPermissionGroup(

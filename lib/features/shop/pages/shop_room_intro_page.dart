@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 
 class ShopRoomIntroPage extends StatelessWidget {
   const ShopRoomIntroPage({
@@ -48,83 +49,88 @@ class ShopRoomIntroPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            '選擇適合毛孩的安心房型',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: theme.textColor,
+      body: ShopAppBackdrop.behind(
+        theme: theme,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              '選擇適合毛孩的安心房型',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '每個房型都會顯示可入住數量、價格與特色，方便快速了解。',
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.textColor.withValues(alpha: 0.68),
+            const SizedBox(height: 6),
+            Text(
+              '每個房型都會顯示可入住數量、價格與特色，方便快速了解。',
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.textColor.withValues(alpha: 0.68),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: ShopService.instance.streamRoomTypes(shopId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 40),
-                    child: CircularProgressIndicator(color: theme.primaryColor),
-                  ),
-                );
-              }
-
-              final roomTypes = snapshot.data ?? [];
-
-              if (roomTypes.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 40),
-                    child: Text(
-                      '目前尚無房型介紹',
-                      style: TextStyle(
-                        color: theme.textColor.withValues(alpha: 0.6),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: ShopService.instance.streamRoomTypes(shopId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 40),
+                      child: CircularProgressIndicator(
+                        color: theme.primaryColor,
                       ),
                     ),
-                  ),
-                );
-              }
-
-              const crossAxisCount = 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: roomTypes.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: crossAxisCount == 1 ? 0.95 : 0.62,
-                ),
-                itemBuilder: (context, index) {
-                  final roomType = roomTypes[index];
-                  final images = List<String>.from(roomType['images'] ?? []);
-                  final imageUrl = images.isNotEmpty ? images.first : '';
-
-                  return _RoomIntroGridCard(
-                    roomType: roomType,
-                    imageUrl: imageUrl,
-                    isFullWidth: crossAxisCount == 1,
-                    theme: theme,
-                    onTap: () => _openRoomDetail(context, roomType),
                   );
-                },
-              );
-            },
-          ),
-        ],
+                }
+
+                final roomTypes = snapshot.data ?? [];
+
+                if (roomTypes.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 40),
+                      child: Text(
+                        '目前尚無房型介紹',
+                        style: TextStyle(
+                          color: theme.textColor.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                const crossAxisCount = 1;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: roomTypes.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: crossAxisCount == 1 ? 0.95 : 0.62,
+                  ),
+                  itemBuilder: (context, index) {
+                    final roomType = roomTypes[index];
+                    final images = List<String>.from(roomType['images'] ?? []);
+                    final imageUrl = images.isNotEmpty ? images.first : '';
+
+                    return _RoomIntroGridCard(
+                      roomType: roomType,
+                      imageUrl: imageUrl,
+                      isFullWidth: crossAxisCount == 1,
+                      theme: theme,
+                      onTap: () => _openRoomDetail(context, roomType),
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

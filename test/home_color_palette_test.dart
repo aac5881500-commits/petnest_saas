@@ -128,8 +128,14 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(find.text('快速配色'), findsOneWidget);
+      expect(find.text('目前套用：自訂配色'), findsOneWidget);
       expect(find.text('目前色彩'), findsNothing);
       expect(find.text('恢復進入時的色彩'), findsOneWidget);
+      expect(find.text('奶油暖白'), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey<String>('home-quick-palette-header')),
+      );
+      await tester.pump();
       expect(find.text('奶油暖白'), findsOneWidget);
       final Finder preset = find.text('櫻花粉');
       await tester.ensureVisible(preset);
@@ -137,13 +143,17 @@ void main() {
       await tester.tap(preset);
       await tester.pump();
       expect(current.primaryColorValue, 0xFFE06B84);
-      expect(find.text('目前：櫻花粉'), findsOneWidget);
+      expect(find.text('目前套用：櫻花粉'), findsOneWidget);
       final Finder cream = find.text('奶油暖白');
       await tester.ensureVisible(cream);
       await tester.tap(cream);
       await tester.pump();
       expect(current.backgroundColorValue, 0xFFFFF9F0);
-      expect(find.text('目前：奶油暖白'), findsOneWidget);
+      expect(find.text('目前套用：奶油暖白'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('卡片與外框'), 250);
+      await tester.pump();
+      await tester.tap(find.text('卡片與外框'));
+      await tester.pump();
       final Finder adjust = find.widgetWithText(TextButton, '調整').first;
       await tester.scrollUntilVisible(adjust, 200);
       await tester.pump();
@@ -157,6 +167,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await pump(const Size(390, 844));
+    await tester.pumpWidget(const SizedBox.shrink());
     await pump(const Size(1280, 900));
   });
 }

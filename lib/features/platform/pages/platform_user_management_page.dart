@@ -69,13 +69,6 @@ class _PlatformUserDirectoryState extends State<_PlatformUserDirectory> {
   }
 
   Future<void> _open(PlatformAdminModel admin, {int tab = 0}) async {
-    if (PlatformRootAdmin.isRoot(admin.uid) ||
-        admin.role == PlatformAdminRoles.superAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('最高管理員不能從這個畫面修改')),
-      );
-      return;
-    }
     await Navigator.push(
       context,
       MaterialPageRoute(

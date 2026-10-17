@@ -2,12 +2,20 @@
 // 功能說明：呼叫後端處理業務、激活碼、創店、訂閱收款與分潤。
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:petnest_saas/core/constants/shop_modules.dart';
 
 class ShopCommercialException implements Exception {
-  const ShopCommercialException(this.message, {this.permissionDenied = false});
+  const ShopCommercialException(
+    this.message, {
+    this.code = '',
+    this.permissionDenied = false,
+    this.notFound = false,
+  });
 
   final String message;
+  final String code;
   final bool permissionDenied;
+  final bool notFound;
 
   @override
   String toString() => message;
@@ -35,7 +43,9 @@ class ShopCommercialService {
     } on FirebaseFunctionsException catch (error) {
       throw ShopCommercialException(
         error.message ?? '操作失敗',
+        code: error.code,
         permissionDenied: error.code == 'permission-denied',
+        notFound: error.code == 'not-found',
       );
     }
   }
@@ -59,9 +69,61 @@ class ShopCommercialService {
     return (data['shopId'] ?? '').toString();
   }
 
+  /// 創店前的唯讀確認。呼叫 validateShopActivationCode，不建立店家。
+  Future<ShopActivationCheck> validateShopActivationCode(
+    String activationCode,
+  ) async {
+    final String code = activationCode.trim();
+    if (code.isEmpty) {
+      return const ShopActivationCheck(
+        valid: false,
+        message: '請輸入創店激活碼',
+      );
+    }
+    try {
+      final result = await _functions
+          .httpsCallable('validateShopActivationCode')
+          .call(<String, dynamic>{'activationCode': code});
+      final value = result.data;
+      if (value is Map) {
+        return ShopActivationCheck.fromResponse(
+          Map<String, dynamic>.from(value),
+        );
+      }
+      return const ShopActivationCheck(
+        valid: false,
+        message: '驗證服務暫時無法使用',
+      );
+    } on FirebaseFunctionsException catch (error) {
+      throw ShopCommercialException(
+        shopActivationCallableMessage(error.code, error.message),
+        permissionDenied: error.code == 'permission-denied',
+      );
+    }
+  }
+
   Future<List<Map<String, dynamic>>> listSalesReps() async {
-    final data = await _call('listSalesReps', {});
-    return _maps(data['reps']);
+    final collected = <Map<String, dynamic>>[];
+    var cursor = '';
+    for (var page = 0; page < 8; page++) {
+      final data = await listSalesRepsPage(cursor: cursor);
+      collected.addAll(_maps(data['reps']));
+      cursor = (data['nextCursor'] ?? '').toString();
+      if (cursor.isEmpty) break;
+    }
+    return collected;
+  }
+
+  Future<Map<String, dynamic>> listSalesRepsPage({
+    String query = '',
+    String status = '',
+    String cursor = '',
+  }) {
+    return _call('listSalesReps', {
+      'query': query,
+      'status': status,
+      'cursor': cursor,
+    });
   }
 
   Future<String> saveSalesRep(Map<String, dynamic> payload) async {
@@ -69,16 +131,42 @@ class ShopCommercialService {
     return (data['repId'] ?? '').toString();
   }
 
+  Future<Map<String, dynamic>> getSalesIdentity(String uid) {
+    return _call('getSalesIdentity', {'uid': uid});
+  }
+
+  Future<Map<String, dynamic>> setSalesIdentity({
+    required String uid,
+    required bool enabled,
+  }) {
+    return _call('setSalesIdentity', {
+      'uid': uid,
+      'enabled': enabled,
+    });
+  }
+
+  Future<Map<String, dynamic>> searchPlatformMembers({
+    String query = '',
+    String cursor = '',
+  }) {
+    return _call('listAssignablePlatformMembers', {
+      'query': query,
+      'cursor': cursor,
+    });
+  }
+
   Future<Map<String, dynamic>> listActivationCodes({
     String query = '',
     String status = '',
     String salesRepId = '',
+    String source = '',
     String cursor = '',
   }) {
     return _call('listActivationCodes', {
       'query': query,
       'status': status,
       'salesRepId': salesRepId,
+      'source': source,
       'cursor': cursor,
     });
   }
@@ -292,6 +380,82 @@ class ShopCommercialService {
   List<Map<String, dynamic>> _maps(Object? value) {
     if (value is! List) return const [];
     return value.whereType<Map>().map(Map<String, dynamic>.from).toList();
+  }
+}
+
+class ShopActivationCheck {
+  const ShopActivationCheck({
+    required this.valid,
+    required this.message,
+    this.module,
+  });
+
+  final bool valid;
+  final String message;
+
+  /// 後端激活碼文件上的 module。未回傳或不在既有模板清單時為 null。
+  final String? module;
+
+  factory ShopActivationCheck.fromResponse(Map<String, dynamic> data) {
+    final bool ready = data['ok'] == true && data['status'] == 'ready';
+    final String rawModule = (data['module'] ?? '').toString().trim();
+    final String? module = ShopModules.lockableModules.contains(rawModule)
+        ? rawModule
+        : null;
+    final String message = (data['message'] ?? '').toString().trim();
+    if (ready) {
+      return ShopActivationCheck(
+        valid: true,
+        message: message.isEmpty ? '激活碼驗證成功' : message,
+        module: module,
+      );
+    }
+    return ShopActivationCheck(
+      valid: false,
+      message: message.isEmpty ? '激活碼目前無法使用' : message,
+    );
+  }
+}
+
+String shopActivationCallableMessage(String code, String? backendMessage) {
+  switch (code) {
+    case 'unauthenticated':
+      return '請先登入後再驗證激活碼';
+    case 'resource-exhausted':
+      return '嘗試次數過多，請稍後再試';
+    case 'unavailable':
+    case 'deadline-exceeded':
+      return '網路連線失敗，請稍後再試';
+    case 'not-found':
+    case 'failed-precondition':
+    case 'invalid-argument':
+    case 'aborted':
+      final String text = (backendMessage ?? '').trim();
+      if (text.isNotEmpty &&
+          !text.contains('Exception') &&
+          !text.contains('Firebase')) {
+        return text;
+      }
+      return '激活碼目前無法使用';
+    default:
+      return '驗證服務暫時無法使用';
+  }
+}
+
+String shopActivationModuleLabel(String? module) {
+  switch (module) {
+    case ShopModules.catHotel:
+      return '貓咪旅館';
+    case ShopModules.dogHotel:
+      return '狗狗旅館';
+    case ShopModules.grooming:
+      return '寵物美容';
+    case ShopModules.hospital:
+      return '動物醫院';
+    case ShopModules.store:
+      return '寵物賣場';
+    default:
+      return '';
   }
 }
 

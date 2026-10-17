@@ -1,9 +1,7 @@
 // 檔案名稱：lib/features/shop/widgets/modern_home/home_appearance_preset_strip.dart
 // 功能說明：外觀設定頁的快速模板列。套用前先確認，只更新本頁草稿。
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/home_appearance_preset.dart';
 
 class HomeAppearancePresetStrip extends StatefulWidget {
@@ -15,6 +13,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
     required this.onPreview,
     required this.onApply,
     this.previewingId,
+    this.showHeading = true,
   });
 
   final HomeAppearanceDraft draft;
@@ -23,6 +22,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
   final Color accent;
   final ValueChanged<HomeAppearancePreset> onPreview;
   final ValueChanged<HomeAppearancePreset> onApply;
+  final bool showHeading;
 
   @override
   State<HomeAppearancePresetStrip> createState() =>
@@ -30,179 +30,73 @@ class HomeAppearancePresetStrip extends StatefulWidget {
 }
 
 class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
-  static const double _cardWidth = 240;
-  static const double _cardGap = 12;
-  final ScrollController _scroll = ScrollController();
-  bool _canBack = false;
-  bool _canForward = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(_syncArrows);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncArrows());
-  }
-
-  @override
-  void dispose() {
-    _scroll.removeListener(_syncArrows);
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  void _syncArrows() {
-    if (!_scroll.hasClients) {
-      return;
-    }
-    final ScrollPosition position = _scroll.position;
-    final bool back = position.pixels > 1;
-    final bool forward = position.pixels < position.maxScrollExtent - 1;
-    if (back == _canBack && forward == _canForward) {
-      return;
-    }
-    setState(() {
-      _canBack = back;
-      _canForward = forward;
-    });
-  }
-
-  void _nudge(int direction) {
-    if (!_scroll.hasClients) {
-      return;
-    }
-    final double distance = (_cardWidth + _cardGap) * 1.5;
-    final double max = _scroll.position.maxScrollExtent;
-    final double target = (_scroll.offset + direction * distance).clamp(0, max);
-    _scroll.animateTo(
-      target,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  void _onPointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent || !_scroll.hasClients) {
-      return;
-    }
-    final bool shift =
-        HardwareKeyboard.instance.isShiftPressed ||
-        event.scrollDelta.dx.abs() > event.scrollDelta.dy.abs();
-    if (!shift) {
-      return;
-    }
-    final double delta = event.scrollDelta.dx.abs() > event.scrollDelta.dy.abs()
-        ? event.scrollDelta.dx
-        : event.scrollDelta.dy;
-    GestureBinding.instance.pointerSignalResolver.register(event, (
-      PointerSignalEvent _,
-    ) {
-      final double max = _scroll.position.maxScrollExtent;
-      _scroll.jumpTo((_scroll.offset + delta).clamp(0, max));
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final String status = homeAppearancePresetStatus(
       presetId: widget.presetId,
       draft: widget.draft,
     );
-    final bool showArrows = MediaQuery.sizeOf(context).width >= 720;
     final String? selectedId = widget.previewingId ?? widget.presetId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Expanded(
-              child: Text(
-                '快速套用前台風格',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF3A2A20),
-                ),
-              ),
+        if (widget.showHeading) ...<Widget>[
+          const Text(
+            '快速套用前台風格',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF3A2A20),
             ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                '目前：$status',
-                key: const Key('home-preset-current-style'),
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: widget.accent,
-                ),
-              ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '先選一個喜歡的版型，再依照品牌自由調整。',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: Color(0xFF64748B),
             ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          '先選一個喜歡的版型，再依照品牌自由調整。',
-          style: TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Text(
+          '目前：$status',
+          key: const Key('home-preset-current-style'),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: widget.accent,
+          ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 318,
-          child: Row(
-            children: <Widget>[
-              if (showArrows)
-                _ArrowButton(
-                  icon: Icons.chevron_left,
-                  enabled: _canBack,
-                  onPressed: () => _nudge(-1),
-                ),
-              Expanded(
-                child: Listener(
-                  onPointerSignal: _onPointerSignal,
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context).copyWith(
-                      dragDevices: const <PointerDeviceKind>{
-                        PointerDeviceKind.touch,
-                        PointerDeviceKind.mouse,
-                        PointerDeviceKind.stylus,
-                        PointerDeviceKind.trackpad,
-                      },
-                    ),
-                    child: ListView.separated(
-                      key: const Key('home-preset-carousel'),
-                      controller: _scroll,
-                      scrollDirection: Axis.horizontal,
-                      primary: false,
-                      physics: const ClampingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(2, 4, 20, 8),
-                      itemCount: homeAppearancePresets.length,
-                      separatorBuilder: (BuildContext context, int index) =>
-                          const SizedBox(width: _cardGap),
-                      itemBuilder: (BuildContext context, int index) {
-                        final HomeAppearancePreset preset =
-                            homeAppearancePresets[index];
-                        return _PresetCard(
-                          preset: preset,
-                          accent: widget.accent,
-                          selected: preset.id == selectedId,
-                          applied: preset.id == widget.presetId,
-                          previewing: preset.id == widget.previewingId,
-                          onPreview: () => widget.onPreview(preset),
-                          onApply: () => _confirm(context, preset),
-                        );
-                      },
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final int columns = constraints.maxWidth >= 560 ? 2 : 1;
+            final double width = columns == 1
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 12) / 2;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: <Widget>[
+                for (final HomeAppearancePreset preset in homeAppearancePresets)
+                  SizedBox(
+                    width: width,
+                    height: 300,
+                    child: _PresetCard(
+                      preset: preset,
+                      accent: widget.accent,
+                      selected: preset.id == selectedId,
+                      applied: preset.id == widget.presetId,
+                      previewing: preset.id == widget.previewingId,
+                      onPreview: () => widget.onPreview(preset),
+                      onApply: () => _confirm(context, preset),
                     ),
                   ),
-                ),
-              ),
-              if (showArrows)
-                _ArrowButton(
-                  icon: Icons.chevron_right,
-                  enabled: _canForward,
-                  onPressed: () => _nudge(1),
-                ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -265,7 +159,7 @@ class _PresetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 240,
+      width: double.infinity,
       child: DecoratedBox(
         key: Key('home-preset-${preset.id}'),
         decoration: BoxDecoration(
@@ -369,29 +263,6 @@ class _PresetCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ArrowButton extends StatelessWidget {
-  const _ArrowButton({
-    required this.icon,
-    required this.enabled,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      visualDensity: VisualDensity.compact,
-      onPressed: enabled ? onPressed : null,
-      icon: Icon(icon, size: 20),
-      color: const Color(0xFF6B5344),
-      disabledColor: const Color(0xFFD7C4B0),
     );
   }
 }

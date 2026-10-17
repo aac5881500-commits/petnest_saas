@@ -6,6 +6,7 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_type_detail_content.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 
 class RoomTypeDetailPage extends StatelessWidget {
   const RoomTypeDetailPage({
@@ -44,12 +45,15 @@ class RoomTypeDetailPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: RoomTypeDetailContent(
-        roomType: roomType,
+      body: ShopAppBackdrop.behind(
         theme: theme,
-        isIntroMode: isIntroMode,
-        startDate: startDate,
-        endDate: endDate,
+        child: RoomTypeDetailContent(
+          roomType: roomType,
+          theme: theme,
+          isIntroMode: isIntroMode,
+          startDate: startDate,
+          endDate: endDate,
+        ),
       ),
       bottomNavigationBar: RoomTypeDetailBookBar(
         theme: theme,

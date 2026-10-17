@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/platform_media_asset.dart';
 import 'package:petnest_saas/features/shop/theme/home_color_palette.dart';
+import 'package:petnest_saas/features/shop/widgets/platform_media_asset_picker.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_banner_color_field.dart';
 
 /// 首頁色彩分頁。顏色仍寫回同一份 [HomeThemeModel]，這裡不另存狀態。
@@ -22,6 +25,7 @@ class HomeColorSettingsPanel extends StatefulWidget {
 
 class _HomeColorSettingsPanelState extends State<HomeColorSettingsPanel> {
   String? _openEditor;
+  bool _paletteExpanded = false;
 
   HomeThemeModel get theme => widget.theme;
 
@@ -33,83 +37,103 @@ class _HomeColorSettingsPanelState extends State<HomeColorSettingsPanel> {
   Widget build(BuildContext context) {
     final HomeColorPreset? preset = HomeColorPalette.matching(theme);
     final bool lowContrast = HomeColorContrast.pageNeedsAttention(theme);
+    final String paletteName = preset?.name ?? '自訂配色';
+    final bool imageBackground =
+        theme.appBackgroundMode == ShopAppBackground.modeImage;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _ColorSection(
-          title: '快速配色',
-          subtitle: '選一組完整配色，之後仍可逐項微調。點選不會立刻儲存。',
+        _FoldGroup(
+          title: '首頁色彩',
+          subtitle: '配色：$paletteName',
+          initiallyExpanded: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(
-                preset == null ? '自訂配色' : '目前：${preset.name}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 10),
-              LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  final int columns = constraints.maxWidth >= 640 ? 2 : 1;
-                  final double width =
-                      (constraints.maxWidth - 12 * (columns - 1)) / columns;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: <Widget>[
-                      for (final HomeColorPreset item
-                          in HomeColorPalette.presets)
-                        SizedBox(
-                          width: width,
-                          child: _PresetCard(
-                            preset: item,
-                            selected: preset?.id == item.id,
-                            onTap: () => widget.onChanged(item.apply(theme)),
+              _QuickPaletteCard(
+                expanded: _paletteExpanded,
+                presetName: preset?.name,
+                colors: preset == null
+                    ? <int>[
+                        theme.backgroundColorValue,
+                        theme.cardColorValue,
+                        theme.primaryColorValue,
+                        theme.textColorValue,
+                      ]
+                    : preset.preview.take(4).toList(),
+                onToggle: () =>
+                    setState(() => _paletteExpanded = !_paletteExpanded),
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    final int columns = constraints.maxWidth >= 640 ? 2 : 1;
+                    final double width =
+                        (constraints.maxWidth - 12 * (columns - 1)) / columns;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: <Widget>[
+                        for (final HomeColorPreset item
+                            in HomeColorPalette.presets)
+                          SizedBox(
+                            width: width,
+                            child: _PresetCard(
+                              preset: item,
+                              selected: preset?.id == item.id,
+                              onTap: () => widget.onChanged(item.apply(theme)),
+                            ),
                           ),
-                        ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  OutlinedButton(
+                    onPressed: () => _confirm(
+                      context,
+                      title: '恢復進入時的色彩',
+                      message: '會把首頁色彩還原成打開這個分頁時的顏色。',
+                      apply: () => widget.onChanged(
+                        widget.entryTheme
+                            .copyWith(drawerSetting: theme.drawerSetting)
+                            .withBackdropFrom(theme),
+                      ),
+                    ),
+                    child: const Text('恢復進入時的色彩'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => _confirm(
+                      context,
+                      title: '恢復系統預設色彩',
+                      message: '會改回新版首頁的預設配色，不會改導覽或店家資訊。',
+                      apply: () => widget.onChanged(
+                        HomeThemeModel.modernDefault
+                            .copyWith(drawerSetting: theme.drawerSetting)
+                            .withBackdropFrom(theme),
+                      ),
+                    ),
+                    child: const Text('恢復系統預設色彩'),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            OutlinedButton(
-              onPressed: () => _confirm(
-                context,
-                title: '恢復進入時的色彩',
-                message: '會把首頁色彩還原成打開這個分頁時的顏色。',
-                apply: () => widget.onChanged(
-                  widget.entryTheme.copyWith(
-                    drawerSetting: theme.drawerSetting,
-                  ),
-                ),
-              ),
-              child: const Text('恢復進入時的色彩'),
-            ),
-            OutlinedButton(
-              onPressed: () => _confirm(
-                context,
-                title: '恢復系統預設色彩',
-                message: '會改回新版首頁的預設配色，不會改導覽或店家資訊。',
-                apply: () => widget.onChanged(
-                  HomeThemeModel.modernDefault.copyWith(
-                    drawerSetting: theme.drawerSetting,
-                  ),
-                ),
-              ),
-              child: const Text('恢復系統預設色彩'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
         _FoldGroup(
-          title: '背景與卡片',
-          subtitle: '頁面背景、卡片底色、外框與透明度',
-          initiallyExpanded: true,
+          title: 'App 整體背景',
+          subtitle: imageBackground ? '目前使用圖庫圖片' : '目前使用純色背景',
+          child: _AppBackgroundEditor(
+            theme: theme,
+            onChanged: widget.onChanged,
+          ),
+        ),
+        _FoldGroup(
+          title: '卡片與外框',
+          subtitle: '頁面背景、卡片底色與外框',
           child: Column(
             children: <Widget>[
               _ColorSettingTile(
@@ -117,7 +141,7 @@ class _HomeColorSettingsPanelState extends State<HomeColorSettingsPanel> {
                 expanded: _openEditor == 'background',
                 onToggle: () => _toggleEditor('background'),
                 name: '頁面背景色',
-                description: '新版首頁最底層的整體背景。',
+                description: '純色背景，以及圖片留白時的底色。',
                 colorValue: theme.backgroundColorValue,
                 swatches: HomeColorPalette.surfaces,
                 allowAlpha: true,
@@ -302,19 +326,24 @@ class _HomeColorSettingsPanelState extends State<HomeColorSettingsPanel> {
   }
 }
 
-class _ColorSection extends StatelessWidget {
-  const _ColorSection({
-    required this.title,
-    required this.subtitle,
+class _QuickPaletteCard extends StatelessWidget {
+  const _QuickPaletteCard({
+    required this.expanded,
+    required this.presetName,
+    required this.colors,
+    required this.onToggle,
     required this.child,
   });
 
-  final String title;
-  final String subtitle;
+  final bool expanded;
+  final String? presetName;
+  final List<int> colors;
+  final VoidCallback onToggle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final String current = presetName == null ? '自訂配色' : presetName!;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: DecoratedBox(
@@ -324,32 +353,376 @@ class _ColorSection extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE6E8EC)),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+              InkWell(
+                key: const ValueKey<String>('home-quick-palette-header'),
+                onTap: onToggle,
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            '快速配色',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '目前套用：$current',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    for (final int color in colors.take(4))
+                      Container(
+                        width: 12,
+                        height: 12,
+                        margin: const EdgeInsets.only(left: 4),
+                        decoration: BoxDecoration(
+                          color: Color(color),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0x22000000)),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 12,
-                  height: 1.35,
-                  color: Colors.black54,
+              if (expanded) ...<Widget>[
+                const SizedBox(height: 8),
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Text(
+                    '選一組完整配色，之後仍可逐項微調。點選不會立刻儲存。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      color: Colors.black54,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              child,
+                const SizedBox(height: 10),
+                child,
+              ],
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AppBackgroundEditor extends StatelessWidget {
+  const _AppBackgroundEditor({required this.theme, required this.onChanged});
+
+  final HomeThemeModel theme;
+  final ValueChanged<HomeThemeModel> onChanged;
+
+  bool get _image => theme.appBackgroundMode == ShopAppBackground.modeImage;
+
+  Future<void> _pick(BuildContext context) async {
+    final PlatformMediaAsset? asset = await showPlatformMediaAssetPicker(
+      context: context,
+      category: PlatformMediaCategories.dailyCarePage,
+      selectedId: theme.appBackgroundAssetId,
+      title: '選擇背景圖片',
+    );
+    if (asset == null ||
+        !asset.enabled ||
+        asset.category != PlatformMediaCategories.dailyCarePage) {
+      return;
+    }
+    onChanged(
+      theme.copyWith(
+        appBackgroundMode: ShopAppBackground.modeImage,
+        appBackgroundAssetId: asset.id,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 4, 6, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Text(
+            '套用在這家店的顧客端頁面底層，不會改卡片或海報。',
+            style: TextStyle(fontSize: 12, height: 1.35, color: Colors.black54),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _SourceCard(
+                  label: '純色背景',
+                  selected: !_image,
+                  onTap: () => onChanged(
+                    theme.copyWith(
+                      appBackgroundMode: ShopAppBackground.modeColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SourceCard(
+                  label: '圖庫圖片',
+                  selected: _image,
+                  onTap: () => onChanged(
+                    theme.copyWith(
+                      appBackgroundMode: ShopAppBackground.modeImage,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_image) ...<Widget>[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(height: 96, child: ShopAppBackdrop(theme: theme)),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                FilledButton.tonalIcon(
+                  onPressed: () => _pick(context),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: Text(
+                    theme.appBackgroundAssetId.trim().isEmpty
+                        ? '選擇背景圖片'
+                        : '更換圖片',
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () => onChanged(
+                    theme.copyWith(
+                      appBackgroundMode: ShopAppBackground.modeColor,
+                    ),
+                  ),
+                  child: const Text('改回純色'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final bool wide = constraints.maxWidth >= 560;
+                final Widget fit = _ChoiceBlock(
+                  title: '圖片顯示方式',
+                  children: <Widget>[
+                    _ChoiceChip(
+                      label: '填滿裁切',
+                      selected:
+                          theme.appBackgroundFit == ShopAppBackground.fitCover,
+                      onTap: () => onChanged(
+                        theme.copyWith(
+                          appBackgroundFit: ShopAppBackground.fitCover,
+                        ),
+                      ),
+                    ),
+                    _ChoiceChip(
+                      label: '完整顯示',
+                      selected:
+                          theme.appBackgroundFit ==
+                          ShopAppBackground.fitContain,
+                      onTap: () => onChanged(
+                        theme.copyWith(
+                          appBackgroundFit: ShopAppBackground.fitContain,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+                final Widget align = _ChoiceBlock(
+                  title: '圖片對齊',
+                  children: <Widget>[
+                    _ChoiceChip(
+                      label: '靠上',
+                      selected:
+                          theme.appBackgroundAlign ==
+                          ShopAppBackground.alignTop,
+                      onTap: () => onChanged(
+                        theme.copyWith(
+                          appBackgroundAlign: ShopAppBackground.alignTop,
+                        ),
+                      ),
+                    ),
+                    _ChoiceChip(
+                      label: '置中',
+                      selected:
+                          theme.appBackgroundAlign ==
+                          ShopAppBackground.alignCenter,
+                      onTap: () => onChanged(
+                        theme.copyWith(
+                          appBackgroundAlign: ShopAppBackground.alignCenter,
+                        ),
+                      ),
+                    ),
+                    _ChoiceChip(
+                      label: '靠下',
+                      selected:
+                          theme.appBackgroundAlign ==
+                          ShopAppBackground.alignBottom,
+                      onTap: () => onChanged(
+                        theme.copyWith(
+                          appBackgroundAlign: ShopAppBackground.alignBottom,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+                if (!wide) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[fit, const SizedBox(height: 10), align],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(child: fit),
+                    const SizedBox(width: 12),
+                    Expanded(child: align),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            const Text('背景遮罩', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final ({String label, double opacity}) item
+                    in ShopAppBackground.scrims)
+                  _ChoiceChip(
+                    label: item.label,
+                    selected:
+                        (theme.appBackgroundScrim - item.opacity).abs() < 0.011,
+                    onTap: () => onChanged(
+                      theme.copyWith(appBackgroundScrim: item.opacity),
+                    ),
+                  ),
+              ],
+            ),
+            Slider(
+              value: theme.appBackgroundScrim.clamp(0, 0.72),
+              min: 0,
+              max: 0.72,
+              onChanged: (double value) =>
+                  onChanged(theme.copyWith(appBackgroundScrim: value)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceCard extends StatelessWidget {
+  const _SourceCard({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFFFFF6EE) : const Color(0xFFFAFAFA),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFFB86B18)
+                  : const Color(0xFFE6E8EC),
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChoiceBlock extends StatelessWidget {
+  const _ChoiceBlock({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
+      ],
+    );
+  }
+}
+
+class _ChoiceChip extends StatelessWidget {
+  const _ChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      visualDensity: VisualDensity.compact,
     );
   }
 }

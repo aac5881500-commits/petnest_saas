@@ -298,18 +298,25 @@ List<_PlatformSection> _platformAdminSections({
         subtitle: '選擇店家，管理方案、付款期限與功能開關',
         onTap: () => openPage(const PlatformShopManagePage()),
       ),
-    if (hasPermission(PlatformPermissionKeys.manageActivationCodes))
+    if (hasAnyPermission([
+      PlatformPermissionKeys.manageActivationCodes,
+      PlatformPermissionKeys.viewOwnActivationCodes,
+    ]))
       _PlatformEntry(
         icon: Icons.key_outlined,
         title: '激活碼管理',
         subtitle: '建立創店激活碼、查看業務、試用天數與使用狀態',
         onTap: () => openPage(const PlatformActivationCodeManagePage()),
       ),
-    if (hasPermission(PlatformPermissionKeys.manageSales))
+    if (hasAnyPermission([
+      PlatformPermissionKeys.manageSales,
+      PlatformPermissionKeys.viewSales,
+      PlatformPermissionKeys.viewOwnSales,
+    ]))
       _PlatformEntry(
         icon: Icons.badge_outlined,
         title: '業務管理',
-        subtitle: '建立業務、綁定平台帳號與停用，歷史歸屬會保留',
+        subtitle: '從平台會員指派業務，並查看負責店家與激活碼',
         onTap: () => openPage(const PlatformSalesRepManagePage()),
       ),
     if (hasPermission(PlatformPermissionKeys.manageSubscriptionFinance))
@@ -322,6 +329,7 @@ List<_PlatformSection> _platformAdminSections({
     if (hasAnyPermission([
       PlatformPermissionKeys.manageSales,
       PlatformPermissionKeys.viewOwnSales,
+      PlatformPermissionKeys.viewOwnCommission,
       PlatformPermissionKeys.manageSubscriptionFinance,
     ]))
       _PlatformEntry(

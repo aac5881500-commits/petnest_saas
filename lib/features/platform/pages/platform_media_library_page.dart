@@ -151,6 +151,10 @@ class _PlatformMediaLibraryBodyState extends State<_PlatformMediaLibraryBody> {
                   value: PlatformMediaCategories.shopHouse,
                   label: Text('店家小屋'),
                 ),
+                ButtonSegment<String>(
+                  value: PlatformMediaCategories.appBackground,
+                  label: Text('顧客端背景'),
+                ),
               ],
               selected: <String>{_category},
               onSelectionChanged: (Set<String> values) {

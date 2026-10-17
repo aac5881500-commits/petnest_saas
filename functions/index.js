@@ -1075,8 +1075,12 @@ exports.guardShopLicenseCertification =
 
 const sales = require("./sales/callables");
 exports.createShopWithActivation = sales.createShopWithActivation;
+exports.validateShopActivationCode = sales.validateShopActivationCode;
 exports.saveSalesRep = sales.saveSalesRep;
 exports.listSalesReps = sales.listSalesReps;
+exports.listAssignablePlatformMembers = sales.listAssignablePlatformMembers;
+exports.getSalesIdentity = sales.getSalesIdentity;
+exports.setSalesIdentity = sales.setSalesIdentity;
 exports.saveActivationCode = sales.saveActivationCode;
 exports.listActivationCodes = sales.listActivationCodes;
 exports.registerSubscriptionPayment = sales.registerSubscriptionPayment;

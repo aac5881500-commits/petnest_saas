@@ -8,6 +8,8 @@ import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/models/platform_admin_model.dart';
 import '../../../core/services/platform_admin_service.dart';
 import '../../../core/services/platform_permission_catalog.dart';
+import '../../../core/services/shop_commercial_service.dart';
+import '../platform_account_display.dart';
 import '../widgets/platform_permission_editor.dart';
 import '../widgets/platform_user_change_log.dart';
 
@@ -37,6 +39,21 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
   bool _operatorReady = false;
   Set<String>? _grantableKeys;
   bool _canGrantAll = false;
+  bool _salesLoading = true;
+  bool _salesSaving = false;
+  bool _salesDenied = false;
+  bool _salesExists = false;
+  bool _salesEnabled = false;
+  bool _salesConflict = false;
+  bool _salesNameMissing = false;
+  bool _salesInherited = false;
+  String _salesRepId = '';
+  String _salesBinding = '';
+  String _salesDisplayName = '';
+  String? _salesError;
+  String _visibleName = '';
+  String _visibleEmail = '';
+  bool _missingPlatformUser = false;
   late final Future<bool> _canManage = PlatformAdminService.instance
       .hasPermission(PlatformPermissionKeys.managePlatformAdmins);
 
@@ -54,12 +71,34 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
     _emailController = TextEditingController(text: widget.admin.email);
     _role = widget.admin.role;
     _enabled = widget.admin.enabled;
+    _visibleName = widget.admin.name.trim();
+    _visibleEmail = widget.admin.email.trim();
     _selectedPermissions = widget.admin.permissions
         .where(PlatformPermissionKeys.assignableValues.contains)
         .toSet();
     _nameController.addListener(_refresh);
     _emailController.addListener(_refresh);
     _loadOperator();
+    _loadAccountText();
+    _loadSales();
+  }
+
+  Future<void> _loadAccountText() async {
+    try {
+      final PlatformAccountDisplay display =
+          await PlatformAdminService.instance.resolveAccountText(widget.admin);
+      if (!mounted) return;
+      setState(() {
+        _visibleName = display.name;
+        _visibleEmail = display.email;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _visibleName = widget.admin.name.trim();
+        _visibleEmail = widget.admin.email.trim();
+      });
+    }
   }
 
   void _refresh() {
@@ -103,6 +142,114 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
+  }
+
+  bool get _canAssignSales {
+    if (!_operatorReady) return false;
+    if (_canGrantAll) return true;
+    return _grantableKeys?.contains(PlatformPermissionKeys.manageSales) ?? false;
+  }
+
+  Future<void> _loadSales() async {
+    if (mounted && !_salesLoading) {
+      setState(() {
+        _salesLoading = true;
+        _salesError = null;
+        _salesDenied = false;
+      });
+    }
+    try {
+      final data = await ShopCommercialService.instance.getSalesIdentity(
+        widget.admin.uid,
+      );
+      if (!mounted) return;
+      setState(() {
+        _salesLoading = false;
+        _salesExists = data['exists'] == true;
+        _salesEnabled = data['enabled'] == true;
+        _salesConflict = data['conflict'] == true;
+        _salesNameMissing = data['nameMissing'] == true;
+        _salesInherited = data['inheritedFromRole'] == true;
+        _salesRepId = '${data['repId'] ?? ''}';
+        _salesBinding = '${data['bindingStatus'] ?? ''}';
+        _salesDisplayName = '${data['displayName'] ?? ''}';
+        _missingPlatformUser = data['missingPlatformUser'] == true ||
+            data['accountExists'] == false;
+        _salesDenied = false;
+        _salesError = null;
+      });
+    } on ShopCommercialException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _salesLoading = false;
+        _salesDenied = error.permissionDenied;
+        _salesError = error.permissionDenied
+            ? null
+            : PlatformAccountDisplay.describeSalesFailure(
+                code: error.code,
+                message: error.message,
+                notFound: error.notFound,
+              );
+      });
+    }
+  }
+
+  Future<void> _saveSales(bool enabled) async {
+    if (_salesSaving || !_canAssignSales || _salesConflict) return;
+    if (enabled && !widget.admin.enabled && !_isRootTarget) {
+      _snack('平台帳號已停用，不能啟用業務身分');
+      return;
+    }
+    if (enabled && _missingPlatformUser && !_isRootTarget) {
+      _snack('這個帳號沒有平台人員文件，不會自動建立最高管理員資料。');
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(enabled ? '開啟兼任業務' : '停用業務身分'),
+          content: Text(
+            enabled
+                ? '這會讓此平台帳號兼任業務，平台角色維持${PlatformAdminRoles.label(widget.admin.role)}。不會建立另一個登入帳號，也不會把店家自動歸到這位業務。'
+                : '只停用業務身分。平台角色、激活碼、店家歸屬、業績與歷史分潤都保留。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('確認'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    setState(() => _salesSaving = true);
+    try {
+      await ShopCommercialService.instance.setSalesIdentity(
+        uid: widget.admin.uid,
+        enabled: enabled,
+      );
+      if (!mounted) return;
+      _snack('業務身分已更新，平台角色沒有改變');
+      await _loadSales();
+    } on ShopCommercialException catch (error) {
+      if (!mounted) return;
+      _snack(
+        PlatformAccountDisplay.describeSalesFailure(
+          code: error.code,
+          message: error.message,
+          permissionDenied: error.permissionDenied,
+          notFound: error.notFound,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _salesSaving = false);
+    }
   }
 
   Set<String> _editable(Set<String> source) {
@@ -289,9 +436,11 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
             },
             child: Scaffold(
               appBar: AppBar(
-                title: Text(widget.admin.name.trim().isEmpty
-                    ? '平台人員'
-                    : widget.admin.name.trim()),
+                title: Text(_locked
+                    ? (_visibleName.trim().isEmpty ? '最高管理員' : _visibleName.trim())
+                    : (widget.admin.name.trim().isEmpty
+                        ? '平台人員'
+                        : widget.admin.name.trim())),
                 bottom: const TabBar(
                   isScrollable: true,
                   tabs: [
@@ -302,13 +451,19 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
                   ],
                 ),
               ),
-              body: TabBarView(
-                children: [
-                  _scroll(_accountTab()),
-                  _scroll(_roleTab()),
-                  _scroll(_permissionTab()),
-                  _scroll(PlatformUserChangeLog(uid: widget.admin.uid)),
-                ],
+              body: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 880),
+                  child: TabBarView(
+                    children: [
+                      _scroll(_accountTab()),
+                      _scroll(_roleTab()),
+                      _scroll(_permissionTab()),
+                      _scroll(PlatformUserChangeLog(uid: widget.admin.uid)),
+                    ],
+                  ),
+                ),
               ),
               bottomNavigationBar: _locked
                   ? null
@@ -339,12 +494,21 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
   }
 
   Widget _accountTab() {
+    final Widget sales = _salesSection();
+    if (_locked) {
+      return PlatformLockedAccountFields(
+        name: _visibleName,
+        email: _visibleEmail,
+        uid: widget.admin.uid,
+        sales: sales,
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: _nameController,
-          enabled: !_locked && !_saving,
+          enabled: !_saving,
           decoration: const InputDecoration(
             labelText: '姓名或稱呼',
             border: OutlineInputBorder(),
@@ -353,7 +517,7 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
         const SizedBox(height: 12),
         TextField(
           controller: _emailController,
-          enabled: !_locked && !_saving,
+          enabled: !_saving,
           keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
             labelText: 'Email',
@@ -362,12 +526,107 @@ class _PlatformUserPermissionPageState extends State<PlatformUserPermissionPage>
         ),
         const SizedBox(height: 12),
         SelectableText('UID：${widget.admin.uid}'),
-        if (_locked) ...[
-          const SizedBox(height: 12),
-          const Text('最高管理員與永久根管理員不能從這個畫面修改。'),
-        ],
+        const SizedBox(height: 20),
+        Text('業務身分', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        sales,
       ],
     );
+  }
+
+  Widget _salesSection() {
+    final bool blockedByMissingProfile =
+        _missingPlatformUser && !_isRootTarget;
+    final bool canToggle = _canAssignSales &&
+        !_salesSaving &&
+        !_salesConflict &&
+        _salesError == null &&
+        !_salesDenied &&
+        !blockedByMissingProfile &&
+        (_isRootTarget || widget.admin.enabled || _salesEnabled);
+    final String status = _salesStatusLabel();
+    final String salesName = _salesDisplayName.trim().isNotEmpty
+        ? _salesDisplayName.trim()
+        : (_visibleName.trim().isNotEmpty
+            ? _visibleName.trim()
+            : PlatformAccountDisplay.unset);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('兼任業務'),
+                      SizedBox(height: 4),
+                      Text('只增減業務資格，不改變平台角色，也不會自動歸屬店家。'),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _salesEnabled,
+                  onChanged: !canToggle
+                      ? null
+                      : (bool value) {
+                          if (value &&
+                              !widget.admin.enabled &&
+                              !_isRootTarget) {
+                            _snack('平台帳號已停用，不能啟用業務身分');
+                            return;
+                          }
+                          _saveSales(value);
+                        },
+                ),
+              ],
+            ),
+            if (_salesLoading)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(),
+              )
+            else ...[
+              const SizedBox(height: 8),
+              Text(status),
+              if (_salesExists) Text('業務名稱：$salesName'),
+              if (_salesBinding == 'pending') const Text('平台帳號：待綁定'),
+              if (_salesRepId.isNotEmpty) SelectableText('業務編號：$_salesRepId'),
+              if (_salesNameMissing) const Text('業務資料不完整：缺少姓名。舊資料仍保留。'),
+              if (_salesConflict)
+                const Text('業務資料不一致，沒有自動合併或刪除。'),
+              if (blockedByMissingProfile)
+                const Text('這個帳號沒有平台人員文件。不會自動建立最高管理員資料。'),
+              if (_missingPlatformUser && _isRootTarget)
+                const Text('沒有平台人員文件時，只會建立業務身分，不會建立或改寫最高管理員資料。'),
+              if (_salesInherited)
+                const Text('最高管理員的平台權限來自角色本身。兼任業務不會取消最高權限。'),
+              if (_salesError != null) ...[
+                const SizedBox(height: 8),
+                Text(_salesError!),
+                const SizedBox(height: 8),
+                OutlinedButton(onPressed: _loadSales, child: const Text('重試')),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _salesStatusLabel() {
+    if (_salesLoading) return '正在讀取業務身分';
+    if (_salesDenied) return '沒有查看或設定業務身分的權限。';
+    if (_salesError != null) return '業務身分暫時無法確認';
+    if (_salesConflict) return '業務資料不一致';
+    if (!_salesExists) return '目前尚未指派業務';
+    if (_salesEnabled) return '已兼任業務';
+    return '業務已停用';
   }
 
   Widget _roleTab() {

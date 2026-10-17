@@ -5,6 +5,26 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/models/home/modern_drawer_setting_model.dart';
 
+/// 顧客端整頁背景。只存圖庫引用與顯示參數，不另存圖片。
+abstract final class ShopAppBackground {
+  static const String modeColor = 'color';
+  static const String modeImage = 'image';
+  static const String fitCover = 'cover';
+  static const String fitContain = 'contain';
+  static const String alignTop = 'top';
+  static const String alignCenter = 'center';
+  static const String alignBottom = 'bottom';
+  static const double defaultScrim = 0.28;
+
+  static const List<({String label, double opacity})> scrims =
+      <({String label, double opacity})>[
+        (label: '無遮罩', opacity: 0),
+        (label: '淡遮罩', opacity: 0.12),
+        (label: '標準遮罩', opacity: defaultScrim),
+        (label: '深遮罩', opacity: 0.48),
+      ];
+}
+
 class HomeThemeModel {
   /// 新版首頁預設主題
   static const HomeThemeModel modernDefault = HomeThemeModel(
@@ -71,6 +91,11 @@ class HomeThemeModel {
     this.buttonTextMode = 'auto',
     this.buttonTextColorValue,
     this.drawerSetting = const ModernDrawerSettingModel(),
+    this.appBackgroundMode = ShopAppBackground.modeColor,
+    this.appBackgroundAssetId = '',
+    this.appBackgroundFit = ShopAppBackground.fitCover,
+    this.appBackgroundAlign = ShopAppBackground.alignCenter,
+    this.appBackgroundScrim = ShopAppBackground.defaultScrim,
   });
 
   static const Object _keep = Object();
@@ -91,6 +116,21 @@ class HomeThemeModel {
   final String buttonTextMode;
   final int? buttonTextColorValue;
   final ModernDrawerSettingModel drawerSetting;
+
+  /// color 或 image。缺欄位時維持純色。
+  final String appBackgroundMode;
+
+  /// 平台圖庫素材 ID。切回純色時保留，不刪除引用。
+  final String appBackgroundAssetId;
+  final String appBackgroundFit;
+  final String appBackgroundAlign;
+
+  /// 0～0.72。預設為標準遮罩。
+  final double appBackgroundScrim;
+
+  bool get usesAppBackgroundImage =>
+      appBackgroundMode == ShopAppBackground.modeImage &&
+      appBackgroundAssetId.trim().isNotEmpty;
 
   Color get backgroundColor => Color(backgroundColorValue);
 
@@ -151,6 +191,16 @@ class HomeThemeModel {
       if (buttonTextMode == 'custom' && buttonTextColorValue != null)
         'buttonTextColor': buttonTextColorValue,
       'drawerSetting': drawerSetting.toMap(),
+      if (appBackgroundMode != ShopAppBackground.modeColor)
+        'appBackgroundMode': appBackgroundMode,
+      if (appBackgroundAssetId.trim().isNotEmpty)
+        'appBackgroundAssetId': appBackgroundAssetId.trim(),
+      if (appBackgroundFit != ShopAppBackground.fitCover)
+        'appBackgroundFit': appBackgroundFit,
+      if (appBackgroundAlign != ShopAppBackground.alignCenter)
+        'appBackgroundAlign': appBackgroundAlign,
+      if ((appBackgroundScrim - ShopAppBackground.defaultScrim).abs() > 0.001)
+        'appBackgroundScrim': appBackgroundScrim,
     };
   }
 
@@ -186,10 +236,7 @@ class HomeThemeModel {
         fallback.textColorValue,
       ),
       secondaryTextColorValue: map.containsKey('secondaryTextColor')
-          ? _readColorValue(
-              map['secondaryTextColor'],
-              fallback.textColorValue,
-            )
+          ? _readColorValue(map['secondaryTextColor'], fallback.textColorValue)
           : null,
       buttonBackgroundColorValue: map.containsKey('buttonBackgroundColor')
           ? _readColorValue(
@@ -206,6 +253,13 @@ class HomeThemeModel {
             ? Map<String, dynamic>.from(map['drawerSetting'])
             : fallback.drawerSetting.toMap(),
       ),
+      appBackgroundMode: _readAppBackgroundMode(map['appBackgroundMode']),
+      appBackgroundAssetId: (map['appBackgroundAssetId'] ?? '')
+          .toString()
+          .trim(),
+      appBackgroundFit: _readAppBackgroundFit(map['appBackgroundFit']),
+      appBackgroundAlign: _readAppBackgroundAlign(map['appBackgroundAlign']),
+      appBackgroundScrim: _readAppBackgroundScrim(map['appBackgroundScrim']),
     );
   }
 
@@ -220,6 +274,11 @@ class HomeThemeModel {
     String? buttonTextMode,
     Object? buttonTextColorValue = _keep,
     ModernDrawerSettingModel? drawerSetting,
+    String? appBackgroundMode,
+    String? appBackgroundAssetId,
+    String? appBackgroundFit,
+    String? appBackgroundAlign,
+    double? appBackgroundScrim,
   }) {
     return HomeThemeModel(
       backgroundColorValue: backgroundColorValue ?? this.backgroundColorValue,
@@ -238,7 +297,69 @@ class HomeThemeModel {
           ? this.buttonTextColorValue
           : buttonTextColorValue as int?,
       drawerSetting: drawerSetting ?? this.drawerSetting,
+      appBackgroundMode: _readAppBackgroundMode(
+        appBackgroundMode ?? this.appBackgroundMode,
+      ),
+      appBackgroundAssetId: (appBackgroundAssetId ?? this.appBackgroundAssetId)
+          .trim(),
+      appBackgroundFit: _readAppBackgroundFit(
+        appBackgroundFit ?? this.appBackgroundFit,
+      ),
+      appBackgroundAlign: _readAppBackgroundAlign(
+        appBackgroundAlign ?? this.appBackgroundAlign,
+      ),
+      appBackgroundScrim: _readAppBackgroundScrim(
+        appBackgroundScrim ?? this.appBackgroundScrim,
+      ),
     );
+  }
+
+  /// 套用另一份色彩時，保留目前的整頁背景圖片設定。
+  HomeThemeModel withBackdropFrom(HomeThemeModel source) {
+    return copyWith(
+      appBackgroundMode: source.appBackgroundMode,
+      appBackgroundAssetId: source.appBackgroundAssetId,
+      appBackgroundFit: source.appBackgroundFit,
+      appBackgroundAlign: source.appBackgroundAlign,
+      appBackgroundScrim: source.appBackgroundScrim,
+    );
+  }
+
+  static String _readAppBackgroundMode(dynamic value) {
+    return value?.toString() == ShopAppBackground.modeImage
+        ? ShopAppBackground.modeImage
+        : ShopAppBackground.modeColor;
+  }
+
+  static String _readAppBackgroundFit(dynamic value) {
+    return value?.toString() == ShopAppBackground.fitContain
+        ? ShopAppBackground.fitContain
+        : ShopAppBackground.fitCover;
+  }
+
+  static String _readAppBackgroundAlign(dynamic value) {
+    switch (value?.toString()) {
+      case ShopAppBackground.alignTop:
+        return ShopAppBackground.alignTop;
+      case ShopAppBackground.alignBottom:
+        return ShopAppBackground.alignBottom;
+      default:
+        return ShopAppBackground.alignCenter;
+    }
+  }
+
+  static double _readAppBackgroundScrim(dynamic value) {
+    final double parsed = value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '') ??
+              ShopAppBackground.defaultScrim;
+    if (parsed < 0) {
+      return 0;
+    }
+    if (parsed > 0.72) {
+      return 0.72;
+    }
+    return parsed;
   }
 
   static String _readButtonTextMode(dynamic value) {

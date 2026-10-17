@@ -1021,6 +1021,226 @@ function planSummaryPublish(rebuild, alreadyPublished) {
   };
 }
 
+/**
+ * 新業務必須綁定既有平台會員。舊的未綁定資料可以保留。
+ * @param {Object} input 既有業務與平台帳號
+ * @return {Object}
+ */
+function planSalesRepWrite(input) {
+  const data = input || {};
+  const creating = data.creating === true;
+  const platformUid = String(data.platformUid || "").trim();
+  const previousUid = String(data.previousUid || "").trim();
+  const nextEnabled = data.enabled !== false;
+  const bindingChanged = platformUid !== previousUid;
+  if (creating && !platformUid) {
+    return {ok: false, error: "請從平台會員選擇要指派的人員"};
+  }
+  if (platformUid && data.accountExists !== true) {
+    return {ok: false, error: "找不到要綁定的平台帳號"};
+  }
+  if (platformUid && bindingChanged && data.accountEnabled !== true) {
+    return {ok: false, error: "停用中的平台帳號不能指派為業務"};
+  }
+  if (!nextEnabled && bindingChanged && platformUid) {
+    return {ok: false, error: "業務停用後不能取得新增授權"};
+  }
+  if (data.uidTaken === true) {
+    return {ok: false, error: "這個平台帳號已綁定其他業務"};
+  }
+  return {
+    ok: true,
+    bindingStatus: platformUid ? "bound" : "pending",
+    createsAuthUser: false,
+  };
+}
+
+/**
+ * 業務專屬激活碼只接受已啟用且已綁定平台帳號的業務。
+ * 已使用的碼更換業務只記原因，不回寫收款或分潤。
+ * @param {Object} input 激活碼與業務
+ * @return {Object}
+ */
+function planActivationRepBinding(input) {
+  const data = input || {};
+  const repId = String(data.salesRepId || "");
+  const previous = String(data.previousSalesRepId || "");
+  const creating = data.updating !== true;
+  const repChanged = creating || repId !== previous;
+  const source = String(data.shopSource || "");
+  if (source === "sales" && !repId) {
+    return {ok: false, error: "業務專屬激活碼必須選擇業務"};
+  }
+  if (source === "platform_direct" && repId && repChanged) {
+    return {ok: false, error: "平台發放的激活碼不能指定業務"};
+  }
+  if (!repId || !repChanged) {
+    return {ok: true, recordAttributionChange: false, rewritesCommission: false};
+  }
+  if (data.repExists !== true) {
+    return {ok: false, error: "找不到業務"};
+  }
+  if (data.repEnabled !== true) {
+    return {ok: false, error: "停用或未綁定的業務不能建立專屬激活碼"};
+  }
+  if (!String(data.platformUid || "").trim() || data.accountExists !== true) {
+    return {ok: false, error: "業務尚未綁定有效的平台帳號"};
+  }
+  if (data.accountEnabled !== true) {
+    return {ok: false, error: "綁定的平台帳號已停用，不能執行業務操作"};
+  }
+  const used = Number(data.usedCount || 0);
+  if (!creating && used > 0 && previous !== repId) {
+    if (String(data.reason || "").trim().length < 2) {
+      return {ok: false, error: "已使用的激活碼更換業務需要填寫原因"};
+    }
+    return {ok: true, recordAttributionChange: true, rewritesCommission: false};
+  }
+  return {ok: true, recordAttributionChange: false, rewritesCommission: false};
+}
+
+/**
+ * 狀態與來源在同一輪掃描中過濾，避免只看前 30 筆。
+ * @param {Object} row 激活碼
+ * @param {Object} filters 篩選
+ * @param {string} today 台北今天
+ * @return {boolean}
+ */
+function matchesActivationFilters(row, filters, today) {
+  const data = row || {};
+  const wanted = filters || {};
+  if (wanted.status && activationStatus(data, today) !== wanted.status) {
+    return false;
+  }
+  const repId = String(data.salesRepId || "");
+  if (wanted.salesRepId && repId !== String(wanted.salesRepId)) {
+    return false;
+  }
+  if (wanted.source === "platform" && repId) return false;
+  if (wanted.source === "sales" && !repId) return false;
+  const needle = String(wanted.nameNeedle || "");
+  if (needle) {
+    const name = String(data.nameNorm || data.name || "").toLowerCase();
+    if (name.indexOf(needle) < 0) return false;
+  }
+  return true;
+}
+
+/**
+ * 交接只改目前或原始欄位。不帶任何收款或分潤更新。
+ * @param {Object} input 權限與模式
+ * @return {Object}
+ */
+function planSalesHandoff(input) {
+  const data = input || {};
+  const mode = String(data.mode || "");
+  if (mode !== "current" && mode !== "origin") {
+    return {ok: false, error: "歸屬調整不正確"};
+  }
+  if (mode === "origin") {
+    if (data.canManageSales !== true) {
+      return {ok: false, error: "沒有更正原始開發業務的權限"};
+    }
+    if (String(data.reason || "").trim().length < 2) {
+      return {ok: false, error: "更正原始開發業務需要填寫理由"};
+    }
+  } else if (data.canManageSales !== true && data.canTransfer !== true) {
+    return {ok: false, error: "沒有交接目前負責人的權限"};
+  }
+  const field = mode === "origin" ? "originSalesRepId" : "currentSalesRepId";
+  return {
+    ok: true,
+    field: field,
+    rewritesCommission: false,
+  };
+}
+
+/**
+ * 預留鍵不能單獨產生激活碼。
+ * @param {string[]} permissions 權限
+ * @return {boolean}
+ */
+function reservedOwnCodeCanCreate(permissions) {
+  const list = Array.isArray(permissions) ? permissions : [];
+  return list.indexOf("manage_activation_codes") >= 0;
+}
+
+/**
+ * 舊業務可能沒有 displayName，改從既有姓名欄位取值。
+ * @param {Object} data 業務文件
+ * @return {{displayName: string, nameMissing: boolean}}
+ */
+function repDisplayName(data) {
+  const row = data || {};
+  const keys = ["displayName", "name", "repName", "fullName", "salesName"];
+  for (const key of keys) {
+    const value = String(row[key] || "").trim();
+    if (value) return {displayName: value, nameMissing: false};
+  }
+  return {displayName: "未命名業務", nameMissing: true};
+}
+
+/**
+ * 篩選在同一輪文件編號掃描中套用，缺少姓名的文件仍會被看到。
+ * @param {Object} row 業務文件
+ * @param {Object} filters 狀態與關鍵字
+ * @return {boolean}
+ */
+function matchesSalesRep(row, filters) {
+  const data = row || {};
+  const wanted = filters || {};
+  const pending = !String(data.platformUid || "").trim();
+  const enabled = data.enabled !== false;
+  if (wanted.status === "pending" && !pending) return false;
+  if (wanted.status === "enabled" && (!enabled || pending)) return false;
+  if (wanted.status === "disabled" && (enabled || pending)) return false;
+  const needle = String(wanted.needle || "").trim().toLowerCase();
+  if (!needle) return true;
+  const named = repDisplayName(data);
+  const name = named.displayName.toLowerCase();
+  const email = String(data.email || "").toLowerCase();
+  return name.indexOf(needle) >= 0 || email.indexOf(needle) >= 0;
+}
+
+/**
+ * 兼任業務只建立或停用業務文件。不改平台角色，不刪歷史。
+ * @param {Object} input 平台帳號與既有業務
+ * @return {Object}
+ */
+function planSalesIdentity(input) {
+  const data = input || {};
+  const enabling = data.enabled === true;
+  const role = String(data.role || "");
+  if (data.accountExists !== true) {
+    const disableExisting = data.repExists === true && enabling !== true;
+    if (data.verifiedRoot !== true && !disableExisting) {
+      return {
+        ok: false,
+        error: "找不到平台帳號，不會另外建立登入帳號或最高管理員資料",
+      };
+    }
+  }
+  if (enabling && data.accountEnabled !== true && data.verifiedRoot !== true) {
+    return {ok: false, error: "平台帳號已停用，不能啟用業務身分"};
+  }
+  if (data.uidTakenByOther === true) {
+    return {ok: false, error: "這個平台帳號已綁定其他業務"};
+  }
+  let action = "noop";
+  if (data.repExists === true) action = "update";
+  else if (enabling) action = "create";
+  return {
+    ok: true,
+    action: action,
+    previousRole: role,
+    roleUnchanged: true,
+    deletesHistory: false,
+    createsAuthUser: false,
+    grantsPlatformRole: false,
+    writesPlatformUser: false,
+  };
+}
+
 module.exports = {
   PLAN_PRICES,
   SOURCES,
@@ -1063,6 +1283,14 @@ module.exports = {
   planActivationMigration,
   claimActivationKey,
   planSummaryPublish,
+  planSalesRepWrite,
+  planActivationRepBinding,
+  matchesActivationFilters,
+  planSalesHandoff,
+  reservedOwnCodeCanCreate,
+  repDisplayName,
+  matchesSalesRep,
+  planSalesIdentity,
   safeMinor,
   subscriptionListStatus,
   renewalDue,

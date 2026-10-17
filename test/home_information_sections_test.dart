@@ -387,12 +387,12 @@ void main() {
       'lib/features/shop/widgets/modern_home/modern_review_section.dart',
     ).readAsStringSync();
     expect(reviewWidget.contains("collection('reviews')"), isFalse);
-    expect(ModernHomeAppearanceTabs.quickBooking, 6);
-    expect(ModernHomeAppearanceTabs.policy, 7);
-    expect(ModernHomeAppearanceTabs.faq, 8);
-    expect(ModernHomeAppearanceTabs.reviews, 9);
-    expect(ModernHomeAppearanceTabs.navigation, 10);
-    expect(ModernHomeAppearanceTabs.length, 11);
+    expect(ModernHomeAppearanceTabs.quickBooking, 5);
+    expect(ModernHomeAppearanceTabs.policy, 6);
+    expect(ModernHomeAppearanceTabs.faq, 7);
+    expect(ModernHomeAppearanceTabs.reviews, 8);
+    expect(ModernHomeAppearanceTabs.navigation, 9);
+    expect(ModernHomeAppearanceTabs.length, 10);
     expect(
       ModernHomeAppearanceTabs.sectionTab('policy'),
       ModernHomeAppearanceTabs.policy,

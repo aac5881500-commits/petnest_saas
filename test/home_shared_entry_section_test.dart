@@ -1236,4 +1236,326 @@ void main() {
       expect(tester.takeException(), isNull, reason: label);
     }
   });
+
+  test('勾選套用保留順序與被移出的小卡設定', () {
+    const HomeSharedEntryCardSetting room = HomeSharedEntryCardSetting(
+      title: '住宿',
+      subtitle: '舒適安心',
+      imageAssetId: 'img-a',
+      recentImageAssetIds: <String>['img-a', 'img-b'],
+    );
+    final HomeSharedEntrySectionSetting start =
+        const HomeSharedEntrySectionSetting(
+          cardOrder: <String>['about', 'rooms'],
+        ).updateCard(HomeSharedEntrySources.rooms, room);
+    final HomeSharedEntrySectionSetting added = start
+        .applyJoined(const <String>[
+          HomeSharedEntrySources.rooms,
+          HomeSharedEntrySources.facilities,
+          HomeSharedEntrySources.about,
+          HomeSharedEntrySources.quickBooking,
+          HomeSharedEntrySources.rooms,
+        ]);
+    expect(added.cardOrder, <String>[
+      HomeSharedEntrySources.about,
+      HomeSharedEntrySources.rooms,
+      HomeSharedEntrySources.facilities,
+      HomeSharedEntrySources.quickBooking,
+    ]);
+    expect(added.cardOf(HomeSharedEntrySources.rooms).title, '住宿');
+    expect(added.cardOf(HomeSharedEntrySources.rooms).imageAssetId, 'img-a');
+
+    final HomeSharedEntrySectionSetting hidden = added.applyJoined(
+      const <String>[
+        HomeSharedEntrySources.facilities,
+        HomeSharedEntrySources.quickBooking,
+      ],
+    );
+    expect(hidden.cardOrder, <String>[
+      HomeSharedEntrySources.facilities,
+      HomeSharedEntrySources.quickBooking,
+    ]);
+    expect(hidden.cards[HomeSharedEntrySources.rooms]?.subtitle, '舒適安心');
+    expect(
+      hidden.cards[HomeSharedEntrySources.rooms]?.recentImageAssetIds,
+      <String>['img-a', 'img-b'],
+    );
+
+    final HomeSharedEntrySectionSetting restored = hidden
+        .applyJoined(const <String>[
+          HomeSharedEntrySources.facilities,
+          HomeSharedEntrySources.rooms,
+          HomeSharedEntrySources.quickBooking,
+        ]);
+    expect(restored.cardOrder.last, HomeSharedEntrySources.rooms);
+    expect(restored.cardOf(HomeSharedEntrySources.rooms).imageAssetId, 'img-a');
+    expect(restored.cardOrder.where((String id) => id == 'rooms').length, 1);
+  });
+
+  test('最近使用圖片去重、置頂，且舊資料缺欄位時為空', () {
+    HomeSharedEntryCardSetting card = const HomeSharedEntryCardSetting(
+      imageAssetId: 'img-a',
+    );
+    expect(card.recentImageAssetIds, isEmpty);
+    for (final String id in <String>[
+      'img-a',
+      'img-b',
+      'img-c',
+      'img-d',
+      'img-e',
+      'img-f',
+      'img-c',
+    ]) {
+      card = card.rememberImage(id);
+    }
+    expect(card.recentImageAssetIds, <String>[
+      'img-c',
+      'img-f',
+      'img-e',
+      'img-d',
+      'img-b',
+    ]);
+    expect(
+      card.rememberImage('bad/id').recentImageAssetIds,
+      card.recentImageAssetIds,
+    );
+    final HomeSharedEntryCardSetting cleared = card.copyWith(imageAssetId: '');
+    expect(cleared.imageAssetId, isEmpty);
+    expect(cleared.recentImageAssetIds, card.recentImageAssetIds);
+
+    final HomeSharedEntryCardSetting old = HomeSharedEntryCardSetting.fromMap(
+      <String, dynamic>{'title': '房型介紹', 'imageAssetId': 'keep-me'},
+      HomeSharedEntrySources.rooms,
+    );
+    expect(old.recentImageAssetIds, isEmpty);
+    expect(old.imageAssetId, 'keep-me');
+    final HomeSharedEntryCardSetting round = HomeSharedEntryCardSetting.fromMap(
+      card.toMap(),
+      HomeSharedEntrySources.rooms,
+    );
+    expect(round.recentImageAssetIds, card.recentImageAssetIds);
+
+    final HomeSharedEntrySectionSetting section =
+        const HomeSharedEntrySectionSetting()
+            .updateCard(HomeSharedEntrySources.rooms, card)
+            .without(HomeSharedEntrySources.rooms);
+    final HomeSharedEntrySectionSetting loaded =
+        HomeSharedEntrySectionSetting.fromMap(section.toMap());
+    expect(loaded.cardOrder, isEmpty);
+    expect(
+      loaded.cards[HomeSharedEntrySources.rooms]?.recentImageAssetIds,
+      card.recentImageAssetIds,
+    );
+    expect(loaded.cards[HomeSharedEntrySources.rooms]?.imageAssetId, 'img-a');
+  });
+
+  testWidgets('加入小卡可多選，取消不套用，移出後設定仍在', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    HomeSharedEntrySectionSetting setting =
+        const HomeSharedEntrySectionSetting(
+          enabled: true,
+          cardOrder: <String>['rooms'],
+        ).updateCard(
+          HomeSharedEntrySources.rooms,
+          const HomeSharedEntryCardSetting(
+            title: '住宿',
+            subtitle: '舒適安心',
+            imageAssetId: 'img-a',
+          ),
+        );
+    int changes = 0;
+    Future<void> pumpCard() {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SharedEntrySettingsCard(
+                setting: setting,
+                cards: <SharedEntryCardRef>[
+                  for (final String id in setting.cardOrder)
+                    SharedEntryCardRef(
+                      id: id,
+                      label: HomeSharedEntrySources.label(id),
+                    ),
+                ],
+                onChanged: (HomeSharedEntrySectionSetting next) {
+                  changes += 1;
+                  setting = next;
+                },
+                assetLookup: (String id) async => null,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpCard();
+    await tester.tap(find.text('排列'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('shared-entry-add')));
+    await tester.tap(find.byKey(const Key('shared-entry-add')));
+    await tester.pumpAndSettle();
+    expect(find.text('已加入'), findsOneWidget);
+    expect(find.text('已選 1 張'), findsOneWidget);
+    for (final String id in <String>['facilities', 'about', 'announcements']) {
+      await tester.ensureVisible(find.byKey(Key('shared-entry-option-$id')));
+      await tester.tap(find.byKey(Key('shared-entry-option-$id')));
+      await tester.pump();
+    }
+    expect(find.text('已選 4 張'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shared-entry-add-cancel')));
+    await tester.pumpAndSettle();
+    expect(changes, 0);
+    expect(setting.cardOrder, <String>['rooms']);
+
+    await tester.tap(find.byKey(const Key('shared-entry-add')));
+    await tester.pumpAndSettle();
+    for (final String id in <String>['facilities', 'about', 'announcements']) {
+      await tester.ensureVisible(find.byKey(Key('shared-entry-option-$id')));
+      await tester.tap(find.byKey(Key('shared-entry-option-$id')));
+      await tester.pump();
+    }
+    await tester.tap(find.byKey(const Key('shared-entry-add-apply')));
+    await tester.pumpAndSettle();
+    expect(setting.cardOrder, <String>[
+      'rooms',
+      'facilities',
+      'about',
+      'announcements',
+    ]);
+    await pumpCard();
+    await tester.pumpAndSettle();
+    final Finder layoutTab = find.widgetWithText(ChoiceChip, '排列');
+    await tester.ensureVisible(layoutTab);
+    await tester.tap(layoutTab);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('shared-entry-add')));
+    await tester.tap(find.byKey(const Key('shared-entry-add')));
+    await tester.pumpAndSettle();
+    final CheckboxListTile roomTile = tester.widget<CheckboxListTile>(
+      find.byKey(const Key('shared-entry-option-rooms')),
+    );
+    expect(roomTile.value, isTrue);
+    await tester.tap(find.byKey(const Key('shared-entry-add-cancel')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const Key('shared-entry-remove-rooms')),
+    );
+    await tester.tap(find.byKey(const Key('shared-entry-remove-rooms')));
+    await tester.pump();
+    expect(setting.cardOrder.contains('rooms'), isFalse);
+    expect(setting.cards['rooms']?.title, '住宿');
+    expect(setting.cards['rooms']?.imageAssetId, 'img-a');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('編輯小卡完成才寫入最近使用，取消則保留原設定', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1100, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    HomeSharedEntrySectionSetting setting =
+        const HomeSharedEntrySectionSetting(
+          enabled: true,
+          cardOrder: <String>['rooms'],
+        ).updateCard(
+          HomeSharedEntrySources.rooms,
+          const HomeSharedEntryCardSetting(
+            title: '住宿',
+            subtitle: '舒適安心',
+            imageAssetId: 'img-a',
+            recentImageAssetIds: <String>['img-a', 'img-b'],
+          ),
+        );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SharedEntrySettingsCard(
+              setting: setting,
+              cards: const <SharedEntryCardRef>[
+                SharedEntryCardRef(id: 'rooms', label: '房型介紹'),
+              ],
+              onChanged: (HomeSharedEntrySectionSetting next) {
+                setting = next;
+              },
+              assetLookup: (String id) async => null,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('排列'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('shared-entry-edit-rooms')),
+    );
+    await tester.tap(find.byKey(const Key('shared-entry-edit-rooms')));
+    await tester.pumpAndSettle();
+    expect(find.text('尚無最近使用的圖片'), findsNothing);
+    expect(find.text('最近使用'), findsOneWidget);
+    expect(find.text('主標題顏色'), findsOneWidget);
+    expect(find.text('清除目前圖片'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('shared-entry-recent-img-b')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('shared-entry-edit-cancel')));
+    await tester.pumpAndSettle();
+    expect(setting.cardOf('rooms').imageAssetId, 'img-a');
+    expect(setting.cardOf('rooms').recentImageAssetIds, <String>[
+      'img-a',
+      'img-b',
+    ]);
+
+    await tester.tap(find.byKey(const Key('shared-entry-edit-rooms')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shared-entry-recent-img-b')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('shared-entry-edit-done')));
+    await tester.pumpAndSettle();
+    expect(setting.cardOf('rooms').imageAssetId, 'img-b');
+    expect(setting.cardOf('rooms').title, '住宿');
+    expect(setting.cardOf('rooms').subtitle, '舒適安心');
+    expect(setting.cardOf('rooms').recentImageAssetIds.first, 'img-b');
+    expect(setting.cardOf('rooms').recentImageAssetIds, <String>[
+      'img-b',
+      'img-a',
+    ]);
+
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SharedEntrySettingsCard(
+              setting: setting,
+              cards: const <SharedEntryCardRef>[
+                SharedEntryCardRef(id: 'rooms', label: '房型介紹'),
+              ],
+              onChanged: (HomeSharedEntrySectionSetting next) {
+                setting = next;
+              },
+              assetLookup: (String id) async => null,
+            ),
+          ),
+        ),
+      ),
+    );
+    final Finder layoutTab = find.widgetWithText(ChoiceChip, '排列');
+    await tester.ensureVisible(layoutTab);
+    await tester.tap(layoutTab);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('shared-entry-edit-rooms')),
+    );
+    await tester.tap(find.byKey(const Key('shared-entry-edit-rooms')));
+    await tester.pumpAndSettle();
+    expect(find.text('清除目前圖片'), findsOneWidget);
+    expect(find.byKey(const Key('shared-entry-edit-done')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

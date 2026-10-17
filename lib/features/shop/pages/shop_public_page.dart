@@ -16,6 +16,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_template_feature_card.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
@@ -298,6 +299,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
           body: Stack(
             fit: StackFit.expand,
             children: [
+              Positioned.fill(child: ShopAppBackdrop(theme: classicTheme)),
               Column(
                 children: [
                   /// 🔥 上半部

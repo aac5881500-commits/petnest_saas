@@ -115,11 +115,26 @@ abstract final class PlatformPermissionKeys {
   /// 管理創店激活碼
   static const String manageActivationCodes = 'manage_activation_codes';
 
+  /// 只查看自己業務的激活碼，不能建立或改別人的碼
+  static const String viewOwnActivationCodes = 'view_own_activation_codes';
+
+  /// 預留。目前授予後仍不能自行產生激活碼。
+  static const String issueOwnActivationCodes = 'issue_own_activation_codes';
+
   /// 建立與調整業務、店家歸屬
   static const String manageSales = 'manage_sales';
 
+  /// 查看業務名單，不含其他業務的聯絡與分潤
+  static const String viewSales = 'view_sales';
+
   /// 業務只查看自己的客戶與業績
   static const String viewOwnSales = 'view_own_sales';
+
+  /// 只查看自己的分潤，不能看其他業務或改結算
+  static const String viewOwnCommission = 'view_own_commission';
+
+  /// 交接目前負責業務，不能改原始開發來源
+  static const String transferShopSales = 'transfer_shop_sales';
 
   /// 確認店家訂閱收款、退款與分潤發放
   static const String manageSubscriptionFinance =
@@ -157,8 +172,13 @@ abstract final class PlatformPermissionKeys {
     managePlatformReviews,
     managePlatformPolicies,
     manageActivationCodes,
+    viewOwnActivationCodes,
+    issueOwnActivationCodes,
     manageSales,
+    viewSales,
     viewOwnSales,
+    viewOwnCommission,
+    transferShopSales,
     manageSubscriptionFinance,
     viewPlatformLogs,
     managePlatformAdmins,
@@ -200,10 +220,20 @@ abstract final class PlatformPermissionKeys {
         return '管理平台條款';
       case manageActivationCodes:
         return '管理創店激活碼';
+      case viewOwnActivationCodes:
+        return '查看自己的激活碼';
+      case issueOwnActivationCodes:
+        return '預留：自行產生激活碼';
       case manageSales:
-        return '管理業務與店家歸屬';
+        return '管理所有業務';
+      case viewSales:
+        return '查看業務列表';
       case viewOwnSales:
-        return '查看自己的業務客戶';
+        return '查看自己的業務資料';
+      case viewOwnCommission:
+        return '查看自己的分潤';
+      case transferShopSales:
+        return '交接目前負責業務';
       case manageSubscriptionFinance:
         return '管理店家訂閱收款與分潤';
       case viewPlatformLogs:
@@ -232,9 +262,19 @@ abstract final class PlatformPermissionKeys {
       case manageSubscriptionFinance:
         return '可確認店家方案收款、退款與分潤，不能由查看業者名單取得。';
       case manageSales:
-        return '可建立業務、交接目前負責人，並在填寫理由後更正原始開發業務。';
+        return '可指派平台會員為業務、查看全部業務，並在填寫理由後更正原始開發業務。';
+      case viewSales:
+        return '可查看業務名單與啟用狀態，不能看其他業務的聯絡資料或分潤。';
       case viewOwnSales:
-        return '只能查看綁定業務自己的客戶與月份業績，不能改比例或發放分潤。';
+        return '只能查看綁定到自己的業務資料、負責店家與業績。';
+      case viewOwnActivationCodes:
+        return '只能查看自己業務的激活碼，不能建立或修改。';
+      case issueOwnActivationCodes:
+        return '預留權限。目前即使授予，也不能自行產生激活碼。';
+      case viewOwnCommission:
+        return '只能查看自己的分潤，不能看其他業務或修改結算。';
+      case transferShopSales:
+        return '可交接店家目前負責人。不能改原始開發業務，也不改已確認的分潤。';
       case managePlatformAdmins:
         return '高風險權限，可建立平台員工並調整其權限。';
       case managePlatformMedia:

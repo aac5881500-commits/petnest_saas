@@ -886,37 +886,10 @@ Widget _buildDesktopShopWorkspace({
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: ListView(
-        padding: const EdgeInsets.all(22),
-        children: [
-          _ShopIdentityHeader(shop: shop, logoSize: 60),
-          ShopCommercialSummaryCard(shopId: shop.shopId),
-          const SizedBox(height: 18),
-          const _SectionLabel('營運概況'),
-          const SizedBox(height: 8),
-          _ShopMetricsGrid(shop: shop, tileHeight: 86),
-          const SizedBox(height: 18),
-          const _SectionLabel('方案與平台控制'),
-          const SizedBox(height: 8),
-          _PlanRow(shop: shop),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _ToggleCard.public(shop, minHeight: 76)),
-              const SizedBox(width: 12),
-              Expanded(child: _ToggleCard.external(shop, minHeight: 76)),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const _SectionLabel('平台資料'),
-          const SizedBox(height: 8),
-          _ShopInfoChips(shop: shop, formatDate: formatDate),
-          const SizedBox(height: 18),
-          const _SectionLabel('店家操作'),
-          const SizedBox(height: 8),
-          _ShopActionGrid(shop: shop, buttonHeight: 48, gap: 12),
-        ],
+      child: _ShopDetailTabs(
+        shop: shop,
+        formatDate: formatDate,
+        compact: false,
       ),
     ),
   );
@@ -988,33 +961,131 @@ class _PlatformShopDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _ShopDetailTabs(
+      shop: shop,
+      formatDate: formatDate,
+      compact: true,
+    );
+  }
+}
+
+class _ShopDetailTabs extends StatelessWidget {
+  const _ShopDetailTabs({
+    required this.shop,
+    required this.formatDate,
+    required this.compact,
+  });
+
+  final _ShopVisual shop;
+  final String Function(dynamic value) formatDate;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          const Material(
+            color: Colors.white,
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: [
+                Tab(text: '店家總覽'),
+                Tab(text: '訂閱與收款'),
+                Tab(text: '開發與業務'),
+                Tab(text: '營運資料'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _tab(
+                  bottom: bottom,
+                  children: [
+                    if (compact)
+                      _DetailSummaryCard(shop: shop)
+                    else
+                      _ShopIdentityHeader(shop: shop, logoSize: 60),
+                    _PlanRow(shop: shop),
+                    const SizedBox(height: 12),
+                    _ShopMetricsGrid(shop: shop, tileHeight: compact ? 92 : 86),
+                    ShopCommercialSummaryCard(
+                      shopId: shop.shopId,
+                      section: ShopCommercialSection.subscription,
+                    ),
+                  ],
+                ),
+                _tab(
+                  bottom: bottom,
+                  children: [
+                    _PlanRow(shop: shop),
+                    ShopCommercialSummaryCard(
+                      shopId: shop.shopId,
+                      section: ShopCommercialSection.subscription,
+                    ),
+                  ],
+                ),
+                _tab(
+                  bottom: bottom,
+                  children: [
+                    ShopCommercialSummaryCard(
+                      shopId: shop.shopId,
+                      section: ShopCommercialSection.development,
+                    ),
+                  ],
+                ),
+                _tab(
+                  bottom: bottom,
+                  children: [
+                    const _SectionLabel('營運概況'),
+                    const SizedBox(height: 8),
+                    _ShopMetricsGrid(shop: shop, tileHeight: compact ? 92 : 86),
+                    const SizedBox(height: 16),
+                    if (compact) ...[
+                      _ToggleCard.public(shop, minHeight: 74),
+                      const SizedBox(height: 10),
+                      _ToggleCard.external(shop, minHeight: 74),
+                    ] else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _ToggleCard.public(shop, minHeight: 76)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ToggleCard.external(shop, minHeight: 76),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 16),
+                    _MorePlatformData(
+                      child: _ShopInfoChips(shop: shop, formatDate: formatDate),
+                    ),
+                    const SizedBox(height: 16),
+                    const _SectionLabel('店家操作'),
+                    const SizedBox(height: 8),
+                    _ShopActionGrid(
+                      shop: shop,
+                      buttonHeight: 48,
+                      gap: compact ? 10 : 12,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab({required double bottom, required List<Widget> children}) {
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 24 + bottom),
-      children: [
-        _DetailSummaryCard(shop: shop),
-        ShopCommercialSummaryCard(shopId: shop.shopId),
-        const SizedBox(height: 14),
-        const _SectionLabel('營運概況'),
-        const SizedBox(height: 8),
-        _ShopMetricsGrid(shop: shop, tileHeight: 92),
-        const SizedBox(height: 16),
-        const _SectionLabel('方案與公開設定'),
-        const SizedBox(height: 8),
-        _PlanRow(shop: shop),
-        const SizedBox(height: 10),
-        _ToggleCard.public(shop, minHeight: 74),
-        const SizedBox(height: 10),
-        _ToggleCard.external(shop, minHeight: 74),
-        const SizedBox(height: 16),
-        _MorePlatformData(
-          child: _ShopInfoChips(shop: shop, formatDate: formatDate),
-        ),
-        const SizedBox(height: 16),
-        const _SectionLabel('店家操作'),
-        const SizedBox(height: 8),
-        _ShopActionGrid(shop: shop, buttonHeight: 48, gap: 10),
-      ],
+      padding: EdgeInsets.fromLTRB(compact ? 16 : 22, 12, compact ? 16 : 22, 24 + bottom),
+      children: children,
     );
   }
 }

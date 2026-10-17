@@ -46,6 +46,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/home_quick_action
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/about_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_appearance_preset_strip.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/appearance_category_bar.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_appearance_tabs.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/faq_section_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/policy_section_settings_panel.dart';
@@ -198,7 +199,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   FrontendNavigationConfig _savedNavigation =
       FrontendNavigationConfig.defaults();
   final ScrollController _appearanceScroll = ScrollController();
-  final ScrollController _colorScroll = ScrollController();
+  final List<ScrollController> _appearanceCategoryScrolls =
+      List<ScrollController>.generate(
+        AppearanceCategories.length,
+        (_) => ScrollController(),
+      );
+  int _appearanceCategory = AppearanceCategories.brand;
   final ScrollController _navigationScroll = ScrollController();
   HomeThemeModel _colorEntryTheme = HomeThemeModel.modernDefault;
   String? _selectedHomeSection;
@@ -342,7 +348,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _storeBannerButtonTextController.dispose();
     _floatingButtonLabelController.dispose();
     _appearanceScroll.dispose();
-    _colorScroll.dispose();
+    for (final ScrollController controller in _appearanceCategoryScrolls) {
+      controller.dispose();
+    }
     _navigationScroll.dispose();
     super.dispose();
   }
@@ -992,7 +1000,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 tabAlignment: TabAlignment.start,
                 tabs: const [
                   Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
-                  Tab(icon: Icon(Icons.color_lens_outlined), text: '首頁色彩'),
                   Tab(icon: Icon(Icons.bedroom_parent_outlined), text: '房型展示'),
                   Tab(icon: Icon(Icons.yard_outlined), text: '環境展示'),
                   Tab(icon: Icon(Icons.favorite_border), text: '關於我們'),
@@ -1012,7 +1019,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           physics: const NeverScrollableScrollPhysics(),
           children: [
             _buildAppearancePane(desktopModern),
-            _buildColorPane(desktopModern),
             _buildRoomPane(desktopModern),
             _buildEnvironmentPane(desktopModern),
             _buildAboutPane(desktopModern),
@@ -1175,6 +1181,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   Widget _appearancePresetStrip() {
     return HomeAppearancePresetStrip(
+      showHeading: false,
       draft: _appearanceDraft,
       presetId: _appearancePresetId,
       previewingId: _browsingPresetId,
@@ -1604,106 +1611,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  Widget _buildColorPane(bool desktopModern) {
-    if (_selectedLayout != 'modern') {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: const <Widget>[
-          Text(
-            '首頁色彩的細項設定套用在新版前台。請先在外觀設定改用新版首頁。經典版的主題與背景仍留在外觀設定。',
-            style: TextStyle(height: 1.4),
-          ),
-        ],
-      );
-    }
-    final Widget settings = Scrollbar(
-      controller: _colorScroll,
-      thumbVisibility: true,
-      child: ListView(
-        controller: _colorScroll,
-        primary: false,
-        padding: const EdgeInsets.fromLTRB(4, 4, 8, 24),
-        children: <Widget>[
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 860),
-              child: HomeColorSettingsPanel(
-                theme: _modernTheme,
-                entryTheme: _colorEntryTheme,
-                onChanged: _replaceModernTheme,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (desktopModern) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            SizedBox(
-              width: 452,
-              child: _homeCanvasPreview(
-                showCaption: true,
-                canvasMode: 'desktop',
-              ),
-            ),
-            const SizedBox(width: 16),
-            const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                children: <Widget>[
-                  Expanded(child: settings),
-                  _saveBar(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: SegmentedButton<int>(
-            segments: const <ButtonSegment<int>>[
-              ButtonSegment<int>(
-                value: 0,
-                label: Text('預覽'),
-                icon: Icon(Icons.smartphone_outlined),
-              ),
-              ButtonSegment<int>(
-                value: 1,
-                label: Text('設定'),
-                icon: Icon(Icons.tune),
-              ),
-            ],
-            selected: <int>{_homeCanvasPane},
-            onSelectionChanged: (Set<int> value) {
-              setState(() => _homeCanvasPane = value.first);
-            },
-          ),
-        ),
-        Expanded(
-          child: _homeCanvasPane == 0
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: _homeCanvasPreview(
-                    showCaption: false,
-                    canvasMode: 'mobile',
-                  ),
-                )
-              : settings,
-        ),
-      ],
-    );
-  }
-
   void _onAppearanceTabSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) {
       return;
@@ -2048,15 +1955,22 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 860),
-              child: FrontendNavigationPanel(
-                config: _navigationConfig,
-                shopState: _navShopState,
-                onChanged: (FrontendNavigationConfig value) {
-                  setState(() {
-                    _navigationConfig = value;
-                    _appearanceDirty = true;
-                  });
-                },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _buildModernDrawerSettings(),
+                  const SizedBox(height: 16),
+                  FrontendNavigationPanel(
+                    config: _navigationConfig,
+                    shopState: _navShopState,
+                    onChanged: (FrontendNavigationConfig value) {
+                      setState(() {
+                        _navigationConfig = value;
+                        _appearanceDirty = true;
+                      });
+                    },
+                  ),
+                ],
               ),
             ),
           ),
@@ -2106,45 +2020,16 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       }
       return;
     }
-    if (_selectedHomeSection == sectionId) {
-      return;
-    }
+    final int category = AppearanceCategories.forSection(sectionId);
     setState(() {
       _selectedHomeSection = sectionId;
+      _appearanceCategory = category;
       if (!_desktopModernLayout) {
         _homeCanvasPane = 1;
       }
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final BuildContext? target = _settingsKeyFor(sectionId).currentContext;
-      if (target == null) {
-        return;
-      }
-      Scrollable.ensureVisible(
-        target,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOut,
-        alignment: 0.05,
-      );
-    });
-  }
-
-  GlobalKey _settingsKeyFor(String sectionId) {
-    switch (sectionId) {
-      case 'header':
-        return _headerSettingsKey;
-      case 'banners':
-        return _bannerSettingsKey;
-      case 'sharedEntries':
-        return _sharedEntrySettingsKey;
-      case 'featured':
-      case 'storeEntrance':
-        return _storeSettingsKey;
-      default:
-        return _pendingSettingsKey;
+    if (_tabController.index != ModernHomeAppearanceTabs.appearance) {
+      _tabController.animateTo(ModernHomeAppearanceTabs.appearance);
     }
   }
 
@@ -2264,61 +2149,92 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   Widget _modernDesktopWorkspace() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          SizedBox(
-            width: 452,
-            child: _homeCanvasPreview(showCaption: true, canvasMode: 'desktop'),
-          ),
-          const SizedBox(width: 16),
-          const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              children: <Widget>[
-                Expanded(
-                  child: _modernSettingsScroll(includePreviewButton: false),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double previewWidth = (constraints.maxWidth * 0.30).clamp(
+          360.0,
+          480.0,
+        );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(
+                width: previewWidth,
+                child: _homeCanvasPreview(
+                  showCaption: true,
+                  canvasMode: 'desktop',
                 ),
-                _saveBar(),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+              const SizedBox(width: 12),
+              Expanded(child: _appearanceSettingsColumn(showSave: true)),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _modernSettingsScroll({required bool includePreviewButton}) {
+  Widget _appearanceSettingsColumn({required bool showSave}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Expanded(
+          child: Column(
+            children: <Widget>[
+              Expanded(child: _appearanceCategoryStack()),
+              if (showSave) _saveBar(),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 112,
+          child: SingleChildScrollView(
+            primary: false,
+            padding: const EdgeInsets.only(bottom: 12),
+            child: AppearanceCategoryRail(
+              selected: _appearanceCategory,
+              onSelected: _selectAppearanceCategory,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _appearanceCategoryStack() {
+    return IndexedStack(
+      index: _appearanceCategory.clamp(0, AppearanceCategories.length - 1),
+      sizing: StackFit.expand,
+      children: <Widget>[
+        for (int index = 0; index < AppearanceCategories.length; index++)
+          _appearanceCategoryScroll(index),
+      ],
+    );
+  }
+
+  Widget _appearanceCategoryScroll(int index) {
     return Scrollbar(
-      controller: _appearanceScroll,
+      controller: _appearanceCategoryScrolls[index],
       thumbVisibility: true,
       child: ListView(
-        controller: _appearanceScroll,
+        controller: _appearanceCategoryScrolls[index],
         primary: false,
-        padding: const EdgeInsets.fromLTRB(4, 4, 8, 24),
+        padding: const EdgeInsets.fromLTRB(0, 4, 4, 24),
         children: <Widget>[
           Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 960),
+              constraints: const BoxConstraints(maxWidth: 920),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  if (includePreviewButton) ...<Widget>[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        onPressed: _openModernPreview,
-                        icon: const Icon(Icons.smartphone_outlined),
-                        label: const Text('預覽新版首頁'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  ..._modernEditorSections(),
+                  _appearanceCategoryHeading(index),
+                  ..._appearanceCategoryChildren(index),
                 ],
               ),
             ),
@@ -2355,55 +2271,146 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         Expanded(
           child: _homeCanvasPane == 0
               ? Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                   child: _homeCanvasPreview(
                     showCaption: false,
                     canvasMode: 'mobile',
                   ),
                 )
-              : _modernSettingsScroll(includePreviewButton: false),
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  child: Column(
+                    children: <Widget>[
+                      _appearanceCategorySelector(),
+                      const SizedBox(height: 8),
+                      Expanded(child: _appearanceCategoryStack()),
+                    ],
+                  ),
+                ),
         ),
       ],
     );
   }
 
-  void _openModernPreview() {
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return Dialog.fullscreen(
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('預覽新版首頁'),
-              leading: const CloseButton(),
+  Widget _appearanceCategoryHeading(int index) {
+    final AppearanceCategoryItem item = AppearanceCategories.of(index);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            item.label,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.description,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: Colors.black54,
             ),
-            body: _homeCanvasPreview(
-              showCaption: false,
-              canvasMode: 'dialog',
-              embeddedAdminPreview: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _appearanceCategorySelector() {
+    final AppearanceCategoryItem item = AppearanceCategories.of(
+      _appearanceCategory,
+    );
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        key: const ValueKey<String>('appearance-category-selector'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: _openAppearanceCategorySheet,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE6E8EC)),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(item.icon, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '目前分類：${item.shortLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              const Icon(Icons.expand_more),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAppearanceCategorySheet() async {
+    final int? next = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const Text(
+                  '選擇設定分類',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                AppearanceCategoryPicker(
+                  selected: _appearanceCategory,
+                  onSelected: (int value) {
+                    Navigator.of(sheetContext).pop(value);
+                  },
+                ),
+              ],
             ),
           ),
         );
       },
     );
+    if (next == null || !mounted) {
+      return;
+    }
+    _selectAppearanceCategory(next);
   }
 
-  List<Widget> _modernEditorSections() {
+  void _selectAppearanceCategory(int value) {
+    setState(() => _appearanceCategory = value);
+    final ScrollController controller = _appearanceCategoryScrolls[value];
+    if (controller.hasClients) {
+      controller.jumpTo(0);
+    }
+  }
+
+  List<Widget> _appearanceCategoryChildren(int index) {
+    return switch (index) {
+      AppearanceCategories.presets => _presetCategory(),
+      AppearanceCategories.brand => _brandCategory(),
+      AppearanceCategories.cards => _sharedCardCategory(),
+      AppearanceCategories.banners => _bannerCategory(),
+      AppearanceCategories.background => _backgroundCategory(),
+      _ => _otherAppearanceCategory(),
+    };
+  }
+
+  List<Widget> _brandCategory() {
     return <Widget>[
-      _appearancePresetStrip(),
-      const SizedBox(height: 16),
-      _editorCard(
-        title: '新版首頁基本外觀',
-        subtitle: '目前使用新版首頁',
-        trailing: TextButton(
-          onPressed: () => _changeLayout('classic'),
-          child: const Text('改用經典版'),
-        ),
-        child: const Text(
-          '顧客進入店家時會看到新版 Beta。經典版的顏色設定會保留。',
-          style: TextStyle(fontSize: 13, height: 1.4),
-        ),
-      ),
       KeyedSubtree(
         key: _headerSettingsKey,
         child: StoreBrandSettingsCard(
@@ -2423,6 +2430,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           },
         ),
       ),
+    ];
+  }
+
+  List<Widget> _sharedCardCategory() {
+    return <Widget>[
       KeyedSubtree(
         key: _sharedEntrySettingsKey,
         child: _editorCard(
@@ -2442,14 +2454,49 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           ),
         ),
       ),
+    ];
+  }
+
+  List<Widget> _bannerCategory() {
+    return <Widget>[
       KeyedSubtree(
         key: _bannerSettingsKey,
-        child: HomeSettingsFold(
+        child: _editorCard(
           title: '首頁活動海報',
           subtitle: '同一個海報區域可切換經典完整海報或活動滑動海報。圖片與連結仍到活動海報管理編輯。',
           summary: _bannerStatusText,
-          initiallyExpanded: true,
           child: _buildHomeBannerDisplaySettings(),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _presetCategory() {
+    return <Widget>[_appearancePresetStrip()];
+  }
+
+  List<Widget> _backgroundCategory() {
+    return <Widget>[
+      HomeColorSettingsPanel(
+        theme: _modernTheme,
+        entryTheme: _colorEntryTheme,
+        onChanged: _replaceModernTheme,
+      ),
+    ];
+  }
+
+  List<Widget> _otherAppearanceCategory() {
+    return <Widget>[
+      _editorCard(
+        title: '新版首頁基本外觀',
+        subtitle: '目前使用新版首頁',
+        trailing: TextButton(
+          onPressed: () => _changeLayout('classic'),
+          child: const Text('改用經典版'),
+        ),
+        child: const Text(
+          '顧客進入店家時會看到新版 Beta。經典版的顏色設定會保留。',
+          style: TextStyle(fontSize: 13, height: 1.4),
         ),
       ),
       _roleActionCards(),
@@ -2498,11 +2545,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             ),
           ),
         ),
-      _editorCard(
-        title: '側邊選單',
-        subtitle: '影響新版首頁左上角選單要顯示的內容',
-        child: _buildModernDrawerSettings(),
-      ),
     ];
   }
 
@@ -2908,6 +2950,25 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       ),
       child: Column(
         children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '選單內容',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '沿用原本的側邊選單開關。已儲存的顯示狀態不會被改掉。',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: Colors.black54,
+              ),
+            ),
+          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('顯示會員區'),
@@ -2920,6 +2981,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                     showMemberCenter: value,
                   ),
                 );
+                _appearanceDirty = true;
               });
             },
           ),
@@ -2937,6 +2999,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                     showLatestBooking: value,
                   ),
                 );
+                _appearanceDirty = true;
               });
             },
           ),
@@ -2978,6 +3041,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                     showShopMenus: value,
                   ),
                 );
+                _appearanceDirty = true;
               });
             },
           ),
@@ -2995,6 +3059,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                     showFooter: value,
                   ),
                 );
+                _appearanceDirty = true;
               });
             },
           ),

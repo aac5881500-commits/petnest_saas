@@ -954,8 +954,15 @@ class _BannerTextChip extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       textAlign: align,
       style: TextStyle(
+        fontFamily: element.appliedFontFamily,
         fontSize: fontSize,
         height: designScale ? (titleLike ? 1.15 : 1.3) : 1.15,
+        letterSpacing: element.letterSpacing == 0
+            ? null
+            : StoreBannerFontSizes.scaleDesign(
+                element.letterSpacing,
+                bannerHeight,
+              ),
         fontWeight: StoreBannerFontWeights.weight(element.fontWeightPreset),
         color: element.hasText ? textColor : textColor.withValues(alpha: 0.45),
         shadows: showBackground

@@ -34,6 +34,13 @@ const createShopWithActivation = onCall(options, async (request) => {
   return ops.createShopWithActivation(request, request.data || {});
 });
 
+const validateShopActivationCode = onCall(options, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "請先登入");
+  }
+  return ops.validateShopActivationCode(request, request.data || {});
+});
+
 const saveSalesRep = onCall(options, async (request) => {
   const user = await platformUser(request);
   return ops.saveSalesRep(user, request.data || {});
@@ -41,7 +48,22 @@ const saveSalesRep = onCall(options, async (request) => {
 
 const listSalesReps = onCall(options, async (request) => {
   const user = await platformUser(request);
-  return ops.listSalesReps(user);
+  return ops.listSalesReps(user, request.data || {});
+});
+
+const listAssignablePlatformMembers = onCall(options, async (request) => {
+  const user = await platformUser(request);
+  return ops.listAssignablePlatformMembers(user, request.data || {});
+});
+
+const getSalesIdentity = onCall(options, async (request) => {
+  const user = await platformUser(request);
+  return ops.getSalesIdentity(user, request.data || {});
+});
+
+const setSalesIdentity = onCall(options, async (request) => {
+  const user = await platformUser(request);
+  return ops.setSalesIdentity(user, request.data || {});
 });
 
 const saveActivationCode = onCall(options, async (request) => {
@@ -50,77 +72,123 @@ const saveActivationCode = onCall(options, async (request) => {
 });
 
 const listActivationCodes = onCall(options, async (request) => {
-  await platformUser(request, ["manage_activation_codes"]);
+  const user = await platformUser(request);
+  const manageCodes = hasPlatformAccess(user, ["manage_activation_codes"]);
+  const ownCodes = hasPlatformAccess(user, ["view_own_activation_codes"]);
+  if (!manageCodes && !ownCodes) {
+    throw new HttpsError("permission-denied", "沒有這項權限");
+  }
   const data = request.data || {};
   const db = admin.firestore();
   const today = policy.taipeiDateKey(new Date());
   const migration = await db.collection("commercial_migration")
       .doc("activation_codes").get();
+  let salesRepId = String(data.salesRepId || "");
+  if (!manageCodes) {
+    const own = await db.collection("platform_sales_reps")
+        .where("platformUid", "==", user.uid)
+        .limit(1)
+        .get();
+    if (own.empty) {
+      throw new HttpsError("permission-denied", "這個帳號沒有綁定業務");
+    }
+    salesRepId = own.docs[0].id;
+  }
   const textQuery = String(data.query || "").trim();
   const nameQuery = /[^\u0020-\u007e]/.test(textQuery);
-  let query = db.collection("activation_codes");
-  if (textQuery && nameQuery) {
-    query = query.where(
-        "nameGrams",
-        "array-contains",
-        policy.activationNameGram(textQuery),
-    );
-  } else if (textQuery) {
-    query = query.where(
-        "codePrefixes",
-        "array-contains",
-        policy.normalizeActivationCode(textQuery),
-    );
-  } else if (data.salesRepId) {
-    query = query.where("salesRepId", "==", String(data.salesRepId));
-  }
-  query = query.orderBy("normalizedCode").orderBy(
-      admin.firestore.FieldPath.documentId(),
-  ).limit(31);
-  if (data.cursor && String(data.cursor).includes("|")) {
-    const parts = String(data.cursor).split("|");
-    query = query.startAfter(parts[0], parts.slice(1).join("|"));
-  }
-  const snap = await query.get();
-  const status = String(data.status || "");
   const nameNeedle = textQuery.normalize("NFKC").toLowerCase()
       .replace(/\s+/g, "");
+  const filters = {
+    status: String(data.status || ""),
+    salesRepId: salesRepId,
+    source: String(data.source || ""),
+    nameNeedle: nameQuery ? nameNeedle : "",
+  };
   const items = [];
-  snap.docs.slice(0, 30).forEach((doc) => {
-    const row = doc.data() || {};
-    const current = policy.activationStatus(row, today);
-    if (status && current !== status) return;
-    const name = String(row.nameNorm || row.name || "").toLowerCase();
-    if (nameQuery && nameNeedle && name.indexOf(nameNeedle) < 0) return;
-    items.push({
-      codeId: doc.id,
-      code: row.code || "",
-      name: row.name || "",
-      plan: row.plan || "",
-      salesRepId: row.salesRepId || "",
-      campaignName: row.campaignName || "",
-      freeDays: Number(row.freeDays || 0),
-      usedCount: Number(row.usedCount || 0),
-      maxUses: Number(row.maxUses || 0),
-      status: current,
-      useByDate: policy.effectiveUseByDate(row),
-      note: row.note || "",
-      enabled: row.enabled !== false,
-      module: row.module || "",
-      shopSource: row.shopSource || "",
-      normalizedCode: row.normalizedCode || "",
-    });
-  });
-  const hasMore = snap.size > 30;
-  const last = snap.docs[Math.min(snap.docs.length, 30) - 1];
-  const nextCursor = hasMore && last ?
-    `${last.get("normalizedCode") || ""}|${last.id}` : "";
+  let cursorCode = "";
+  let cursorId = "";
+  if (data.cursor && String(data.cursor).includes("|")) {
+    const parts = String(data.cursor).split("|");
+    cursorCode = parts[0];
+    cursorId = parts.slice(1).join("|");
+  }
+  let exhausted = false;
+  let last = null;
+  const pageSize = 30;
+  const batchSize = 40;
+  for (let round = 0; round < 8 && items.length < pageSize; round += 1) {
+    let query = db.collection("activation_codes");
+    if (textQuery && nameQuery) {
+      query = query.where(
+          "nameGrams",
+          "array-contains",
+          policy.activationNameGram(textQuery),
+      );
+    } else if (textQuery) {
+      query = query.where(
+          "codePrefixes",
+          "array-contains",
+          policy.normalizeActivationCode(textQuery),
+      );
+    } else if (salesRepId) {
+      query = query.where("salesRepId", "==", salesRepId);
+    }
+    query = query.orderBy("normalizedCode").orderBy(
+        admin.firestore.FieldPath.documentId(),
+    ).limit(batchSize);
+    if (cursorId) query = query.startAfter(cursorCode, cursorId);
+    const snap = await query.get();
+    if (snap.empty) {
+      exhausted = true;
+      break;
+    }
+    let pageFull = false;
+    for (let index = 0; index < snap.docs.length; index += 1) {
+      const doc = snap.docs[index];
+      last = doc;
+      cursorCode = String(doc.get("normalizedCode") || "");
+      cursorId = doc.id;
+      const row = doc.data() || {};
+      if (!policy.matchesActivationFilters(row, filters, today)) continue;
+      const maxUses = Number(row.maxUses || 0);
+      const usedCount = Number(row.usedCount || 0);
+      items.push({
+        codeId: doc.id,
+        code: row.code || "",
+        name: row.name || "",
+        plan: row.plan || "",
+        salesRepId: row.salesRepId || "",
+        campaignName: row.campaignName || "",
+        freeDays: Number(row.freeDays || 0),
+        usedCount: usedCount,
+        maxUses: maxUses,
+        remainingUses: Math.max(0, maxUses - usedCount),
+        status: policy.activationStatus(row, today),
+        useByDate: policy.effectiveUseByDate(row),
+        note: row.note || "",
+        enabled: row.enabled !== false,
+        module: row.module || "",
+        shopSource: row.shopSource || "",
+        normalizedCode: row.normalizedCode || "",
+      });
+      if (items.length >= pageSize) {
+        pageFull = true;
+        break;
+      }
+    }
+    if (pageFull) break;
+    if (snap.size < batchSize) {
+      exhausted = true;
+      break;
+    }
+  }
+  const hasMore = !exhausted;
   return {
     items: items,
     hasMore: hasMore,
-    nextCursor: nextCursor,
+    nextCursor: hasMore && last ? `${cursorCode}|${cursorId}` : "",
     migrationReady: migration.exists && migration.get("ready") === true,
-    exhausted: !hasMore,
+    exhausted: exhausted,
   };
 });
 
@@ -352,6 +420,7 @@ const listResponsibleShops = onCall(options, async (request) => {
   const hasMore = snap.size > 30;
   const last = page[page.length - 1];
   return {
+    queriedRepId: repId,
     total: total.data().count,
     dueCount: due.data().count,
     pageCount: page.length,
@@ -377,7 +446,7 @@ const listCommissionEntries = onCall(options, async (request) => {
   const manage = hasPlatformAccess(user, ["manage_subscription_finance"]);
   let repId = String(data.repId || "");
   if (!manage) {
-    if (!hasPlatformAccess(user, ["view_own_sales"])) {
+    if (!hasPlatformAccess(user, ["view_own_sales", "view_own_commission"])) {
       throw new HttpsError("permission-denied", "沒有這項權限");
     }
     const own = await db.collection("platform_sales_reps")
@@ -416,6 +485,7 @@ const listCommissionEntries = onCall(options, async (request) => {
   const hasMore = snap.size === 80 || stoppedEarly;
   const nextDoc = stoppedEarly ? cursorDoc : tail;
   return {
+    queriedRepId: repId,
     hasMore: hasMore,
     nextCursor: hasMore && nextDoc ? nextDoc.id : "",
     pageCount: items.length,
@@ -477,7 +547,7 @@ const salesMonthSummary = onCall(options, async (request) => {
     hasPlatformAccess(user, ["manage_subscription_finance"]);
   const db = admin.firestore();
   if (!manage) {
-    if (!hasPlatformAccess(user, ["view_own_sales"])) {
+    if (!hasPlatformAccess(user, ["view_own_sales", "view_own_commission"])) {
       throw new HttpsError("permission-denied", "沒有這項權限");
     }
     const own = await db.collection("platform_sales_reps")
@@ -491,23 +561,45 @@ const salesMonthSummary = onCall(options, async (request) => {
     const doc = await db.collection("sales_month_summaries")
         .doc(`${repId}_${month}`).get();
     const row = doc.data() || {};
+    const ownMoney = hasPlatformAccess(user, [
+      "view_own_commission",
+      "view_own_sales",
+      "manage_subscription_finance",
+    ]);
     return {items: [Object.assign({repId: repId, month: month}, row, {
       displayName: own.docs[0].get("displayName") || "",
+      commissionVisible: ownMoney,
     })]};
   }
+  const finance = hasPlatformAccess(user, ["manage_subscription_finance"]);
   const snap = await db.collection("sales_month_summaries")
       .where("month", "==", month)
       .limit(100)
       .get();
   return {
-    items: snap.docs.map((doc) => doc.data()),
+    items: snap.docs.map((doc) => {
+      const row = Object.assign({}, doc.data());
+      if (!finance) {
+        delete row.earnedCommissionMinor;
+        delete row.openCommissionMinor;
+        delete row.paidCommissionMinor;
+        delete row.adjustmentMinor;
+        delete row.recoveryMinor;
+      }
+      row.commissionVisible = finance;
+      return row;
+    }),
   };
 });
 
 module.exports = {
   createShopWithActivation,
+  validateShopActivationCode,
   saveSalesRep,
   listSalesReps,
+  listAssignablePlatformMembers,
+  getSalesIdentity,
+  setSalesIdentity,
   saveActivationCode,
   listActivationCodes,
   registerSubscriptionPayment,

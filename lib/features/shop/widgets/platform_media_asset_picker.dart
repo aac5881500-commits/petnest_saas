@@ -224,7 +224,7 @@ class _PlatformMediaAssetPickerSheetState
 
   Widget _buildBody() {
     if (widget.errorOverride != null) {
-      return _ErrorPane(onRetry: _retryLoad);
+      return _ErrorPane(detail: widget.errorOverride, onRetry: _retryLoad);
     }
     if (widget.assetsOverride != null) {
       return _buildGrid(_filterPlacement(widget.assetsOverride!));
@@ -246,7 +246,7 @@ class _PlatformMediaAssetPickerSheetState
           ) {
             if (snapshot.hasError) {
               _logLoadError(snapshot.error);
-              return _ErrorPane(onRetry: _retryLoad);
+              return _ErrorPane(detail: snapshot.error, onRetry: _retryLoad);
             }
             if (snapshot.connectionState == ConnectionState.waiting &&
                 !snapshot.hasData) {
@@ -458,23 +458,40 @@ class _PlatformMediaAssetPickerSheetState
 }
 
 class _ErrorPane extends StatelessWidget {
-  const _ErrorPane({required this.onRetry});
+  const _ErrorPane({required this.onRetry, this.detail});
 
   final VoidCallback onRetry;
+  final Object? detail;
 
   @override
   Widget build(BuildContext context) {
+    final String message = detail?.toString().trim() ?? '';
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Text(PlatformMediaAssetPickerLabels.loadError),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: onRetry,
-            child: const Text(PlatformMediaAssetPickerLabels.retry),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Text(PlatformMediaAssetPickerLabels.loadError),
+            if (message.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Colors.black54,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: onRetry,
+              child: const Text(PlatformMediaAssetPickerLabels.retry),
+            ),
+          ],
+        ),
       ),
     );
   }
