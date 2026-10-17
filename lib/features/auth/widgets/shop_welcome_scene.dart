@@ -228,6 +228,7 @@ class _InnScenePainter extends CustomPainter {
     canvas.scale(scale);
     _paintGarden(canvas);
     _paintInn(canvas);
+    _paintDetails(canvas);
     if (drawCat) _paintCat(canvas, pose);
     canvas.restore();
   }
@@ -241,9 +242,9 @@ class _InnScenePainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            Color(0xFFFFF8F2),
-            Color(0xFFF3E7DA),
-            Color(0xFFE7F0E6),
+            Color(0xFFFFFAF5),
+            Color(0xFFF7EADC),
+            Color(0xFFF1E7D9),
           ],
           stops: <double>[0, 0.62, 1],
         ).createShader(rect),
@@ -408,6 +409,44 @@ class _InnScenePainter extends CustomPainter {
       Paint()..color = const Color(0xFFC4A484),
     );
     _paintPot(canvas, const Offset(78, 300));
+  }
+
+  // 用柔和的室內生活細節，讓場景更像真正的貓咪旅社，而非孤立圖形。
+  void _paintDetails(Canvas canvas) {
+    final Paint glow = Paint()..color = const Color(0xFFFFF7E7).withValues(alpha: 0.9);
+    for (final Offset p in <Offset>[
+      const Offset(292, 146),
+      const Offset(624, 165),
+      const Offset(314, 266),
+    ]) {
+      canvas.drawCircle(p, 3.4, glow);
+      canvas.drawLine(p.translate(-8, 0), p.translate(8, 0),
+          Paint()..color = const Color(0xFFE4BD8D)..strokeWidth = 1.6);
+      canvas.drawLine(p.translate(0, -8), p.translate(0, 8),
+          Paint()..color = const Color(0xFFE4BD8D)..strokeWidth = 1.6);
+    }
+    // 門口的小歡迎牌
+    final RRect sign = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(98, 176, 91, 23), const Radius.circular(11));
+    canvas.drawRRect(sign, Paint()..color = const Color(0xFFFFFCF7));
+    final TextPainter welcome = TextPainter(
+      text: const TextSpan(
+        text: 'PETNEST',
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+          letterSpacing: 1.1, color: Color(0xFF956D53)),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    welcome.paint(canvas, const Offset(112, 181));
+    // 暖色系地毯與小玩具，增添生活感。
+    canvas.drawOval(
+      Rect.fromCenter(center: const Offset(470, 376), width: 256, height: 30),
+      Paint()..color = const Color(0xFFF8E9D9).withValues(alpha: 0.78),
+    );
+    canvas.drawCircle(const Offset(626, 360), 13,
+        Paint()..color = const Color(0xFFD7A98C));
+    canvas.drawArc(const Rect.fromLTWH(616, 350, 20, 20), -0.7, 2.5, false,
+        Paint()..color = const Color(0xFFFFF4E9)..style = PaintingStyle.stroke..strokeWidth = 2);
   }
 
   void _paintCat(Canvas canvas, _WelcomePose pose) {
