@@ -1,8 +1,6 @@
 // 檔案名稱：lib/features/auth/pages/shop_opening_welcome_page.dart
 // 功能說明：激活碼驗證成功後的歡迎畫面。不建立店家，也不寫入 Firestore。
 
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/auth/widgets/shop_welcome_scene.dart';
 import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
@@ -127,7 +125,7 @@ class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
                         padding: EdgeInsets.fromLTRB(pad, 4, pad, 8),
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
-                            minHeight: math.max(0, constraints.maxHeight - 12),
+                            minHeight: 0,
                           ),
                           child: Align(
                             alignment: Alignment.topCenter,
@@ -175,14 +173,14 @@ class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
                                       animation: _hero,
                                       child: _SceneFrame(
                                         height: width < 360
-                                            ? 188
-                                            : (wide ? 260 : 214),
+                                            ? 200
+                                            : (wide ? 292 : 252),
                                         child: ShopWelcomeScene(
                                           replacement: widget.heroIllustration,
                                         ),
                                       ),
                                     ),
-                                    SizedBox(height: wide ? 20 : 16),
+                                    SizedBox(height: wide ? 20 : 20),
                                     _rise(
                                       animation: _copy,
                                       child: const _WelcomeCopy(),
@@ -193,7 +191,7 @@ class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
                                       child: const _HelperBubble(),
                                     ),
                                   ],
-                                  SizedBox(height: wide ? 18 : 14),
+                                  SizedBox(height: wide ? 22 : 22),
                                   _TipSection(animation: _tips, wide: wide),
                                   if (wide) ...<Widget>[
                                     const SizedBox(height: 8),
@@ -258,13 +256,13 @@ class _SceneFrame extends StatelessWidget {
 }
 
 class _WelcomePalette {
-  static const Color cream = Color(0xFFFFF6EE);
-  static const Color ink = Color(0xFF172238);
-  static const Color blueGray = Color(0xFF5C6B7A);
-  static const Color sageDeep = Color(0xFF3E5C45);
-  static const Color sageSoft = Color(0xFFE7F0E4);
-  static const Color line = Color(0xFFE8DDD2);
-  static const Color paper = Color(0xFFFFFCF8);
+  static const Color cream = Color(0xFFFFF9F3);
+  static const Color ink = Color(0xFF3B2A24);
+  static const Color blueGray = Color(0xFF76675E);
+  static const Color sageDeep = Color(0xFF7C5946);
+  static const Color sageSoft = Color(0xFFF5E8DB);
+  static const Color line = Color(0xFFF0E3D6);
+  static const Color paper = Color(0xFFFFFFFF);
 }
 
 class _WelcomeBackdropPainter extends CustomPainter {
@@ -276,23 +274,7 @@ class _WelcomeBackdropPainter extends CustomPainter {
       Offset.zero & size,
       Paint()..color = _WelcomePalette.cream,
     );
-    canvas.drawCircle(
-      Offset(size.width * 0.92, size.height * 0.08),
-      size.shortestSide * 0.42,
-      Paint()..color = const Color(0xFFF6DCCB).withValues(alpha: 0.55),
-    );
-    canvas.drawCircle(
-      Offset(size.width * -0.04, size.height * 0.72),
-      size.shortestSide * 0.38,
-      Paint()..color = const Color(0xFFDCE8D8).withValues(alpha: 0.7),
-    );
-    canvas.drawCircle(
-      Offset(size.width * 0.78, size.height * 0.96),
-      size.shortestSide * 0.22,
-      Paint()..color = const Color(0xFFE4EEF4).withValues(alpha: 0.8),
-    );
-    _paw(canvas, Offset(size.width * 0.12, size.height * 0.22), 0.9);
-    _paw(canvas, Offset(size.width * 0.86, size.height * 0.58), 0.7);
+    // 留白是主視覺的一部分；避免大色塊搶走貓咪與引導資訊的焦點。
   }
 
   void _paw(Canvas canvas, Offset center, double scale) {
@@ -395,10 +377,10 @@ class _WelcomeCopy extends StatelessWidget {
       child: Column(
         children: <Widget>[
           Text(
-            '歡迎加入 PetNest！',
+            '一起開啟你的貓咪旅社',
             textAlign: TextAlign.center,
             style: text.headlineSmall?.copyWith(
-              fontSize: wide ? 34 : 28,
+              fontSize: wide ? 36 : 27,
               fontWeight: FontWeight.w800,
               height: 1.15,
               color: _WelcomePalette.ink,
@@ -406,7 +388,7 @@ class _WelcomeCopy extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '一起打造貓咪們的第二個家 🐾',
+            '把喜歡貓咪的心意，變成溫暖的第二個家',
             textAlign: TextAlign.center,
             style: text.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
@@ -416,7 +398,7 @@ class _WelcomeCopy extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '從今天開始，讓我們陪你一步步建立專屬旅社。\n不用一次做完，小幫手會帶著你，其餘設定之後也能慢慢補上。',
+            '從旅社名稱開始，一步一步完成開店。\n不用急著一次設定好，之後都能回來調整。',
             textAlign: TextAlign.center,
             style: text.bodyMedium?.copyWith(
               height: 1.55,
@@ -460,7 +442,7 @@ class _HelperBubble extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Text(
-                  '「喵～準備好打造我們的新家了嗎？」',
+                  '🐾  小幫手已準備好，陪你完成第一步！',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
@@ -501,18 +483,18 @@ class _TipSection extends StatelessWidget {
   static const List<_TipData> _tips = <_TipData>[
     _TipData(
       step: '1',
-      title: '一步一步帶你完成',
-      body: '每次只做一小步，不會一次把所有事情交給你。',
+      title: '輕鬆開始',
+      body: '跟著引導建立旅社，簡單不費力。',
     ),
     _TipData(
       step: '2',
-      title: '不用擔心做錯',
-      body: '需要填的地方會先提醒，重要內容也可以再確認。',
+      title: '放心設定',
+      body: '重要資料會提醒你確認，也能回頭調整。',
     ),
     _TipData(
       step: '3',
-      title: '其他設定之後再完成',
-      body: '先把旅社建立起來，其餘功能進後台再慢慢完成。',
+      title: '慢慢打造專屬風格',
+      body: '先完成基本資料，其餘功能以後再補。',
     ),
   ];
 
@@ -761,11 +743,11 @@ class _StartButtonState extends State<_StartButton> {
         curve: Curves.easeOut,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: _WelcomePalette.ink,
+            gradient: const LinearGradient(colors: <Color>[Color(0xFFD9864D), Color(0xFFC66E3F)]),
             borderRadius: BorderRadius.circular(16),
             boxShadow: const <BoxShadow>[
               BoxShadow(
-                color: Color(0x33172238),
+                color: Color(0x33BA6B40),
                 blurRadius: 12,
                 offset: Offset(0, 6),
               ),
@@ -775,10 +757,10 @@ class _StartButtonState extends State<_StartButton> {
             height: 52,
             child: Center(
               child: Text(
-                '開始打造我的旅社 →',
+                '開始建立我的旅社  →',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Color(0xFFFFF6EE),
+                  color: Color(0xFFFFFFFF),
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.2,
