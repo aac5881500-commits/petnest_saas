@@ -10,12 +10,16 @@ class ShopCommercialException implements Exception {
     this.code = '',
     this.permissionDenied = false,
     this.notFound = false,
+    this.retryAfterSeconds,
   });
 
   final String message;
   final String code;
   final bool permissionDenied;
   final bool notFound;
+
+  /// 後端激活碼失敗鎖定的剩餘秒數。沒有這個值時，不顯示倒數。
+  final int? retryAfterSeconds;
 
   @override
   String toString() => message;
@@ -97,7 +101,11 @@ class ShopCommercialService {
     } on FirebaseFunctionsException catch (error) {
       throw ShopCommercialException(
         shopActivationCallableMessage(error.code, error.message),
+        code: error.code,
         permissionDenied: error.code == 'permission-denied',
+        retryAfterSeconds: error.code == 'resource-exhausted'
+            ? shopActivationRetryAfterSeconds(error.details)
+            : null,
       );
     }
   }
@@ -415,6 +423,14 @@ class ShopActivationCheck {
       message: message.isEmpty ? '激活碼目前無法使用' : message,
     );
   }
+}
+
+int? shopActivationRetryAfterSeconds(Object? details) {
+  if (details is! Map) return null;
+  final Object? value = details['retryAfterSeconds'];
+  if (value is int && value > 0) return value;
+  if (value is num && value > 0) return value.ceil();
+  return null;
 }
 
 String shopActivationCallableMessage(String code, String? backendMessage) {

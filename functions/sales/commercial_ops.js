@@ -2339,35 +2339,64 @@ const PREVIEW_CODE_STATUSES = {
 };
 
 /**
- * 只在目前這個 Function 執行個體計數。
+ * 只在目前這個 Function 執行個體、依已登入 UID 計算失敗次數。
  * 冷啟動與其他執行個體會各自重算，不能單獨防止分散猜碼。
- * @param {string} uid 已驗證的使用者
- * @param {number=} nowMs 測試可代入的時間
- * @return {{ok: boolean, retryAfterSeconds: number}}
+ * @param {number} now 目前時間
+ * @return {void}
  */
-function consumeShopActivationPreviewAttempt(uid, nowMs) {
-  const now = Number(nowMs) || Date.now();
-  if (previewAttemptBuckets.size > 5000) {
-    for (const [key, bucket] of previewAttemptBuckets) {
-      if (now - bucket.start >= PREVIEW_ATTEMPT_WINDOW_MS) {
-        previewAttemptBuckets.delete(key);
-      }
+function pruneShopActivationFailureBuckets(now) {
+  if (previewAttemptBuckets.size <= 5000) return;
+  for (const [key, bucket] of previewAttemptBuckets) {
+    if (now - bucket.start >= PREVIEW_ATTEMPT_WINDOW_MS) {
+      previewAttemptBuckets.delete(key);
     }
   }
+}
+
+/**
+ * 鎖定中不查激活碼，也不能用正確激活碼提前解除。
+ * @param {string} uid 已驗證的使用者
+ * @param {number} now 目前時間
+ * @return {{ok: boolean, retryAfterSeconds: number}}
+ */
+function shopActivationFailureLock(uid, now) {
+  pruneShopActivationFailureBuckets(now);
+  const current = previewAttemptBuckets.get(uid);
+  if (!current || now - current.start >= PREVIEW_ATTEMPT_WINDOW_MS) {
+    return {ok: true, retryAfterSeconds: 0};
+  }
+  if (current.count < PREVIEW_ATTEMPT_LIMIT) {
+    return {ok: true, retryAfterSeconds: 0};
+  }
+  const remain = PREVIEW_ATTEMPT_WINDOW_MS - (now - current.start);
+  return {
+    ok: false,
+    retryAfterSeconds: Math.max(1, Math.ceil(remain / 1000)),
+  };
+}
+
+/**
+ * 只在後端確認激活碼錯誤或無效時呼叫。不延長已經開始的視窗。
+ * @param {string} uid 已驗證的使用者
+ * @param {number} now 目前時間
+ * @return {void}
+ */
+function recordShopActivationFailure(uid, now) {
   const current = previewAttemptBuckets.get(uid);
   if (!current || now - current.start >= PREVIEW_ATTEMPT_WINDOW_MS) {
     previewAttemptBuckets.set(uid, {start: now, count: 1});
-    return {ok: true, retryAfterSeconds: 0};
+    return;
   }
-  if (current.count >= PREVIEW_ATTEMPT_LIMIT) {
-    const remain = PREVIEW_ATTEMPT_WINDOW_MS - (now - current.start);
-    return {
-      ok: false,
-      retryAfterSeconds: Math.max(1, Math.ceil(remain / 1000)),
-    };
-  }
-  current.count += 1;
-  return {ok: true, retryAfterSeconds: 0};
+  if (current.count < PREVIEW_ATTEMPT_LIMIT) current.count += 1;
+}
+
+/**
+ * 只清除這個 UID 的失敗次數。鎖定中的帳號不會走到這裡。
+ * @param {string} uid 已驗證的使用者
+ * @return {void}
+ */
+function clearShopActivationFailures(uid) {
+  previewAttemptBuckets.delete(uid);
 }
 
 /**
@@ -2412,19 +2441,28 @@ function publicActivationModule(code) {
  * @param {Object} request Callable request
  * @param {Object} data 只讀 activationCode
  * @param {Object=} db 測試可注入的 Firestore
+ * @param {number=} nowMs 只供測試代入時間，正式呼叫不傳
  * @return {Promise<Object>}
  */
-async function validateShopActivationCode(request, data, db) {
+async function validateShopActivationCode(request, data, db, nowMs) {
   if (!request || !request.auth || !request.auth.uid) {
     throw new HttpsError("unauthenticated", "請先登入");
   }
   const uid = String(request.auth.uid);
+  const now = Number(nowMs) || Date.now();
+  const gate = shopActivationFailureLock(uid, now);
+  if (!gate.ok) {
+    throw new HttpsError(
+        "resource-exhausted",
+        "嘗試次數過多，請稍後再試",
+        {
+          status: "rate_limited",
+          retryAfterSeconds: gate.retryAfterSeconds,
+        },
+    );
+  }
   const rawCode = String((data || {}).activationCode || "").trim();
   const normalized = policy.normalizeActivationCode(rawCode);
-  const gate = consumeShopActivationPreviewAttempt(uid);
-  if (!gate.ok) {
-    throw new HttpsError("resource-exhausted", "嘗試次數過多，請稍後再試");
-  }
   const database = db || admin.firestore();
   if (await accountAlreadyHasShop(database, uid)) {
     return previewShopActivationFailure(
@@ -2433,21 +2471,25 @@ async function validateShopActivationCode(request, data, db) {
     );
   }
   if (!normalized || normalized.length > 40) {
+    recordShopActivationFailure(uid, now);
     return previewShopActivationFailure("invalid", "激活碼不正確");
   }
   const codeDoc = await findActivationCode(database, normalized, rawCode);
   if (!codeDoc) {
+    recordShopActivationFailure(uid, now);
     return previewShopActivationFailure("not_found", "找不到此激活碼");
   }
   const code = codeDoc.data() || {};
   const today = policy.taipeiDateKey(new Date());
   const decision = policy.canUseActivationCode(code, today);
   if (!decision.ok) {
+    recordShopActivationFailure(uid, now);
     const status = PREVIEW_CODE_STATUSES[decision.reason] || "unavailable";
     const message = PREVIEW_CODE_STATUSES[decision.reason] ?
       decision.reason : "激活碼目前無法使用";
     return previewShopActivationFailure(status, message);
   }
+  clearShopActivationFailures(uid);
   const result = {
     ok: true,
     status: "ready",

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 import 'package:petnest_saas/core/theme/petnest_app_theme.dart';
 import 'package:petnest_saas/features/auth/pages/shop_activation_code_page.dart';
+import 'package:petnest_saas/features/auth/pages/shop_opening_welcome_page.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +54,22 @@ void main() {
     expect(
       shopActivationCallableMessage('resource-exhausted', 'raw'),
       '嘗試次數過多，請稍後再試',
+    );
+    expect(shopActivationRetryAfterSeconds(null), isNull);
+    expect(
+      shopActivationRetryAfterSeconds(<String, dynamic>{'status': 'rate_limited'}),
+      isNull,
+    );
+    expect(
+      shopActivationRetryAfterSeconds(<String, dynamic>{
+        'retryAfterSeconds': 272,
+      }),
+      272,
+    );
+    expect(shopActivationRateLimitLabel(272), '驗證失敗次數已達上限，請於 04:32 後再試。');
+    expect(
+      shopActivationRateLimitLabel(3661),
+      '驗證失敗次數已達上限，請於 01:01:01 後再試。',
     );
     expect(
       shopActivationCallableMessage('internal', 'INTERNAL'),
@@ -155,7 +172,7 @@ void main() {
     expect(find.text('開通類型：貓咪旅館'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('歡迎加入 PetNest！'), findsOneWidget);
+    expect(find.text('接下來，三個步驟就能開始'), findsOneWidget);
     expect(calls, 2);
   });
 
@@ -183,5 +200,66 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('激活碼已停用'), findsOneWidget);
+  });
+
+  testWidgets('限流倒數停用按鈕，結束後可再驗證', (WidgetTester tester) async {
+    var calls = 0;
+    await pumpPage(
+      tester,
+      validate: (String code) async {
+        calls += 1;
+        if (calls == 1) {
+          throw const ShopCommercialException(
+            '嘗試次數過多，請稍後再試',
+            retryAfterSeconds: 65,
+          );
+        }
+        return const ShopActivationCheck(
+          valid: true,
+          message: '激活碼可以用於開店',
+          module: 'cat_hotel',
+        );
+      },
+    );
+    await tester.enterText(find.byType(TextField), 'CAT-1');
+    await tester.pump();
+    await tester.ensureVisible(find.text('驗證並繼續 →'));
+    await tester.tap(find.text('驗證並繼續 →'));
+    await tester.pump();
+    expect(find.textContaining('01:05'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, '驗證並繼續 →'),
+          )
+          .onPressed,
+      isNull,
+    );
+    final String before = tester
+        .widget<Text>(find.textContaining('驗證失敗次數已達上限'))
+        .data!;
+    await tester.pump(const Duration(seconds: 1));
+    final String after = tester
+        .widget<Text>(find.textContaining('驗證失敗次數已達上限'))
+        .data!;
+    expect(after, isNot(before));
+    await tester.tap(
+      find.widgetWithText(FilledButton, '驗證並繼續 →'),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+    expect(calls, 1);
+    expect(find.text('歡迎加入 PetNest！'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 70));
+    expect(find.textContaining('驗證失敗次數已達上限'), findsNothing);
+    await tester.pump();
+    await tester.ensureVisible(find.text('驗證並繼續 →'));
+    await tester.tap(find.text('驗證並繼續 →'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pump();
+    expect(calls, 2);
+    expect(find.byType(ShopOpeningWelcomePage), findsOneWidget);
   });
 }

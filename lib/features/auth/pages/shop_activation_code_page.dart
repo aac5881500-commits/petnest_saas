@@ -11,6 +11,18 @@ import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
 typedef ShopActivationValidator =
     Future<ShopActivationCheck> Function(String code);
 
+String shopActivationRateLimitLabel(int totalSeconds) {
+  final int seconds = totalSeconds < 0 ? 0 : totalSeconds;
+  final int hours = seconds ~/ 3600;
+  final int minutes = (seconds % 3600) ~/ 60;
+  final int remain = seconds % 60;
+  String two(int value) => value.toString().padLeft(2, '0');
+  final String clock = hours > 0
+      ? '${two(hours)}:${two(minutes)}:${two(remain)}'
+      : '${two(minutes)}:${two(remain)}';
+  return '驗證失敗次數已達上限，請於 $clock 後再試。';
+}
+
 class ShopActivationCodePage extends StatefulWidget {
   const ShopActivationCodePage({super.key, this.validate});
 
@@ -33,6 +45,9 @@ class ShopActivationCodePage extends StatefulWidget {
 class _ShopActivationCodePageState extends State<ShopActivationCodePage> {
   final TextEditingController _codeController = TextEditingController();
   Timer? _continueTimer;
+  Timer? _lockTimer;
+  DateTime? _lockedUntil;
+  int _remainingLockSeconds = 0;
   bool _checking = false;
   bool _succeeded = false;
   String? _error;
@@ -49,9 +64,57 @@ class _ShopActivationCodePageState extends State<ShopActivationCodePage> {
   @override
   void dispose() {
     _continueTimer?.cancel();
+    _lockTimer?.cancel();
     _codeController.removeListener(_handleCodeChanged);
     _codeController.dispose();
     super.dispose();
+  }
+
+  int _secondsUntilLock() {
+    final DateTime? until = _lockedUntil;
+    if (until == null) return 0;
+    final int milliseconds = until.difference(DateTime.now()).inMilliseconds;
+    if (milliseconds <= 0) return 0;
+    return (milliseconds / 1000).ceil();
+  }
+
+  void _beginRateLimit(int seconds) {
+    _lockTimer?.cancel();
+    _lockedUntil = DateTime.now().add(Duration(seconds: seconds));
+    _remainingLockSeconds = seconds;
+    _error = shopActivationRateLimitLabel(seconds);
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _tickRateLimit();
+    });
+  }
+
+  void _tickRateLimit() {
+    if (!mounted || _lockedUntil == null) return;
+    final int byClock = _secondsUntilLock();
+    final int next = byClock < _remainingLockSeconds
+        ? byClock
+        : _remainingLockSeconds - 1;
+    if (next <= 0) {
+      _clearRateLimit();
+      return;
+    }
+    setState(() {
+      _remainingLockSeconds = next;
+      _error = shopActivationRateLimitLabel(next);
+    });
+  }
+
+  void _clearRateLimit() {
+    _lockTimer?.cancel();
+    _lockTimer = null;
+    _lockedUntil = null;
+    _remainingLockSeconds = 0;
+    if (!mounted) return;
+    setState(() {
+      if (_error != null && _error!.startsWith('驗證失敗次數已達上限')) {
+        _error = null;
+      }
+    });
   }
 
   void _handleCodeChanged() {
@@ -76,7 +139,7 @@ class _ShopActivationCodePageState extends State<ShopActivationCodePage> {
 
   Future<void> _submit() async {
     final String code = _codeController.text.trim();
-    if (code.isEmpty || _checking) return;
+    if (code.isEmpty || _checking || _remainingLockSeconds > 0) return;
     _continueTimer?.cancel();
     setState(() {
       _checking = true;
@@ -114,8 +177,13 @@ class _ShopActivationCodePageState extends State<ShopActivationCodePage> {
       });
     } on ShopCommercialException catch (error) {
       if (!mounted) return;
+      final int? wait = error.retryAfterSeconds;
       setState(() {
-        _error = error.message;
+        if (wait != null && wait > 0) {
+          _beginRateLimit(wait);
+        } else {
+          _error = error.message;
+        }
       });
     } finally {
       if (mounted) {
@@ -152,7 +220,10 @@ class _ShopActivationCodePageState extends State<ShopActivationCodePage> {
   Widget build(BuildContext context) {
     final bool wide = MediaQuery.sizeOf(context).width >= 720;
     final TextTheme text = Theme.of(context).textTheme;
-    final bool canSubmit = !_checking && _codeController.text.trim().isNotEmpty;
+    final bool canSubmit =
+        !_checking &&
+        _remainingLockSeconds <= 0 &&
+        _codeController.text.trim().isNotEmpty;
     final String moduleLabel = shopActivationModuleLabel(_module);
 
     return Scaffold(

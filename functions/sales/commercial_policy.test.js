@@ -1142,10 +1142,150 @@ test("同一帳號短時間重複猜碼會被這次執行個體拒絕", async ()
       (error) => {
         assert.equal(error.code, "resource-exhausted");
         assert.equal(error.message, "嘗試次數過多，請稍後再試");
-        assert.equal(String(error.message).includes("MISS-9"), false);
+        assert.equal(error.details.status, "rate_limited");
+        assert.equal(error.details.retryAfterSeconds >= 1, true);
+        assert.equal(error.details.retryAfterSeconds <= 15 * 60, true);
+        assert.equal(JSON.stringify(error.details).includes("MISS"), false);
         return true;
       },
   );
   assert.equal(db.codeReads.count, readsAfterBudget);
   assert.equal(db.writes.length, 0);
+
+  const other = await ops.validateShopActivationCode(
+      previewCaller("rate-other"),
+      {activationCode: "MISS-0"},
+      db,
+  );
+  assert.equal(other.status, "not_found");
+});
+
+test("正確激活碼不累計失敗，成功後重設這個帳號的失敗次數", async () => {
+  const uid = "success-rate-user";
+  const db = dbWithCode(uid);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const result = await ops.validateShopActivationCode(
+        previewCaller(uid),
+        {activationCode: "nest-7788"},
+        db,
+    );
+    assert.equal(result.status, "ready");
+  }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const missed = await ops.validateShopActivationCode(
+        previewCaller(uid),
+        {activationCode: `MISS-${attempt}`},
+        previewDb({}),
+    );
+    assert.equal(missed.status, "not_found");
+  }
+  const again = await ops.validateShopActivationCode(
+      previewCaller(uid),
+      {activationCode: "nest-7788"},
+      db,
+  );
+  assert.equal(again.status, "ready");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const missed = await ops.validateShopActivationCode(
+        previewCaller(uid),
+        {activationCode: `AFTER-${attempt}`},
+        previewDb({}),
+    );
+    assert.equal(missed.status, "not_found");
+  }
+});
+
+test("鎖定期間正確激活碼不能提前解除，剩餘時間隨視窗減少", async () => {
+  const uid = "locked-window-user";
+  const start = 1700000000000;
+  const empty = previewDb({});
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const missed = await ops.validateShopActivationCode(
+        previewCaller(uid),
+        {activationCode: `MISS-${attempt}`},
+        empty,
+        start,
+    );
+    assert.equal(missed.status, "not_found");
+  }
+  const ready = dbWithCode(uid);
+  const readsBefore = ready.codeReads.count;
+  await assert.rejects(
+      () => ops.validateShopActivationCode(
+          previewCaller(uid),
+          {activationCode: "nest-7788"},
+          ready,
+          start + 5000,
+      ),
+      (error) => {
+        assert.equal(error.code, "resource-exhausted");
+        assert.equal(error.details.retryAfterSeconds, 895);
+        return true;
+      },
+  );
+  assert.equal(ready.codeReads.count, readsBefore);
+  const afterWindow = await ops.validateShopActivationCode(
+      previewCaller(uid),
+      {activationCode: "MISS-later"},
+      empty,
+      start + (15 * 60 * 1000),
+  );
+  assert.equal(afterWindow.status, "not_found");
+});
+
+test("已有店家與伺服器錯誤不累計錯誤激活碼次數", async () => {
+  const owned = previewDb({
+    docs: {"sales_owner_locks/owned-rate-user": {shopId: "SHOP0008"}},
+  });
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const result = await ops.validateShopActivationCode(
+        previewCaller("owned-rate-user"),
+        {activationCode: "nest-7788"},
+        owned,
+    );
+    assert.equal(result.status, "already_has_shop");
+  }
+
+  const broken = previewDb({
+    docs: {"sales_owner_locks/broken-rate-user": {shopId: ""}},
+    rows: {shop_members: []},
+  });
+  const originalCollection = broken.collection.bind(broken);
+  broken.collection = (name) => {
+    if (name !== "activation_codes" &&
+        name !== "activation_code_keys" &&
+        name !== "activation_code_conflicts") {
+      return originalCollection(name);
+    }
+    return {
+      doc: () => ({
+        get: async () => {
+          throw new Error("firestore unavailable");
+        },
+      }),
+      where: () => ({
+        limit: () => ({
+          get: async () => {
+            throw new Error("firestore unavailable");
+          },
+        }),
+      }),
+    };
+  };
+  await assert.rejects(
+      () => ops.validateShopActivationCode(
+          previewCaller("broken-rate-user"),
+          {activationCode: "nest-7788"},
+          broken,
+      ),
+      (error) => error.message === "firestore unavailable",
+  );
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const missed = await ops.validateShopActivationCode(
+        previewCaller("broken-rate-user"),
+        {activationCode: `MISS-${attempt}`},
+        previewDb({}),
+    );
+    assert.equal(missed.status, "not_found");
+  }
 });
