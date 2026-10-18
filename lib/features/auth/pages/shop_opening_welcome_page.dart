@@ -1,8 +1,14 @@
 // 檔案名稱：lib/features/auth/pages/shop_opening_welcome_page.dart
-// 功能說明：驗證激活碼後的 PetNest 開店歡迎頁；僅呈現 UI，不建立店家或寫入資料。
+// 功能說明：驗證激活碼後的開店歡迎頁，使用本機寫實照片與桌機／手機響應式卡片。
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
+
+const _ink = Color(0xFF74250F);
+const _muted = Color(0xFF796A5D);
+const _orange = Color(0xFFF45B14);
+const _cream = Color(0xFFFFFAF2);
+const _desktopPhoto = 'assets/images/shop_onboarding/welcome_desktop.webp';
+const _mobilePhoto = 'assets/images/shop_onboarding/welcome_mobile.webp';
 
 class ShopOpeningWelcomePage extends StatefulWidget {
   const ShopOpeningWelcomePage({
@@ -12,6 +18,8 @@ class ShopOpeningWelcomePage extends StatefulWidget {
   });
 
   final String activationCode;
+
+  // 保留既有注入主視覺的介面；正式流程預設載入本機照片。
   final Widget? heroIllustration;
 
   @override
@@ -20,14 +28,15 @@ class ShopOpeningWelcomePage extends StatefulWidget {
 
 class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+  late final AnimationController _entrance;
+  bool _opening = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _entrance = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 450),
     );
   }
 
@@ -35,136 +44,138 @@ class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (MediaQuery.disableAnimationsOf(context)) {
-      _controller.value = 1;
-    } else if (!_controller.isAnimating && _controller.value == 0) {
-      _controller.forward();
+      _entrance.value = 1;
+    } else if (!_entrance.isAnimating && _entrance.value == 0) {
+      _entrance.forward();
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _entrance.dispose();
     super.dispose();
   }
 
   Future<void> _start() async {
+    if (_opening) return;
     final code = widget.activationCode.trim();
     if (code.isEmpty) {
       Navigator.of(context).pop(ShopCreateExit.recheckActivation);
       return;
     }
-    final result = await Navigator.of(context).push<ShopCreateExit>(
-      MaterialPageRoute<ShopCreateExit>(
-        builder: (_) => CreateShopPage(activationCode: code),
-      ),
-    );
-    if (!mounted || result == null) return;
-    Navigator.of(context).pop(result);
-  }
-
-  void _back() => Navigator.of(context).maybePop();
-
-  Widget _reveal(Widget child, double begin) {
-    return AnimatedBuilder(
-      animation: _controller,
-      child: child,
-      builder: (context, child) {
-        final t = ((_controller.value - begin) / (1 - begin))
-            .clamp(0.0, 1.0);
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, 18 * (1 - t)),
-            child: child,
-          ),
-        );
-      },
-    );
+    setState(() => _opening = true);
+    try {
+      final result = await Navigator.of(context).push<ShopCreateExit>(
+        MaterialPageRoute<ShopCreateExit>(
+          builder: (_) => CreateShopPage(activationCode: code),
+        ),
+      );
+      if (!mounted || result == null) return;
+      Navigator.of(context).pop(result);
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFAF5),
+      backgroundColor: _cream,
       body: SafeArea(
         child: LayoutBuilder(
-          builder: (context, bounds) {
-            final desktop = bounds.maxWidth >= 820;
-            if (desktop) {
-              return Center(
+          builder: (context, viewport) {
+            final desktop = viewport.maxWidth >= 900;
+            final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+            final extraHeight = (textScale - 1).clamp(0.0, 3.0) * 180;
+            return SingleChildScrollView(
+              key: const ValueKey('welcome-scroll'),
+              child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1200),
+                  constraints: const BoxConstraints(maxWidth: 1440),
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 6,
-                            child: _reveal(
-                              _DesktopHero(
-                                illustration: widget.heroIllustration,
-                                onBack: _back,
-                              ),
-                              0,
-                            ),
-                          ),
-                          Expanded(
-                            flex: 5,
-                            child: Container(
-                              color: Colors.white,
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(28, 38, 28, 28),
-                                child: _reveal(
-                                  _WelcomeContent(
-                                    onStart: _start,
-                                    onBack: _back,
-                                    desktop: true,
-                                  ),
-                                  .15,
+                    padding: EdgeInsets.all(desktop ? 24 : 0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _cream,
+                        borderRadius: BorderRadius.circular(desktop ? 26 : 0),
+                        boxShadow: desktop
+                            ? const [
+                                BoxShadow(
+                                  color: Color(0x12774A25),
+                                  blurRadius: 28,
+                                  offset: Offset(0, 8),
                                 ),
-                              ),
-                            ),
+                              ]
+                            : null,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(desktop ? 26 : 0),
+                        child: DefaultTextStyle.merge(
+                          style: const TextStyle(fontFamily: 'NotoSansTC'),
+                          child: LayoutBuilder(
+                            builder: (context, bounds) {
+                              final photoHeight = desktop
+                                  ? (bounds.maxWidth * .41).clamp(440.0, 520.0)
+                                  : (bounds.maxWidth * 1.16).clamp(
+                                      380.0,
+                                      540.0,
+                                    );
+                              final heroHeight = photoHeight + extraHeight;
+                              return Stack(
+                                children: [
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    top: 0,
+                                    height: heroHeight,
+                                    child: FadeTransition(
+                                      opacity: _entrance,
+                                      child: _Hero(
+                                        desktop: desktop,
+                                        textScale: textScale,
+                                        imageTop: extraHeight,
+                                        illustration: widget.heroIllustration,
+                                        onBack: () =>
+                                            Navigator.of(context).maybePop(),
+                                      ),
+                                    ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      SizedBox(
+                                        height:
+                                            heroHeight - (desktop ? 40 : 28),
+                                      ),
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: desktop ? 56 : 16,
+                                        ),
+                                        child: _OnboardingPanel(
+                                          horizontal:
+                                              desktop && textScale <= 1.4,
+                                          desktop: desktop,
+                                          onStart: _opening ? null : _start,
+                                        ),
+                                      ),
+                                      if (desktop) ...[
+                                        const SizedBox(height: 24),
+                                        const _ProductFeatures(),
+                                      ] else
+                                        const SizedBox(height: 20),
+                                    ],
+                                  ),
+                                ],
+                              );
+                            },
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              );
-            }
-            return Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _reveal(
-                          _MobileHero(
-                            illustration: widget.heroIllustration,
-                            onBack: _back,
-                          ),
-                          0,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-                          child: _reveal(
-                            _WelcomeContent(
-                              onStart: _start,
-                              onBack: _back,
-                              desktop: false,
-                            ),
-                            .18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                _BottomAction(onStart: _start),
-              ],
+              ),
             );
           },
         ),
@@ -173,437 +184,442 @@ class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
   }
 }
 
-const _ink = Color(0xFF542E20);
-const _muted = Color(0xFF7C6B60);
-const _orange = Color(0xFFE57A35);
-const _warm = Color(0xFFFFF5EA);
-
-class _MobileHero extends StatelessWidget {
-  const _MobileHero({required this.illustration, required this.onBack});
+class _Hero extends StatelessWidget {
+  const _Hero({
+    required this.desktop,
+    required this.textScale,
+    required this.imageTop,
+    required this.illustration,
+    required this.onBack,
+  });
+  final bool desktop;
+  final double textScale;
+  final double imageTop;
   final Widget? illustration;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    return SizedBox(
-      height: width < 360 ? 325 : 370,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _HeroArt(illustration: illustration),
-          Positioned(
-            left: 12,
-            top: 8,
-            child: Material(
-              color: Colors.white.withValues(alpha: .85),
-              shape: const CircleBorder(),
-              child: IconButton(
-                tooltip: '返回',
-                icon: const Icon(Icons.arrow_back, color: _ink),
-                onPressed: onBack,
+    return LayoutBuilder(
+      builder: (context, bounds) {
+        final width = bounds.maxWidth;
+        final inset = desktop ? 64.0 : 20.0;
+        return ColoredBox(
+          color: _cream,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned(
+                top: imageTop,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child:
+                    illustration ??
+                    Image.asset(
+                      desktop ? _desktopPhoto : _mobilePhoto,
+                      key: const ValueKey('welcome-photo'),
+                      fit: BoxFit.cover,
+                      alignment: desktop
+                          ? Alignment.centerRight
+                          : Alignment.center,
+                      semanticLabel: '暖陽照入木質貓咪旅社，長毛虎斑貓躺在柔軟地毯上',
+                    ),
               ),
-            ),
+              Positioned(
+                top: desktop ? 124 : 96,
+                left: inset,
+                width: desktop && textScale <= 1.4
+                    ? width * .61
+                    : width - inset * 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '一起開啟\n你的寵物旅宿事業',
+                      key: const ValueKey('welcome-headline'),
+                      style: TextStyle(
+                        color: _ink,
+                        fontSize: desktop
+                            ? (width * .044).clamp(38.0, 58.0)
+                            : (width * .078).clamp(25.0, 35.0),
+                        fontWeight: FontWeight.w800,
+                        height: 1.24,
+                        letterSpacing: desktop ? .5 : -.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '簡單設定・快速開店・專屬你的品牌',
+                      style: TextStyle(
+                        color: _ink,
+                        fontSize: desktop ? 20 : 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.6,
+                      ),
+                    ),
+                    if (desktop && textScale <= 1.4) ...[
+                      const SizedBox(height: 26),
+                      const Text(
+                        '讓更多毛孩，\n擁有安心又溫暖的旅宿體驗 ♡',
+                        style: TextStyle(
+                          fontFamily: 'KleeOne',
+                          fontWeight: FontWeight.w600,
+                          color: _ink,
+                          fontSize: 19,
+                          height: 1.65,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Positioned(
+                top: desktop ? 28 : 18,
+                left: inset,
+                right: desktop ? 28 : 12,
+                child: Row(
+                  children: [
+                    const Expanded(child: _Brand()),
+                    TextButton.icon(
+                      key: const ValueKey('welcome-back'),
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                      label: Text(
+                        width < 360 || textScale > 1.3 ? '返回' : '返回上一頁',
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _ink,
+                        backgroundColor: const Color(0xF5FFFCF5),
+                        minimumSize: const Size(44, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        shape: const StadiumBorder(
+                          side: BorderSide(color: Color(0xFFF0DDC3)),
+                        ),
+                        textStyle: const TextStyle(
+                          fontFamily: 'NotoSansTC',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const Positioned(
-            left: 64,
-            top: 16,
-            child: _Brand(),
-          ),
-          const Positioned(
-            left: 22,
-            right: 22,
-            top: 82,
-            child: _HeroHeadline(mobile: true),
-          ),
-          const Positioned(
-            right: 16,
-            bottom: 14,
-            child: _HeroNote(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DesktopHero extends StatelessWidget {
-  const _DesktopHero({required this.illustration, required this.onBack});
-  final Widget? illustration;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _HeroArt(illustration: illustration),
-        const Positioned(left: 28, top: 26, child: _Brand()),
-        Positioned(
-          right: 20,
-          top: 18,
-          child: TextButton.icon(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back, size: 17),
-            label: const Text('返回'),
-            style: TextButton.styleFrom(
-              foregroundColor: _ink,
-              backgroundColor: Colors.white.withValues(alpha: .86),
-            ),
-          ),
-        ),
-        const Positioned(
-          left: 34,
-          right: 26,
-          top: 128,
-          child: _HeroHeadline(mobile: false),
-        ),
-        const Positioned(right: 24, bottom: 26, child: _HeroNote()),
-      ],
-    );
-  }
-}
-
-class _HeroArt extends StatelessWidget {
-  const _HeroArt({required this.illustration});
-  final Widget? illustration;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        SvgPicture.asset(
-          'assets/images/shop_welcome_hero.svg',
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-          placeholderBuilder: (_) =>
-              const ColoredBox(color: Color(0xFFF8E5D0)),
-        ),
-        if (illustration != null)
-          Positioned.fill(child: illustration!),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                const Color(0xFFFFF8EF).withValues(alpha: .82),
-                Colors.transparent,
-                Colors.transparent,
-              ],
-              stops: const [0, .34, 1],
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
 class _Brand extends StatelessWidget {
   const _Brand();
-
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.pets_rounded, color: _ink, size: 27),
-        SizedBox(width: 7),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Semantics(
+      label: 'PetNest 寵物旅宿 SaaS',
+      excludeSemantics: true,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('PetNest', style: TextStyle(
-              fontSize: 19, fontWeight: FontWeight.w900, color: _ink,
-              height: 1.1,
-            )),
-            Text('寵物旅宿 SaaS', style: TextStyle(
-              fontSize: 10, color: _muted, height: 1.3,
-            )),
+            Icon(Icons.pets_rounded, size: 36, color: Color(0xFFB23A0B)),
+            SizedBox(width: 9),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'PetNest',
+                  style: TextStyle(
+                    color: _ink,
+                    fontSize: 25,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.5,
+                  ),
+                ),
+                Text(
+                  '寵物旅宿 SaaS',
+                  style: TextStyle(color: _ink, fontSize: 10, height: 1.5),
+                ),
+              ],
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _HeroHeadline extends StatelessWidget {
-  const _HeroHeadline({required this.mobile});
-  final bool mobile;
+const _steps = [
+  (Icons.storefront_rounded, '1. 激活碼驗證完成', '開店資格已確認\n接下來建立你的專屬旅宿'),
+  (Icons.settings_rounded, '2. 完善店家資料', '設定基本資訊、房型、服務\n打造屬於你的風格'),
+  (Icons.bar_chart_rounded, '3. 開始營運', '上架預約、管理訂單\n提供專業的寵物旅宿服務'),
+];
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '一起開啟\n你的貓咪旅社',
-          style: TextStyle(
-            color: _ink,
-            fontWeight: FontWeight.w900,
-            height: 1.16,
-            fontSize: mobile ? 29 : 43,
-          ),
-        ),
-        const SizedBox(height: 9),
-        Text(
-          '簡單設定・溫暖開店・專屬你的品牌',
-          style: TextStyle(
-            color: _ink,
-            fontSize: mobile ? 12 : 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
+BoxDecoration _cardDecoration(double radius) => BoxDecoration(
+  color: const Color(0xFFFFFDF9),
+  borderRadius: BorderRadius.circular(radius),
+  border: Border.all(color: const Color(0xFFF3E7D8)),
+  boxShadow: const [
+    BoxShadow(color: Color(0x0E784A22), blurRadius: 24, offset: Offset(0, 6)),
+  ],
+);
 
-class _HeroNote extends StatelessWidget {
-  const _HeroNote();
+class _OnboardingPanel extends StatelessWidget {
+  const _OnboardingPanel({
+    required this.horizontal,
+    required this.desktop,
+    required this.onStart,
+  });
+  final bool horizontal;
+  final bool desktop;
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 220),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .9),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(color: Color(0x16935A36), blurRadius: 14, offset: Offset(0, 4)),
-        ],
-      ),
-      child: const Text(
-        '讓更多毛孩，擁有安心又溫暖的旅宿體驗 ♡',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: _ink,
-          height: 1.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _WelcomeContent extends StatelessWidget {
-  const _WelcomeContent({
-    required this.onStart,
-    required this.onBack,
-    required this.desktop,
-  });
-  final VoidCallback onStart;
-  final VoidCallback onBack;
-  final bool desktop;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (desktop) ...[
-          const Text('開店小幫手', style: TextStyle(
-            color: _orange, fontSize: 14, fontWeight: FontWeight.w800,
-          )),
-          const SizedBox(height: 10),
-          const Text('準備好打造你的旅社了嗎？', style: TextStyle(
-            color: _ink, fontSize: 27, fontWeight: FontWeight.w900,
-          )),
+      padding: desktop
+          ? const EdgeInsets.fromLTRB(28, 24, 28, 20)
+          : EdgeInsets.zero,
+      decoration: desktop ? _cardDecoration(24) : null,
+      child: Column(
+        children: [
+          if (horizontal)
+            Row(
+              key: const ValueKey('horizontal-steps'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < _steps.length; i++) ...[
+                  if (i > 0)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(10, 52, 10, 0),
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        size: 22,
+                        color: _muted,
+                      ),
+                    ),
+                  Expanded(child: _StepCard(index: i, horizontal: true)),
+                ],
+              ],
+            )
+          else
+            Column(
+              key: const ValueKey('vertical-steps'),
+              children: [
+                for (var i = 0; i < _steps.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 9),
+                  _StepCard(index: i, horizontal: false),
+                ],
+              ],
+            ),
+          SizedBox(height: desktop ? 22 : 18),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: _PrimaryButton(onPressed: onStart),
+          ),
           const SizedBox(height: 10),
           const Text(
-            '激活碼已完成驗證，接下來只要設定基本資料，\n就能開始打造你的專屬旅社。',
-            style: TextStyle(color: _muted, height: 1.6, fontSize: 14),
+            '激活碼已驗證，接下來設定你的店家資料',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
           ),
-          const SizedBox(height: 26),
-        ] else ...[
-          const Center(
-            child: Text('接下來，三個步驟就能開始', style: TextStyle(
-              color: _ink, fontSize: 19, fontWeight: FontWeight.w900,
-            )),
-          ),
-          const SizedBox(height: 15),
         ],
-        const _StepCard(
-          number: '01',
-          icon: Icons.verified_user_outlined,
-          title: '激活碼驗證完成',
-          description: '你的開店資格已確認，可以放心繼續。',
-          completed: true,
-        ),
-        const SizedBox(height: 10),
-        const _StepCard(
-          number: '02',
-          icon: Icons.tune_rounded,
-          title: '完善店家資料',
-          description: '設定店名、地區，建立旅社基本資訊。',
-        ),
-        const SizedBox(height: 10),
-        const _StepCard(
-          number: '03',
-          icon: Icons.storefront_rounded,
-          title: '開始經營旅社',
-          description: '房型、預約和服務都可以之後慢慢設定。',
-        ),
-        if (desktop) ...[
-          const SizedBox(height: 30),
-          _PrimaryButton(onPressed: onStart),
-          const SizedBox(height: 6),
-          TextButton(
-            onPressed: onBack,
-            child: const Text('先返回', style: TextStyle(color: _muted)),
-          ),
-          const SizedBox(height: 18),
-          const _Assurance(),
-        ] else ...[
-          const SizedBox(height: 18),
-          const _Assurance(),
-        ],
-      ],
+      ),
     );
   }
 }
 
 class _StepCard extends StatelessWidget {
-  const _StepCard({
-    required this.number,
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.completed = false,
-  });
-  final String number;
-  final IconData icon;
-  final String title;
-  final String description;
-  final bool completed;
+  const _StepCard({required this.index, required this.horizontal});
+  final int index;
+  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF1E4D7)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0B946B4C), blurRadius: 18, offset: Offset(0, 5)),
-        ],
+    final step = _steps[index];
+    final symbol = Container(
+      width: horizontal ? 64 : 46,
+      height: horizontal ? 64 : 46,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF0D5),
+        shape: BoxShape.circle,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 45,
-            height: 45,
-            decoration: const BoxDecoration(
-              color: _warm,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: _orange, size: 24),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(
-                  color: _ink, fontWeight: FontWeight.w800, fontSize: 15,
-                )),
-                const SizedBox(height: 4),
-                Text(description, style: const TextStyle(
-                  color: _muted, height: 1.4, fontSize: 12,
-                )),
-              ],
-            ),
-          ),
-          if (completed)
-            const Icon(Icons.check_circle_rounded, color: Color(0xFF7F9C75), size: 20)
-          else
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFFBDA897)),
-        ],
-      ),
+      child: Icon(step.$1, size: horizontal ? 32 : 26, color: _orange),
     );
-  }
-}
-
-class _Assurance extends StatelessWidget {
-  const _Assurance();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    final copy = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: horizontal
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       children: [
-        Icon(Icons.favorite_rounded, size: 14, color: _orange),
-        SizedBox(width: 7),
-        Flexible(
-          child: Text(
-            '不用一次做完，後續設定都能慢慢補齊',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: _muted, fontSize: 12),
+        Text(
+          step.$2,
+          textAlign: horizontal ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: const Color(0xFF30261E),
+            fontSize: horizontal ? 18 : 14,
+            fontWeight: FontWeight.w800,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          step.$3,
+          textAlign: horizontal ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: _muted,
+            fontSize: horizontal ? 13 : 12,
+            height: 1.6,
           ),
         ),
       ],
     );
-  }
-}
-
-class _BottomAction extends StatelessWidget {
-  const _BottomAction({required this.onStart});
-  final VoidCallback onStart;
-
-  @override
-  Widget build(BuildContext context) {
+    if (horizontal) {
+      return Column(children: [symbol, const SizedBox(height: 12), copy]);
+    }
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 11, 18, 13),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFAF5),
-        border: Border(top: BorderSide(color: Color(0xFFF1E4D7))),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: _cardDecoration(18),
+      child: Row(
+        children: [
+          symbol,
+          const SizedBox(width: 12),
+          Expanded(child: copy),
+          const SizedBox(width: 4),
+          Icon(
+            index == 0
+                ? Icons.check_circle_rounded
+                : Icons.chevron_right_rounded,
+            color: index == 0 ? const Color(0xFF7C9865) : _muted,
+            size: 19,
+          ),
+        ],
       ),
-      child: _PrimaryButton(onPressed: onStart),
     );
   }
 }
 
 class _PrimaryButton extends StatelessWidget {
   const _PrimaryButton({required this.onPressed});
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFEF8C42), Color(0xFFD46B2F)],
+          colors: [Color(0xFFFF751F), Color(0xFFF04F0C)],
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: const [
-          BoxShadow(color: Color(0x32CC733A), blurRadius: 16, offset: Offset(0, 7)),
+          BoxShadow(
+            color: Color(0x26E96920),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(18),
-          child: const SizedBox(
-            height: 55,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.storefront_rounded, color: Colors.white, size: 21),
-                SizedBox(width: 9),
-                Text('開始建立我的旅社', style: TextStyle(
-                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800,
-                )),
-                SizedBox(width: 8),
-                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
-              ],
-            ),
-          ),
+      child: FilledButton(
+        key: const ValueKey('welcome-start'),
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white70,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size(double.infinity, 54),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          shape: const StadiumBorder(),
         ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.storefront_rounded, size: 22),
+            SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                '開始建立我的旅宿',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'NotoSansTC',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(width: 9),
+            Icon(Icons.arrow_forward_rounded, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductFeatures extends StatelessWidget {
+  const _ProductFeatures();
+  @override
+  Widget build(BuildContext context) {
+    const features = [
+      (Icons.pets_rounded, '專為寵物旅宿設計', '住宿・安親・會員・金流\n一次整合'),
+      (Icons.lock_rounded, '安全穩定的平台', 'Firebase 技術\n守護你的營運資料'),
+      (Icons.favorite_rounded, '節省營運時間', '訂單・房務・照護回報\n輕鬆管理'),
+      (Icons.groups_rounded, '陪伴你的成長', '持續優化產品\n專注每一天的照護'),
+    ];
+    final largeText = MediaQuery.textScalerOf(context).scale(16) > 24;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 26),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFF0E3D0))),
+      ),
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final columns = largeText ? 2 : 4;
+          return Wrap(
+            runSpacing: 24,
+            children: [
+              for (final feature in features)
+                SizedBox(
+                  width: bounds.maxWidth / columns,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Column(
+                      children: [
+                        Icon(feature.$1, size: 27, color: _ink),
+                        const SizedBox(height: 9),
+                        Text(
+                          feature.$2,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF392B21),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          feature.$3,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: _muted,
+                            fontSize: 12,
+                            height: 1.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

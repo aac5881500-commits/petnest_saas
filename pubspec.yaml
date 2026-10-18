@@ -67,6 +67,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/shop_onboarding/
     - assets/daily_care/card_backgrounds/
     - assets/daily_care/illustrations/
     
