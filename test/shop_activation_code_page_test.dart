@@ -135,7 +135,7 @@ void main() {
     await tester.tap(find.text('驗證並繼續 →'));
     await tester.pumpAndSettle();
     expect(find.text('找不到此激活碼'), findsOneWidget);
-    expect(find.text('歡迎加入 PetNest！'), findsNothing);
+    expect(find.byType(ShopOpeningWelcomePage), findsNothing);
     expect(find.text('NO-SUCH'), findsOneWidget);
   });
 
@@ -159,7 +159,7 @@ void main() {
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'CAT-2');
     await tester.pump(const Duration(milliseconds: 900));
-    expect(find.text('歡迎加入 PetNest！'), findsNothing);
+    expect(find.byType(ShopOpeningWelcomePage), findsNothing);
     expect(find.text('激活碼已變更，請重新驗證'), findsOneWidget);
     expect(calls, 1);
 
@@ -172,7 +172,8 @@ void main() {
     expect(find.text('開通類型：貓咪旅館'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('接下來，三個步驟就能開始'), findsOneWidget);
+    expect(find.byType(ShopOpeningWelcomePage), findsOneWidget);
+    expect(find.text('1. 激活碼驗證完成'), findsOneWidget);
     expect(calls, 2);
   });
 
@@ -249,7 +250,7 @@ void main() {
     );
     await tester.pump();
     expect(calls, 1);
-    expect(find.text('歡迎加入 PetNest！'), findsNothing);
+    expect(find.byType(ShopOpeningWelcomePage), findsNothing);
 
     await tester.pump(const Duration(seconds: 70));
     expect(find.textContaining('驗證失敗次數已達上限'), findsNothing);

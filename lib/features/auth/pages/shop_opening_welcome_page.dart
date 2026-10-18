@@ -1,5 +1,7 @@
 // 檔案名稱：lib/features/auth/pages/shop_opening_welcome_page.dart
 // 功能說明：驗證激活碼後的開店歡迎頁，使用本機寫實照片與桌機／手機響應式卡片。
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
 
@@ -7,6 +9,11 @@ const _ink = Color(0xFF74250F);
 const _muted = Color(0xFF796A5D);
 const _orange = Color(0xFFF45B14);
 const _cream = Color(0xFFFFFAF2);
+// 明確指定變動字體的 wght 軸，確保各 Flutter 渲染環境的字重一致。
+const _regularAxes = [ui.FontVariation('wght', 400)];
+const _mediumAxes = [ui.FontVariation('wght', 600)];
+const _labelAxes = [ui.FontVariation('wght', 700)];
+const _boldAxes = [ui.FontVariation('wght', 800)];
 const _desktopPhoto = 'assets/images/shop_onboarding/welcome_desktop.webp';
 const _mobilePhoto = 'assets/images/shop_onboarding/welcome_mobile.webp';
 
@@ -111,7 +118,10 @@ class _ShopOpeningWelcomePageState extends State<ShopOpeningWelcomePage>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(desktop ? 26 : 0),
                         child: DefaultTextStyle.merge(
-                          style: const TextStyle(fontFamily: 'NotoSansTC'),
+                          style: const TextStyle(
+                            fontFamily: 'NotoSansTC',
+                            fontVariations: _regularAxes,
+                          ),
                           child: LayoutBuilder(
                             builder: (context, bounds) {
                               final photoHeight = desktop
@@ -244,6 +254,7 @@ class _Hero extends StatelessWidget {
                             ? (width * .044).clamp(38.0, 58.0)
                             : (width * .078).clamp(25.0, 35.0),
                         fontWeight: FontWeight.w800,
+                        fontVariations: _boldAxes,
                         height: 1.24,
                         letterSpacing: desktop ? .5 : -.5,
                       ),
@@ -255,6 +266,7 @@ class _Hero extends StatelessWidget {
                         color: _ink,
                         fontSize: desktop ? 20 : 13,
                         fontWeight: FontWeight.w600,
+                        fontVariations: _mediumAxes,
                         height: 1.6,
                       ),
                     ),
@@ -265,6 +277,7 @@ class _Hero extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'KleeOne',
                           fontWeight: FontWeight.w600,
+                          fontVariations: [],
                           color: _ink,
                           fontSize: 19,
                           height: 1.65,
@@ -300,6 +313,7 @@ class _Hero extends StatelessWidget {
                           fontFamily: 'NotoSansTC',
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
+                          fontVariations: _labelAxes,
                         ),
                       ),
                     ),
@@ -339,6 +353,7 @@ class _Brand extends StatelessWidget {
                     fontSize: 25,
                     height: 1.1,
                     fontWeight: FontWeight.w800,
+                    fontVariations: _boldAxes,
                     letterSpacing: -.5,
                   ),
                 ),
@@ -465,6 +480,7 @@ class _StepCard extends StatelessWidget {
             color: const Color(0xFF30261E),
             fontSize: horizontal ? 18 : 14,
             fontWeight: FontWeight.w800,
+            fontVariations: _boldAxes,
             height: 1.5,
           ),
         ),
@@ -551,6 +567,7 @@ class _PrimaryButton extends StatelessWidget {
                   fontFamily: 'NotoSansTC',
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
+                  fontVariations: _labelAxes,
                 ),
               ),
             ),
@@ -601,6 +618,7 @@ class _ProductFeatures extends StatelessWidget {
                             color: Color(0xFF392B21),
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
+                            fontVariations: _boldAxes,
                           ),
                         ),
                         const SizedBox(height: 5),
