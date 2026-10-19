@@ -5,8 +5,10 @@ import 'package:petnest_saas/core/models/home_appearance_preset.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
+import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
@@ -14,6 +16,7 @@ import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_appearance_preset_strip.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_quick_booking_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -31,8 +34,20 @@ void main() {
       _expectContentKept(current, next);
       expect(next.sectionOrder.toSet(), HomeSectionOrder.defaultOrder.toSet());
       expect(next.sectionOrder, next.sectionOrder.toSet().toList());
-      expect(next.theme.primaryColorValue, current.theme.primaryColorValue);
-      expect(next.theme.textColorValue, current.theme.textColorValue);
+      if (const <String>{'minimal', 'brand', 'warm'}.contains(preset.id)) {
+        expect(
+          next.theme.primaryColorValue,
+          isNot(current.theme.primaryColorValue),
+        );
+        expect(next.theme.textColorValue, isNot(current.theme.textColorValue));
+        expect(next.theme.appBackgroundMode, ShopAppBackground.modeColor);
+        expect(
+          next.theme.appBackgroundAssetId,
+          current.theme.appBackgroundAssetId,
+        );
+        expect(next.theme.buttonTextMode, 'light');
+        expect(next.theme.buttonTextColorValue, 0xFFFFFFFF);
+      }
     }
   });
 
@@ -58,7 +73,7 @@ void main() {
     );
 
     expect(minimal.quickBooking.layout, HomeQuickBookingLayouts.spotlight);
-    expect(minimal.quickBooking.showAccommodation, isFalse);
+    expect(minimal.quickBooking.showAccommodation, isTrue);
     expect(minimal.quickBooking.showDaycare, isTrue);
     expect(minimal.about.enabled, isTrue);
     expect(minimal.rooms.layout, HomeRoomSectionLayouts.simpleEntry);
@@ -67,9 +82,9 @@ void main() {
     expect(minimal.sectionOrder.take(5), <String>[
       'banners',
       'quickBooking',
+      'sharedEntries',
       'announcements',
       'facilities',
-      'rooms',
     ]);
     expect(minimal.bannerFrame.heightPreset, HomeBannerHeightPreset.tall);
 
@@ -77,13 +92,15 @@ void main() {
     expect(booking.quickBooking.showOnHome, isTrue);
     expect(booking.quickBooking.showAccommodation, isTrue);
     expect(booking.quickBooking.showDaycare, isTrue);
+    expect(booking.quickBooking.showAccommodation, isTrue);
+    expect(booking.quickBooking.showDaycare, isTrue);
     expect(classic.information.faq.showOnHome, isTrue);
     expect(classic.information.policy.showOnHome, isTrue);
     expect(warm.environment.layout, HomeEnvironmentLayouts.editorial);
     expect(warm.sectionOrder.take(3), <String>[
       'banners',
+      'quickBooking',
       'about',
-      'facilities',
     ]);
     expect(minimal.rooms.layout, HomeRoomSectionLayouts.simpleEntry);
     expect(
@@ -110,6 +127,22 @@ void main() {
     expect(brand.rooms.layout, HomeRoomSectionLayouts.featured);
     expect(brand.environment.layout, HomeEnvironmentLayouts.imageEntry);
     expect(brand.about.layout, HomeAboutLayouts.brandIntro);
+    expect(minimal.theme.backgroundColorValue, 0xFFFAF7F2);
+    expect(minimal.theme.primaryColorValue, 0xFF8B6548);
+    expect(minimal.theme.textColorValue, 0xFF342D28);
+    expect(minimal.sharedEntry.columns, 3);
+    expect(minimal.sharedEntry.cardOrder, <String>['rooms', 'about']);
+    expect(brand.theme.primaryColorValue, 0xFF735B48);
+    expect(brand.sharedEntry.columns, 2);
+    expect(warm.theme.primaryColorValue, 0xFF5A765F);
+    expect(warm.sharedEntry.columns, 2);
+    expect(minimal.quickActions.slotOne, current.quickActions.slotOne);
+    expect(minimal.quickActions.placement, HomeQuickActionSetting.placementEnd);
+    expect(minimal.brandStyle.markType, current.brandStyle.markType);
+    expect(minimal.brandStyle.logoPlacement, 'leading');
+    expect(minimal.displayStyle.style.imageAspect, 'landscape');
+    expect(brand.displayStyle.style.imageAspect, 'portrait');
+    expect(warm.displayStyle.style.imageAspect, 'square');
   });
 
   test(
@@ -126,11 +159,11 @@ void main() {
       expect(edited.quickBooking.layout, HomeQuickBookingLayouts.spotlight);
       expect(
         homeAppearancePresetStatus(presetId: preset.id, draft: edited),
-        '極簡品牌 · 已自訂',
+        '奶油極簡 · 已自訂',
       );
       expect(
         homeAppearancePresetStatus(presetId: preset.id, draft: applied),
-        '極簡品牌',
+        '奶油極簡',
       );
     },
   );
@@ -219,20 +252,42 @@ void main() {
   testWidgets('apply asks before changing the draft', (
     WidgetTester tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     HomeAppearancePreset? applied;
     HomeAppearancePreset? previewed;
+    String? previewingId;
     final HomeAppearanceDraft draft = _shopDraft();
+    final String originalSignature = homeAppearanceDraftSignature(draft);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: ListView(
             children: <Widget>[
-              HomeAppearancePresetStrip(
-                draft: draft,
-                presetId: null,
-                accent: const Color(0xFF2255AA),
-                onPreview: (HomeAppearancePreset preset) => previewed = preset,
-                onApply: (HomeAppearancePreset preset) => applied = preset,
+              StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return HomeAppearancePresetStrip(
+                    draft: draft,
+                    presetId: null,
+                    previewingId: previewingId,
+                    accent: const Color(0xFF2255AA),
+                    onPreview: (HomeAppearancePreset preset) {
+                      setState(() {
+                        previewed = preset;
+                        previewingId = preset.id;
+                      });
+                    },
+                    onRestore: () {
+                      setState(() {
+                        previewed = null;
+                        previewingId = null;
+                      });
+                    },
+                    onApply: (HomeAppearancePreset preset) => applied = preset,
+                  );
+                },
               ),
             ],
           ),
@@ -241,18 +296,34 @@ void main() {
     );
     expect(find.text('快速套用前台風格'), findsOneWidget);
     expect(find.text('目前：尚未套用'), findsOneWidget);
-    expect(find.text('極簡品牌'), findsOneWidget);
+    expect(find.text('奶油極簡'), findsOneWidget);
     expect(find.text('經典完整'), findsOneWidget);
     expect(find.text('預約優先'), findsOneWidget);
 
-    await tester.tap(find.text('極簡品牌'));
+    await tester.tap(find.text('奶油極簡'));
     await tester.pumpAndSettle();
     expect(previewed?.id, 'minimal');
     expect(applied, isNull);
+    expect(find.text('正在預覽：奶油極簡'), findsOneWidget);
 
+    await tester.tap(find.text('溫暖日常'));
+    await tester.pumpAndSettle();
+    expect(previewed?.id, 'warm');
+    expect(find.text('正在預覽：溫暖日常'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const Key('home-preset-restore-draft')),
+    );
+    await tester.tap(find.byKey(const Key('home-preset-restore-draft')));
+    await tester.pumpAndSettle();
+    expect(previewed, isNull);
+    expect(homeAppearanceDraftSignature(draft), originalSignature);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('home-preset-apply-minimal')),
+    );
     await tester.tap(find.byKey(const Key('home-preset-apply-minimal')));
     await tester.pumpAndSettle();
-    expect(find.text('套用「極簡品牌」？'), findsOneWidget);
+    expect(find.text('套用「奶油極簡」？'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(applied, isNull);
@@ -262,9 +333,36 @@ void main() {
     await tester.tap(find.text('套用模板'));
     await tester.pumpAndSettle();
     expect(applied?.id, 'minimal');
-    await tester.scrollUntilVisible(find.text('溫暖生活'), 300);
-    expect(find.text('溫暖生活'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('preset cards fit phone and desktop widths', (
+    WidgetTester tester,
+  ) async {
+    for (final double width in <double>[360, 390, 1440]) {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: HomeAppearancePresetStrip(
+                draft: _shopDraft(),
+                presetId: null,
+                accent: const Color(0xFF8B6548),
+                onPreview: (_) {},
+                onRestore: () {},
+                onApply: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'width=$width');
+    }
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
   });
 }
 
@@ -274,7 +372,11 @@ HomeAppearancePreset _preset(String id) {
 
 HomeAppearanceDraft _shopDraft() {
   return HomeAppearanceDraft(
-    theme: HomeThemeModel.modernDefault.copyWith(primaryColorValue: 0xFF2255AA),
+    theme: HomeThemeModel.modernDefault.copyWith(
+      primaryColorValue: 0xFF2255AA,
+      appBackgroundMode: ShopAppBackground.modeImage,
+      appBackgroundAssetId: 'existing-background',
+    ),
     sectionOrder: HomeSectionOrder.defaultOrder,
     rooms: const HomeRoomSectionSetting(
       title: '豪華房',
@@ -316,6 +418,39 @@ HomeAppearanceDraft _shopDraft() {
     navigation: FrontendNavigationConfig.defaults().copyWith(
       drawerHiddenItemIds: const <String>['faq'],
     ),
+    sharedEntry: const HomeSharedEntrySectionSetting(
+      enabled: true,
+      cardOrder: <String>['about', 'rooms'],
+      cards: <String, HomeSharedEntryCardSetting>{
+        'rooms': HomeSharedEntryCardSetting(
+          title: '客製房型入口',
+          imageAssetId: 'room-gallery-1',
+          useSourceImage: false,
+        ),
+        'about': HomeSharedEntryCardSetting(
+          title: '客製介紹',
+          imageAssetId: 'about-gallery-2',
+          useSourceImage: false,
+        ),
+      },
+    ),
+    quickActions: const HomeQuickActionSetting(
+      slotOne: HomeQuickActionIds.phone,
+      slotTwo: HomeQuickActionIds.faq,
+      items: <HomeQuickActionItem>[
+        HomeQuickActionItem(
+          id: HomeQuickActionIds.notifications,
+          enabled: true,
+        ),
+        HomeQuickActionItem(id: HomeQuickActionIds.phone, enabled: true),
+        HomeQuickActionItem(id: HomeQuickActionIds.faq, enabled: true),
+      ],
+    ),
+    brandStyle: const StoreBrandStyle(
+      x: 0.2,
+      markType: 'logo',
+      logoPlacement: 'trailing',
+    ),
     bannerFrame: const ModernBannerFrameSetting(
       bannerImageFit: ModernBannerFrameSetting.fitContain,
     ),
@@ -355,4 +490,22 @@ void _expectContentKept(HomeAppearanceDraft current, HomeAppearanceDraft next) {
   );
   expect(next.navigation.left1, current.navigation.left1);
   expect(next.bannerFrame.bannerImageFit, current.bannerFrame.bannerImageFit);
+  expect(
+    next.sharedEntry.cards.keys.toSet(),
+    current.sharedEntry.cards.keys.toSet(),
+  );
+  for (final String id in current.sharedEntry.cardOrder) {
+    expect(
+      next.sharedEntry.cards[id]?.title,
+      current.sharedEntry.cards[id]?.title,
+    );
+    expect(
+      next.sharedEntry.cards[id]?.imageAssetId,
+      current.sharedEntry.cards[id]?.imageAssetId,
+    );
+  }
+  expect(next.quickActions.slotOne, current.quickActions.slotOne);
+  expect(next.quickActions.slotTwo, current.quickActions.slotTwo);
+  expect(next.quickActions.items, current.quickActions.items);
+  expect(next.brandStyle.markType, current.brandStyle.markType);
 }

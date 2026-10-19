@@ -11,11 +11,15 @@ class MyShopInfo extends StatelessWidget {
     required this.shopName,
     required this.city,
     required this.district,
+    this.nameFontSize,
+    this.addressFontSize,
   });
 
   final String shopName;
   final String city;
   final String district;
+  final double? nameFontSize;
+  final double? addressFontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +41,7 @@ class MyShopInfo extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: text.headlineSmall?.copyWith(
-            fontSize: nameSize,
+            fontSize: nameFontSize ?? nameSize,
             fontWeight: FontWeight.w800,
             height: 1.15,
           ),
@@ -58,6 +62,7 @@ class MyShopInfo extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: text.bodyMedium?.copyWith(
+                    fontSize: addressFontSize,
                     color: colors.onSurfaceVariant,
                     height: 1.25,
                   ),

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_appearance_preset.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class HomeAppearancePresetStrip extends StatefulWidget {
   const HomeAppearancePresetStrip({
@@ -12,6 +13,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
     required this.accent,
     required this.onPreview,
     required this.onApply,
+    required this.onRestore,
     this.previewingId,
     this.showHeading = true,
   });
@@ -22,6 +24,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
   final Color accent;
   final ValueChanged<HomeAppearancePreset> onPreview;
   final ValueChanged<HomeAppearancePreset> onApply;
+  final VoidCallback onRestore;
   final bool showHeading;
 
   @override
@@ -37,6 +40,9 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
       draft: widget.draft,
     );
     final String? selectedId = widget.previewingId ?? widget.presetId;
+    final HomeAppearancePreset? previewingPreset = homeAppearancePresetById(
+      widget.previewingId,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -60,14 +66,29 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
           ),
           const SizedBox(height: 8),
         ],
-        Text(
-          '目前：$status',
-          key: const Key('home-preset-current-style'),
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: widget.accent,
-          ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                previewingPreset == null
+                    ? '目前：$status'
+                    : '正在預覽：${previewingPreset.name}',
+                key: const Key('home-preset-current-style'),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: widget.accent,
+                ),
+              ),
+            ),
+            if (previewingPreset != null)
+              TextButton.icon(
+                key: const Key('home-preset-restore-draft'),
+                onPressed: widget.onRestore,
+                icon: const Icon(Icons.undo_rounded, size: 16),
+                label: const Text('返回原外觀'),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
         LayoutBuilder(
@@ -86,6 +107,7 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
                     height: 300,
                     child: _PresetCard(
                       preset: preset,
+                      draft: widget.draft,
                       accent: widget.accent,
                       selected: preset.id == selectedId,
                       applied: preset.id == widget.presetId,
@@ -140,6 +162,7 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
 class _PresetCard extends StatelessWidget {
   const _PresetCard({
     required this.preset,
+    required this.draft,
     required this.accent,
     required this.selected,
     required this.applied,
@@ -149,6 +172,7 @@ class _PresetCard extends StatelessWidget {
   });
 
   final HomeAppearancePreset preset;
+  final HomeAppearanceDraft draft;
   final Color accent;
   final bool selected;
   final bool applied;
@@ -185,7 +209,13 @@ class _PresetCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                SizedBox(height: 164, child: _MiniHome(presetId: preset.id)),
+                SizedBox(
+                  height: 164,
+                  child: _MiniHome(
+                    presetId: preset.id,
+                    appearance: preset.apply(draft),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: <Widget>[
@@ -239,7 +269,11 @@ class _PresetCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      previewing ? '正在預覽' : '預覽',
+                      previewing
+                          ? '正在預覽'
+                          : applied
+                          ? '目前已套用'
+                          : '點擊預覽',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -254,7 +288,7 @@ class _PresetCard extends StatelessWidget {
                         foregroundColor: accent,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
-                      child: const Text('套用'),
+                      child: const Text('套用此風格'),
                     ),
                   ],
                 ),
@@ -268,13 +302,14 @@ class _PresetCard extends StatelessWidget {
 }
 
 class _MiniHome extends StatelessWidget {
-  const _MiniHome({required this.presetId});
+  const _MiniHome({required this.presetId, required this.appearance});
 
   final String presetId;
+  final HomeAppearanceDraft appearance;
 
   @override
   Widget build(BuildContext context) {
-    final _SitePalette palette = _SitePalette.of(presetId);
+    final _SitePalette palette = _SitePalette.fromDraft(appearance, presetId);
     final bool drawer = presetId == 'minimal' || presetId == 'brand';
     final bool floating = presetId == 'booking';
     final bool bottom = presetId == 'classic' || presetId == 'warm' || floating;
@@ -313,7 +348,14 @@ class _MiniHome extends StatelessWidget {
     return switch (presetId) {
       'minimal' => Column(
         children: <Widget>[
-          Expanded(flex: 5, child: _Photo(palette.hero, label: 'HERO')),
+          Expanded(
+            flex: 5,
+            child: _Photo(
+              palette.hero,
+              imageAsset: palette.heroImage,
+              label: '',
+            ),
+          ),
           const SizedBox(height: 3),
           _Bar(color: palette.ink, label: '住宿預約', light: true),
           const SizedBox(height: 3),
@@ -347,11 +389,23 @@ class _MiniHome extends StatelessWidget {
       ),
       'brand' => Column(
         children: <Widget>[
-          Expanded(flex: 3, child: _Photo(palette.hero, label: '')),
+          Expanded(
+            flex: 3,
+            child: _Photo(
+              palette.hero,
+              imageAsset: palette.heroImage,
+              label: '',
+            ),
+          ),
           const SizedBox(height: 3),
           Expanded(
             flex: 5,
-            child: _Photo(palette.room, label: '豪華房', caption: true),
+            child: _Photo(
+              palette.room,
+              imageAsset: palette.roomImage,
+              label: '豪華房',
+              caption: true,
+            ),
           ),
           const SizedBox(height: 3),
           SizedBox(
@@ -360,7 +414,14 @@ class _MiniHome extends StatelessWidget {
               children: <Widget>[
                 Expanded(child: _Tile(palette.mist, '安靜套房')),
                 const SizedBox(width: 3),
-                Expanded(flex: 2, child: _Photo(palette.sand, label: '')),
+                Expanded(
+                  flex: 2,
+                  child: _Photo(
+                    palette.sand,
+                    imageAsset: palette.roomImage,
+                    label: '',
+                  ),
+                ),
               ],
             ),
           ),
@@ -368,7 +429,14 @@ class _MiniHome extends StatelessWidget {
       ),
       'booking' => Column(
         children: <Widget>[
-          Expanded(flex: 3, child: _Photo(palette.hero, label: '')),
+          Expanded(
+            flex: 3,
+            child: _Photo(
+              palette.hero,
+              imageAsset: palette.heroImage,
+              label: '',
+            ),
+          ),
           const SizedBox(height: 3),
           const Align(
             alignment: Alignment.centerLeft,
@@ -394,7 +462,14 @@ class _MiniHome extends StatelessWidget {
       ),
       'warm' => Column(
         children: <Widget>[
-          Expanded(flex: 3, child: _Photo(palette.hero, label: '')),
+          Expanded(
+            flex: 3,
+            child: _Photo(
+              palette.hero,
+              imageAsset: palette.heroImage,
+              label: '',
+            ),
+          ),
           const SizedBox(height: 3),
           Expanded(
             flex: 3,
@@ -402,7 +477,14 @@ class _MiniHome extends StatelessWidget {
               children: <Widget>[
                 Expanded(flex: 2, child: _Tile(palette.mist, '歡迎來到')),
                 const SizedBox(width: 3),
-                Expanded(flex: 3, child: _Photo(palette.room, label: '環境')),
+                Expanded(
+                  flex: 3,
+                  child: _Photo(
+                    palette.room,
+                    imageAsset: palette.roomImage,
+                    label: '環境',
+                  ),
+                ),
               ],
             ),
           ),
@@ -413,7 +495,14 @@ class _MiniHome extends StatelessWidget {
               children: <Widget>[
                 Expanded(flex: 2, child: _Tile(palette.sand, '房型')),
                 const SizedBox(width: 3),
-                Expanded(flex: 3, child: _Photo(palette.hero, label: '')),
+                Expanded(
+                  flex: 3,
+                  child: _Photo(
+                    palette.hero,
+                    imageAsset: palette.heroImage,
+                    label: '',
+                  ),
+                ),
               ],
             ),
           ),
@@ -421,7 +510,14 @@ class _MiniHome extends StatelessWidget {
       ),
       _ => Column(
         children: <Widget>[
-          Expanded(flex: 4, child: _Photo(palette.hero, label: '')),
+          Expanded(
+            flex: 4,
+            child: _Photo(
+              palette.hero,
+              imageAsset: palette.heroImage,
+              label: '',
+            ),
+          ),
           const SizedBox(height: 3),
           _Bar(color: palette.ink, label: '快速預約', light: true),
           const SizedBox(height: 3),
@@ -456,6 +552,8 @@ class _SitePalette {
     required this.rail,
     required this.stay,
     required this.care,
+    required this.heroImage,
+    required this.roomImage,
   });
 
   final Color paper;
@@ -468,70 +566,43 @@ class _SitePalette {
   final Color rail;
   final Color stay;
   final Color care;
+  final String heroImage;
+  final String roomImage;
 
-  static _SitePalette of(String id) {
-    return switch (id) {
-      'minimal' => const _SitePalette(
-        paper: Color(0xFFF7F5F2),
-        ink: Color(0xFF1F1A17),
-        hero: Color(0xFFD9D3CC),
-        room: Color(0xFFE7E1DA),
-        sand: Color(0xFFE4DDD6),
-        mist: Color(0xFFF3F0EC),
-        line: Color(0xFFE4DDD6),
-        rail: Color(0xFFECE7E1),
-        stay: Color(0xFF1F1A17),
-        care: Color(0xFF6E675F),
-      ),
-      'brand' => const _SitePalette(
-        paper: Color(0xFFF3EEE8),
-        ink: Color(0xFF2A241F),
-        hero: Color(0xFF2E2926),
-        room: Color(0xFF8D735B),
-        sand: Color(0xFFCDB8A2),
-        mist: Color(0xFFF7F1EA),
-        line: Color(0xFFE4D8CC),
-        rail: Color(0xFFE8DFD4),
-        stay: Color(0xFF2E2926),
-        care: Color(0xFF8D735B),
-      ),
-      'booking' => const _SitePalette(
-        paper: Color(0xFFFFF8F4),
-        ink: Color(0xFF3A2A20),
-        hero: Color(0xFFE7D3C4),
-        room: Color(0xFFD7BBA6),
-        sand: Color(0xFFF0E2D6),
-        mist: Color(0xFFFFF1E8),
-        line: Color(0xFFF0D9CC),
-        rail: Color(0xFFFFF1E8),
-        stay: Color(0xFFC4654A),
-        care: Color(0xFF3E6B58),
-      ),
-      'warm' => const _SitePalette(
-        paper: Color(0xFFFBF3EA),
-        ink: Color(0xFF5C4636),
-        hero: Color(0xFFE2C2A4),
-        room: Color(0xFFC9956C),
-        sand: Color(0xFFF6E7D8),
-        mist: Color(0xFFFFF6EE),
-        line: Color(0xFFEBD9C8),
-        rail: Color(0xFFF6E7D8),
-        stay: Color(0xFF9A6B4F),
-        care: Color(0xFFC9956C),
-      ),
-      _ => const _SitePalette(
-        paper: Color(0xFFFFFBF7),
-        ink: Color(0xFF8C5A3C),
-        hero: Color(0xFFC4A484),
-        room: Color(0xFFE7D5C4),
-        sand: Color(0xFFF3E6D8),
-        mist: Color(0xFFFFF6EE),
-        line: Color(0xFFE7E0D8),
-        rail: Color(0xFFF6F1EB),
-        stay: Color(0xFF8C5A3C),
-        care: Color(0xFFC4A484),
-      ),
+  static _SitePalette fromDraft(HomeAppearanceDraft draft, String presetId) {
+    final HomeThemeModel theme = draft.theme;
+    final Color paper = theme.backgroundColor;
+    final Color accent = theme.primaryColor;
+    final Color card = theme.cardColor;
+    final String imageRoot = switch (presetId) {
+      'brand' => 'assets/images/shop_house/modern_japanese',
+      'warm' => 'assets/images/shop_house/romantic_garden',
+      _ => 'assets/images/shop_house/warm_wood',
     };
+    final String heroImage = switch (presetId) {
+      'brand' => '$imageRoot/modern_japanese_courtyard.jpg',
+      'warm' => '$imageRoot/romantic_garden_courtyard.jpg',
+      _ => '$imageRoot/courtyard_daylight.jpg',
+    };
+    final String roomImage = switch (presetId) {
+      'brand' => '$imageRoot/modern_japanese_cat_default.jpg',
+      'warm' => '$imageRoot/romantic_garden_cat_default.jpg',
+      _ => '$imageRoot/cat_default.png',
+    };
+    return _SitePalette(
+      paper: paper,
+      ink: theme.textColor,
+      hero: Color.alphaBlend(accent.withValues(alpha: 0.16), card),
+      room: Color.alphaBlend(accent.withValues(alpha: 0.1), card),
+      sand: theme.cardBorderColor,
+      mist: card,
+      line: theme.cardBorderColor,
+      rail: draft.brandStyle.resolveHeaderBackground(paper),
+      stay: theme.buttonBackgroundColor,
+      care: accent,
+      heroImage: heroImage,
+      roomImage: roomImage,
+    );
   }
 }
 
@@ -645,37 +716,50 @@ class _SiteFooter extends StatelessWidget {
 }
 
 class _Photo extends StatelessWidget {
-  const _Photo(this.color, {required this.label, this.caption = false});
+  const _Photo(
+    this.color, {
+    required this.label,
+    this.caption = false,
+    this.imageAsset = '',
+  });
 
   final Color color;
   final String label;
   final bool caption;
+  final String imageAsset;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Stack(
-        children: <Widget>[
-          if (label.isNotEmpty)
-            Align(
-              alignment: caption ? Alignment.bottomLeft : Alignment.center,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 7,
-                    fontWeight: FontWeight.w800,
-                    color: caption ? Colors.white : const Color(0xFF3A2A20),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: color),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            if (imageAsset.isNotEmpty)
+              Image.asset(
+                imageAsset,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => ColoredBox(color: color),
+              ),
+            if (label.isNotEmpty)
+              Align(
+                alignment: caption ? Alignment.bottomLeft : Alignment.center,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 7,
+                      fontWeight: FontWeight.w800,
+                      color: caption ? Colors.white : const Color(0xFF3A2A20),
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

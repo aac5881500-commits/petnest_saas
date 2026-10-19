@@ -25,6 +25,8 @@ import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_preview_frame.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_phone_preview.dart';
 import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
+import 'package:petnest_saas/features/shop/shop_admin_welcome.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_admin_welcome_dialog.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_business_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
@@ -82,6 +84,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   bool _chatSurfacesOnTop = false;
   bool _wasChatVisible = false;
   bool _frontendExpanded = false;
+  bool _welcomeScheduled = false;
+  bool _welcomeVisible = false;
   final GlobalKey _frontendTabBarViewKey = GlobalKey();
   final GlobalKey<ShopFrontendPreviewFrameState> _frontendPreviewKey =
       GlobalKey<ShopFrontendPreviewFrameState>();
@@ -371,6 +375,122 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         (shop['address'] ?? '').toString().trim().isNotEmpty;
   }
 
+  void _scheduleAdminWelcome(Map<String, dynamic> shop) {
+    if (_welcomeScheduled || !_roleLoaded) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final eligible =
+        _currentUserRole == ShopRoles.owner &&
+        uid != null &&
+        (shop['ownerUid'] ?? '').toString() == uid &&
+        ShopAdminWelcome.isNewShop(shop);
+    if (!eligible) {
+      _welcomeScheduled = true;
+      return;
+    }
+    _welcomeScheduled = true;
+    final snapshot = Map<String, dynamic>.from(shop);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openAdminWelcome(snapshot);
+    });
+  }
+
+  Future<void> _openAdminWelcome(Map<String, dynamic> shop) async {
+    if (!mounted) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    Map<String, dynamic>? userData;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      userData = doc.data();
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    final show = ShopAdminWelcome.shouldShow(
+      shop: shop,
+      shopId: widget.shopId,
+      uid: user.uid,
+      role: _currentUserRole,
+      userLoaded: true,
+      userData: userData,
+    );
+    if (!show) return;
+    await _presentAdminWelcome(persist: true);
+  }
+
+  Future<void> _replayAdminWelcome() {
+    return _presentAdminWelcome(persist: false);
+  }
+
+  Future<void> _presentAdminWelcome({required bool persist}) async {
+    if (!mounted || _welcomeVisible) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (persist && user == null) return;
+    _welcomeVisible = true;
+    try {
+      final choice = await showGeneralDialog<ShopAdminWelcomeChoice>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: '關閉歡迎引導',
+        barrierColor: const Color(0x66000000),
+        transitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (dialogContext, animation, secondaryAnimation) {
+          return ShopAdminWelcomeDialog(
+            onStart: () =>
+                Navigator.pop(dialogContext, ShopAdminWelcomeChoice.started),
+            onLater: () =>
+                Navigator.pop(dialogContext, ShopAdminWelcomeChoice.later),
+          );
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+      if (!mounted) return;
+      final saved = choice ?? ShopAdminWelcomeChoice.later;
+      if (persist && user != null) {
+        try {
+          await ShopAdminWelcome.remember(
+            uid: user.uid,
+            shopId: widget.shopId,
+            choice: saved,
+          );
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('歡迎引導狀態暫時沒有儲存，下次進入會再提醒一次')),
+            );
+          }
+        }
+      }
+      if (!mounted || saved != ShopAdminWelcomeChoice.started) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ShopBasicInfoPage(shopId: widget.shopId),
+        ),
+      );
+    } finally {
+      _welcomeVisible = false;
+    }
+  }
+
   bool _can(String permissionKey) {
     return ShopService.instance.hasPermission(
       _currentMemberData,
@@ -603,6 +723,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         }
 
         final isComplete = _isProfileComplete(shop);
+        final remindSetup = ShopAdminWelcome.shouldRemind(
+          shop: shop,
+          profileComplete: isComplete,
+        );
+        _scheduleAdminWelcome(shop);
         final bool canUsePublicPage = ShopPlanService.canUsePublicPage(shop);
         final bool canOpenFrontend = isComplete && canUsePublicPage;
         final String shopCode = (shop['shopCode'] ?? '').toString().trim();
@@ -702,7 +827,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
               ),
               body: Column(
                 children: [
-                  if (!isComplete)
+                  if (!isComplete && !remindSetup)
                     Align(
                       alignment: Alignment.topCenter,
                       child: ConstrainedBox(
@@ -765,6 +890,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       currentUserRole: _currentUserRole,
                                       memberData: _currentMemberData,
                                       isProfileComplete: isComplete,
+                                      showSetupReminder: remindSetup,
+                                      onReplayWelcome:
+                                          _currentUserRole == ShopRoles.owner
+                                          ? _replayAdminWelcome
+                                          : null,
                                       onPreviewFrontend: () =>
                                           _handleFrontendPreview(
                                             shopCode: shopCode,
@@ -998,6 +1128,8 @@ class _BasicInfoTab extends StatelessWidget {
     required this.currentUserRole,
     required this.memberData,
     required this.isProfileComplete,
+    required this.showSetupReminder,
+    required this.onReplayWelcome,
     required this.onPreviewFrontend,
   });
   final Map<String, dynamic> shop;
@@ -1005,6 +1137,8 @@ class _BasicInfoTab extends StatelessWidget {
   final String? currentUserRole;
   final Map<String, dynamic>? memberData;
   final bool isProfileComplete;
+  final bool showSetupReminder;
+  final VoidCallback? onReplayWelcome;
   final VoidCallback onPreviewFrontend;
   bool _can(String permissionKey) {
     return ShopService.instance.hasPermission(memberData, permissionKey);
@@ -1024,6 +1158,20 @@ class _BasicInfoTab extends StatelessWidget {
     return _DashboardResponsiveBody(
       children: [
         _ShopPlanStatusCard(shopId: shopId),
+        if (showSetupReminder)
+          ShopAdminWelcomeReminder(
+            onOpen: currentUserRole == ShopRoles.owner
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ShopBasicInfoPage(shopId: shopId),
+                      ),
+                    );
+                  }
+                : null,
+            onReplay: onReplayWelcome,
+          ),
         _DashboardSection(
           title: '店家資料',
           children: [
@@ -1040,6 +1188,20 @@ class _BasicInfoTab extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+            if (isProfileComplete && onReplayWelcome != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const ValueKey('shop-admin-welcome-replay-quiet'),
+                  onPressed: onReplayWelcome,
+                  icon: const Icon(Icons.replay_rounded, size: 18),
+                  label: const Text('重新觀看開店引導'),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
               ),
             if (_can(ShopPermissionKeys.editBusinessInfo))
               _MenuTile(
@@ -1337,7 +1499,8 @@ class _BasicInfoTab extends StatelessWidget {
                   ? '可管理已授權的一般員工'
                   : '目前無法修改權限',
               icon: Icons.admin_panel_settings,
-              enabled: currentUserRole == ShopRoles.owner ||
+              enabled:
+                  currentUserRole == ShopRoles.owner ||
                   currentUserRole == ShopRoles.manager,
               onTap: () {
                 Navigator.push(

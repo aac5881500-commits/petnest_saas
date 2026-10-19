@@ -12,6 +12,9 @@ class ShopHouseAppearance {
     this.decorationRightAssetId = '',
     this.decorationTopAssetId = '',
     this.baseAssetId = '',
+    this.defaultPhotoAssetId = '',
+    this.sceneBackgroundAssetId = '',
+    this.roofPhoneAssetId = '',
   });
 
   static const String fieldName = 'houseAppearance';
@@ -24,6 +27,9 @@ class ShopHouseAppearance {
   final String decorationRightAssetId;
   final String decorationTopAssetId;
   final String baseAssetId;
+  final String defaultPhotoAssetId;
+  final String sceneBackgroundAssetId;
+  final String roofPhoneAssetId;
 
   factory ShopHouseAppearance.fromMap(Object? raw) {
     if (raw is! Map) {
@@ -38,6 +44,9 @@ class ShopHouseAppearance {
       decorationRightAssetId: _id(map['decorationRightAssetId']),
       decorationTopAssetId: _id(map['decorationTopAssetId']),
       baseAssetId: _id(map['baseAssetId']),
+      defaultPhotoAssetId: _id(map['defaultPhotoAssetId']),
+      sceneBackgroundAssetId: _id(map['sceneBackgroundAssetId']),
+      roofPhoneAssetId: _id(map['roofPhoneAssetId']),
     );
   }
 
@@ -50,11 +59,18 @@ class ShopHouseAppearance {
       'decorationRightAssetId': decorationRightAssetId,
       'decorationTopAssetId': decorationTopAssetId,
       'baseAssetId': baseAssetId,
+      'defaultPhotoAssetId': defaultPhotoAssetId,
+      'sceneBackgroundAssetId': sceneBackgroundAssetId,
+      'roofPhoneAssetId': roofPhoneAssetId,
     };
   }
 
   String idFor(String placement) {
     switch (placement) {
+      case ShopHousePlacements.defaultPhoto:
+        return defaultPhotoAssetId;
+      case ShopHousePlacements.sceneBackground:
+        return sceneBackgroundAssetId;
       case ShopHousePlacements.roof:
         return roofAssetId;
       case ShopHousePlacements.wall:
@@ -82,6 +98,9 @@ class ShopHouseAppearance {
     String? decorationRightAssetId,
     String? decorationTopAssetId,
     String? baseAssetId,
+    String? defaultPhotoAssetId,
+    String? sceneBackgroundAssetId,
+    String? roofPhoneAssetId,
   }) {
     return ShopHouseAppearance(
       roofAssetId: roofAssetId ?? this.roofAssetId,
@@ -93,12 +112,20 @@ class ShopHouseAppearance {
           decorationRightAssetId ?? this.decorationRightAssetId,
       decorationTopAssetId: decorationTopAssetId ?? this.decorationTopAssetId,
       baseAssetId: baseAssetId ?? this.baseAssetId,
+      defaultPhotoAssetId: defaultPhotoAssetId ?? this.defaultPhotoAssetId,
+      sceneBackgroundAssetId:
+          sceneBackgroundAssetId ?? this.sceneBackgroundAssetId,
+      roofPhoneAssetId: roofPhoneAssetId ?? this.roofPhoneAssetId,
     );
   }
 
   ShopHouseAppearance withPlacement(String placement, String assetId) {
     final String id = assetId.trim();
     switch (placement) {
+      case ShopHousePlacements.defaultPhoto:
+        return copyWith(defaultPhotoAssetId: id);
+      case ShopHousePlacements.sceneBackground:
+        return copyWith(sceneBackgroundAssetId: id);
       case ShopHousePlacements.roof:
         return copyWith(roofAssetId: id);
       case ShopHousePlacements.wall:
@@ -119,6 +146,7 @@ class ShopHouseAppearance {
   }
 
   Iterable<String> get selectedIds sync* {
+    if (roofPhoneAssetId.isNotEmpty) yield roofPhoneAssetId;
     for (final String placement in ShopHousePlacements.known) {
       final String id = idFor(placement);
       if (id.isNotEmpty) {

@@ -46,8 +46,14 @@ class MyShopQrLinkCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         style: OutlinedButton.styleFrom(
-          foregroundColor: colors.primary,
-          side: BorderSide(color: colors.outlineVariant),
+          foregroundColor: const Color(0xFF915C2E),
+          side: BorderSide(
+            color: const Color(0xFF915C2E).withValues(alpha: .35),
+          ),
+          textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),

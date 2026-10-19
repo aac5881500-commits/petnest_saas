@@ -26,6 +26,7 @@ class StoreBrandStyle {
     this.widthRatio = defaultWidthRatio,
     this.nameColorValue,
     this.subtitleColorValue,
+    this.headerBackgroundColorValue,
     this.textShadowEnabled = false,
     this.textAlign = 'center',
     this.nameFontSize = 18,
@@ -62,6 +63,9 @@ class StoreBrandStyle {
   final double widthRatio;
   final int? nameColorValue;
   final int? subtitleColorValue;
+
+  /// 頂部整條背景。null 代表沿用首頁背景，不用透明零值代表沿用。
+  final int? headerBackgroundColorValue;
   final bool textShadowEnabled;
   final String textAlign;
   final double nameFontSize;
@@ -135,6 +139,15 @@ class StoreBrandStyle {
     return Color(value);
   }
 
+  /// 未設定時回傳頁面背景，讓正式前台與編輯預覽走同一條規則。
+  Color resolveHeaderBackground(Color pageBackground) {
+    final int? value = headerBackgroundColorValue;
+    if (value == null) {
+      return pageBackground;
+    }
+    return Color(value);
+  }
+
   List<Shadow>? get textShadows {
     if (!textShadowEnabled) {
       return null;
@@ -150,6 +163,7 @@ class StoreBrandStyle {
     double? widthRatio,
     Object? nameColorValue = _keep,
     Object? subtitleColorValue = _keep,
+    Object? headerBackgroundColorValue = _keep,
     bool? textShadowEnabled,
     String? textAlign,
     double? nameFontSize,
@@ -170,6 +184,9 @@ class StoreBrandStyle {
       subtitleColorValue: identical(subtitleColorValue, _keep)
           ? this.subtitleColorValue
           : subtitleColorValue as int?,
+      headerBackgroundColorValue: identical(headerBackgroundColorValue, _keep)
+          ? this.headerBackgroundColorValue
+          : headerBackgroundColorValue as int?,
       textShadowEnabled: textShadowEnabled ?? this.textShadowEnabled,
       textAlign: textAlign ?? this.textAlign,
       nameFontSize: _font(
@@ -200,6 +217,7 @@ class StoreBrandStyle {
       if (nameColorValue != null) 'homepageBrandNameColor': nameColorValue,
       if (subtitleColorValue != null)
         'homepageBrandSubtitleColor': subtitleColorValue,
+      'homepageHeaderBackgroundColor': headerBackgroundColorValue,
       'homepageBrandTextShadowEnabled': textShadowEnabled,
       'homepageBrandTextAlign': textAlign,
       'homepageBrandNameFontSize': _font(
@@ -239,6 +257,7 @@ class StoreBrandStyle {
       subtitleColorValue: map.containsKey('homepageBrandSubtitleColor')
           ? HomeThemeModel.parseColorValue(map['homepageBrandSubtitleColor'], 0)
           : null,
+      headerBackgroundColorValue: _storedHeaderColor(map),
       textShadowEnabled: map['homepageBrandTextShadowEnabled'] == true,
       textAlign: _align(map['homepageBrandTextAlign']),
       nameFontSize: _font(
@@ -269,6 +288,19 @@ class StoreBrandStyle {
     return (x - 0).abs() < 0.015 ||
         (x - 0.5).abs() < 0.015 ||
         (x - 1).abs() < 0.015;
+  }
+
+  static int? _storedHeaderColor(Map<String, dynamic> map) {
+    const String key = 'homepageHeaderBackgroundColor';
+    final dynamic raw = map[key];
+    if (!map.containsKey(key) || raw == null || raw == 0) {
+      return null;
+    }
+    final int parsed = HomeThemeModel.parseColorValue(raw, 0);
+    if ((parsed & 0xFF000000) == 0) {
+      return null;
+    }
+    return parsed;
   }
 
   static double _unit(dynamic value, double fallback) {

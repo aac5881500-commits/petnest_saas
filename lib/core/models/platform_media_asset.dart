@@ -63,6 +63,8 @@ abstract final class ShopHousePlacements {
   static const String decorationRight = 'house.decorationRight';
   static const String decorationTop = 'house.decorationTop';
   static const String base = 'house.base';
+  static const String sceneBackground = 'house.sceneBackground';
+  static const String defaultPhoto = 'house.defaultPhoto';
 
   static const List<String> known = <String>[
     roof,
@@ -72,10 +74,16 @@ abstract final class ShopHousePlacements {
     decorationRight,
     decorationTop,
     base,
+    sceneBackground,
+    defaultPhoto,
   ];
 
   static String label(String placement) {
     switch (placement) {
+      case sceneBackground:
+        return '小屋場景背景';
+      case defaultPhoto:
+        return '相框預設照片';
       case roof:
         return '屋頂';
       case wall:
@@ -97,6 +105,10 @@ abstract final class ShopHousePlacements {
 
   static String shortLabel(String placement) {
     switch (placement) {
+      case sceneBackground:
+        return '小屋場景背景';
+      case defaultPhoto:
+        return '相框預設照片';
       case roof:
         return '屋頂';
       case wall:
@@ -118,6 +130,10 @@ abstract final class ShopHousePlacements {
 
   static String defaultLabel(String placement) {
     switch (placement) {
+      case sceneBackground:
+        return 'PetNest 庭院背景';
+      case defaultPhoto:
+        return 'PetNest 預設貓咪照片';
       case roof:
         return '預設暖木屋頂';
       case wall:
@@ -133,6 +149,10 @@ abstract final class ShopHousePlacements {
 
   static String hint(String placement) {
     switch (placement) {
+      case sceneBackground:
+        return '小屋後方的庭院環境，與牆面分開；建議橫向 JPG 或 WebP。';
+      case defaultPhoto:
+        return '相框內的預設照片，不包含外框；建議正方形照片。';
       case roof:
         return '屋頂建議：透明背景 PNG 或 WebP，橫向素材。';
       case wall:
@@ -177,12 +197,17 @@ class PlatformMediaAsset {
     required this.sortOrder,
     required this.enabled,
     this.placements = const <String>[],
+    this.device = 'any',
+    this.sourceFileName = '',
     this.createdAt,
     this.updatedAt,
     this.createdByUid = '',
     this.createdByEmail = '',
   });
 
+  /// 舊素材未標記裝置時，兩種版型皆可使用。
+  final String device;
+  final String sourceFileName;
   final String id;
   final String name;
   final String category;
@@ -222,6 +247,10 @@ class PlatformMediaAsset {
     return PlatformMediaAsset(
       id: id,
       name: _readString(map['name']),
+      device: const ['desktop', 'phone'].contains(map['device'])
+          ? map['device'] as String
+          : 'any',
+      sourceFileName: _readString(map['sourceFileName']),
       category: _readString(map['category']),
       placements: _readPlacements(map['placements']),
       imageUrl: imageUrl,
@@ -242,6 +271,8 @@ class PlatformMediaAsset {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'name': name,
+      if (category == PlatformMediaCategories.shopHouse) 'device': device,
+      if (sourceFileName.isNotEmpty) 'sourceFileName': sourceFileName,
       'category': category,
       'placements': placements,
       'imageUrl': imageUrl,
@@ -259,6 +290,8 @@ class PlatformMediaAsset {
 
   PlatformMediaAsset copyWith({
     String? id,
+    String? device,
+    String? sourceFileName,
     String? name,
     String? category,
     List<String>? placements,
@@ -277,6 +310,8 @@ class PlatformMediaAsset {
   }) {
     return PlatformMediaAsset(
       id: id ?? this.id,
+      device: device ?? this.device,
+      sourceFileName: sourceFileName ?? this.sourceFileName,
       name: name ?? this.name,
       category: category ?? this.category,
       placements: placements ?? this.placements,
@@ -294,6 +329,37 @@ class PlatformMediaAsset {
       createdByEmail: createdByEmail ?? this.createdByEmail,
     );
   }
+
+  /// 小屋素材替換原檔時以既有 updatedAt 更新圖片快取鍵，保留下載 token。
+  String get houseImageUrl => _houseRevision(imageUrl);
+  String get houseThumbnailUrl =>
+      _houseRevision(thumbnailUrl.isEmpty ? imageUrl : thumbnailUrl);
+  String _houseRevision(String url) {
+    final uri = Uri.tryParse(url);
+    if (category != PlatformMediaCategories.shopHouse ||
+        updatedAt == null ||
+        uri == null ||
+        uri.host.isEmpty) {
+      return url;
+    }
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParameters,
+            '_petnestRev': updatedAt!.millisecondsSinceEpoch.toString(),
+          },
+        )
+        .toString();
+  }
+
+  bool get hasUsableUrl {
+    final uri = Uri.tryParse(imageUrl);
+    return uri != null &&
+        (uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host.isNotEmpty;
+  }
+
+  bool supportsDevice(String target) => device == 'any' || device == target;
 
   bool allowsPlacement(String placement) {
     return category == PlatformMediaCategories.shopHouse &&

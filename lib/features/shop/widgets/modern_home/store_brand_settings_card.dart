@@ -55,6 +55,8 @@ class StoreBrandSettingsCard extends StatelessWidget {
           const SizedBox(height: 12),
           _subhead('品牌基本資料'),
           _identityBody(),
+          _subhead('頂部區域背景'),
+          _headerBackgroundBody(),
           _subhead('Logo 顯示方式'),
           _logoBody(),
           _subhead('店名與副標樣式'),
@@ -119,6 +121,52 @@ class StoreBrandSettingsCard extends StatelessWidget {
             border: OutlineInputBorder(),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _headerBackgroundBody() {
+    final bool enabled = style.headerBackgroundColorValue != null;
+    final Color current = Color(
+      style.headerBackgroundColorValue ?? theme.backgroundColor.toARGB32(),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text(
+          '套用在 Logo、店名、副標，以及右上角按鈕背後的整條頂部。未啟用時沿用首頁背景。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.35,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('單獨設定頂部背景色'),
+          value: enabled,
+          onChanged: (bool value) {
+            onChanged(
+              style.copyWith(
+                headerBackgroundColorValue: value
+                    ? theme.backgroundColor.toARGB32()
+                    : null,
+              ),
+            );
+          },
+        ),
+        if (enabled)
+          _BrandColorField(
+            label: '頂部背景色',
+            value: current,
+            themeChoice: theme.backgroundColor,
+            initiallyOpen: true,
+            onPick: (Color color) {
+              onChanged(
+                style.copyWith(headerBackgroundColorValue: color.toARGB32()),
+              );
+            },
+          ),
       ],
     );
   }
@@ -504,19 +552,21 @@ class _BrandColorField extends StatefulWidget {
     required this.value,
     required this.themeChoice,
     required this.onPick,
+    this.initiallyOpen = false,
   });
 
   final String label;
   final Color value;
   final Color themeChoice;
   final ValueChanged<Color> onPick;
+  final bool initiallyOpen;
 
   @override
   State<_BrandColorField> createState() => _BrandColorFieldState();
 }
 
 class _BrandColorFieldState extends State<_BrandColorField> {
-  bool _open = false;
+  late bool _open = widget.initiallyOpen;
 
   @override
   Widget build(BuildContext context) {

@@ -750,6 +750,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             HomeSharedEntrySectionSetting.fromMap(
               modernAppearance[HomeSharedEntrySectionSetting.mapKey],
             );
+        final Set<String> sharedEntryIds = sharedEntry.enabled
+            ? sharedEntryJoinedIds(
+                section: sharedEntry,
+                rooms: roomSection,
+              ).toSet()
+            : <String>{};
         final HomeEnvironmentSectionSetting environmentSection =
             HomeEnvironmentSectionSetting.fromMap(
               modernAppearance['environmentSection'],
@@ -847,16 +853,26 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
         final List<String> visibleSections = HomeSectionOrder.visible(
           sectionOrder,
-          showAnnouncements: showAnnouncementsOnHome,
-          showPolicy: homeInfoOccupiesSection(policyPhase),
-          showFaq: homeInfoOccupiesSection(faqPhase),
-          showReviews: homeInfoOccupiesSection(reviewPhase),
-          showQuickBooking: homeQuickBookingVisible(
-            setting: quickBookingSection,
-            editorPreview: editorPreview,
-            accommodationAvailable: accommodationAvailable,
-            daycareAvailable: daycareAvailable,
-          ),
+          showAnnouncements:
+              showAnnouncementsOnHome &&
+              !sharedEntryIds.contains(HomeSharedEntrySources.announcements),
+          showPolicy:
+              homeInfoOccupiesSection(policyPhase) &&
+              !sharedEntryIds.contains(HomeSharedEntrySources.policy),
+          showFaq:
+              homeInfoOccupiesSection(faqPhase) &&
+              !sharedEntryIds.contains(HomeSharedEntrySources.faq),
+          showReviews:
+              homeInfoOccupiesSection(reviewPhase) &&
+              !sharedEntryIds.contains(HomeSharedEntrySources.reviews),
+          showQuickBooking:
+              !sharedEntryIds.contains(HomeSharedEntrySources.quickBooking) &&
+              homeQuickBookingVisible(
+                setting: quickBookingSection,
+                editorPreview: editorPreview,
+                accommodationAvailable: accommodationAvailable,
+                daycareAvailable: daycareAvailable,
+              ),
           showServices: showStayServiceStrip,
           showFeatured:
               storeModuleEnabled && storeHomeSetting.showFeaturedProducts,

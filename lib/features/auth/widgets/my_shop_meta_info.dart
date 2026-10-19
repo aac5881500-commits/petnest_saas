@@ -62,7 +62,7 @@ class MyShopMetaInfo extends StatelessWidget {
         .toList();
 
     if (modules.isEmpty) {
-      return businessType.trim().isEmpty ? '尚未開啟' : businessType.trim();
+      return businessType.trim().isEmpty ? '尚未設定' : businessType.trim();
     }
     final String type = businessType.trim();
     if (type.isNotEmpty && !modules.contains(type)) {
@@ -72,7 +72,7 @@ class MyShopMetaInfo extends StatelessWidget {
   }
 
   String get _businessTimeText {
-    if (openTime.isEmpty || closeTime.isEmpty) {
+    if (openTime.trim().isEmpty || closeTime.trim().isEmpty) {
       return '尚未設定';
     }
 
@@ -95,7 +95,7 @@ class MyShopMetaInfo extends StatelessWidget {
   }
 
   String _formatUpdatedAt(dynamic value) {
-    if (value == null) return '尚未更新';
+    if (value == null) return '尚未設定';
 
     DateTime? dateTime;
 
@@ -105,7 +105,7 @@ class MyShopMetaInfo extends StatelessWidget {
       dateTime = value;
     }
 
-    if (dateTime == null) return '尚未更新';
+    if (dateTime == null) return '尚未設定';
 
     String twoDigits(int number) {
       return number.toString().padLeft(2, '0');
@@ -120,15 +120,21 @@ class MyShopMetaInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    final Color publicTone = isPublic
+    final colors = Theme.of(context).colorScheme;
+    final publicTone = isPublic
         ? (colors.brightness == Brightness.dark
               ? const Color(0xFF81C784)
-              : const Color(0xFF2E7D32))
+              : const Color(0xFF4E764A))
         : colors.onSurfaceVariant;
     return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final List<Widget> leading = <Widget>[
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 3
+            : (constraints.maxWidth >= 320 ? 2 : 1);
+        const gap = 10.0;
+        final tileWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        final fields = <Widget>[
           _MetaRow(
             icon: Icons.schedule_outlined,
             label: '營業時間',
@@ -146,53 +152,74 @@ class MyShopMetaInfo extends StatelessWidget {
             valueColor: publicTone,
           ),
           _MetaRow(
+            icon: Icons.badge_outlined,
+            label: '店家字號',
+            value: licenseNumber.trim().isEmpty ? '尚未設定' : licenseNumber,
+          ),
+          _MetaRow(
+            icon: Icons.receipt_long_outlined,
+            label: '統一編號',
+            value: taxId.trim().isEmpty ? '尚未設定' : taxId,
+          ),
+          _MetaRow(
             icon: Icons.location_on_outlined,
             label: '地址',
             value: _placeText,
           ),
         ];
-        final List<Widget> trailing = <Widget>[
-          _MetaRow(
-            icon: Icons.badge_outlined,
-            label: '店家字號',
-            value: licenseNumber.isEmpty ? '尚未設定' : licenseNumber,
-          ),
-          _MetaRow(
-            icon: Icons.receipt_long_outlined,
-            label: '統一編號',
-            value: taxId.isEmpty ? '尚未設定' : taxId,
-          ),
-          _MetaRow(
-            icon: Icons.update_outlined,
-            label: '最後更新',
-            value: _formatUpdatedAt(updatedAt),
-          ),
-          const SizedBox(height: 8),
-          MyShopIdLine(shopId: shopId),
-        ];
-        if (constraints.maxWidth >= 700) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: leading,
-                ),
+        final updated = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.update_outlined,
+              size: 16,
+              color: Color(0xFF9B845F),
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                '最後更新 · ${_formatUpdatedAt(updatedAt)}',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
               ),
-              const SizedBox(width: 28),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: trailing,
-                ),
-              ),
-            ],
-          );
-        }
+            ),
+          ],
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[...leading, ...trailing],
+          children: [
+            Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (int index = 0; index < fields.length; index++)
+                  SizedBox(
+                    key: ValueKey('shop-profile-field-$index'),
+                    width: tileWidth,
+                    child: fields[index],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (constraints.maxWidth >= 700)
+              Row(
+                children: [
+                  Expanded(child: updated),
+                  const SizedBox(width: 16),
+                  SizedBox(width: 240, child: MyShopIdLine(shopId: shopId)),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  updated,
+                  const SizedBox(height: 8),
+                  MyShopIdLine(shopId: shopId),
+                ],
+              ),
+          ],
         );
       },
     );
@@ -206,7 +233,6 @@ class _MetaRow extends StatelessWidget {
     required this.value,
     this.valueColor,
   });
-
   final IconData icon;
   final String label;
   final String value;
@@ -214,49 +240,55 @@ class _MetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    final TextTheme text = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: colors.outlineVariant.withValues(alpha: 0.28),
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final dark = colors.brightness == Brightness.dark;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 68),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF403A30) : const Color(0xFFF6F0E3),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF4C5140) : const Color(0xFFE9EDDF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              size: 17,
+              color: dark ? const Color(0xFFBBC6A2) : const Color(0xFF778265),
             ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Icon(icon, size: 18, color: colors.onSurfaceVariant),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      label,
-                      style: text.labelMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      value,
-                      style: text.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: valueColor ?? colors.onSurface,
-                      ),
-                    ),
-                  ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: text.labelMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: text.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                    color: valueColor ?? colors.onSurface,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

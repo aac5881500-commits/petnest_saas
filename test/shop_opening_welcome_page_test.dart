@@ -238,9 +238,9 @@ void main() {
     expect(observer.formPushes, 1);
     final form = tester.widget<CreateShopPage>(find.byType(CreateShopPage));
     expect(form.activationCode, 'KEEP-ME');
-    expect(find.text('店家名稱'), findsOneWidget);
+    expect(find.text('你的旅社叫什麼名字？'), findsOneWidget);
     expect(find.text('創店激活碼'), findsNothing);
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byKey(const ValueKey('create-shop-back')));
     await tester.pumpAndSettle();
     expect(find.text(_headline), findsOneWidget);
     expect(

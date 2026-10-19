@@ -504,6 +504,189 @@ void main() {
     expect(find.text('PetNest 店家聊天（已由懸浮按鈕使用）'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('custom button colors stay on the capsule and badge stays red', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      _barApp(
+        width: 280,
+        setting: const HomeQuickActionSetting(
+          backgroundMode: HomeQuickActionSetting.backgroundCustom,
+          backgroundColorValue: 0xFFDDEEFF,
+          iconColorMode: HomeQuickActionSetting.iconCustom,
+          iconColorValue: 0xFF123456,
+        ),
+        buttons: const <HomeQuickActionButton>[
+          HomeQuickActionButton(
+            id: HomeQuickActionIds.notifications,
+            icon: Icons.notifications_none_rounded,
+            label: '通知',
+            badgeCount: 3,
+          ),
+          HomeQuickActionButton(
+            id: HomeQuickActionIds.phone,
+            icon: Icons.phone_rounded,
+            label: '電話',
+            badgeCount: 0,
+          ),
+        ],
+      ),
+    );
+    final bool painted = tester
+        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+        .any(
+          (DecoratedBox box) =>
+              box.decoration is BoxDecoration &&
+              (box.decoration as BoxDecoration).color ==
+                  const Color(0xFFDDEEFF),
+        );
+    expect(painted, isTrue);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.notifications_none_rounded)).color,
+      const Color(0xFF123456),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.phone_rounded)).color,
+      const Color(0xFF123456),
+    );
+    final Container badge = tester.widget<Container>(
+      find.byKey(
+        const ValueKey<String>('home-quick-action-badge-notifications'),
+      ),
+    );
+    expect((badge.decoration as BoxDecoration).color, const Color(0xFFE53935));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('plain style does not paint a shared button background', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      _barApp(
+        width: 280,
+        setting: const HomeQuickActionSetting(
+          containerStyle: HomeQuickActionSetting.containerPlain,
+          backgroundMode: HomeQuickActionSetting.backgroundCustom,
+          backgroundColorValue: 0xFFDDEEFF,
+        ),
+        buttons: const <HomeQuickActionButton>[
+          HomeQuickActionButton(
+            id: HomeQuickActionIds.notifications,
+            icon: Icons.notifications_none_rounded,
+            label: '通知',
+            badgeCount: 0,
+          ),
+        ],
+      ),
+    );
+    expect(find.byType(DecoratedBox), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('color controls update the shared setting on a narrow column', (
+    WidgetTester tester,
+  ) async {
+    HomeQuickActionSetting setting = const HomeQuickActionSetting();
+    const HomeShortcutGate gate = HomeShortcutGate(
+      storeEnabled: true,
+      chatProvisioned: true,
+      phoneReady: true,
+      lineReady: true,
+      facebookReady: true,
+      instagramReady: true,
+      announcementsEnabled: true,
+      faqEnabled: true,
+      memberCenterEnabled: true,
+      showShopMenus: true,
+      paidPlan: true,
+      floatingEnabled: false,
+      floatingType: '',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return ListView(
+                  children: <Widget>[
+                    HomeQuickActionSettingsPanel(
+                      setting: setting,
+                      gate: gate,
+                      onChanged: (HomeQuickActionSetting value) {
+                        setState(() => setting = value);
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('按鈕區配色'), findsOneWidget);
+    expect(find.text('自訂按鈕圖示顏色'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('自訂背景色'));
+    await tester.pumpAndSettle();
+    expect(setting.backgroundMode, HomeQuickActionSetting.backgroundCustom);
+    expect(setting.slotOne, HomeQuickActionIds.cart);
+    expect(setting.slotTwo, HomeQuickActionIds.chat);
+    expect(find.text('按鈕區背景色'), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(setting.iconColorMode, HomeQuickActionSetting.iconCustom);
+    expect(find.text('圖示顏色'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('plain style explains that a background color will not show', (
+    WidgetTester tester,
+  ) async {
+    HomeQuickActionSetting setting = const HomeQuickActionSetting(
+      containerStyle: HomeQuickActionSetting.containerPlain,
+    );
+    const HomeShortcutGate gate = HomeShortcutGate(
+      storeEnabled: false,
+      chatProvisioned: false,
+      phoneReady: false,
+      lineReady: false,
+      facebookReady: false,
+      instagramReady: false,
+      announcementsEnabled: false,
+      faqEnabled: false,
+      memberCenterEnabled: false,
+      showShopMenus: false,
+      paidPlan: false,
+      floatingEnabled: false,
+      floatingType: '',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeQuickActionSettingsPanel(
+            setting: setting,
+            gate: gate,
+            onChanged: (HomeQuickActionSetting value) => setting = value,
+          ),
+        ),
+      ),
+    );
+    expect(find.textContaining('不繪製按鈕背景'), findsOneWidget);
+    await tester.tap(find.text('自訂背景色'));
+    await tester.pump();
+    expect(
+      setting.backgroundMode,
+      HomeQuickActionSetting.backgroundTranslucent,
+    );
+    expect(setting.containerStyle, HomeQuickActionSetting.containerPlain);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Widget _barApp({

@@ -1027,7 +1027,8 @@ bool sharedEntryHidesSimpleSection({
   required HomeSharedEntrySectionSetting section,
   required HomeRoomSectionSetting rooms,
 }) {
-  return layout == simpleLayout &&
+  return section.enabled &&
+      layout == simpleLayout &&
       sharedEntryJoinedIds(section: section, rooms: rooms).contains(sourceId);
 }
 

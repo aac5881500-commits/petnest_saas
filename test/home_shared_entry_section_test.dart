@@ -98,6 +98,16 @@ void main() {
           section: saved,
           rooms: joined,
         ),
+        isFalse,
+      );
+      expect(
+        sharedEntryHidesSimpleSection(
+          sourceId: HomeSharedEntrySources.rooms,
+          layout: joined.layout,
+          simpleLayout: HomeRoomSectionLayouts.simpleEntry,
+          section: saved.copyWith(enabled: true),
+          rooms: joined,
+        ),
         isTrue,
       );
       expect(otherLayout.simple.imageAssetId, 'asset-room');

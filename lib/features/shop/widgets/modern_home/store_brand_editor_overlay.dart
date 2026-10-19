@@ -38,7 +38,8 @@ class StoreBrandTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: backgroundColor,
+      key: const ValueKey<String>('store-brand-header-background'),
+      color: style.resolveHeaderBackground(backgroundColor),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: LayoutBuilder(

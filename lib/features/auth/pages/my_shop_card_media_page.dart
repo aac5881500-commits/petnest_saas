@@ -1,3 +1,4 @@
+import '../../../core/models/shop_house_local_assets.dart';
 // 檔案名稱：lib/features/auth/pages/my_shop_card_media_page.dart
 // 功能說明：管理「我的店家」小屋的門面照片與 Logo。
 // 🖼️ 我的店家外觀
@@ -20,12 +21,18 @@ class MyShopCardMediaPage extends StatefulWidget {
     this.coverUrl = '',
     this.logoUrl = '',
     this.houseAppearance,
+    this.houseAssetsOverride,
+    this.saveHouseAppearance,
   });
 
   final String shopId;
   final String coverUrl;
   final String logoUrl;
   final Object? houseAppearance;
+  @visibleForTesting
+  final List<PlatformMediaAsset>? houseAssetsOverride;
+  @visibleForTesting
+  final Future<void> Function(ShopHouseAppearance)? saveHouseAppearance;
 
   @override
   State<MyShopCardMediaPage> createState() => _MyShopCardMediaPageState();
@@ -38,6 +45,7 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
   late String _logoUrl;
   late ShopHouseAppearance _house;
   final Map<String, String> _assetNames = <String, String>{};
+  final Map<String, PlatformMediaAsset> _assets = {};
   bool _namesReady = false;
   String _savingPlacement = '';
 
@@ -53,11 +61,17 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
   Future<void> _resolveHouseNames() async {
     final Map<String, String> names = <String, String>{};
     for (final String id in _house.selectedIds.toSet()) {
-      final PlatformMediaAsset? asset = await PlatformMediaLibraryService
-          .instance
-          .getEnabledAssetById(id);
+      final PlatformMediaAsset? asset = widget.houseAssetsOverride != null
+          ? widget.houseAssetsOverride!
+                .where((asset) => asset.id == id && asset.enabled)
+                .firstOrNull
+          : await PlatformMediaLibraryService.instance.getEnabledAssetById(
+              id,
+              refresh: true,
+            );
       if (asset != null && asset.name.trim().isNotEmpty) {
         names[id] = asset.name.trim();
+        _assets[id] = asset;
       }
     }
     if (!mounted) {
@@ -71,34 +85,54 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
     });
   }
 
-  Future<void> _changePlacement(String placement) async {
+  Future<void> _changePlacement(
+    String placement, {
+    bool phone = false,
+    bool reset = false,
+  }) async {
     if (_savingPlacement.isNotEmpty) {
       return;
     }
-    final PlatformMediaPick? picked = await showShopHouseAssetPicker(
-      context: context,
-      placement: placement,
-      title: '選擇${ShopHousePlacements.shortLabel(placement)}',
-      selectedId: _house.idFor(placement),
-    );
+    final PlatformMediaPick? picked = reset
+        ? const PlatformMediaPick.platformDefault()
+        : await showShopHouseAssetPicker(
+            context: context,
+            placement: placement,
+            // 僅轉送測試注入；正式環境為 null，沿用既有 Firebase 選擇器。
+            // ignore: invalid_use_of_visible_for_testing_member
+            assetsOverride: widget.houseAssetsOverride,
+            title: '選擇${ShopHousePlacements.shortLabel(placement)}',
+            selectedId: phone
+                ? _house.roofPhoneAssetId
+                : _house.idFor(placement),
+            device: placement == ShopHousePlacements.roof
+                ? (phone ? 'phone' : 'desktop')
+                : 'any',
+          );
     if (picked == null || !mounted) {
       return;
     }
     final String nextId = picked.usePlatformDefault
         ? ''
         : (picked.asset?.id ?? '');
-    final ShopHouseAppearance next = _house.withPlacement(placement, nextId);
+    final ShopHouseAppearance next = phone
+        ? _house.copyWith(roofPhoneAssetId: nextId)
+        : _house.withPlacement(placement, nextId);
     setState(() {
       _savingPlacement = placement;
     });
     try {
-      await ShopProfileService.instance.updateShop(
-        shopId: widget.shopId,
-        data: <String, dynamic>{
-          ShopHouseAppearance.fieldName: next.toMap(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      );
+      if (widget.saveHouseAppearance != null) {
+        await widget.saveHouseAppearance!(next);
+      } else {
+        await ShopProfileService.instance.updateShop(
+          shopId: widget.shopId,
+          data: <String, dynamic>{
+            ShopHouseAppearance.fieldName: next.toMap(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -110,6 +144,7 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
         final String name = picked.asset?.name.trim() ?? '';
         if (name.isNotEmpty) {
           _assetNames[nextId] = name;
+          _assets[nextId] = picked.asset!;
         }
       });
       ScaffoldMessenger.of(
@@ -131,15 +166,21 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
     }
   }
 
-  String _placementStatus(String placement) {
-    final String id = _house.idFor(placement);
+  String _placementStatus(String placement, {bool phone = false}) {
+    final String id = phone ? _house.roofPhoneAssetId : _house.idFor(placement);
     if (id.isEmpty) {
       return ShopHousePlacements.defaultLabel(placement);
     }
     if (!_namesReady) {
       return '讀取中';
     }
-    return _assetNames[id] ?? ShopHousePlacements.defaultLabel(placement);
+    final asset = _assets[id];
+    return asset != null &&
+            asset.enabled &&
+            asset.hasUsableUrl &&
+            asset.allowsPlacement(placement)
+        ? (_assetNames[id] ?? asset.name)
+        : '素材無法使用，顯示 PetNest 預設';
   }
 
   Future<void> _pickAndUploadCover() async {
@@ -279,9 +320,36 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
               ),
               const SizedBox(height: 24),
               _HouseAppearanceSection(
-                statusFor: _placementStatus,
+                statusFor: (placement, phone) =>
+                    _placementStatus(placement, phone: phone),
+                previewFor: (placement, phone) {
+                  final id = phone
+                      ? _house.roofPhoneAssetId
+                      : _house.idFor(placement);
+                  final asset = _assets[id];
+                  final local = ShopHouseLocalAsset.defaultPath(placement);
+                  Widget fallback() => local == null
+                      ? const Icon(Icons.home_outlined)
+                      : Image.asset(
+                          local,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.home_outlined),
+                        );
+                  return asset != null &&
+                          asset.enabled &&
+                          asset.hasUsableUrl &&
+                          asset.allowsPlacement(placement)
+                      ? Image.network(
+                          asset.houseThumbnailUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => fallback(),
+                        )
+                      : fallback();
+                },
                 savingPlacement: _savingPlacement,
-                onChange: _changePlacement,
+                onChange: (placement, phone, reset) =>
+                    _changePlacement(placement, phone: phone, reset: reset),
               ),
             ],
           ),
@@ -450,13 +518,15 @@ class _ImagePreview extends StatelessWidget {
 class _HouseAppearanceSection extends StatelessWidget {
   const _HouseAppearanceSection({
     required this.statusFor,
+    required this.previewFor,
     required this.savingPlacement,
     required this.onChange,
   });
 
-  final String Function(String placement) statusFor;
+  final String Function(String placement, bool phone) statusFor;
+  final Widget Function(String placement, bool phone) previewFor;
   final String savingPlacement;
-  final ValueChanged<String> onChange;
+  final void Function(String placement, bool phone, bool reset) onChange;
 
   @override
   Widget build(BuildContext context) {
@@ -483,22 +553,33 @@ class _HouseAppearanceSection extends StatelessWidget {
             style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
-          for (final String placement in ShopHousePlacements.known) ...<Widget>[
+          for (final (placement, phone) in [
+            for (final placement in ShopHousePlacements.known) ...[
+              (placement, false),
+              if (placement == ShopHousePlacements.roof) (placement, true),
+            ],
+          ]) ...<Widget>[
             const Divider(height: 16),
             Row(
               children: <Widget>[
+                SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: previewFor(placement, phone),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        ShopHousePlacements.shortLabel(placement),
+                        '${ShopHousePlacements.shortLabel(placement)}${placement == ShopHousePlacements.roof ? (phone ? '（手機）' : '（桌機）') : ''}',
                         style: text.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       Text(
-                        '目前：${statusFor(placement)}',
+                        '目前：${statusFor(placement, phone)}',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: text.bodySmall?.copyWith(
@@ -510,9 +591,16 @@ class _HouseAppearanceSection extends StatelessWidget {
                 ),
                 TextButton(
                   onPressed: savingPlacement.isEmpty
-                      ? () => onChange(placement)
+                      ? () => onChange(placement, phone, false)
                       : null,
                   child: Text(savingPlacement == placement ? '儲存中' : '更換'),
+                ),
+                IconButton(
+                  tooltip: '恢復預設',
+                  icon: const Icon(Icons.restart_alt),
+                  onPressed: savingPlacement.isEmpty
+                      ? () => onChange(placement, phone, true)
+                      : null,
                 ),
               ],
             ),

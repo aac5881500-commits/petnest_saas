@@ -1,0 +1,590 @@
+{
+  "status": "LOCAL_ONLY_AWAITING_EXPLICIT_UPLOAD_APPROVAL",
+  "productionOperationsExecuted": 0,
+  "collection": "platform_media_library",
+  "idPolicy": "Existing uploadAsset() allocates random document IDs only after approval. autoId_01..20 are review placeholders, not reserved IDs.",
+  "recordCount": 20,
+  "totalBytes": 12454900,
+  "records": [
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_roof_wide.png",
+      "sha256": "5b20d951b532d6dd4e5452c0af0146e9080aeb2238b378d128c887832bc15db8",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_01}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_01}",
+      "firestoreFields": {
+        "name": "浪漫花園－桌機屋頂",
+        "category": "shopHouse",
+        "placements": [
+          "house.roof"
+        ],
+        "device": "desktop",
+        "sourceFileName": "romantic_garden_roof_wide.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_01}/original.png",
+        "width": 2172,
+        "height": 724,
+        "fileBytes": 1842875,
+        "sortOrder": 200,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_roof_phone.png",
+      "sha256": "52dd205958270e4918a0b4e9d47ce6133397718a732793a3d1eed508ffe154f5",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_02}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_02}",
+      "firestoreFields": {
+        "name": "浪漫花園－手機屋頂",
+        "category": "shopHouse",
+        "placements": [
+          "house.roof"
+        ],
+        "device": "phone",
+        "sourceFileName": "romantic_garden_roof_phone.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_02}/original.png",
+        "width": 1086,
+        "height": 362,
+        "fileBytes": 428699,
+        "sortOrder": 201,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_wall.jpg",
+      "sha256": "3e6275cf380cf6c805fa0632673f86db034382b290fa65ae64a8c9e8ded027c7",
+      "contentType": "image/jpeg",
+      "plannedStoragePath": "platform/media_library/{autoId_03}/original.jpg",
+      "plannedFirestorePath": "platform_media_library/{autoId_03}",
+      "firestoreFields": {
+        "name": "浪漫花園－牆面",
+        "category": "shopHouse",
+        "placements": [
+          "house.wall"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_wall.jpg",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_03}/original.jpg",
+        "width": 1024,
+        "height": 1024,
+        "fileBytes": 164121,
+        "sortOrder": 202,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_window.png",
+      "sha256": "4a64ece7fe7f52fcb7083190690e996b22e2411ecac71fcdd213587ba6581d95",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_04}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_04}",
+      "firestoreFields": {
+        "name": "浪漫花園－照片相框",
+        "category": "shopHouse",
+        "placements": [
+          "house.windowFrame"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_window.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_04}/original.png",
+        "width": 1024,
+        "height": 1024,
+        "fileBytes": 1321596,
+        "sortOrder": 203,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_decoration_left.png",
+      "sha256": "619b8ee5418321dda1f7cfa5c9665727409aadc926bae2a9c4050ebd01fd4982",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_05}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_05}",
+      "firestoreFields": {
+        "name": "浪漫花園－左側裝飾",
+        "category": "shopHouse",
+        "placements": [
+          "house.decorationLeft"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_decoration_left.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_05}/original.png",
+        "width": 512,
+        "height": 768,
+        "fileBytes": 761989,
+        "sortOrder": 204,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_decoration_right.png",
+      "sha256": "0b9edf89818f1086380ec406f21b7ece8997735aafd685fcfa2be95b4e2b227c",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_06}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_06}",
+      "firestoreFields": {
+        "name": "浪漫花園－右側裝飾",
+        "category": "shopHouse",
+        "placements": [
+          "house.decorationRight"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_decoration_right.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_06}/original.png",
+        "width": 512,
+        "height": 768,
+        "fileBytes": 536581,
+        "sortOrder": 205,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_decoration_top.png",
+      "sha256": "f4ca47a4d3754d4e7f95699bc01b6f9968f104a3bb92a3f5900c98cb4af4ca8e",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_07}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_07}",
+      "firestoreFields": {
+        "name": "浪漫花園－上方裝飾",
+        "category": "shopHouse",
+        "placements": [
+          "house.decorationTop"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_decoration_top.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_07}/original.png",
+        "width": 768,
+        "height": 512,
+        "fileBytes": 264444,
+        "sortOrder": 206,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_base.png",
+      "sha256": "5c6c6ef68f993fb07b1ede574af37ce6e85db5488df8c3ca1e773419a0311b06",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_08}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_08}",
+      "firestoreFields": {
+        "name": "浪漫花園－底座",
+        "category": "shopHouse",
+        "placements": [
+          "house.base"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_base.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_08}/original.png",
+        "width": 2172,
+        "height": 285,
+        "fileBytes": 879057,
+        "sortOrder": 207,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_courtyard.jpg",
+      "sha256": "82628ed738d1a5394b9eeb639904ecfec01b925a031023663690c7383d4d07df",
+      "contentType": "image/jpeg",
+      "plannedStoragePath": "platform/media_library/{autoId_09}/original.jpg",
+      "plannedFirestorePath": "platform_media_library/{autoId_09}",
+      "firestoreFields": {
+        "name": "浪漫花園－庭院背景",
+        "category": "shopHouse",
+        "placements": [
+          "house.sceneBackground"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_courtyard.jpg",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_09}/original.jpg",
+        "width": 1536,
+        "height": 1024,
+        "fileBytes": 303579,
+        "sortOrder": 208,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "浪漫花園",
+      "localPath": "assets/images/shop_house/romantic_garden/romantic_garden_cat_default.jpg",
+      "sha256": "3e82c69cc142e20866db7781f91e31d535fb0ea5a812896be722136b280dfdca",
+      "contentType": "image/jpeg",
+      "plannedStoragePath": "platform/media_library/{autoId_10}/original.jpg",
+      "plannedFirestorePath": "platform_media_library/{autoId_10}",
+      "firestoreFields": {
+        "name": "浪漫花園－相框預設照片",
+        "category": "shopHouse",
+        "placements": [
+          "house.defaultPhoto"
+        ],
+        "device": "any",
+        "sourceFileName": "romantic_garden_cat_default.jpg",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_10}/original.jpg",
+        "width": 1024,
+        "height": 1024,
+        "fileBytes": 186426,
+        "sortOrder": 209,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_roof_wide.png",
+      "sha256": "340af35bc40cd4624a302f70732aea43fa039b5c520672c036642492914d92ee",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_11}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_11}",
+      "firestoreFields": {
+        "name": "現代日式－桌機屋頂",
+        "category": "shopHouse",
+        "placements": [
+          "house.roof"
+        ],
+        "device": "desktop",
+        "sourceFileName": "modern_japanese_roof_wide.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_11}/original.png",
+        "width": 2172,
+        "height": 724,
+        "fileBytes": 1782434,
+        "sortOrder": 300,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_roof_phone.png",
+      "sha256": "3f2def2cf8afe14092ab97834c73ea06856027f04a3c971a11eb4843ca1c89d7",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_12}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_12}",
+      "firestoreFields": {
+        "name": "現代日式－手機屋頂",
+        "category": "shopHouse",
+        "placements": [
+          "house.roof"
+        ],
+        "device": "phone",
+        "sourceFileName": "modern_japanese_roof_phone.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_12}/original.png",
+        "width": 1086,
+        "height": 362,
+        "fileBytes": 388029,
+        "sortOrder": 301,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_wall.jpg",
+      "sha256": "6691c7a1783412a8e8c84f4004625dd88439abc632adfd9de14187874cb1d0b8",
+      "contentType": "image/jpeg",
+      "plannedStoragePath": "platform/media_library/{autoId_13}/original.jpg",
+      "plannedFirestorePath": "platform_media_library/{autoId_13}",
+      "firestoreFields": {
+        "name": "現代日式－牆面",
+        "category": "shopHouse",
+        "placements": [
+          "house.wall"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_wall.jpg",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_13}/original.jpg",
+        "width": 1024,
+        "height": 1024,
+        "fileBytes": 160578,
+        "sortOrder": 302,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_window.png",
+      "sha256": "7f1fb7ff99246ec7151ae4551189f4e2b5ca0f479d05776f39a4e3fc75cd43b7",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_14}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_14}",
+      "firestoreFields": {
+        "name": "現代日式－照片相框",
+        "category": "shopHouse",
+        "placements": [
+          "house.windowFrame"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_window.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_14}/original.png",
+        "width": 1024,
+        "height": 1024,
+        "fileBytes": 1185770,
+        "sortOrder": 303,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_decoration_left.png",
+      "sha256": "1c2ed3c87c328bd1c67dc52bff59045fbe46f2b85ee29422f6b2aa4d210033e3",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_15}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_15}",
+      "firestoreFields": {
+        "name": "現代日式－左側裝飾",
+        "category": "shopHouse",
+        "placements": [
+          "house.decorationLeft"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_decoration_left.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_15}/original.png",
+        "width": 512,
+        "height": 768,
+        "fileBytes": 241504,
+        "sortOrder": 304,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_decoration_right.png",
+      "sha256": "cad098ddc77f6afe9939d8ff7b1848f66cd1494afe2a921c543972ee6388255d",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_16}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_16}",
+      "firestoreFields": {
+        "name": "現代日式－右側裝飾",
+        "category": "shopHouse",
+        "placements": [
+          "house.decorationRight"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_decoration_right.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_16}/original.png",
+        "width": 512,
+        "height": 768,
+        "fileBytes": 536591,
+        "sortOrder": 305,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_decoration_top.png",
+      "sha256": "1b9081c4333b80a189ae71cd4f21aad80ddc6184632b107c1dbeaf88ff3cd367",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_17}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_17}",
+      "firestoreFields": {
+        "name": "現代日式－上方裝飾",
+        "category": "shopHouse",
+        "placements": [
+          "house.decorationTop"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_decoration_top.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_17}/original.png",
+        "width": 768,
+        "height": 512,
+        "fileBytes": 266846,
+        "sortOrder": 306,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_base.png",
+      "sha256": "425c2e269c6a93cfceee9cbb2b527360dca33d9cd0a5aa78d19feb69bcf065f9",
+      "contentType": "image/png",
+      "plannedStoragePath": "platform/media_library/{autoId_18}/original.png",
+      "plannedFirestorePath": "platform_media_library/{autoId_18}",
+      "firestoreFields": {
+        "name": "現代日式－底座",
+        "category": "shopHouse",
+        "placements": [
+          "house.base"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_base.png",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_18}/original.png",
+        "width": 2172,
+        "height": 285,
+        "fileBytes": 629623,
+        "sortOrder": 307,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_courtyard.jpg",
+      "sha256": "879bf60b22fecaefeaf20baacd9ae204c4746be9e8bccdc8c8561178bf9512ef",
+      "contentType": "image/jpeg",
+      "plannedStoragePath": "platform/media_library/{autoId_19}/original.jpg",
+      "plannedFirestorePath": "platform_media_library/{autoId_19}",
+      "firestoreFields": {
+        "name": "現代日式－庭院背景",
+        "category": "shopHouse",
+        "placements": [
+          "house.sceneBackground"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_courtyard.jpg",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_19}/original.jpg",
+        "width": 1536,
+        "height": 1024,
+        "fileBytes": 385242,
+        "sortOrder": 308,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    },
+    {
+      "styleName": "現代日式",
+      "localPath": "assets/images/shop_house/modern_japanese/modern_japanese_cat_default.jpg",
+      "sha256": "48e719e86941ab200b25c92ba3ab41f8578bd8231f384fa0b53d7331411645c5",
+      "contentType": "image/jpeg",
+      "plannedStoragePath": "platform/media_library/{autoId_20}/original.jpg",
+      "plannedFirestorePath": "platform_media_library/{autoId_20}",
+      "firestoreFields": {
+        "name": "現代日式－相框預設照片",
+        "category": "shopHouse",
+        "placements": [
+          "house.defaultPhoto"
+        ],
+        "device": "any",
+        "sourceFileName": "modern_japanese_cat_default.jpg",
+        "imageUrl": "<getDownloadURL after approved upload>",
+        "thumbnailUrl": "<same as imageUrl>",
+        "storagePath": "platform/media_library/{autoId_20}/original.jpg",
+        "width": 1024,
+        "height": 1024,
+        "fileBytes": 188916,
+        "sortOrder": 309,
+        "enabled": true,
+        "createdAt": "<FieldValue.serverTimestamp()>",
+        "updatedAt": "<FieldValue.serverTimestamp()>",
+        "createdByUid": "<current approved platform admin uid>",
+        "createdByEmail": "<current approved platform admin email>"
+      }
+    }
+  ]
+}

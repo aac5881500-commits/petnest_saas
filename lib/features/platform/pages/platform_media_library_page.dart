@@ -1,9 +1,10 @@
+import 'package:flutter/services.dart';
+import '../../../core/models/shop_house_local_assets.dart';
 // 檔案名稱：lib/features/platform/pages/platform_media_library_page.dart
 // 功能說明：平台管理員上傳、啟用、停用與刪除外觀圖庫。
 
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -222,7 +223,7 @@ class _PlatformMediaLibraryBodyState extends State<_PlatformMediaLibraryBody> {
                     return ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       itemCount: assets.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (BuildContext context, int index) {
                         final PlatformMediaAsset asset = assets[index];
                         return _AssetCard(
@@ -291,7 +292,7 @@ class _AssetCard extends StatelessWidget {
                       ? asset.imageUrl
                       : asset.thumbnailUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) {
+                  errorBuilder: (_, _, _) {
                     return const ColoredBox(
                       color: Color(0xFFF3F4F6),
                       child: Icon(Icons.broken_image_outlined),
@@ -319,6 +320,17 @@ class _AssetCard extends StatelessWidget {
                         : PlatformMediaCategories.label(asset.category),
                   ),
                   Text('$sizeLabel$bytesLabel'),
+                  if (asset.category == PlatformMediaCategories.shopHouse) ...[
+                    Text(
+                      '裝置：${asset.device == 'phone'
+                          ? '手機'
+                          : asset.device == 'desktop'
+                          ? '桌機'
+                          : '通用'}',
+                    ),
+                    if (asset.sourceFileName.isNotEmpty)
+                      Text('來源：${asset.sourceFileName}'),
+                  ],
                   Text('排序 ${asset.sortOrder}'),
                   Text(asset.enabled ? '啟用中' : '已停用'),
                   const SizedBox(height: 8),
@@ -370,6 +382,8 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
   int _width = 0;
   int _height = 0;
   bool _busy = false;
+  String _device = 'any';
+  String _sourceFileName = '';
 
   @override
   void initState() {
@@ -382,6 +396,8 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
     _placements = <String>{...?asset?.placements};
     _width = asset?.width ?? 0;
     _height = asset?.height ?? 0;
+    _device = asset?.device ?? 'any';
+    _sourceFileName = asset?.sourceFileName ?? '';
   }
 
   @override
@@ -389,6 +405,35 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
     _name.dispose();
     _sort.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadLocal(ShopHouseLocalAsset entry) async {
+    try {
+      final bytes = (await rootBundle.load(entry.path)).buffer.asUint8List();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final width = frame.image.width, height = frame.image.height;
+      frame.image.dispose();
+      codec.dispose();
+      if (!mounted) return;
+      setState(() {
+        _bytes = bytes;
+        _contentType = _guessType(entry.fileName);
+        _name.text = entry.label;
+        _sort.text = entry.sortOrder.toString();
+        _sourceFileName = entry.fileName;
+        _width = width;
+        _height = height;
+        _device = entry.device;
+        _placements = entry.placements.toSet();
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('本機素材無法讀取')));
+      }
+    }
   }
 
   Future<void> _pickImage() async {
@@ -418,6 +463,7 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
       height = frame.image.height;
     } catch (_) {}
     setState(() {
+      _sourceFileName = file.name;
       _bytes = bytes;
       _contentType = mime;
       _width = width;
@@ -448,6 +494,8 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
           name: _name.text,
           category: _category,
           placements: placements,
+          device: _device,
+          sourceFileName: _sourceFileName,
           sortOrder: sortOrder,
           enabled: _enabled,
           width: _width,
@@ -497,6 +545,31 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
+              if (_category == PlatformMediaCategories.shopHouse &&
+                  widget.asset == null) ...[
+                DropdownButtonFormField<ShopHouseLocalAsset>(
+                  decoration: const InputDecoration(
+                    labelText: '載入本機小屋素材（儲存前不上傳）',
+                  ),
+                  isExpanded: true,
+                  items: [
+                    for (final entry in ShopHouseLocalAsset.entries)
+                      DropdownMenuItem(
+                        value: entry,
+                        child: Text(
+                          entry.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (entry) {
+                          if (entry != null) _loadLocal(entry);
+                        },
+                ),
+                const SizedBox(height: 12),
+              ],
               if (_bytes != null)
                 Image.memory(_bytes!, height: 120, fit: BoxFit.contain)
               else if ((widget.asset?.imageUrl ?? '').isNotEmpty)
@@ -567,6 +640,22 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
+                if (_placements.contains(ShopHousePlacements.roof))
+                  DropdownButtonFormField<String>(
+                    initialValue: _device,
+                    decoration: const InputDecoration(labelText: '屋頂裝置用途'),
+                    items: const [
+                      DropdownMenuItem(value: 'any', child: Text('桌機與手機通用')),
+                      DropdownMenuItem(
+                        value: 'desktop',
+                        child: Text('桌機屋頂（手機可回退）'),
+                      ),
+                      DropdownMenuItem(value: 'phone', child: Text('手機屋頂')),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _device = value ?? 'any'),
+                  ),
                 for (final String placement in ShopHousePlacements.known)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,

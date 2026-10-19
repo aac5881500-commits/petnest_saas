@@ -10,10 +10,12 @@ class MyShopBadges extends StatelessWidget {
     required this.role,
     required this.isPublic,
     required this.isOpenNow,
+    this.large = false,
   });
 
   final String role;
   final bool isPublic;
+  final bool large;
   final bool isOpenNow;
 
   @override
@@ -30,6 +32,7 @@ class MyShopBadges extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
         _Badge(
+          large: large,
           text: isOpenNow ? '營業中' : '休息中',
           icon: Icons.circle,
           foreground: isOpenNow ? positive : neutral,
@@ -38,12 +41,14 @@ class MyShopBadges extends StatelessWidget {
               : colors.surfaceContainerHighest,
         ),
         _Badge(
+          large: large,
           text: role,
           icon: Icons.badge_outlined,
           foreground: colors.primary,
           background: colors.primaryContainer.withValues(alpha: 0.55),
         ),
         _Badge(
+          large: large,
           text: isPublic ? '公開中' : '未公開',
           icon: Icons.visibility_outlined,
           foreground: isPublic ? positive : neutral,
@@ -62,17 +67,19 @@ class _Badge extends StatelessWidget {
     required this.icon,
     required this.foreground,
     required this.background,
+    this.large = false,
   });
 
   final String text;
   final IconData icon;
   final Color foreground;
   final Color background;
+  final bool large;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 26,
+      height: large ? 32 : 26,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: background,
@@ -81,14 +88,14 @@ class _Badge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 13, color: foreground),
+          Icon(icon, size: large ? 15 : 13, color: foreground),
           const SizedBox(width: 4),
           Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: large ? 14 : 12,
               height: 1,
               color: foreground,
               fontWeight: FontWeight.w700,

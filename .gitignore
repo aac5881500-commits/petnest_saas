@@ -50,3 +50,5 @@ node_modules/
 firebase-debug.log
 firebase-debug.*.log
 functions/firebase-deploy-debug.txt
+# Local ChatGPT analysis archive
+/upload_for_chatgpt.zip

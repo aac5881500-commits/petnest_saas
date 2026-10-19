@@ -22,10 +22,16 @@ String shopTodaySubline(int pending, int transfers) {
 }
 
 class MyShopStatRow extends StatelessWidget {
-  const MyShopStatRow({super.key, required this.shopId, this.statsFuture});
+  const MyShopStatRow({
+    super.key,
+    required this.shopId,
+    this.statsFuture,
+    this.prominent = false,
+  });
 
   final String shopId;
   final Future<Map<String, int>>? statsFuture;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +63,8 @@ class MyShopStatRow extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: _BoardCell(
+                    key: const ValueKey('my-shop-pending-stat'),
+                    prominent: prominent,
                     label: '待確認',
                     value: stats['pendingOrders'] ?? 0,
                     loading: waiting,
@@ -67,6 +75,8 @@ class MyShopStatRow extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _BoardCell(
+                    key: const ValueKey('my-shop-transfer-stat'),
+                    prominent: prominent,
                     label: '轉帳回傳',
                     value: stats['transferUploadedOrders'] ?? 0,
                     loading: waiting,
@@ -77,6 +87,8 @@ class MyShopStatRow extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _BoardCell(
+                    key: const ValueKey('my-shop-member-stat'),
+                    prominent: prominent,
                     label: '店內會員',
                     value: stats['memberCount'] ?? 0,
                     loading: waiting,
@@ -92,11 +104,13 @@ class MyShopStatRow extends StatelessWidget {
 
 class _BoardCell extends StatelessWidget {
   const _BoardCell({
+    super.key,
     required this.label,
     required this.value,
     required this.loading,
     required this.wash,
     this.accent = false,
+    this.prominent = false,
   });
 
   final String label;
@@ -104,6 +118,7 @@ class _BoardCell extends StatelessWidget {
   final bool loading;
   final Color wash;
   final bool accent;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +131,10 @@ class _BoardCell extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: 4,
+          vertical: prominent ? 16 : 10,
+        ),
         child: Column(
           children: <Widget>[
             Text(
@@ -124,7 +142,10 @@ class _BoardCell extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+              style: text.labelSmall?.copyWith(
+                color: colors.onSurfaceVariant,
+                fontSize: prominent ? 14 : 12,
+              ),
             ),
             const SizedBox(height: 2),
             loading
@@ -139,6 +160,7 @@ class _BoardCell extends StatelessWidget {
                 : Text(
                     '$value',
                     style: text.titleLarge?.copyWith(
+                      fontSize: prominent ? 34 : 25,
                       fontWeight: FontWeight.w800,
                       height: 1.1,
                       color: number,

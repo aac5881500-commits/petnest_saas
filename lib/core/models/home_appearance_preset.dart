@@ -5,16 +5,20 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
+import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style.dart';
 
 /// 模板可以改的外觀草稿。店名、Logo、海報圖與各區塊內文不在這裡。
 class HomeAppearanceDraft {
@@ -29,6 +33,12 @@ class HomeAppearanceDraft {
     required this.information,
     required this.navigation,
     required this.bannerFrame,
+    this.sharedEntry = const HomeSharedEntrySectionSetting(),
+    this.displayStyle = HomeDisplayStyleSetting.unset,
+    this.bannerButtonColorValue = 0xFF8B6548,
+    this.bannerButtonTextColorValue = 0xFFFFFFFF,
+    this.brandStyle = const StoreBrandStyle(),
+    this.quickActions = const HomeQuickActionSetting(),
     this.showStayServiceStrip = true,
     this.featuredProductLayout = ModernFeaturedProductLayouts.horizontal,
     this.storeEntryLayout = ModernStoreEntryLayouts.banner,
@@ -44,6 +54,12 @@ class HomeAppearanceDraft {
   final HomeInformationSectionsSetting information;
   final FrontendNavigationConfig navigation;
   final ModernBannerFrameSetting bannerFrame;
+  final HomeSharedEntrySectionSetting sharedEntry;
+  final HomeDisplayStyleSetting displayStyle;
+  final StoreBrandStyle brandStyle;
+  final HomeQuickActionSetting quickActions;
+  final int bannerButtonColorValue;
+  final int bannerButtonTextColorValue;
   final bool showStayServiceStrip;
   final String featuredProductLayout;
   final String storeEntryLayout;
@@ -59,9 +75,15 @@ class HomeAppearanceDraft {
     HomeInformationSectionsSetting? information,
     FrontendNavigationConfig? navigation,
     ModernBannerFrameSetting? bannerFrame,
+    HomeSharedEntrySectionSetting? sharedEntry,
+    HomeDisplayStyleSetting? displayStyle,
+    StoreBrandStyle? brandStyle,
+    HomeQuickActionSetting? quickActions,
     bool? showStayServiceStrip,
     String? featuredProductLayout,
     String? storeEntryLayout,
+    int? bannerButtonColorValue,
+    int? bannerButtonTextColorValue,
   }) {
     return HomeAppearanceDraft(
       theme: theme ?? this.theme,
@@ -74,6 +96,14 @@ class HomeAppearanceDraft {
       information: information ?? this.information,
       navigation: navigation ?? this.navigation,
       bannerFrame: bannerFrame ?? this.bannerFrame,
+      sharedEntry: sharedEntry ?? this.sharedEntry,
+      displayStyle: displayStyle ?? this.displayStyle,
+      brandStyle: brandStyle ?? this.brandStyle,
+      quickActions: quickActions ?? this.quickActions,
+      bannerButtonColorValue:
+          bannerButtonColorValue ?? this.bannerButtonColorValue,
+      bannerButtonTextColorValue:
+          bannerButtonTextColorValue ?? this.bannerButtonTextColorValue,
       showStayServiceStrip: showStayServiceStrip ?? this.showStayServiceStrip,
       featuredProductLayout:
           featuredProductLayout ?? this.featuredProductLayout,
@@ -116,8 +146,8 @@ const List<HomeAppearancePreset> homeAppearancePresets = <HomeAppearancePreset>[
   ),
   HomeAppearancePreset(
     id: 'minimal',
-    name: '極簡品牌',
-    description: '大圖、少卡片、左側導覽',
+    name: '奶油極簡',
+    description: '奶油白留白、精簡入口與左側選單。',
     navigationLabel: '左側導覽',
     apply: _applyMinimal,
   ),
@@ -137,8 +167,8 @@ const List<HomeAppearancePreset> homeAppearancePresets = <HomeAppearancePreset>[
   ),
   HomeAppearancePreset(
     id: 'warm',
-    name: '溫暖生活',
-    description: '圖片與文字交錯的生活雜誌排版。',
+    name: '溫暖日常',
+    description: '米杏底色、柔和綠意與圖文交錯。',
     navigationLabel: '底部選單',
     apply: _applyWarm,
   ),
@@ -184,9 +214,17 @@ String homeAppearanceDraftSignature(HomeAppearanceDraft draft) {
     'information': draft.information.toMap(),
     'navigation': draft.navigation.toMap(),
     'bannerFrame': draft.bannerFrame.toMap(),
+    'sharedEntry': draft.sharedEntry.toMap(),
+    'displayStyle': draft.displayStyle.saved
+        ? draft.displayStyle.toMap()
+        : <String, Object?>{'saved': false},
+    'brandStyle': draft.brandStyle.toMap(),
+    'quickActions': draft.quickActions.toMap(),
     'showStayServiceStrip': draft.showStayServiceStrip,
     'featuredProductLayout': draft.featuredProductLayout,
     'storeEntryLayout': draft.storeEntryLayout,
+    'bannerButtonColor': draft.bannerButtonColorValue,
+    'bannerButtonTextColor': draft.bannerButtonTextColorValue,
   });
 }
 
@@ -234,7 +272,6 @@ HomeAppearanceDraft _applyClassic(HomeAppearanceDraft current) {
       booking,
       layout: HomeQuickBookingLayouts.serviceSplit,
       surface: HomeQuickBookingSurfaces.solid,
-      showServices: true,
     ),
     information: (HomeInformationSectionsSetting information) => _information(
       information,
@@ -259,6 +296,7 @@ HomeAppearanceDraft _applyMinimal(HomeAppearanceDraft current) {
     front: const <String>[
       'banners',
       'quickBooking',
+      'sharedEntries',
       'announcements',
       'facilities',
       'rooms',
@@ -269,11 +307,15 @@ HomeAppearanceDraft _applyMinimal(HomeAppearanceDraft current) {
       'storeEntrance',
       'featured',
     ],
-    theme: (HomeThemeModel theme) => _surfaces(
+    theme: (HomeThemeModel theme) => _theme(
       theme,
-      background: 0xFFFFFCF9,
+      background: 0xFFFAF7F2,
       card: 0xFFFFFFFF,
-      borderAlpha: 0.10,
+      border: 0xFFE9E1D7,
+      primary: 0xFF8B6548,
+      text: 0xFF342D28,
+      secondary: 0xFF756B62,
+      button: 0xFF8B6548,
     ),
     rooms: _entryRooms,
     environment: (HomeEnvironmentSectionSetting environment) => _environment(
@@ -310,6 +352,42 @@ HomeAppearanceDraft _applyMinimal(HomeAppearanceDraft current) {
       reviewLayout: HomeReviewLayouts.carousel,
     ),
     navigation: _drawer,
+    brandStyle: (StoreBrandStyle style) => _brand(
+      style,
+      nameColor: 0xFF342D28,
+      subtitleColor: 0xFF756B62,
+      headerBackground: 0xFFFFFFFF,
+    ),
+    quickActions: (HomeQuickActionSetting setting) =>
+        _quickActions(setting, background: 0xFFFFFFFF, icon: 0xFF8B6548),
+    sharedEntry: (HomeSharedEntrySectionSetting setting) => _sharedEntries(
+      setting,
+      columns: 3,
+      aspect: 'landscape',
+      radius: 'small',
+      imageScale: 0.82,
+      gapX: 12,
+      gapY: 12,
+      cardOrder: const <String>[
+        HomeSharedEntrySources.rooms,
+        HomeSharedEntrySources.facilities,
+        HomeSharedEntrySources.about,
+        HomeSharedEntrySources.announcements,
+        HomeSharedEntrySources.reviews,
+        HomeSharedEntrySources.policy,
+        HomeSharedEntrySources.faq,
+        HomeSharedEntrySources.quickBooking,
+      ],
+    ),
+    displayStyle: (HomeDisplayStyleSetting setting) => _displayStyle(
+      text: 0xFF342D28,
+      secondary: 0xFF756B62,
+      spacing: HomeDisplaySpacings.compact,
+      radius: HomeDisplayRadii.small,
+      aspect: 'landscape',
+    ),
+    bannerButtonColorValue: 0xFF8B6548,
+    bannerButtonTextColorValue: 0xFFFFFFFF,
     bannerWidth: HomeBannerWidthPreset.full,
     bannerHeight: HomeBannerHeightPreset.tall,
     showStayServiceStrip: false,
@@ -357,7 +435,6 @@ HomeAppearanceDraft _applyBooking(HomeAppearanceDraft current) {
       booking,
       layout: HomeQuickBookingLayouts.heroCta,
       surface: HomeQuickBookingSurfaces.solid,
-      showServices: true,
     ),
     information: (HomeInformationSectionsSetting information) => _information(
       information,
@@ -382,19 +459,24 @@ HomeAppearanceDraft _applyBrand(HomeAppearanceDraft current) {
     current,
     front: const <String>[
       'banners',
+      'quickBooking',
       'rooms',
       'facilities',
+      'sharedEntries',
       'about',
       'reviews',
       'featured',
       'storeEntrance',
-      'quickBooking',
     ],
-    theme: (HomeThemeModel theme) => _surfaces(
+    theme: (HomeThemeModel theme) => _theme(
       theme,
-      background: 0xFFF6F1EB,
-      card: 0xFFFFFBF7,
-      borderAlpha: 0.12,
+      background: 0xFFF5F3EF,
+      card: 0xFFFFFEFC,
+      border: 0xFFE7E1D8,
+      primary: 0xFF735B48,
+      text: 0xFF38322D,
+      secondary: 0xFF77716A,
+      button: 0xFF735B48,
     ),
     rooms: _featuredRooms,
     environment: (HomeEnvironmentSectionSetting environment) => _environment(
@@ -432,6 +514,42 @@ HomeAppearanceDraft _applyBrand(HomeAppearanceDraft current) {
       reviewLayout: HomeReviewLayouts.carousel,
     ),
     navigation: _drawer,
+    brandStyle: (StoreBrandStyle style) => _brand(
+      style,
+      nameColor: 0xFF38322D,
+      subtitleColor: 0xFF77716A,
+      headerBackground: 0xFFFFFEFC,
+    ),
+    quickActions: (HomeQuickActionSetting setting) =>
+        _quickActions(setting, background: 0xFFFFFEFC, icon: 0xFF735B48),
+    sharedEntry: (HomeSharedEntrySectionSetting setting) => _sharedEntries(
+      setting,
+      columns: 2,
+      aspect: 'portrait',
+      radius: 'small',
+      imageScale: 0.92,
+      gapX: 18,
+      gapY: 20,
+      cardOrder: const <String>[
+        HomeSharedEntrySources.rooms,
+        HomeSharedEntrySources.facilities,
+        HomeSharedEntrySources.about,
+        HomeSharedEntrySources.announcements,
+        HomeSharedEntrySources.reviews,
+        HomeSharedEntrySources.policy,
+        HomeSharedEntrySources.faq,
+        HomeSharedEntrySources.quickBooking,
+      ],
+    ),
+    displayStyle: (HomeDisplayStyleSetting setting) => _displayStyle(
+      text: 0xFF38322D,
+      secondary: 0xFF77716A,
+      spacing: HomeDisplaySpacings.relaxed,
+      radius: HomeDisplayRadii.small,
+      aspect: 'portrait',
+    ),
+    bannerButtonColorValue: 0xFF735B48,
+    bannerButtonTextColorValue: 0xFFFFFFFF,
     bannerWidth: HomeBannerWidthPreset.full,
     bannerHeight: HomeBannerHeightPreset.tall,
     showStayServiceStrip: false,
@@ -445,20 +563,25 @@ HomeAppearanceDraft _applyWarm(HomeAppearanceDraft current) {
     current,
     front: const <String>[
       'banners',
+      'quickBooking',
       'about',
       'facilities',
       'rooms',
+      'sharedEntries',
       'reviews',
       'featured',
       'announcements',
       'storeEntrance',
-      'quickBooking',
     ],
-    theme: (HomeThemeModel theme) => _surfaces(
+    theme: (HomeThemeModel theme) => _theme(
       theme,
-      background: 0xFFFBF6F1,
-      card: 0xFFFFFBF7,
-      borderAlpha: 0.14,
+      background: 0xFFF5EFE5,
+      card: 0xFFFFFBF5,
+      border: 0xFFE7DDD0,
+      primary: 0xFF5A765F,
+      text: 0xFF3B362F,
+      secondary: 0xFF777368,
+      button: 0xFF5A765F,
     ),
     rooms: _featuredRooms,
     environment: (HomeEnvironmentSectionSetting environment) =>
@@ -492,6 +615,42 @@ HomeAppearanceDraft _applyWarm(HomeAppearanceDraft current) {
       reviewLayout: HomeReviewLayouts.carousel,
     ),
     navigation: _bottomAttached,
+    brandStyle: (StoreBrandStyle style) => _brand(
+      style,
+      nameColor: 0xFF3B362F,
+      subtitleColor: 0xFF777368,
+      headerBackground: 0xFFFFFBF5,
+    ),
+    quickActions: (HomeQuickActionSetting setting) =>
+        _quickActions(setting, background: 0xFFFFFBF5, icon: 0xFF5A765F),
+    sharedEntry: (HomeSharedEntrySectionSetting setting) => _sharedEntries(
+      setting,
+      columns: 2,
+      aspect: 'square',
+      radius: 'medium',
+      imageScale: 0.88,
+      gapX: 14,
+      gapY: 16,
+      cardOrder: const <String>[
+        HomeSharedEntrySources.facilities,
+        HomeSharedEntrySources.about,
+        HomeSharedEntrySources.rooms,
+        HomeSharedEntrySources.announcements,
+        HomeSharedEntrySources.reviews,
+        HomeSharedEntrySources.policy,
+        HomeSharedEntrySources.faq,
+        HomeSharedEntrySources.quickBooking,
+      ],
+    ),
+    displayStyle: (HomeDisplayStyleSetting setting) => _displayStyle(
+      text: 0xFF3B362F,
+      secondary: 0xFF777368,
+      spacing: HomeDisplaySpacings.normal,
+      radius: HomeDisplayRadii.medium,
+      aspect: 'square',
+    ),
+    bannerButtonColorValue: 0xFF5A765F,
+    bannerButtonTextColorValue: 0xFFFFFFFF,
     bannerWidth: HomeBannerWidthPreset.full,
     bannerHeight: HomeBannerHeightPreset.standard,
     showStayServiceStrip: false,
@@ -524,6 +683,14 @@ HomeAppearanceDraft _paint(
     FrontendNavigationConfig navigation,
   )
   navigation,
+  StoreBrandStyle Function(StoreBrandStyle style)? brandStyle,
+  HomeQuickActionSetting Function(HomeQuickActionSetting setting)? quickActions,
+  HomeSharedEntrySectionSetting Function(HomeSharedEntrySectionSetting setting)?
+  sharedEntry,
+  HomeDisplayStyleSetting Function(HomeDisplayStyleSetting setting)?
+  displayStyle,
+  int? bannerButtonColorValue,
+  int? bannerButtonTextColorValue,
   required HomeBannerWidthPreset bannerWidth,
   required HomeBannerHeightPreset bannerHeight,
   bool showStayServiceStrip = true,
@@ -540,6 +707,16 @@ HomeAppearanceDraft _paint(
     quickBooking: quickBooking(current.quickBooking),
     information: information(current.information),
     navigation: navigation(current.navigation),
+    brandStyle: brandStyle?.call(current.brandStyle) ?? current.brandStyle,
+    quickActions:
+        quickActions?.call(current.quickActions) ?? current.quickActions,
+    sharedEntry: sharedEntry?.call(current.sharedEntry) ?? current.sharedEntry,
+    displayStyle:
+        displayStyle?.call(current.displayStyle) ?? current.displayStyle,
+    bannerButtonColorValue:
+        bannerButtonColorValue ?? current.bannerButtonColorValue,
+    bannerButtonTextColorValue:
+        bannerButtonTextColorValue ?? current.bannerButtonTextColorValue,
     bannerFrame: current.bannerFrame.copyWith(
       widthPreset: bannerWidth,
       heightPreset: bannerHeight,
@@ -563,6 +740,147 @@ List<String> _ordered(List<String> front) {
     }
   }
   return HomeSectionOrder.normalize(order);
+}
+
+HomeThemeModel _theme(
+  HomeThemeModel theme, {
+  required int background,
+  required int card,
+  required int border,
+  required int primary,
+  required int text,
+  required int secondary,
+  required int button,
+}) {
+  return theme.copyWith(
+    backgroundColorValue: background,
+    cardColorValue: card,
+    cardBorderColorValue: border,
+    primaryColorValue: primary,
+    textColorValue: text,
+    secondaryTextColorValue: secondary,
+    buttonBackgroundColorValue: button,
+    buttonTextMode: 'light',
+    buttonTextColorValue: 0xFFFFFFFF,
+    appBackgroundMode: ShopAppBackground.modeColor,
+  );
+}
+
+StoreBrandStyle _brand(
+  StoreBrandStyle style, {
+  required int nameColor,
+  required int subtitleColor,
+  required int headerBackground,
+}) {
+  return style.copyWith(
+    x: 0.5,
+    widthRatio: 0.8,
+    nameColorValue: nameColor,
+    subtitleColorValue: subtitleColor,
+    headerBackgroundColorValue: headerBackground,
+    textAlign: 'left',
+    nameFontSize: 17,
+    subtitleFontSize: 11,
+    logoPlacement: 'leading',
+    logoSize: 'small',
+    textShadowEnabled: false,
+  );
+}
+
+HomeQuickActionSetting _quickActions(
+  HomeQuickActionSetting setting, {
+  required int background,
+  required int icon,
+}) {
+  return setting.copyWith(
+    placement: HomeQuickActionSetting.placementEnd,
+    containerStyle: HomeQuickActionSetting.containerCapsule,
+    backgroundMode: HomeQuickActionSetting.backgroundCustom,
+    backgroundColorValue: background,
+    iconColorMode: HomeQuickActionSetting.iconCustom,
+    iconColorValue: icon,
+    iconSize: HomeQuickActionSetting.sizeSmall,
+  );
+}
+
+HomeSharedEntrySectionSetting _sharedEntries(
+  HomeSharedEntrySectionSetting setting, {
+  required int columns,
+  required String aspect,
+  required String radius,
+  required double imageScale,
+  required double gapX,
+  required double gapY,
+  required List<String> cardOrder,
+}) {
+  final Set<String> existing = setting.cardOrder.toSet();
+  final List<String> ordered = <String>[
+    for (final String id in cardOrder)
+      if (existing.contains(id)) id,
+  ];
+  final Map<String, HomeSharedEntryCardSetting> cards =
+      <String, HomeSharedEntryCardSetting>{
+        for (final MapEntry<String, HomeSharedEntryCardSetting> entry
+            in setting.cards.entries)
+          entry.key: entry.value.copyWith(
+            titleColorMode: HomeSharedEntryColorModes.theme,
+            bodyColorMode: HomeSharedEntryColorModes.theme,
+          ),
+      };
+  return setting.copyWith(
+    enabled: ordered.isNotEmpty,
+    columns: columns,
+    overflow: HomeSharedEntryOverflows.wrap,
+    cardOrder: ordered,
+    cards: cards,
+    style: setting.style.copyWith(
+      aspect: aspect,
+      imageFit: 'cover',
+      radius: radius,
+      textPlacement: HomeSharedEntryPlacements.outsideBelow,
+      surface: HomeRoomSimpleSurfaces.filled,
+      mask: HomeRoomSimpleMasks.none,
+      textAlign: 'center',
+      imageScale: imageScale,
+      gapX: gapX,
+      gapY: gapY,
+      gapText: 6,
+      insetX: 4,
+      showBorder: false,
+      cardShadow: 'none',
+      textScrim: false,
+      iconSize: 38,
+    ),
+  );
+}
+
+HomeDisplayStyleSetting _displayStyle({
+  required int text,
+  required int secondary,
+  required String spacing,
+  required String radius,
+  required String aspect,
+}) {
+  return HomeDisplayStyleSetting(
+    saved: true,
+    style: HomeDisplayStyle(
+      titleColor: text,
+      bodyColor: secondary,
+      colorMode: HomeDisplayColorModes.separate,
+      spacing: spacing,
+      cardBackground: HomeDisplayBackgrounds.filled,
+      cardRadius: radius,
+      cardBorder: false,
+      cardShadow: HomeDisplayShadows.none,
+      imageAspect: aspect,
+      imageRadius: radius,
+      imageMask: HomeDisplayMasks.none,
+    ),
+    sections: <String, HomeDisplaySectionChoice>{
+      for (final String id in HomeDisplaySections.all)
+        id: const HomeDisplaySectionChoice(mode: HomeDisplayStyleModes.inherit),
+    },
+  );
 }
 
 HomeThemeModel _surfaces(
@@ -651,14 +969,13 @@ HomeQuickBookingSectionSetting _booking(
   HomeQuickBookingSectionSetting booking, {
   required String layout,
   required String surface,
-  bool showServices = false,
 }) {
   return booking.copyWith(
     showOnHome: true,
     layout: layout,
     surfaceStyle: surface,
-    showAccommodation: showServices ? true : null,
-    showDaycare: showServices ? true : null,
+    showAccommodation: true,
+    showDaycare: true,
   );
 }
 

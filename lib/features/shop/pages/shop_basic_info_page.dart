@@ -1,6 +1,6 @@
 // 檔案名稱：lib/features/shop/pages/shop_basic_info_page.dart
 // 功能說明：店家基本資料（完整版）
-// ✅ 縣市區域下拉
+// ✅ 縣市區域沿用創店資料並鎖定
 // ✅ IG / FB
 // ✅ LINE 移動
 // ✅ 移除介紹
@@ -16,8 +16,10 @@ import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/pages/shop_change_request_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_request_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_verify_request_page.dart';
+import 'package:petnest_saas/features/shop/shop_admin_welcome.dart';
 import 'package:petnest_saas/features/shop/widgets/legal_pet_license_check_card.dart';
 import 'package:petnest_saas/features/shop/widgets/legal_pet_license_input.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_contact_setup_guide.dart';
 
 class ShopBasicInfoPage extends StatefulWidget {
   const ShopBasicInfoPage({super.key, required this.shopId});
@@ -68,6 +70,11 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   bool _igInitialSetup = false;
   bool _fbInitialSetup = false;
   String _businessType = 'cat';
+  bool _isNewShop = false;
+  bool _profileChangePending = false;
+
+  bool get _contactIncomplete =>
+      !_phoneSetupCompleted || !_addressSetupCompleted;
 
   @override
   void initState() {
@@ -110,6 +117,8 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
     _addressSetupCompleted = isAddressSetupCompleted(shop);
     _phoneSetupCompleted = isPhoneSetupCompleted(shop);
+    _isNewShop = ShopAdminWelcome.isNewShop(shop ?? <String, dynamic>{});
+    _profileChangePending = await _hasPendingProfileChange();
 
     final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
 
@@ -156,6 +165,36 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
       }
     } catch (_) {}
     return '';
+  }
+
+  Future<bool> _hasPendingProfileChange() async {
+    const types = <String>['phone', 'address', 'name'];
+    try {
+      for (final type in types) {
+        final QuerySnapshot<Map<String, dynamic>> pending =
+            await FirebaseFirestore.instance
+                .collection('shop_change_requests')
+                .where('shopId', isEqualTo: widget.shopId)
+                .where('requestType', isEqualTo: type)
+                .where('status', isEqualTo: 'pending')
+                .limit(1)
+                .get();
+        if (pending.docs.isNotEmpty) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  String? _firstStepBlockReason() {
+    final error = validateShopContactPhone(_phoneController.text);
+    if (error != null) return error;
+    if (!_locationComplete) return '目前店家所在地資料不完整，請透過既有資料修正流程處理。';
+    if (_addressController.text.trim().isEmpty) return '請填寫詳細地址';
+    return null;
+  }
+
+  Future<void> _saveFirstStep() {
+    return _save(finishFirstStep: true);
   }
 
   Future<void> _openImportantNotes() async {
@@ -209,8 +248,18 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     );
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool finishFirstStep = false}) async {
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
+    if (finishFirstStep) {
+      final String? blocked = _firstStepBlockReason();
+      if (blocked != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(blocked)));
+        return;
+      }
+    }
 
     setState(() => _saving = true);
 
@@ -219,31 +268,53 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
           !_addressSetupCompleted && _addressController.text.trim().isNotEmpty;
       final bool savingPhone =
           !_phoneSetupCompleted && _phoneController.text.trim().isNotEmpty;
-      if (savingAddress || savingPhone) {
-        await LegalPetService.instance.saveInitialProfile(
-          shopId: widget.shopId,
-          phone: savingPhone ? _phoneController.text : null,
-          city: savingAddress ? _cityController.text : null,
-          district: savingAddress ? _districtController.text : null,
-          address: savingAddress ? _addressController.text : null,
-        );
+      if (savingAddress && !_locationComplete) {
+        throw StateError('目前店家所在地資料不完整，請透過既有資料修正流程處理。');
+      }
+      if (savingPhone &&
+          validateShopContactPhone(_phoneController.text) != null) {
+        throw StateError(validateShopContactPhone(_phoneController.text)!);
       }
       final licenseNumber = _licenseToSave();
-      await ShopService.instance.updateShopBasicInfo(
-        shopId: widget.shopId,
-        name: _nameController.text,
-        businessType: _businessType,
-        phone: _phoneController.text,
-        address: _addressController.text,
-        city: _cityController.text,
-        district: _districtController.text,
-        lineUrl: _lineUrlController.text,
-        igUrl: _igUrlController.text,
-        fbUrl: _fbUrlController.text,
-        licenseNumber: licenseNumber,
-        taxId: _taxIdController.text,
-        showTaxId: _showTaxId,
-      );
+      // Existing shops update path: nonempty values lock phone/address.
+      // A transactional read prevents overwriting concurrent initial setup.
+      final ref = FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId);
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(ref);
+        final current = snapshot.data();
+        if (current == null) throw StateError('找不到店家資料');
+        final patch = <String, dynamic>{
+          'name': _nameController.text.trim(),
+          'businessType': _businessType,
+          'lineUrl': _lineUrlController.text.trim(),
+          'igUrl': _igUrlController.text.trim(),
+          'fbUrl': _fbUrlController.text.trim(),
+          'licenseNumber': licenseNumber.trim(),
+          'taxId': _taxIdController.text.trim(),
+          'showTaxId': _showTaxId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (savingAddress) {
+          if (isAddressSetupCompleted(current) ||
+              current['city'] != _cityController.text ||
+              current['district'] != _districtController.text) {
+            throw StateError('店家資料已更新，請重新載入後確認');
+          }
+          patch['address'] = _addressController.text.trim();
+          patch['addressSetupCompleted'] = true;
+        }
+        if (savingPhone) {
+          if (isPhoneSetupCompleted(current)) {
+            throw StateError('店家資料已更新，請重新載入後確認');
+          }
+          patch['phone'] = _phoneController.text.trim();
+          patch['phoneSetupCompleted'] = true;
+        }
+        // Never send city/district, even during ordinary saves.
+        transaction.update(ref, patch);
+      });
 
       /// 第一次儲存成功後，只要已有資料就立即改為鎖定狀態
       _persistedLicense = licenseNumber;
@@ -262,14 +333,22 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
       if (!mounted) return;
 
+      if (finishFirstStep) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('基本聯絡資訊已完成！')));
+        Navigator.of(context).pop();
+        return;
+      }
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('已儲存')));
     } on LegalPetException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (e) {
       if (!mounted) return;
 
@@ -404,9 +483,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   Future<void> _lookupLicense() async {
     final license = _licenseController.text.trim();
     if (license.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先填寫特寵字號')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請先填寫特寵字號')));
       return;
     }
     setState(() => _lookingUp = true);
@@ -427,9 +506,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
       );
     } on LegalPetException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _lookingUp = false);
     }
@@ -438,14 +517,17 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   void _applyGovernmentAddress(LegalPetMatch match) {
     final parsed = match.parsedAddress;
     if (!parsed.reliable || _addressSetupCompleted) return;
+    if (parsed.city != _cityController.text ||
+        parsed.district != _districtController.text) {
+      _requestRegisteredAddress(match);
+      return;
+    }
     setState(() {
-      _cityController.text = parsed.city;
-      _districtController.text = parsed.district;
       _addressController.text = parsed.detail;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已帶入表單，按儲存後才會寫入')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已帶入表單，按儲存後才會寫入')));
   }
 
   void _requestRegisteredAddress(LegalPetMatch match) {
@@ -488,6 +570,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     bool firstSetup = false,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    String? hintText,
   }) {
     return TextFormField(
       controller: controller,
@@ -498,7 +581,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
         label: label,
         locked: locked,
         firstSetup: firstSetup,
-      ),
+      ).copyWith(hintText: hintText),
     );
   }
 
@@ -506,8 +589,10 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     required String title,
     required List<Widget> children,
     Widget? footer,
+    String? laterTitle,
+    bool laterHeading = false,
   }) {
-    return Card(
+    final Widget card = Card(
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -529,6 +614,51 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
           ],
         ),
       ),
+    );
+    if (!_contactIncomplete || laterTitle == null) return card;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (laterHeading) ...<Widget>[
+          const Text(
+            '其他資料，可以稍後再完成',
+            style: TextStyle(
+              color: Color(0xFF74250F),
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '先完成必要資料即可繼續，其他資訊可以在旅社設定中慢慢補齊。',
+            style: TextStyle(
+              color: Color(0xFF796A5D),
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '申請店家認證及公開前台前，仍需依平台規定補齊必要資料。',
+            style: TextStyle(
+              color: Color(0xFF796A5D),
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: EdgeInsets.zero,
+          title: Text(
+            laterTitle,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+          subtitle: const Text('稍後設定'),
+          children: <Widget>[card],
+        ),
+      ],
     );
   }
 
@@ -579,174 +709,86 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                           ),
                           child: Column(
                             children: <Widget>[
-                              _introCard(),
-                              const SizedBox(height: 10),
-                              _verifyStatusRow(),
-                              const SizedBox(height: 12),
-                              _sectionCard(
-                                title: '基本資料',
-                                children: <Widget>[
-                                  _twoCol(
-                                    split: tablet,
-                                    left: _lockedField(
-                                      label: '店名',
-                                      controller: _nameController,
-                                      locked: true,
-                                    ),
-                                    right: DropdownButtonFormField<String>(
-                                      initialValue: _businessType,
-                                      decoration: _fieldDecoration(
-                                        label: '店家類型',
-                                        locked: true,
-                                        firstSetup: false,
-                                      ),
-                                      items: const <DropdownMenuItem<String>>[
-                                        DropdownMenuItem(
-                                          value: 'cat_hotel',
-                                          child: Text('貓咪旅店'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'dog_hotel',
-                                          child: Text('狗狗旅店'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'grooming',
-                                          child: Text('美容功能'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'hospital',
-                                          child: Text('動物醫院'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'shop',
-                                          child: Text('賣場功能'),
-                                        ),
-                                      ],
-                                      onChanged: null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _lockedField(
-                                    label: '電話',
-                                    controller: _phoneController,
-                                    locked: _phoneSetupCompleted,
-                                    firstSetup: !_phoneSetupCompleted,
-                                    keyboardType: TextInputType.phone,
-                                  ),
-                                ],
-                                footer: _applyEditButton(),
-                              ),
-                              const SizedBox(height: 12),
-                              _sectionCard(
-                                title: '店址資料',
-                                children: <Widget>[
-                                  if (_addressSetupCompleted)
+                              if (_contactIncomplete) ..._guidedLead(tablet),
+                              if (!_contactIncomplete) ...<Widget>[
+                                _introCard(),
+                                const SizedBox(height: 10),
+                                _verifyStatusRow(),
+                                const SizedBox(height: 12),
+                                _sectionCard(
+                                  title: '基本資料',
+                                  children: <Widget>[
                                     _twoCol(
                                       split: tablet,
                                       left: _lockedField(
-                                        label: '縣市',
-                                        controller: _cityController,
+                                        label: '店名',
+                                        controller: _nameController,
                                         locked: true,
-                                      ),
-                                      right: _lockedField(
-                                        label: '區域',
-                                        controller: _districtController,
-                                        locked: true,
-                                      ),
-                                    )
-                                  else
-                                    _twoCol(
-                                      split: tablet,
-                                      left: DropdownButtonFormField<String>(
-                                        key: ValueKey(
-                                          'city-${_cityController.text}',
-                                        ),
-                                        initialValue:
-                                            cityData.containsKey(
-                                              _cityController.text,
-                                            )
-                                            ? _cityController.text
-                                            : null,
-                                        decoration: _fieldDecoration(
-                                          label: '縣市',
-                                          locked: false,
-                                          firstSetup: true,
-                                        ),
-                                        items: cityData.keys
-                                            .map(
-                                              (city) => DropdownMenuItem(
-                                                value: city,
-                                                child: Text(city),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (value) {
-                                          if (value == null) return;
-                                          setState(() {
-                                            _cityController.text = value;
-                                            final districts =
-                                                cityData[value] ?? [];
-                                            if (!districts.contains(
-                                              _districtController.text,
-                                            )) {
-                                              _districtController.text =
-                                                  districts.isEmpty
-                                                  ? ''
-                                                  : districts.first;
-                                            }
-                                          });
-                                        },
                                       ),
                                       right: DropdownButtonFormField<String>(
-                                        key: ValueKey(
-                                          '${_cityController.text}-${_districtController.text}',
-                                        ),
-                                        initialValue:
-                                            (cityData[_cityController.text] ??
-                                                    [])
-                                                .contains(
-                                                  _districtController.text,
-                                                )
-                                            ? _districtController.text
-                                            : null,
+                                        initialValue: _businessType,
                                         decoration: _fieldDecoration(
-                                          label: '區域',
-                                          locked: false,
-                                          firstSetup: true,
+                                          label: '店家類型',
+                                          locked: true,
+                                          firstSetup: false,
                                         ),
-                                        items:
-                                            (cityData[_cityController.text] ??
-                                                    [])
-                                                .map(
-                                                  (district) =>
-                                                      DropdownMenuItem(
-                                                        value: district,
-                                                        child: Text(district),
-                                                      ),
-                                                )
-                                                .toList(),
-                                        onChanged: (value) {
-                                          if (value == null) return;
-                                          setState(
-                                            () => _districtController.text =
-                                                value,
-                                          );
-                                        },
+                                        items: const <DropdownMenuItem<String>>[
+                                          DropdownMenuItem(
+                                            value: 'cat_hotel',
+                                            child: Text('貓咪旅店'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'dog_hotel',
+                                            child: Text('狗狗旅店'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'grooming',
+                                            child: Text('美容功能'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'hospital',
+                                            child: Text('動物醫院'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'shop',
+                                            child: Text('賣場功能'),
+                                          ),
+                                        ],
+                                        onChanged: null,
                                       ),
                                     ),
-                                  const SizedBox(height: 12),
-                                  _lockedField(
-                                    label: '地址',
-                                    controller: _addressController,
-                                    locked: _addressSetupCompleted,
-                                    firstSetup: !_addressSetupCompleted,
-                                  ),
-                                ],
-                                footer: _applyEditButton(),
-                              ),
+                                    const SizedBox(height: 12),
+                                    _lockedField(
+                                      label: '電話',
+                                      controller: _phoneController,
+                                      locked: _phoneSetupCompleted,
+                                      firstSetup: !_phoneSetupCompleted,
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                  ],
+                                  footer: _applyEditButton(),
+                                ),
+                                const SizedBox(height: 12),
+                                _sectionCard(
+                                  title: '店址資料',
+                                  children: <Widget>[
+                                    _locationCard(),
+                                    const SizedBox(height: 12),
+                                    _lockedField(
+                                      label: '地址',
+                                      controller: _addressController,
+                                      locked: _addressSetupCompleted,
+                                      firstSetup: !_addressSetupCompleted,
+                                    ),
+                                  ],
+                                  footer: _applyEditButton(),
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               _sectionCard(
                                 title: '商業與公開資訊',
+                                laterTitle: '商業與認證資料',
+                                laterHeading: true,
                                 children: <Widget>[
                                   _twoCol(
                                     split: tablet,
@@ -767,8 +809,12 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                                   Align(
                                     alignment: Alignment.centerLeft,
                                     child: OutlinedButton.icon(
-                                      onPressed: _lookingUp ? null : _lookupLicense,
-                                      icon: const Icon(Icons.fact_check_outlined),
+                                      onPressed: _lookingUp
+                                          ? null
+                                          : _lookupLicense,
+                                      icon: const Icon(
+                                        Icons.fact_check_outlined,
+                                      ),
                                       label: Text(_lookingUp ? '查核中' : '查核字號'),
                                     ),
                                   ),
@@ -776,12 +822,14 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                                     const SizedBox(height: 8),
                                     LegalPetLicenseCheckCard(
                                       result: _lookup!,
-                                      stale: _lookupInputs == null ||
+                                      stale:
+                                          _lookupInputs == null ||
                                           !_lookupInputs!.matches(
                                             LegalPetLookupInputs(
                                               license: _licenseController.text,
                                               city: _cityController.text,
-                                              district: _districtController.text,
+                                              district:
+                                                  _districtController.text,
                                               address: _addressController.text,
                                             ),
                                           ),
@@ -790,7 +838,8 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                                           '${_cityController.text}${_districtController.text}${_addressController.text}',
                                       onApply: _applyGovernmentAddress,
                                       onKeep: () => setState(() {}),
-                                      onRequestChange: _requestRegisteredAddress,
+                                      onRequestChange:
+                                          _requestRegisteredAddress,
                                     ),
                                   ],
                                   const SizedBox(height: 8),
@@ -823,6 +872,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                               const SizedBox(height: 12),
                               _sectionCard(
                                 title: '聯絡與社群',
+                                laterTitle: '聯絡與社群',
                                 children: <Widget>[
                                   _lockedField(
                                     label: 'LINE',
@@ -864,11 +914,28 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                               ),
                               const SizedBox(height: 16),
                               FilledButton(
-                                onPressed: _saving ? null : _save,
+                                key: const ValueKey('shop-contact-setup-save'),
+                                onPressed: _saving
+                                    ? null
+                                    : (_contactIncomplete
+                                          ? _saveFirstStep
+                                          : _save),
                                 style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(48),
+                                  backgroundColor: _contactIncomplete
+                                      ? const Color(0xFFF45B14)
+                                      : null,
+                                  minimumSize: const Size.fromHeight(50),
+                                  shape: _contactIncomplete
+                                      ? const StadiumBorder()
+                                      : null,
                                 ),
-                                child: Text(_saving ? '儲存中' : '儲存顯示設定'),
+                                child: Text(
+                                  _saving
+                                      ? '儲存中'
+                                      : _contactIncomplete
+                                      ? '儲存並完成第一步 →'
+                                      : '儲存顯示設定',
+                                ),
                               ),
                               const SizedBox(height: 8),
                               OutlinedButton.icon(
@@ -902,6 +969,76 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
             ),
     );
   }
+
+  List<Widget> _guidedLead(bool split) {
+    return <Widget>[
+      ShopContactSetupHeader(
+        shopName: _nameController.text,
+        showActivationProgress: _isNewShop,
+      ),
+      if (_profileChangePending) ...<Widget>[
+        const SizedBox(height: 10),
+        const Text(
+          '已有資料修改申請正在審核，核准前不會覆蓋正式資料。',
+          style: TextStyle(color: Color(0xFF796A5D), height: 1.4),
+        ),
+      ],
+      const SizedBox(height: 12),
+      _sectionCard(
+        title: '第一步｜完成必要資料',
+        children: <Widget>[
+          const Text(
+            '為了保障店家與顧客的權益，請先確認聯絡電話與營業地址。',
+            style: TextStyle(color: Color(0xFF796A5D), height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          _lockedField(
+            label: '1. 店家聯絡電話',
+            controller: _phoneController,
+            locked: _phoneSetupCompleted,
+            firstSetup: !_phoneSetupCompleted,
+            keyboardType: TextInputType.phone,
+            validator: _phoneSetupCompleted ? null : validateShopContactPhone,
+          ),
+          const SizedBox(height: 12),
+          _locationCard(),
+          const SizedBox(height: 12),
+          _lockedField(
+            label: '2. 詳細地址',
+            hintText: '請輸入路、街、巷、弄、門牌號碼',
+            controller: _addressController,
+            locked: _addressSetupCompleted,
+            firstSetup: !_addressSetupCompleted,
+            validator: _addressSetupCompleted
+                ? null
+                : (String? value) =>
+                      (value ?? '').trim().isEmpty ? '請填寫詳細地址' : null,
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const ShopContactSafetyNote(),
+      const SizedBox(height: 4),
+    ];
+  }
+
+  bool get _locationComplete =>
+      cityData.containsKey(_cityController.text.trim()) &&
+      (cityData[_cityController.text.trim()] ?? <String>[]).contains(
+        _districtController.text.trim(),
+      );
+
+  Widget _locationCard() => ShopLocationInfoCard(
+    city: _cityController.text,
+    district: _districtController.text,
+    complete: _locationComplete,
+    onRequestChange: () => _openChangeRequest(
+      initialRequestType: 'address',
+      initialCity: _cityController.text,
+      initialDistrict: _districtController.text,
+      initialAddress: _addressController.text,
+    ),
+  );
 
   Widget _introCard() {
     return Card(
@@ -941,6 +1078,17 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                 ),
               ],
             ),
+            if (_profileChangePending) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                '已有資料修改申請正在審核，核准前不會覆蓋正式資料。',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Colors.brown.shade700,
+                ),
+              ),
+            ],
             if (!_phoneSetupCompleted) ...<Widget>[
               const SizedBox(height: 4),
               Text(
@@ -955,7 +1103,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
             if (!_addressSetupCompleted) ...<Widget>[
               const SizedBox(height: 4),
               Text(
-                '地址仍可做首次設定，這次可以修正縣市與區域，儲存後鎖定。',
+                '詳細地址仍可做首次設定；所在地沿用創店資料，儲存後須申請修改。',
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.4,

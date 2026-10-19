@@ -672,6 +672,98 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  test('header background is optional and can be cleared', () {
+    final StoreBrandStyle missing = StoreBrandStyle.fromMap(<String, dynamic>{
+      'homepageBrandNameFontFamily': 'KleeOne',
+    });
+    expect(missing.headerBackgroundColorValue, isNull);
+    expect(
+      missing.toMap().containsKey('homepageHeaderBackgroundColor'),
+      isTrue,
+    );
+    expect(missing.toMap()['homepageHeaderBackgroundColor'], isNull);
+    expect(
+      missing.resolveHeaderBackground(const Color(0xFFFFFBF7)),
+      const Color(0xFFFFFBF7),
+    );
+    expect(missing.nameFontFamily, 'KleeOne');
+
+    final StoreBrandStyle explicitNull = StoreBrandStyle.fromMap(
+      <String, dynamic>{'homepageHeaderBackgroundColor': null},
+    );
+    expect(explicitNull.headerBackgroundColorValue, isNull);
+
+    final StoreBrandStyle transparent = StoreBrandStyle.fromMap(
+      <String, dynamic>{'homepageHeaderBackgroundColor': 0},
+    );
+    expect(transparent.headerBackgroundColorValue, isNull);
+
+    final StoreBrandStyle saved = missing.copyWith(
+      headerBackgroundColorValue: 0xFF112233,
+    );
+    expect(saved.nameFontFamily, 'KleeOne');
+    expect(saved.toMap()['homepageHeaderBackgroundColor'], 0xFF112233);
+    final StoreBrandStyle loaded = StoreBrandStyle.fromMap(saved.toMap());
+    expect(loaded.headerBackgroundColorValue, 0xFF112233);
+    expect(
+      loaded.resolveHeaderBackground(const Color(0xFFFFFBF7)),
+      const Color(0xFF112233),
+    );
+
+    final StoreBrandStyle cleared = saved.copyWith(
+      headerBackgroundColorValue: null,
+    );
+    expect(cleared.headerBackgroundColorValue, isNull);
+    expect(cleared.toMap()['homepageHeaderBackgroundColor'], isNull);
+    expect(cleared.nameFontFamily, 'KleeOne');
+  });
+
+  testWidgets('header color fills the top bar and falls back when unset', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: StoreBrandTopBar(
+            style: StoreBrandStyle(
+              markType: 'none',
+              headerBackgroundColorValue: 0xFF112233,
+            ),
+            shopName: '深色頂部',
+            subtitle: '副標',
+            logoUrl: '',
+            theme: theme,
+            backgroundColor: Color(0xFFFFFBF7),
+          ),
+        ),
+      ),
+    );
+    final ColoredBox painted = tester.widget<ColoredBox>(
+      find.byKey(const ValueKey<String>('store-brand-header-background')),
+    );
+    expect(painted.color, const Color(0xFF112233));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: StoreBrandTopBar(
+            style: StoreBrandStyle(markType: 'none'),
+            shopName: '沿用背景',
+            subtitle: '',
+            logoUrl: '',
+            theme: theme,
+            backgroundColor: Color(0xFFFFFBF7),
+          ),
+        ),
+      ),
+    );
+    final ColoredBox fallback = tester.widget<ColoredBox>(
+      find.byKey(const ValueKey<String>('store-brand-header-background')),
+    );
+    expect(fallback.color, const Color(0xFFFFFBF7));
+    expect(tester.takeException(), isNull);
+  });
 }
 
 void _ignoreBrandChange(StoreBrandStyle style) {}

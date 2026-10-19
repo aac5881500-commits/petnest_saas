@@ -1,0 +1,262 @@
+[
+  {
+    "part": "roof_wide",
+    "placement": "house.roof",
+    "device": "desktop",
+    "transparent": true,
+    "size": [
+      2172,
+      724
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. Produce ONE production-ready isolated rooftop cutout for a layered Flutter boutique cat inn, not an entire house. Romantic European garden cat inn: ivory painted timber fascia, sophisticated soft dove-blue scalloped slate gable roof, small blush-white roses and delicate green vines only at far corners. Fresh boutique guesthouse, refined realistic handcrafted architectural illustration. Straight-on orthographic front elevation, no perspective skew, fine material details, clean true alpha transparency. Desktop variant with richly detailed individual tiles and joinery. Canvas exact 2400x800 (3:1). Roof spans x=2%..98%, apex at (50%,4%), eaves at y=74%, all silhouette within canvas. A blank pale natural wood hanging name plaque occupies EXACT rectangle x=37.5% to62.5%, y=49% to67%, centered for dynamically overlaid text. Plaque surface absolutely blank, unobstructed and flat. Under roof bottom 20% is transparent except tiny corner vine tips. NO walls, NO windows, NO lanterns or flower pots (separate layers), NO letters, text, logo, numbers, UI or watermark. Soft natural daylight, polished premium realism not childish cartoon, coherent muted materials. Give actual transparent PNG, not checkerboard or painted background.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-a50a5a6e-ab21-40d2-bd1e-e65fc1c7d8a2.png"
+  },
+  {
+    "part": "roof_phone",
+    "placement": "house.roof",
+    "device": "phone",
+    "transparent": true,
+    "size": [
+      1086,
+      362
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. Produce ONE production-ready isolated rooftop cutout for a layered Flutter boutique cat inn, not an entire house. Romantic European garden cat inn: ivory painted timber fascia, sophisticated soft dove-blue scalloped slate gable roof, small blush-white roses and delicate green vines only at far corners. Fresh boutique guesthouse, refined realistic handcrafted architectural illustration. Straight-on orthographic front elevation, no perspective skew, fine material details, clean true alpha transparency. Mobile variant with simpler larger tile details readable at 320px. Canvas exact 1200x400 (3:1). Roof spans x=2%..98%, apex at (50%,4%), eaves at y=74%, all silhouette within canvas. A blank pale natural wood hanging name plaque occupies EXACT rectangle x=37.5% to62.5%, y=49% to67%, centered for dynamically overlaid text. Plaque surface absolutely blank, unobstructed and flat. Under roof bottom 20% is transparent except tiny corner vine tips. NO walls, NO windows, NO lanterns or flower pots (separate layers), NO letters, text, logo, numbers, UI or watermark. Soft natural daylight, polished premium realism not childish cartoon, coherent muted materials. Give actual transparent PNG, not checkerboard or painted background.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-4c9b5f38-b3da-4ced-aab2-5d49c0a58f93.png"
+  },
+  {
+    "part": "wall",
+    "placement": "house.wall",
+    "device": "any",
+    "transparent": false,
+    "size": [
+      1024,
+      1024
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. Asset for layered Flutter boutique cat inn. Romantic European garden cat inn: cream-white painted timber, softly weathered refined moldings, tiny blush pink and white roses, sage green vines, warm gentle daylight. Sophisticated boutique cottage realism, not cartoon. ONE square 1024x1024 flat frontal building wall material background, continuous subtle ivory-white painted horizontal timber boards with very soft fine seams. Very low contrast, uniform soft daylight, a large nearly blank central 90% area for readable text and controls. No decorative objects, no windows, no perspective, no cast shadows across center. This is a premium textured real material not a flat color swatch. No text, labels, logos, numbers, UI, button graphics, or watermark. High quality fine material detail. Opaque seamless-looking material background.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-a62ec932-a41c-418f-a9f2-2382c9078133.png"
+  },
+  {
+    "part": "window",
+    "placement": "house.windowFrame",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      1024,
+      1024
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. Asset for layered Flutter boutique cat inn. Romantic European garden cat inn: cream-white painted timber, softly weathered refined moldings, tiny blush pink and white roses, sage green vines, warm gentle daylight. Sophisticated boutique cottage realism, not cartoon. ONE isolated square architectural photo window FRAME, full canvas 1024x1024, true transparent background and true empty transparent central photo hole. The OPENING must be the exact axis-aligned rectangle x=18%..82%, y=15%..79%, straight horizontal and vertical edges, absolutely NO objects/glass/grid bars crossing that hole. Outer frame occupies x=4%..96%, y=3%..96%, front orthographic view. Elegant thick white sculpted casings, a shallow white sill, tiny climbing rose detail only at far outer right edge. The entire interior must be pure alpha transparency, never grey/checkerboard/white fill. Logo content is placed behind this frame by Flutter. NO cats, NO interior scene. Leave all central opening unobstructed. No text, labels, logos, numbers, UI, button graphics, or watermark. High quality fine material detail. Deliver genuine transparent PNG with clean antialiased edges.\nREVISION:\nEdit ONLY the transparent photo opening geometry of this white romantic garden architectural frame. Preserve the square canvas, white carved molding, delicate outer roses, premium materials and alpha transparency. The transparent rectangular hole must start at x=18%, y=15% and end at x=82%, y=79%. The current top header is too thick: raise inner top opening edge from about19% to15% of canvas. Widen hole slightly so x=18%..82%. No solid pixels within this hole; nothing may cross the interior. Reposition the small carved ornament within the now thinner top rail. Keep elegant substantial outer framing and sill. Do not scale the whole frame. No text, logo, cat, checkerboard or painted background. Deliver true alpha transparent PNG.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-2a9c5d2f-ec18-4229-aede-ad33beb6ae9b.png"
+  },
+  {
+    "part": "decoration_left",
+    "placement": "house.decorationLeft",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      512,
+      768
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. ONE independent left architectural garden decoration cutout for a refined romantic European garden cat inn, matching ivory timber and dove-blue slate palette. Subject: A tall refined white stone garden urn with airy pink-white small roses and climbing sage ivy, with a short ivory picket-fence fragment behind the lowest left edge. Canvas 512x768 portrait 2:3. True alpha-transparent background. Entire object within x=10%..90%, y=5%..95%, a clear transparent margin, anchored along bottom y=95%. Straight-on front elevation, slight material depth, soft natural daylight, premium realistic handcrafted architectural illustration with detailed fine materials. Small restrained elegant decoration, not clutter, not a childish cartoon. No building, window, roof, ground plane, opaque background, cast shadow rectangle, text, name, logo, numbers, buttons, UI or watermark. Avoid duplicating elements already integrated in a roof or frame. Transparent background must be genuine alpha, never checkerboard.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-af6c0c58-0e56-4b92-92bf-55cc315a5e25.png"
+  },
+  {
+    "part": "decoration_right",
+    "placement": "house.decorationRight",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      512,
+      768
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. ONE independent right architectural garden decoration cutout for a refined romantic European garden cat inn, matching ivory timber and dove-blue slate palette. Subject: A shorter matching cream ceramic planter brimming with small white flowers and pale blush roses, with two short white garden fence pickets to the outer right. Distinct composition from the tall left urn. Canvas 512x768 portrait 2:3. True alpha-transparent background. Entire object within x=10%..90%, y=5%..95%, a clear transparent margin, anchored along bottom y=95%. Straight-on front elevation, slight material depth, soft natural daylight, premium realistic handcrafted architectural illustration with detailed fine materials. Small restrained elegant decoration, not clutter, not a childish cartoon. No building, window, roof, ground plane, opaque background, cast shadow rectangle, text, name, logo, numbers, buttons, UI or watermark. Avoid duplicating elements already integrated in a roof or frame. Transparent background must be genuine alpha, never checkerboard.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-c1ae75bf-5137-4445-9d0b-69bba209dbb1.png"
+  },
+  {
+    "part": "decoration_top",
+    "placement": "house.decorationTop",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      768,
+      512
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. Independent layered architectural asset for a romantic European garden boutique cat inn, white timber and dove-blue slate. ONE small horizontal architectural ornament cutout, canvas768x512 aspect3:2. A graceful loose ivory-and-blush miniature rose vine swag with small sage leaves, draping lightly from upper-left to lower-right, two small rose clusters, airy negative space. No large central wreath. This goes in a small outer-upper-left architectural slot, not over the name sign. Entire object within 8% safe transparent margins. No building. Premium realistic handcrafted architectural illustration with material detail, soft natural daylight, restrained muted palette, clean antialiased true alpha transparency, not cartoon, not flat vector. NO names, logos, letters, numbers, UI or watermark.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-3da2c741-9fd4-4049-b3ff-7c0260e983e2.png"
+  },
+  {
+    "part": "base",
+    "placement": "house.base",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      2172,
+      285
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. Independent layered architectural asset for a romantic European garden boutique cat inn, white timber and dove-blue slate. ONE long straight architectural foundation platform strip, intended output 2172x285, aspect 7.62:1. Ivory painted hardwood veranda edge with pale limestone top ledge, refined white molding and discreet fine grain. Full frontal orthographic view, strictly straight horizontal. End caps only within leftmost and rightmost 7% width. Middle 86% is uniform horizontal rails suitable for nine-slice stretching, no individual repeating objects. Platform fills width=96% and height=70%, surrounded by genuine alpha transparency. If canvas must be taller, keep the platform itself a very long low 7.6:1 strip centered vertically, leaving surplus space fully transparent for safe alpha-bounds trimming. NO steps, posts, furniture, flowers or text. Premium realistic handcrafted architectural illustration with material detail, soft natural daylight, restrained muted palette, clean antialiased true alpha transparency, not cartoon, not flat vector. NO names, logos, letters, numbers, UI or watermark.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-31b5ee46-00a1-426f-a0d4-b910d07aa43d.png"
+  },
+  {
+    "part": "courtyard",
+    "placement": "house.sceneBackground",
+    "device": "any",
+    "transparent": false,
+    "size": [
+      1536,
+      1024
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: stylized-concept. ONE landscape environment background 1536x1024 aspect3:2, a romantic European cottage garden in clear gentle morning light, airy pale blue sky, soft ivory-white and blush roses and green hedges at the far sides, a short small white picket fence only at far lower edges, pale gravel and grass foreground. NO HOUSE, building, roof, sign or window. Center 75% of frame must remain bright, low-detail, soft and unobstructed because the interactive house will be layered in front. Detail confined to outer sides and bottom. Balanced light and natural textures, no dark vignette. Premium boutique hospitality look, sophisticated muted palette, natural daylight, tactile realistic detail. Not a childish cartoon, no oversaturation. No people, text, letters, numbers, logo, store name, status, statistic, buttons, UI or watermark. Opaque full-bleed image.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-984c71cd-c57a-4a9a-ad5c-7b7cec279868.png"
+  },
+  {
+    "part": "cat_default",
+    "placement": "house.defaultPhoto",
+    "device": "any",
+    "transparent": false,
+    "size": [
+      1024,
+      1024
+    ],
+    "style": "romantic_garden",
+    "prompt": "Use case: photorealistic-natural. ONE square1024x1024 default photograph to place INSIDE a separate transparent architectural frame. A beautiful relaxed cream-white calico cat sitting naturally on a pale ivory linen cushion, gentle garden light and soft blurred pale flowers outside, elegant European cat inn atmosphere. Photorealistic natural cat anatomy, warm peaceful eyes, no accessories, cat head and forepaws completely visible in central70%, plenty of breathing room for square cropping. NO built-in border or window frame, no furniture crossing the face, no branding. Premium boutique hospitality look, sophisticated muted palette, natural daylight, tactile realistic detail. Not a childish cartoon, no oversaturation. No people, text, letters, numbers, logo, store name, status, statistic, buttons, UI or watermark. Opaque full-bleed image.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-a09c9816-487e-403e-a68e-490deeebcf0f.png"
+  },
+  {
+    "part": "roof_wide",
+    "placement": "house.roof",
+    "device": "desktop",
+    "transparent": true,
+    "size": [
+      2172,
+      724
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. Produce ONE production-ready isolated rooftop cutout for a layered Flutter boutique cat inn, not an entire house. Modern Japanese cat ryokan: low asymmetric hipped charcoal ceramic tile roof with distinctive extended flat eaves, restrained dark walnut structural beams, slim copper rain trim, no European scallops, sparse single bamboo sprig at far left. Quiet sophisticated Japanese architectural product illustration. Straight-on orthographic front elevation, no perspective skew, fine material details, clean true alpha transparency. Desktop variant with richly detailed individual tiles and joinery. Canvas exact 2400x800 (3:1). Roof spans x=2%..98%, apex at (50%,4%), eaves at y=74%, all silhouette within canvas. A blank pale natural wood hanging name plaque occupies EXACT rectangle x=37.5% to62.5%, y=49% to67%, centered for dynamically overlaid text. Plaque surface absolutely blank, unobstructed and flat. Under roof bottom 20% is transparent except tiny corner vine tips. NO walls, NO windows, NO lanterns or flower pots (separate layers), NO letters, text, logo, numbers, UI or watermark. Soft natural daylight, polished premium realism not childish cartoon, coherent muted materials. Give actual transparent PNG, not checkerboard or painted background.\nREVISION:\nEdit target: the supplied transparent modern Japanese roof. Keep the exact canvas, full roof silhouette, beautiful charcoal roof tiles, walnut joinery, bamboo corner, materials and transparency. ONLY relocate and resize the blank hanging wooden name plaque: its inner blank writing surface MUST cover normalized rectangle x=.375..625, y=.49..67, with center EXACTLY at (.50,.58). Raise plaque up over the center eaves as necessary. Current plaque hangs too low; DO NOT leave it in the old position. Its outer border can extend to x=.35..65,y=.46..70. The writing surface must be pale natural wood, empty, straight frontal, unobstructed, enough contrast for dark text, no labels. Preserve the architectural distinction of Japanese low hipped roof, do not transform into European gable. Transparent background and all corner silhouette preserved.\nREVISION2:\nEdit this Japanese roof cutout. Critical production fix: replace the existing low hanging plaque with a LARGER, HIGHER blank pale natural wood plaque covering the center eaves. The new plaque extends from x=31% to69% and y=46% to76% of the entire image. Thus the point (50%,58%) must be well inside pale blank wood, NOT on roof tiles, beam, border, metal or transparency. It is okay and required for this larger plaque to OVERLAP and cover the center roof beam; do not insist on hanging it completely below the beam. Center eaves are hidden behind the plaque. Keep the entire rest of the roof tile silhouette and canvas dimensions and alpha unchanged. Premium restrained Japanese architecture; clean rectangular plaque with fine walnut rim and thin brass hanging hooks, no lettering or marks.\nREVISION3:\nPrecise localized edit: keep this exact roof and canvas unchanged. Make ONLY the hanging wooden plaque HALF AS TALL. Anchor its TOP EDGE at its current location (around y=50% of the whole canvas). Move ONLY its bottom edge upward, so the plaque ends at y=72% of the whole canvas, not at88%. This shorter height is critical to keep it from covering the Flutter store title below. Keep plaque width unchanged, blank pale wood, walnut border and brass details. Writing center at (50%,58%) stays inside pale wood. Remove the abandoned old lower plaque area completely to true alpha transparency. Roof tiles, beam, rafters, bamboo and entire outline stay identical. No extra plaque or letters, no text, no background. Transparent PNG.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-21a05f4e-2fc4-4b0b-82ce-448227352e7d.png"
+  },
+  {
+    "part": "roof_phone",
+    "placement": "house.roof",
+    "device": "phone",
+    "transparent": true,
+    "size": [
+      1086,
+      362
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. Produce ONE production-ready isolated rooftop cutout for a layered Flutter boutique cat inn, not an entire house. Modern Japanese cat ryokan: low asymmetric hipped charcoal ceramic tile roof with distinctive extended flat eaves, restrained dark walnut structural beams, slim copper rain trim, no European scallops, sparse single bamboo sprig at far left. Quiet sophisticated Japanese architectural product illustration. Straight-on orthographic front elevation, no perspective skew, fine material details, clean true alpha transparency. Mobile variant with simpler larger tile details readable at 320px. Canvas exact 1200x400 (3:1). Roof spans x=2%..98%, apex at (50%,4%), eaves at y=74%, all silhouette within canvas. A blank pale natural wood hanging name plaque occupies EXACT rectangle x=37.5% to62.5%, y=49% to67%, centered for dynamically overlaid text. Plaque surface absolutely blank, unobstructed and flat. Under roof bottom 20% is transparent except tiny corner vine tips. NO walls, NO windows, NO lanterns or flower pots (separate layers), NO letters, text, logo, numbers, UI or watermark. Soft natural daylight, polished premium realism not childish cartoon, coherent muted materials. Give actual transparent PNG, not checkerboard or painted background.\nREVISION:\nEdit target: the supplied transparent modern Japanese roof. Keep the exact canvas, full roof silhouette, beautiful charcoal roof tiles, walnut joinery, bamboo corner, materials and transparency. ONLY relocate and resize the blank hanging wooden name plaque: its inner blank writing surface MUST cover normalized rectangle x=.375..625, y=.49..67, with center EXACTLY at (.50,.58). Raise plaque up over the center eaves as necessary. Current plaque hangs too low; DO NOT leave it in the old position. Its outer border can extend to x=.35..65,y=.46..70. The writing surface must be pale natural wood, empty, straight frontal, unobstructed, enough contrast for dark text, no labels. Preserve the architectural distinction of Japanese low hipped roof, do not transform into European gable. Transparent background and all corner silhouette preserved.\nREVISION2:\nEdit this Japanese roof cutout. Critical production fix: replace the existing low hanging plaque with a LARGER, HIGHER blank pale natural wood plaque covering the center eaves. The new plaque extends from x=31% to69% and y=46% to76% of the entire image. Thus the point (50%,58%) must be well inside pale blank wood, NOT on roof tiles, beam, border, metal or transparency. It is okay and required for this larger plaque to OVERLAP and cover the center roof beam; do not insist on hanging it completely below the beam. Center eaves are hidden behind the plaque. Keep the entire rest of the roof tile silhouette and canvas dimensions and alpha unchanged. Premium restrained Japanese architecture; clean rectangular plaque with fine walnut rim and thin brass hanging hooks, no lettering or marks.\nREVISION3:\nPrecise localized edit: keep this exact roof and canvas unchanged. Make ONLY the hanging wooden plaque HALF AS TALL. Anchor its TOP EDGE at its current location (around y=50% of the whole canvas). Move ONLY its bottom edge upward, so the plaque ends at y=72% of the whole canvas, not at88%. This shorter height is critical to keep it from covering the Flutter store title below. Keep plaque width unchanged, blank pale wood, walnut border and brass details. Writing center at (50%,58%) stays inside pale wood. Remove the abandoned old lower plaque area completely to true alpha transparency. Roof tiles, beam, rafters, bamboo and entire outline stay identical. No extra plaque or letters, no text, no background. Transparent PNG.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-1486f6d3-e646-41cf-99d1-edba5a0f8add.png"
+  },
+  {
+    "part": "wall",
+    "placement": "house.wall",
+    "device": "any",
+    "transparent": false,
+    "size": [
+      1024,
+      1024
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. Asset for layered Flutter boutique cat inn. Modern Japanese cat ryokan: deep walnut with beautiful joinery, quiet ivory plaster, restrained straight geometry, minimal bamboo leaf detail and brushed dark bronze. Premium quiet architectural realism, not cartoon. ONE square 1024x1024 flat frontal building wall material background, continuous subtle warm pale ivory lime plaster with extremely subtle washi texture, clean contemporary Japanese finish. Very low contrast, uniform soft daylight, a large nearly blank central 90% area for readable text and controls. No decorative objects, no windows, no perspective, no cast shadows across center. This is a premium textured real material not a flat color swatch. No text, labels, logos, numbers, UI, button graphics, or watermark. High quality fine material detail. Opaque seamless-looking material background.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-fbea7bb8-9786-4dfe-8624-f76c7328c039.png"
+  },
+  {
+    "part": "window",
+    "placement": "house.windowFrame",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      1024,
+      1024
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. Asset for layered Flutter boutique cat inn. Modern Japanese cat ryokan: deep walnut with beautiful joinery, quiet ivory plaster, restrained straight geometry, minimal bamboo leaf detail and brushed dark bronze. Premium quiet architectural realism, not cartoon. ONE isolated square architectural photo window FRAME, full canvas 1024x1024, true transparent background and true empty transparent central photo hole. The OPENING must be the exact axis-aligned rectangle x=18%..82%, y=15%..79%, straight horizontal and vertical edges, absolutely NO objects/glass/grid bars crossing that hole. Outer frame occupies x=4%..96%, y=3%..96%, front orthographic view. Refined dark walnut rectangular joinery, Japanese kumiko lattice accents ONLY on the outer side borders, broad clean sill, no lattice in the photo opening. The entire interior must be pure alpha transparency, never grey/checkerboard/white fill. Logo content is placed behind this frame by Flutter. NO cats, NO interior scene. Leave all central opening unobstructed. No text, labels, logos, numbers, UI, button graphics, or watermark. High quality fine material detail. Deliver genuine transparent PNG with clean antialiased edges.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-6c7ff852-dcf8-4ae6-b0e7-edf5fcb21ea3.png"
+  },
+  {
+    "part": "decoration_left",
+    "placement": "house.decorationLeft",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      512,
+      768
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. ONE independent left architectural garden decoration cutout for a quiet modern Japanese cat ryokan with walnut joinery and charcoal ceramic roof. Subject: A restrained Japanese square dark ceramic planter with a gracefully curved single leafy bamboo branch, fine slender stems and a few natural leaves; a little moss at the foot. Canvas 512x768 portrait 2:3. True alpha-transparent background. Entire object within x=10%..90%, y=5%..95%, a clear transparent margin, anchored along bottom y=95%. Straight-on front elevation, slight material depth, soft natural daylight, premium realistic handcrafted architectural illustration with detailed fine materials. Small restrained elegant decoration, not clutter, not a childish cartoon. No building, window, roof, ground plane, opaque background, cast shadow rectangle, text, name, logo, numbers, buttons, UI or watermark. Avoid duplicating elements already integrated in a roof or frame. Transparent background must be genuine alpha, never checkerboard.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-9191df07-bb4c-4aea-a90b-3f7a5e61f94a.png"
+  },
+  {
+    "part": "decoration_right",
+    "placement": "house.decorationRight",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      512,
+      768
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. ONE independent right architectural garden decoration cutout for a quiet modern Japanese cat ryokan with walnut joinery and charcoal ceramic roof. Subject: A small elegant grey stone Japanese yukimi lantern with a softly glowing warm chamber, low moss rock and one subtle fern beside it. No bamboo grove. Canvas 512x768 portrait 2:3. True alpha-transparent background. Entire object within x=10%..90%, y=5%..95%, a clear transparent margin, anchored along bottom y=95%. Straight-on front elevation, slight material depth, soft natural daylight, premium realistic handcrafted architectural illustration with detailed fine materials. Small restrained elegant decoration, not clutter, not a childish cartoon. No building, window, roof, ground plane, opaque background, cast shadow rectangle, text, name, logo, numbers, buttons, UI or watermark. Avoid duplicating elements already integrated in a roof or frame. Transparent background must be genuine alpha, never checkerboard.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-8735a2bf-c041-4109-881c-d8aa04ea1870.png"
+  },
+  {
+    "part": "decoration_top",
+    "placement": "house.decorationTop",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      768,
+      512
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. Independent layered architectural asset for a modern Japanese boutique cat ryokan, walnut and charcoal tile. ONE small horizontal architectural ornament cutout, canvas768x512 aspect3:2. A restrained elegant warm brass wall lantern with frosted ivory paper panels on a simple short dark walnut bracket, one small bamboo leaf beside the bracket. Contemporary Japanese inn, clean geometrical joinery. This goes in a small outer-upper-left architectural slot, not over the name sign. Entire object within 8% safe transparent margins. No building. Premium realistic handcrafted architectural illustration with material detail, soft natural daylight, restrained muted palette, clean antialiased true alpha transparency, not cartoon, not flat vector. NO names, logos, letters, numbers, UI or watermark.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-06d92a27-ace1-47c9-82fa-0612fb7bb793.png"
+  },
+  {
+    "part": "base",
+    "placement": "house.base",
+    "device": "any",
+    "transparent": true,
+    "size": [
+      2172,
+      285
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. Independent layered architectural asset for a modern Japanese boutique cat ryokan, walnut and charcoal tile. ONE long straight architectural foundation platform strip, intended output 2172x285, aspect 7.62:1. Dark walnut engawa deck with thin warm grey stone top, precise clean beveled joinery and refined horizontal wood grain. Full frontal orthographic view, strictly straight horizontal. End caps only within leftmost and rightmost 7% width. Middle 86% is uniform horizontal rails suitable for nine-slice stretching, no individual repeating objects. Platform fills width=96% and height=70%, surrounded by genuine alpha transparency. If canvas must be taller, keep the platform itself a very long low 7.6:1 strip centered vertically, leaving surplus space fully transparent for safe alpha-bounds trimming. NO steps, posts, furniture, flowers or text. Premium realistic handcrafted architectural illustration with material detail, soft natural daylight, restrained muted palette, clean antialiased true alpha transparency, not cartoon, not flat vector. NO names, logos, letters, numbers, UI or watermark.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-1c434a78-2978-4325-b294-2fad0807500e.png"
+  },
+  {
+    "part": "courtyard",
+    "placement": "house.sceneBackground",
+    "device": "any",
+    "transparent": false,
+    "size": [
+      1536,
+      1024
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: stylized-concept. ONE landscape environment background 1536x1024 aspect3:2, a serene contemporary Japanese courtyard, pale blue-grey morning sky, a small sculptural maple at far right, sparse bamboo far left, low dark stone garden boundary, light gravel and moss foreground, distant softly blurred greenery, quiet restrained landscaping. NO HOUSE, building, roof, sign or window. Center 75% of frame must remain bright, low-detail, soft and unobstructed because the interactive house will be layered in front. Detail confined to outer sides and bottom. Balanced light and natural textures, no dark vignette. Premium boutique hospitality look, sophisticated muted palette, natural daylight, tactile realistic detail. Not a childish cartoon, no oversaturation. No people, text, letters, numbers, logo, store name, status, statistic, buttons, UI or watermark. Opaque full-bleed image.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-239ee9c2-d3eb-485f-a58d-965e276b3975.png"
+  },
+  {
+    "part": "cat_default",
+    "placement": "house.defaultPhoto",
+    "device": "any",
+    "transparent": false,
+    "size": [
+      1024,
+      1024
+    ],
+    "style": "modern_japanese",
+    "prompt": "Use case: photorealistic-natural. ONE square1024x1024 default photograph to place INSIDE a separate transparent architectural frame. A graceful restful silver tabby Japanese cat sitting on a natural oatmeal linen cushion in a minimalist walnut ryokan nook, softly blurred shoji paper light and subtle moss garden bokeh. Photorealistic natural cat anatomy, warm peaceful eyes, no accessories, cat head and forepaws completely visible in central70%, plenty of breathing room for square cropping. NO built-in border or window frame, no furniture crossing the face, no branding. Premium boutique hospitality look, sophisticated muted palette, natural daylight, tactile realistic detail. Not a childish cartoon, no oversaturation. No people, text, letters, numbers, logo, store name, status, statistic, buttons, UI or watermark. Opaque full-bleed image.",
+    "source": "C:\\Users\\aac58\\.codex\\generated_images\\01a14f2c-84c1-79e1-8353-55965988ae33\\exec-4b08e226-af98-45eb-a787-0e6b33137e25.png"
+  }
+]

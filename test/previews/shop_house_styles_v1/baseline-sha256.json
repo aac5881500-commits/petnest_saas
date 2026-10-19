@@ -1,0 +1,14 @@
+{
+  "lib/core/models/shop_house_local_assets.dart": "338f369271b4c06d6918be51c6dc7f2082c7e5fed274c412fde9aacb58e115b4",
+  "lib/features/platform/pages/platform_media_library_page.dart": "20e4544db9ea848f53a07cb53ade59569548200ae73206ae1db6dffba183fc46",
+  "lib/features/auth/widgets/shop_house_media.dart": "705b8067a75393a23a0848262cdcb5a64a5785ba5def4a7efc2e2e0fb3ee6fd3",
+  "lib/features/auth/widgets/shop_house_scene.dart": "e76a4835d41eb45dc853e98e2a4e1d67f1c246702643771340a8a1e78bb8bc21",
+  "pubspec.yaml": "cb40c8cfcfca0307a3d1e35b7693c0fcb95b1f454ca57761c430aa4019551dff",
+  "assets/images/shop_house/warm_wood/base.png": "787a597dff7c06b8a71efcb9db318c1c8286c08c8d7b9465323d82a41c16e5c9",
+  "assets/images/shop_house/warm_wood/cat_default.png": "66bc014a56b6d36301837283de3424ac9b0e813a79d51efaa4ad4977430c9001",
+  "assets/images/shop_house/warm_wood/courtyard_daylight.jpg": "301fe0398ee93271955d6a9820b63fc6194fcec5a2b93b81b88aa27a65268e74",
+  "assets/images/shop_house/warm_wood/plants.png": "be78e9cf897044a57838ced4fe53d2d740930c252a728a169cee2cd9bcb18e1a",
+  "assets/images/shop_house/warm_wood/roof_phone.png": "ce47cb44724c642c2db998c31223048301d5c35ca625a7376f459bf71b0598f3",
+  "assets/images/shop_house/warm_wood/roof_wide.png": "7569b4006119f2c3a02b31c793f53b9b63977ada97c305d1bec2335a2ebabcbd",
+  "assets/images/shop_house/warm_wood/window.png": "5aabe5888b8196199752895f9cf869335ce471a9a4f1a4fc126dd0e864dfa0f3"
+}

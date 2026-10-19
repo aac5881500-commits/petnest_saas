@@ -58,6 +58,7 @@ Future<PlatformMediaPick?> showShopHouseAssetPicker({
   required String placement,
   required String title,
   String selectedId = '',
+  String device = 'any',
   @visibleForTesting List<PlatformMediaAsset>? assetsOverride,
   @visibleForTesting Object? errorOverride,
   @visibleForTesting ImageProvider Function(String url)? imageProviderBuilder,
@@ -65,6 +66,7 @@ Future<PlatformMediaPick?> showShopHouseAssetPicker({
   final PlatformMediaAssetPickerSheet sheet = PlatformMediaAssetPickerSheet(
     category: PlatformMediaCategories.shopHouse,
     placement: placement,
+    device: device,
     title: title,
     selectedId: selectedId,
     confirmSelection: true,
@@ -98,6 +100,7 @@ class PlatformMediaAssetPickerSheet extends StatefulWidget {
     required this.category,
     this.selectedId = '',
     this.placement = '',
+    this.device = 'any',
     this.title = '',
     this.confirmSelection = false,
     this.includePlatformDefault = false,
@@ -109,6 +112,7 @@ class PlatformMediaAssetPickerSheet extends StatefulWidget {
   final String category;
   final String selectedId;
   final String placement;
+  final String device;
   final String title;
   final bool confirmSelection;
   final bool includePlatformDefault;
@@ -252,7 +256,9 @@ class _PlatformMediaAssetPickerSheetState
                 !snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-            return _buildGrid(snapshot.data ?? const <PlatformMediaAsset>[]);
+            return _buildGrid(
+              _filterPlacement(snapshot.data ?? const <PlatformMediaAsset>[]),
+            );
           },
     );
   }
@@ -263,13 +269,33 @@ class _PlatformMediaAssetPickerSheetState
     }
     return assets
         .where(
-          (PlatformMediaAsset asset) => asset.allowsPlacement(widget.placement),
+          (PlatformMediaAsset asset) =>
+              asset.enabled &&
+              asset.hasUsableUrl &&
+              asset.allowsPlacement(widget.placement) &&
+              (widget.device == 'any' || asset.supportsDevice(widget.device)),
         )
         .toList();
   }
 
   Widget _buildGrid(List<PlatformMediaAsset> assets) {
     _visible = assets;
+    if (assets.isEmpty && widget.includePlatformDefault) {
+      return Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('此位置尚無可用圖庫圖片，可繼續使用 PetNest 預設。'),
+          ),
+          ListTile(
+            title: const Text('PetNest 預設'),
+            leading: const Icon(Icons.home_outlined),
+            selected: _pendingId.isEmpty,
+            onTap: () => setState(() => _pendingId = ''),
+          ),
+        ],
+      );
+    }
     if (assets.isEmpty && !widget.includePlatformDefault) {
       return Center(
         child: Text(
@@ -422,8 +448,8 @@ class _PlatformMediaAssetPickerSheetState
 
   Widget _assetImage(PlatformMediaAsset asset) {
     final String url = asset.thumbnailUrl.isEmpty
-        ? asset.imageUrl
-        : asset.thumbnailUrl;
+        ? asset.houseImageUrl
+        : asset.houseThumbnailUrl;
     final BoxFit fit = _isIcon ? BoxFit.contain : BoxFit.cover;
     final ImageProvider? override = widget.imageProviderBuilder?.call(url);
     if (override != null) {

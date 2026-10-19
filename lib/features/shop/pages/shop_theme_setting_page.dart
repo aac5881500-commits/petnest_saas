@@ -1092,6 +1092,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       information: _informationSections,
       navigation: _navigationConfig,
       bannerFrame: _modernBannerFrame,
+      sharedEntry: _sharedEntryForDraft,
+      displayStyle: _displayStyle,
+      brandStyle: _brandStyle,
+      quickActions: _quickActions,
+      bannerButtonColorValue: _modernBannerButtonColorValue,
+      bannerButtonTextColorValue: _modernBannerButtonTextColorValue,
       showStayServiceStrip: _showStayServiceStrip,
       featuredProductLayout: _featuredProductLayout,
       storeEntryLayout: _storeEntryLayout,
@@ -1141,6 +1147,14 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       'newsSection': next.news.toMap(),
       'quickBookingSection': next.quickBooking.toMap(),
       'informationSections': next.information.toMap(),
+      HomeSharedEntrySectionSetting.mapKey: next.sharedEntry.toMap(),
+      HomeDisplayStyleSetting.mapKey: next.displayStyle.saved
+          ? next.displayStyle.toMap()
+          : <String, dynamic>{},
+      ...next.brandStyle.toMap(),
+      HomeQuickActionSetting.mapKey: next.quickActions.toMap(),
+      'bannerButtonColor': next.bannerButtonColorValue,
+      'bannerButtonTextColor': next.bannerButtonTextColorValue,
       'showStayServiceStrip': next.showStayServiceStrip,
       'featuredProductLayout': next.featuredProductLayout,
       'storeEntryLayout': next.storeEntryLayout,
@@ -1167,6 +1181,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       _informationSections = next.information;
       _navigationConfig = next.navigation;
       _modernBannerFrame = next.bannerFrame;
+      _sharedEntrySection = next.sharedEntry;
+      _displayStyle = next.displayStyle;
+      _brandStyle = next.brandStyle;
+      _quickActions = next.quickActions;
+      _modernBannerButtonColorValue = next.bannerButtonColorValue;
+      _modernBannerButtonTextColorValue = next.bannerButtonTextColorValue;
       _showStayServiceStrip = next.showStayServiceStrip;
       _featuredProductLayout = next.featuredProductLayout;
       _storeEntryLayout = next.storeEntryLayout;
@@ -1188,6 +1208,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       accent: _modernTheme.primaryColor,
       onPreview: (HomeAppearancePreset preset) {
         setState(() => _browsingPresetId = preset.id);
+      },
+      onRestore: () {
+        setState(() => _browsingPresetId = null);
       },
       onApply: _applyAppearancePreset,
     );

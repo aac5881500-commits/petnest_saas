@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_quick_action_setting.dart';
 import 'package:petnest_saas/core/models/home_shortcut_gate.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/shop/theme/home_color_palette.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_color_settings_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_shortcut_catalog.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_banner_color_field.dart';
 
 class HomeSettingsFold extends StatefulWidget {
   const HomeSettingsFold({
@@ -393,6 +396,8 @@ class HomeQuickActionSettingsPanel extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            _QuickActionColorSection(setting: setting, onChanged: onChanged),
           ],
         );
       },
@@ -562,4 +567,209 @@ Widget _menuLabel(IconData icon, String label, String? reason) {
       Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
     ],
   );
+}
+
+class _QuickActionColorSection extends StatelessWidget {
+  const _QuickActionColorSection({
+    required this.setting,
+    required this.onChanged,
+  });
+
+  final HomeQuickActionSetting setting;
+  final ValueChanged<HomeQuickActionSetting> onChanged;
+
+  bool get _paintsBackground =>
+      setting.containerStyle != HomeQuickActionSetting.containerPlain;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool customIcon =
+        setting.iconColorMode == HomeQuickActionSetting.iconCustom;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text('按鈕區配色', style: TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        const Text(
+          '通知鈴鐺與兩個快捷鍵共用。不會改變整頁背景、其他卡片或懸浮按鈕。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.35,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _backgroundNote,
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.35,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            _modeChip('跟隨主題卡片色', HomeQuickActionSetting.backgroundTheme),
+            _modeChip('半透明主題卡片色', HomeQuickActionSetting.backgroundTranslucent),
+            _modeChip('自訂背景色', HomeQuickActionSetting.backgroundCustom),
+          ],
+        ),
+        if (_paintsBackground &&
+            setting.backgroundMode == HomeQuickActionSetting.backgroundCustom)
+          _QuickColorField(
+            label: '按鈕區背景色',
+            value: Color(setting.backgroundColorValue),
+            onPick: (Color color) {
+              onChanged(
+                setting.copyWith(backgroundColorValue: color.toARGB32()),
+              );
+            },
+          ),
+        const SizedBox(height: 4),
+        Row(
+          children: <Widget>[
+            const Expanded(
+              child: Text(
+                '自訂按鈕圖示顏色',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Switch(
+              value: customIcon,
+              onChanged: (bool enabled) {
+                onChanged(
+                  setting.copyWith(
+                    iconColorMode: enabled
+                        ? HomeQuickActionSetting.iconCustom
+                        : HomeQuickActionSetting.iconTheme,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        Text(
+          customIcon ? '圖示使用下方顏色。' : '關閉時沿用主題文字色。',
+          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+        if (customIcon)
+          _QuickColorField(
+            label: '圖示顏色',
+            value: Color(setting.iconColorValue),
+            onPick: (Color color) {
+              onChanged(setting.copyWith(iconColorValue: color.toARGB32()));
+            },
+          ),
+      ],
+    );
+  }
+
+  String get _backgroundNote {
+    switch (setting.containerStyle) {
+      case HomeQuickActionSetting.containerPlain:
+        return '目前樣式不繪製按鈕背景，背景色不會顯示。已儲存的背景設定會保留，圖示顏色仍可調整。';
+      case HomeQuickActionSetting.containerCircles:
+        return '背景色會套在每一顆圓形按鈕上。';
+      default:
+        return '背景色套在通知鈴鐺與兩個快捷鍵共用的按鈕區。';
+    }
+  }
+
+  Widget _modeChip(String label, String mode) {
+    return ChoiceChip(
+      label: Text(label, style: const TextStyle(fontSize: 13)),
+      visualDensity: VisualDensity.compact,
+      selected: setting.backgroundMode == mode,
+      onSelected: _paintsBackground
+          ? (_) => onChanged(setting.copyWith(backgroundMode: mode))
+          : null,
+    );
+  }
+}
+
+class _QuickColorField extends StatefulWidget {
+  const _QuickColorField({
+    required this.label,
+    required this.value,
+    required this.onPick,
+  });
+
+  final String label;
+  final Color value;
+  final ValueChanged<Color> onPick;
+
+  @override
+  State<_QuickColorField> createState() => _QuickColorFieldState();
+}
+
+class _QuickColorFieldState extends State<_QuickColorField> {
+  static const List<HomeColorSwatch> _swatches = <HomeColorSwatch>[
+    HomeColorSwatch('白色', 0xFFFFFFFF),
+    HomeColorSwatch('淺米', 0xFFFFFBF7),
+    HomeColorSwatch('深棕', 0xFF3A2A20),
+    HomeColorSwatch('黑色', 0xFF111111),
+    HomeColorSwatch('橘色', 0xFFFF8A00),
+    HomeColorSwatch('藍色', 0xFF3B82C4),
+    HomeColorSwatch('綠色', 0xFF4F7D61),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final int current = widget.value.toARGB32();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: widget.value,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.label,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        Wrap(
+          spacing: 0,
+          runSpacing: 0,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            for (final HomeColorSwatch swatch in _swatches)
+              HomeColorSwatchButton(
+                swatch: swatch,
+                selected: (current & 0xFFFFFFFF) == (swatch.argb & 0xFFFFFFFF),
+                onTap: () => widget.onPick(Color(swatch.argb)),
+              ),
+            OutlinedButton(
+              onPressed: () async {
+                final int? next = await showHomeColorPicker(
+                  context,
+                  initial: widget.value,
+                );
+                if (next == null || !mounted) {
+                  return;
+                }
+                widget.onPick(Color(next));
+              },
+              child: const Text('自訂顏色'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }

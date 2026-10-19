@@ -111,9 +111,12 @@ class PlatformMediaLibraryService {
     });
   }
 
-  Future<PlatformMediaAsset?> getEnabledAssetById(String id) async {
+  Future<PlatformMediaAsset?> getEnabledAssetById(
+    String id, {
+    bool refresh = false,
+  }) async {
     final PlatformMediaAsset? cached = cachedEnabledAsset(id);
-    if (cached != null) {
+    if (cached != null && !refresh) {
       return cached;
     }
     final String key = id.trim();
@@ -151,6 +154,8 @@ class PlatformMediaLibraryService {
     int width = 0,
     int height = 0,
     List<String> placements = const <String>[],
+    String device = 'any',
+    String sourceFileName = '',
   }) async {
     _assertImage(bytes, contentType);
     final String normalizedName = name.trim();
@@ -166,6 +171,19 @@ class PlatformMediaLibraryService {
       placements,
     );
 
+    if (normalizedCategory == PlatformMediaCategories.shopHouse &&
+        sourceFileName.trim().isNotEmpty) {
+      final existing = await _col
+          .where('category', isEqualTo: normalizedCategory)
+          .get();
+      if (existing.docs.any(
+        (doc) =>
+            doc.data()['sourceFileName'] == sourceFileName.trim() ||
+            doc.data()['name'] == sourceFileName.trim(),
+      )) {
+        throw StateError('此來源圖片已存在圖庫，請編輯既有素材，避免重複上傳。');
+      }
+    }
     final DocumentReference<Map<String, dynamic>> doc = _col.doc();
     final String extension = _extensionFor(contentType);
     final String storagePath =
@@ -181,6 +199,11 @@ class PlatformMediaLibraryService {
         'name': normalizedName,
         'category': normalizedCategory,
         'placements': normalizedPlacements,
+        if (normalizedCategory == PlatformMediaCategories.shopHouse)
+          'device': _device(device),
+        if (normalizedCategory == PlatformMediaCategories.shopHouse &&
+            sourceFileName.trim().isNotEmpty)
+          'sourceFileName': sourceFileName.trim(),
         'imageUrl': imageUrl,
         'thumbnailUrl': imageUrl,
         'storagePath': storagePath,
@@ -219,6 +242,8 @@ class PlatformMediaLibraryService {
     int? width,
     int? height,
     List<String>? placements,
+    String? device,
+    String? sourceFileName,
   }) async {
     final String key = id.trim();
     if (key.isEmpty) {
@@ -268,6 +293,11 @@ class PlatformMediaLibraryService {
         if (name != null) 'name': name.trim(),
         'category': ?category?.trim(),
         'placements': ?nextPlacements,
+        if (nextCategory == PlatformMediaCategories.shopHouse && device != null)
+          'device': _device(device),
+        if (nextCategory == PlatformMediaCategories.shopHouse &&
+            sourceFileName != null)
+          'sourceFileName': sourceFileName.trim(),
         'sortOrder': ?sortOrder,
         'enabled': ?enabled,
         'imageUrl': imageUrl,
@@ -279,6 +309,7 @@ class PlatformMediaLibraryService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      _enabledCache.remove(key);
       if (bytes != null &&
           old.storagePath.isNotEmpty &&
           old.storagePath != storagePath) {
@@ -317,6 +348,9 @@ class PlatformMediaLibraryService {
       } catch (_) {}
     }
   }
+
+  static String _device(String value) =>
+      const ['desktop', 'phone'].contains(value) ? value : 'any';
 
   static List<String> normalizePlacements(String category, List<String> raw) {
     if (category != PlatformMediaCategories.shopHouse) {

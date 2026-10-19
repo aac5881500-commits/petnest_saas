@@ -172,6 +172,7 @@ class ShopService {
 
         // 首頁卡片顯示用
         'coverUrl': shopData['coverUrl'] ?? '',
+        'logoUrl': shopData['logoUrl'] ?? '',
 
         /// 平台首頁「我的店家卡片」專用圖片
         'platformHomeCoverUrl': shopData['platformHomeCoverUrl'] ?? '',

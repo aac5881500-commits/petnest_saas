@@ -1,0 +1,14 @@
+{
+  "lib/core/models/shop_house_local_assets.dart": false,
+  "lib/features/platform/pages/platform_media_library_page.dart": false,
+  "lib/features/auth/widgets/shop_house_media.dart": false,
+  "lib/features/auth/widgets/shop_house_scene.dart": true,
+  "pubspec.yaml": false,
+  "assets/images/shop_house/warm_wood/base.png": true,
+  "assets/images/shop_house/warm_wood/cat_default.png": true,
+  "assets/images/shop_house/warm_wood/courtyard_daylight.jpg": true,
+  "assets/images/shop_house/warm_wood/plants.png": true,
+  "assets/images/shop_house/warm_wood/roof_phone.png": true,
+  "assets/images/shop_house/warm_wood/roof_wide.png": true,
+  "assets/images/shop_house/warm_wood/window.png": true
+}

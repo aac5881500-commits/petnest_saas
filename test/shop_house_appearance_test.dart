@@ -196,6 +196,107 @@ void main() {
     expect(result?.usePlatformDefault, isTrue);
     expect(result?.asset, isNull);
   });
+  testWidgets('九個位置與屋頂裝置只列出啟用且 URL 有效的相容素材', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final assets = [
+      for (final placement in ShopHousePlacements.known)
+        PlatformMediaAsset.fromMap(placement, {
+          'name': placement,
+          'category': PlatformMediaCategories.shopHouse,
+          'placements': [placement],
+          'imageUrl': 'https://example.invalid/$placement.png',
+          'enabled': true,
+        }),
+      PlatformMediaAsset.fromMap('off', {
+        'name': 'disabled',
+        'category': PlatformMediaCategories.shopHouse,
+        'placements': ShopHousePlacements.known,
+        'imageUrl': 'https://example.invalid/off.png',
+        'enabled': false,
+      }),
+      PlatformMediaAsset.fromMap('invalid', {
+        'name': 'invalid-url',
+        'category': PlatformMediaCategories.shopHouse,
+        'placements': ShopHousePlacements.known,
+        'imageUrl': 'bad',
+        'enabled': true,
+      }),
+    ];
+    for (final placement in ShopHousePlacements.known) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlatformMediaAssetPickerSheet(
+              key: ValueKey(placement),
+              category: PlatformMediaCategories.shopHouse,
+              placement: placement,
+              assetsOverride: assets,
+              includePlatformDefault: true,
+              confirmSelection: true,
+              imageProviderBuilder: (_) => MemoryImage(_png),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(placement), findsOneWidget);
+      for (final other in ShopHousePlacements.known.where(
+        (other) => other != placement,
+      )) {
+        expect(find.text(other), findsNothing);
+      }
+      expect(find.text('disabled'), findsNothing);
+      expect(find.text('invalid-url'), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+    final desktop = assets.first.copyWith(
+      id: 'desktop',
+      name: 'desktop-only',
+      device: 'desktop',
+    );
+    final phone = assets.first.copyWith(
+      id: 'phone',
+      name: 'phone-only',
+      device: 'phone',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlatformMediaAssetPickerSheet(
+            category: PlatformMediaCategories.shopHouse,
+            placement: ShopHousePlacements.roof,
+            device: 'phone',
+            assetsOverride: [desktop, phone],
+            includePlatformDefault: true,
+            confirmSelection: true,
+            imageProviderBuilder: (_) => MemoryImage(_png),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('phone-only'), findsOneWidget);
+    expect(find.text('desktop-only'), findsNothing);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlatformMediaAssetPickerSheet(
+            category: PlatformMediaCategories.shopHouse,
+            placement: ShopHousePlacements.base,
+            assetsOverride: const [],
+            includePlatformDefault: true,
+            confirmSelection: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('此位置尚無可用圖庫圖片，可繼續使用 PetNest 預設。'), findsOneWidget);
+    expect(find.text('PetNest 預設'), findsOneWidget);
+  });
 }
 
 final Uint8List _png = Uint8List.fromList(<int>[

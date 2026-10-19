@@ -20,6 +20,7 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.da
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
 import 'package:petnest_saas/features/auth/widgets/desktop_pwa_install_button.dart';
 import 'package:petnest_saas/features/auth/widgets/shop_entry_panel.dart';
+import 'package:petnest_saas/features/auth/widgets/shop_house_scene.dart';
 import 'package:petnest_saas/core/services/notification_service.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
@@ -38,6 +39,8 @@ class _HomePageState extends State<HomePage> {
   Future<List<Map<String, dynamic>>>? _shopsFuture;
   final PageController _shopPageController = PageController();
   int _selectedShopIndex = 0;
+  final Map<String, double> _shopHeroHeights = <String, double>{};
+  String _heroLayoutKey = '';
   bool _hasShopIdentity = false;
   final Map<String, Future<Map<String, int>>> _shopStats = {};
 
@@ -181,9 +184,16 @@ class _HomePageState extends State<HomePage> {
       city: shop['city']?.toString() ?? '',
       district: shop['district']?.toString() ?? '',
       role: _roleLabel(shop['role']?.toString() ?? ''),
-      coverUrl: shop['platformHomeCoverUrl']?.toString() ?? '',
-      logoUrl: shop['platformHomeLogoUrl']?.toString() ?? '',
-      roofAssetId: appearance.roofAssetId,
+      coverUrl:
+          shop['platformHomeCoverUrl']?.toString().trim().isNotEmpty == true
+          ? shop['platformHomeCoverUrl'].toString()
+          : shop['coverUrl']?.toString() ?? '',
+      logoUrl: shop['platformHomeLogoUrl']?.toString().trim().isNotEmpty == true
+          ? shop['platformHomeLogoUrl'].toString()
+          : shop['logoUrl']?.toString() ?? '',
+      houseAppearance: appearance,
+      fallbackLogoUrl: shop['logoUrl']?.toString() ?? '',
+      fallbackCoverUrl: shop['coverUrl']?.toString() ?? '',
       isOpenNow: isShopOpenNow(
         isOpen: shop['isOpen'] == true,
         openTime: shop['openTime']?.toString() ?? '',
@@ -230,8 +240,8 @@ class _HomePageState extends State<HomePage> {
     final bool desktop = width >= 1100;
     final bool tablet = width >= 700;
     final double horizontal = desktop ? 28 : (tablet ? 20 : 16);
-    // 小屋本體約 1120，寬螢幕不再把房子縮成中間一小塊，也不會無限拉寬。
-    final double maxWidth = desktop ? 1120 + horizontal * 2 : double.infinity;
+    // 寬螢幕保留建築比例，同時提供照片與店務足夠的展示寬度。
+    final double maxWidth = desktop ? 1400 + horizontal * 2 : double.infinity;
 
     return Scaffold(
       backgroundColor: colors.surfaceContainerLow,
@@ -258,20 +268,21 @@ class _HomePageState extends State<HomePage> {
           ],
           _notificationButton(colors),
           _platformAdminButton(uid, compact: !tablet),
-          _accountMenu(
-            user,
-            uid,
-            showDesktopApp: desktop && kIsWeb,
-          ),
+          _accountMenu(user, uid, showDesktopApp: desktop && kIsWeb),
         ],
       ),
       body: DecoratedBox(
         decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            const Color(0xFFFFF8F4).withValues(
-              alpha: colors.brightness == Brightness.dark ? 0.05 : 0.28,
-            ),
-            colors.surfaceContainerLowest,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: colors.brightness == Brightness.dark
+                ? [const Color(0xFF252F30), const Color(0xFF292D25)]
+                : [
+                    const Color(0xFFF0F6F6),
+                    const Color(0xFFFAF7EF),
+                    const Color(0xFFEDF2E5),
+                  ],
           ),
         ),
         child: Align(
@@ -342,12 +353,20 @@ class _HomePageState extends State<HomePage> {
                                 : width;
                             final double contentWidth =
                                 bounded - horizontal * 2;
+                            final double textScale = MediaQuery.textScalerOf(
+                              context,
+                            ).scale(1);
+                            final String layoutKey = '$contentWidth/$textScale';
+                            if (_heroLayoutKey != layoutKey) {
+                              _heroLayoutKey = layoutKey;
+                              _shopHeroHeights.clear();
+                            }
                             final double heroHeight =
+                                _shopHeroHeights[current['shopId']
+                                    .toString()] ??
                                 ShopEntryPanel.heroHeightFor(
                                   contentWidth,
-                                  textScale: MediaQuery.textScalerOf(
-                                    context,
-                                  ).scale(1),
+                                  textScale: textScale,
                                 );
                             return ListView(
                               children: <Widget>[
@@ -405,15 +424,36 @@ class _HomePageState extends State<HomePage> {
                                       },
                                       itemBuilder:
                                           (BuildContext context, int index) {
-                                            return _panelFor(
-                                              shops[index],
-                                              showDetails: false,
+                                            final shop = shops[index];
+                                            final id = shop['shopId']
+                                                .toString();
+                                            return ShopHouseMeasuredBody(
+                                              key: ValueKey<String>(
+                                                '$id/$layoutKey',
+                                              ),
+                                              onHeight: (height) {
+                                                if (!mounted ||
+                                                    _heroLayoutKey !=
+                                                        layoutKey ||
+                                                    _shopHeroHeights[id] ==
+                                                        height) {
+                                                  return;
+                                                }
+                                                setState(
+                                                  () => _shopHeroHeights[id] =
+                                                      height,
+                                                );
+                                              },
+                                              child: _panelFor(
+                                                shop,
+                                                showDetails: false,
+                                              ),
                                             );
                                           },
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 28),
+                                const SizedBox(height: 16),
                                 _panelFor(
                                   current,
                                   key: ValueKey<String>(
@@ -579,11 +619,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _accountMenu(
-    User? user,
-    String? uid, {
-    required bool showDesktopApp,
-  }) {
+  Widget _accountMenu(User? user, String? uid, {required bool showDesktopApp}) {
     return PopupMenuButton<String>(
       tooltip: '帳號',
       icon: const CircleAvatar(radius: 16, child: Icon(Icons.person, size: 18)),

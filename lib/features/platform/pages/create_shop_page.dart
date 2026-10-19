@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_commercial_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_owner_policy_page.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
+import 'package:petnest_saas/features/platform/widgets/create_shop_opening_view.dart';
 
 enum ShopCreateExit { created, recheckActivation }
 
@@ -24,6 +25,7 @@ class _CreateShopPageState extends State<CreateShopPage> {
   final _districtController = TextEditingController();
 
   bool _loading = false;
+  bool _awaitingPolicy = false;
   String? _createRequestId;
 
   final Map<String, List<String>> taiwanMap = {
@@ -407,6 +409,18 @@ class _CreateShopPageState extends State<CreateShopPage> {
     '金門縣': ['金城鎮', '金湖鎮', '金沙鎮', '金寧鄉', '烈嶼鄉', '烏坵鄉'],
     '連江縣': ['南竿鄉', '北竿鄉', '莒光鄉', '東引鄉'],
   };
+  void _showMessage(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+        content: Text(message),
+      ),
+    );
+  }
+
   Future<void> _createShop() async {
     final name = _nameController.text.trim();
     final city = _cityController.text.trim();
@@ -415,23 +429,17 @@ class _CreateShopPageState extends State<CreateShopPage> {
     final activationCode = widget.activationCode.trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請輸入店名')));
+      _showMessage('請輸入店名');
       return;
     }
 
     if (city.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請選擇城市')));
+      _showMessage('請選擇城市');
       return;
     }
 
     if (district.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請選擇區域')));
+      _showMessage('請選擇區域');
       return;
     }
     if (activationCode.isEmpty) {
@@ -460,8 +468,7 @@ class _CreateShopPageState extends State<CreateShopPage> {
           ? policy!['version']
           : 1;
 
-      _createRequestId ??=
-          'shop${DateTime.now().microsecondsSinceEpoch}';
+      _createRequestId ??= 'shop${DateTime.now().microsecondsSinceEpoch}';
       final shopId = await ShopCommercialService.instance.createShop(
         name: name,
         city: city,
@@ -488,9 +495,7 @@ class _CreateShopPageState extends State<CreateShopPage> {
       if (message.contains('激活碼')) {
         await _askToRecheckActivation(message);
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        _showMessage(message);
       }
     } finally {
       if (mounted) {
@@ -542,91 +547,66 @@ class _CreateShopPageState extends State<CreateShopPage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('建立店家')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '店家名稱',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _cityController.text.isEmpty ? null : _cityController.text,
-              decoration: const InputDecoration(
-                labelText: '縣市',
-                border: OutlineInputBorder(),
-              ),
-              items: taiwanMap.keys.map((city) {
-                return DropdownMenuItem(value: city, child: Text(city));
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _cityController.text = value ?? '';
-                  _districtController.clear();
-                });
-              },
-            ),
-            const SizedBox(height: 20),
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              value: _districtController.text.isEmpty
-                  ? null
-                  : _districtController.text,
-              decoration: const InputDecoration(
-                labelText: '區域',
-                border: OutlineInputBorder(),
-              ),
-              items:
-                  (_cityController.text.isEmpty
-                          ? <String>[]
-                          : taiwanMap[_cityController.text] ?? [])
-                      .map((district) {
-                        return DropdownMenuItem(
-                          value: district,
-                          child: Text(district),
-                        );
-                      })
-                      .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _districtController.text = value ?? '';
-                });
-              },
-            ),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading
-                    ? null
-                    : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlatformShopOwnerPolicyPage(
-                              onAgree: () {
-                                Navigator.pop(context);
-                                _createShop();
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                child: Text(_loading ? '建立中...' : '建立店家'),
-              ),
-            ),
-          ],
+  void _openPolicyThenCreate() {
+    if (_loading || _awaitingPolicy) return;
+    final name = _nameController.text.trim();
+    final city = _cityController.text.trim();
+    final district = _districtController.text.trim();
+    final String? missing = name.isEmpty
+        ? '請輸入店名'
+        : city.isEmpty
+        ? '請選擇城市'
+        : district.isEmpty
+        ? '請選擇區域'
+        : null;
+    if (missing != null) {
+      _showMessage(missing);
+      return;
+    }
+    if (widget.activationCode.trim().isEmpty) {
+      Navigator.pop(context, ShopCreateExit.recheckActivation);
+      return;
+    }
+    setState(() => _awaitingPolicy = true);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlatformShopOwnerPolicyPage(
+          onAgree: () {
+            Navigator.pop(context);
+            _createShop();
+          },
         ),
       ),
+    ).whenComplete(() {
+      if (mounted) setState(() => _awaitingPolicy = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final city = _cityController.text;
+    return CreateShopOpeningView(
+      nameController: _nameController,
+      city: city,
+      district: _districtController.text,
+      cities: taiwanMap.keys.toList(),
+      districts: city.isEmpty ? const <String>[] : taiwanMap[city] ?? const [],
+      onCityChanged: (value) {
+        setState(() {
+          _cityController.text = value ?? '';
+          _districtController.clear();
+        });
+      },
+      onDistrictChanged: (value) {
+        setState(() {
+          _districtController.text = value ?? '';
+        });
+      },
+      loading: _loading,
+      activationReady: widget.activationCode.trim().isNotEmpty,
+      onSubmit: _openPolicyThenCreate,
+      onBack: () => Navigator.maybePop(context),
     );
   }
 }
