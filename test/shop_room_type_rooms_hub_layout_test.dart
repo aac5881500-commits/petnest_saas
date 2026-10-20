@@ -65,8 +65,8 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('390 與 800 為管理／前台預覽切換，表單草稿保留', (WidgetTester tester) async {
-    for (final double width in <double>[390, 800]) {
+  testWidgets('320／390／430／800 管理與預覽切換，表單草稿保留', (WidgetTester tester) async {
+    for (final double width in <double>[320, 390, 430, 800]) {
       await pumpHub(tester, width: width);
       expect(tester.takeException(), isNull);
       expect(find.text('管理'), findsOneWidget);
@@ -90,6 +90,16 @@ void main() {
             ?.text,
         '草稿房型',
       );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('各寬度房間展開及批次啟用入口無溢出', (tester) async {
+    for (final width in <double>[320, 390, 430, 1280, 1440]) {
+      await pumpHub(tester, width: width);
+      await tester.tap(find.text('展開／收合房間').first);
+      await tester.pump();
+      expect(find.text('啟用此房型的房間'), findsWidgets);
       expect(tester.takeException(), isNull);
     }
   });

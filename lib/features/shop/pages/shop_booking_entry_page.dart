@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_entry_page.dart
 // 功能說明：前台預約入口：住宿與安親同時開啟時，先選兩張大型服務卡片
 
@@ -153,7 +154,22 @@ class ShopBookingEntryPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => StreamBuilder<StayBookingReadiness>(
+    stream: StayBookingReadiness.watch(shopId),
+    builder: (context, snapshot) => _buildWithReadiness(
+      context,
+      snapshot.hasData && !snapshot.hasError && snapshot.data!.ready,
+      stayLoading: !snapshot.hasData && !snapshot.hasError,
+      stayError: snapshot.hasError,
+    ),
+  );
+
+  Widget _buildWithReadiness(
+    BuildContext context,
+    bool stayReady, {
+    required bool stayLoading,
+    required bool stayError,
+  }) {
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(shopId),
       builder:
@@ -177,9 +193,15 @@ class ShopBookingEntryPage extends StatelessWidget {
                         shopSnap.data ?? const <String, dynamic>{};
                     final DaycareSettingsModel settings = settingSnap.data!;
                     final bool accommodationOn =
-                        shop['bookingEnabled'] != false;
+                        stayReady && StayBookingReadiness.requested(shop);
                     final bool daycareOn = DaycareSettingsService.instance
                         .isEnabledForShop(shop: shop, settings: settings);
+                    if (stayLoading &&
+                        initialService != BookingEntryInitialService.daycare) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
                     final BookingEntryDestination destination =
                         resolveBookingEntry(
                           initialService: initialService,
@@ -188,7 +210,12 @@ class ShopBookingEntryPage extends StatelessWidget {
                         );
                     if (destination == BookingEntryDestination.paused) {
                       return _BookingPausedNotice(
-                        message: bookingEntryPausedMessage(initialService),
+                        message:
+                            stayError &&
+                                initialService !=
+                                    BookingEntryInitialService.daycare
+                            ? '住宿房間資料讀取失敗，請稍後再試'
+                            : bookingEntryPausedMessage(initialService),
                       );
                     }
                     if (destination == BookingEntryDestination.accommodation) {

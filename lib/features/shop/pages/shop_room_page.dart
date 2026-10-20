@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/shop/widgets/room_enabled_action.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 // 檔案名稱：lib/features/shop/pages/shop_room_page.dart
 // 功能說明：房間管理（完整升級版）
 
@@ -89,11 +91,20 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
       return;
     }
 
-    await ShopService.instance.createRoom(
-      shopId: widget.shopId,
-      name: name,
-      roomTypeId: _selectedRoomTypeId!,
-    );
+    try {
+      await ShopService.instance.createRoom(
+        shopId: widget.shopId,
+        name: name,
+        roomTypeId: _selectedRoomTypeId!,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
+      }
+      return;
+    }
 
     if (!mounted) return;
 
@@ -124,11 +135,20 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
     );
 
     if (confirm != true) return;
+    if (!mounted) return;
 
-    await ShopService.instance.deleteRoom(
-      shopId: widget.shopId,
-      roomId: roomId,
-    );
+    try {
+      if (!await deleteRoomsWithStayGuard(context, widget.shopId, {roomId})) {
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+      return;
+    }
 
     if (!mounted) return;
 
@@ -371,10 +391,10 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                                       ),
 
                                     ...typeRooms.map((room) {
-                                      final bool enabled = SafeParse.parseBool(
-                                        room['enabled'],
-                                        fallback: true,
-                                      );
+                                      final bool enabled =
+                                          DaycareOccupancyService.isRoomEnabled(
+                                            room,
+                                          );
                                       return ListTile(
                                         title: Text(room['name'] ?? ''),
                                         subtitle: Text(
@@ -393,12 +413,12 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                                               child: Switch(
                                                 value: enabled,
                                                 onChanged: (value) {
-                                                  ShopService.instance
-                                                      .updateRoomStatus(
-                                                        shopId: widget.shopId,
-                                                        roomId: room['id'],
-                                                        enabled: value,
-                                                      );
+                                                  changeRoomEnabled(
+                                                    context,
+                                                    widget.shopId,
+                                                    room['id'],
+                                                    value,
+                                                  );
                                                 },
                                               ),
                                             ),

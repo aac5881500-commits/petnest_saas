@@ -212,31 +212,25 @@ void main() {
     expect(opened, 1);
   });
 
-  testWidgets('提醒卡可以重新觀看引導，窄螢幕不溢出', (tester) async {
-    for (final width in <double>[320, 390]) {
+  testWidgets('提醒卡保留基本資料入口並移除重播，窄螢幕不溢出', (tester) async {
+    for (final width in <double>[320, 390, 430, 1280, 1440]) {
       var opened = 0;
-      var replayed = 0;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: SizedBox(
               width: width,
-              child: ShopAdminWelcomeReminder(
-                onOpen: () => opened++,
-                onReplay: () => replayed++,
-              ),
+              child: ShopAdminWelcomeReminder(onOpen: () => opened++),
             ),
           ),
         ),
       );
       expect(tester.takeException(), isNull);
       expect(find.text('前往完善資料 →'), findsOneWidget);
-      expect(find.text('重新觀看引導'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('shop-admin-welcome-replay')));
+      expect(find.text('重新觀看引導'), findsNothing);
       await tester.tap(
         find.byKey(const ValueKey('shop-admin-welcome-reminder-open')),
       );
-      expect(replayed, 1);
       expect(opened, 1);
     }
   });

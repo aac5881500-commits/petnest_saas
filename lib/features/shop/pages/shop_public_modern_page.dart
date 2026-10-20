@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 檔案名稱：lib/features/shop/pages/shop_public_modern_page.dart
 // 功能說明：讀取店家資料，顯示適合手機的緊湊型頂部與 Banner
 // ✨ 店家新版前台首頁 Beta
@@ -160,6 +161,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   StreamSubscription<List<Map<String, dynamic>>>? _roomTypesSub;
   List<Map<String, dynamic>>? _roomTypes;
   bool _roomTypesFailed = false;
+  StreamSubscription<StayBookingReadiness>? _readinessSub;
+  bool _stayReady = false;
   String? _roomShopId;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _announcementsStream;
   late final Stream<List<DiscountCampaignModel>> _campaignsStream;
@@ -381,6 +384,16 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   }
 
   void _listenRoomTypes() {
+    _readinessSub?.cancel();
+    _stayReady = false;
+    _readinessSub = StayBookingReadiness.watch(widget.shopId).listen(
+      (state) {
+        if (mounted) setState(() => _stayReady = state.ready);
+      },
+      onError: (Object error) {
+        if (mounted) setState(() => _stayReady = false);
+      },
+    );
     _roomTypesSub?.cancel();
     if (widget.shopId != _roomShopId) {
       _roomTypes = null;
@@ -413,6 +426,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
 
   @override
   void dispose() {
+    _readinessSub?.cancel();
     _roomTypesSub?.cancel();
     _announcementsSub.cancel();
     _campaignsSub.cancel();
@@ -824,7 +838,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             HomeQuickBookingSectionSetting.fromMap(
               modernAppearance['quickBookingSection'],
             );
-        final bool accommodationAvailable = shop['bookingEnabled'] != false;
+        final bool accommodationAvailable =
+            _stayReady && StayBookingReadiness.requested(shop);
         final bool daycareAvailable = DaycareSettingsService.instance
             .isEnabledForShop(shop: shop, settings: _daycareSettings);
         final bool showAnnouncementsOnHome =

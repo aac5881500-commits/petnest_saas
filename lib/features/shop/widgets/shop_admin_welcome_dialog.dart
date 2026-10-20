@@ -526,14 +526,9 @@ class _Actions extends StatelessWidget {
 }
 
 class ShopAdminWelcomeReminder extends StatelessWidget {
-  const ShopAdminWelcomeReminder({
-    super.key,
-    required this.onOpen,
-    this.onReplay,
-  });
+  const ShopAdminWelcomeReminder({super.key, required this.onOpen});
 
   final VoidCallback? onOpen;
-  final VoidCallback? onReplay;
 
   @override
   Widget build(BuildContext context) {
@@ -578,7 +573,7 @@ class ShopAdminWelcomeReminder extends StatelessWidget {
               '先完善店家基本資料，之後就能逐步設定其他服務。',
               style: TextStyle(color: _muted, fontSize: 13, height: 1.5),
             ),
-            if (onOpen != null || onReplay != null)
+            if (onOpen != null)
               Wrap(
                 spacing: 12,
                 runSpacing: 0,
@@ -600,23 +595,6 @@ class ShopAdminWelcomeReminder extends StatelessWidget {
                         ),
                       ),
                       child: const Text('前往完善資料 →'),
-                    ),
-                  if (onReplay != null)
-                    TextButton.icon(
-                      key: const ValueKey('shop-admin-welcome-replay'),
-                      onPressed: onReplay,
-                      icon: const Icon(Icons.replay_rounded, size: 18),
-                      label: const Text('重新觀看引導'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: _muted,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        minimumSize: const Size(44, 44),
-                        textStyle: const TextStyle(
-                          fontFamily: 'NotoSansTC',
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
                     ),
                 ],
               ),

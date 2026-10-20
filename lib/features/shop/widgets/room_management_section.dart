@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/room_enabled_action.dart';
 // 檔案名稱：lib/features/shop/widgets/room_management_section.dart
 // 功能說明：房型卡片內嵌的房間列表、新增、啟用與刪除，不另開管理頁。
 
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_quick_create_sheet.dart';
@@ -31,6 +33,31 @@ class RoomManagementSection extends StatefulWidget {
 class _RoomManagementSectionState extends State<RoomManagementSection> {
   final TextEditingController _nameController = TextEditingController();
   bool _adding = false;
+  bool _enabling = false;
+
+  Future<void> _enableBatch() async {
+    if (_enabling) return;
+    setState(() => _enabling = true);
+    try {
+      final count = await ShopRoomService.instance.enableRoomsForRoomType(
+        shopId: widget.shopId,
+        roomTypeId: _roomTypeId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('已啟用 $count 間房間，永久維修或停用房間保持原狀')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('批次啟用失敗：$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _enabling = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -117,11 +144,20 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
       ).showSnackBar(const SnackBar(content: Text('此房號已存在，請使用不同房號')));
       return;
     }
-    await ShopService.instance.createRoom(
-      shopId: widget.shopId,
-      name: name,
-      roomTypeId: _roomTypeId,
-    );
+    try {
+      await ShopService.instance.createRoom(
+        shopId: widget.shopId,
+        name: name,
+        roomTypeId: _roomTypeId,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
+      }
+      return;
+    }
     if (!mounted) {
       return;
     }
@@ -218,10 +254,19 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
     if (confirm != true) {
       return;
     }
-    await ShopService.instance.deleteRoom(
-      shopId: widget.shopId,
-      roomId: roomId,
-    );
+    if (!mounted) return;
+    try {
+      if (!await deleteRoomsWithStayGuard(context, widget.shopId, {roomId})) {
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+      return;
+    }
     if (!mounted) {
       return;
     }
@@ -293,7 +338,7 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
   }
 
   String _statusLabel(Map<String, dynamic> room) {
-    final bool enabled = SafeParse.parseBool(room['enabled'], fallback: true);
+    final bool enabled = DaycareOccupancyService.isRoomEnabled(room);
     final String permanent = DaycareOccupancyService.permanentStatusOf(room);
     final bool paused = DaycareOccupancyService.isPermanentStatusUnsellable(
       permanent,
@@ -363,6 +408,11 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
               );
             },
           ),
+          if (widget.canManage && rooms.isNotEmpty)
+            TextButton(
+              onPressed: _enabling ? null : _enableBatch,
+              child: Text(_enabling ? '啟用中…' : '啟用此房型的房間'),
+            ),
           if (atCap && widget.canManage)
             const Padding(
               padding: EdgeInsets.only(top: 8),
@@ -374,10 +424,7 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
               child: Text('此房型尚未建立實際房間'),
             ),
           ...rooms.map((Map<String, dynamic> room) {
-            final bool enabled = SafeParse.parseBool(
-              room['enabled'],
-              fallback: true,
-            );
+            final bool enabled = DaycareOccupancyService.isRoomEnabled(room);
             return ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(SafeParse.parseString(room['name'])),
@@ -390,10 +437,11 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
                           Switch(
                             value: enabled,
                             onChanged: (bool value) {
-                              ShopService.instance.updateRoomStatus(
-                                shopId: widget.shopId,
-                                roomId: SafeParse.parseString(room['id']),
-                                enabled: value,
+                              changeRoomEnabled(
+                                context,
+                                widget.shopId,
+                                SafeParse.parseString(room['id']),
+                                value,
                               );
                             },
                           ),

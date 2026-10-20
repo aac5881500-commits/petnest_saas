@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'package:petnest_saas/features/shop/widgets/shop_setup_leave_guard.dart';
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_settings_page.dart
 // 功能說明：預約管理頁（店家後台）
 // 功能：
@@ -21,25 +25,7 @@ import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/features/shop/widgets/unsaved_booking_settings_dialog.dart';
 
-class ShopBookingSettingsLeaveGuard {
-  Future<bool> Function()? _confirmLeave;
-
-  void bind(Future<bool> Function() confirmLeave) {
-    _confirmLeave = confirmLeave;
-  }
-
-  void unbind() {
-    _confirmLeave = null;
-  }
-
-  Future<bool> confirmLeave() async {
-    final Future<bool> Function()? handler = _confirmLeave;
-    if (handler == null) {
-      return true;
-    }
-    return handler();
-  }
-}
+class ShopBookingSettingsLeaveGuard extends ShopSetupLeaveGuard {}
 
 class ShopBookingSettingsPage extends StatefulWidget {
   const ShopBookingSettingsPage({
@@ -47,8 +33,18 @@ class ShopBookingSettingsPage extends StatefulWidget {
     required this.shopId,
     this.embeddedInSetupCenter = false,
     this.leaveGuard,
+    this.onManageRooms,
+    this.loadMember,
+    this.shopStream,
+    this.readinessStream,
+    this.actionLogsStream,
   });
 
+  final Future<void> Function()? onManageRooms;
+  final Future<Map<String, dynamic>?> Function()? loadMember;
+  final Stream<Map<String, dynamic>?>? shopStream;
+  final Stream<StayBookingReadiness>? readinessStream;
+  final Stream<List<Map<String, dynamic>>>? actionLogsStream;
   final String shopId;
   final bool embeddedInSetupCenter;
   final ShopBookingSettingsLeaveGuard? leaveGuard;
@@ -61,13 +57,23 @@ class ShopBookingSettingsPage extends StatefulWidget {
 class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   final _maxAdvanceBookingDaysController = TextEditingController();
 
-  bool _bookingEnabled = true;
+  bool _bookingEnabled = false;
   bool _daycareEnabled = false;
   bool _settingsInitialized = false;
   bool _savingSettings = false;
+  late final Stream<StayBookingReadiness> _readinessStream;
+  late final Stream<Map<String, dynamic>?> _shopStream;
+  late final Stream<List<Map<String, dynamic>>> _logsStream;
+  late final StreamSubscription<StayBookingReadiness> _readinessSubscription;
+  late final StreamSubscription<List<Map<String, dynamic>>> _logsSubscription;
+  AsyncSnapshot<StayBookingReadiness> _readinessSnapshot =
+      const AsyncSnapshot.waiting();
+  AsyncSnapshot<List<Map<String, dynamic>>> _logsSnapshot =
+      const AsyncSnapshot.waiting();
   Set<String> _draftBlockedDates = <String>{};
   Set<String> _savedBlockedDates = <String>{};
-  bool _savedBookingEnabled = true;
+  bool _savedBookingEnabled = false;
+  bool _persistedBookingEnabled = false;
   bool _savedDaycareEnabled = false;
   String _savedMaxAdvanceDays = '30';
 
@@ -77,10 +83,66 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
   DateTime? _selectedCalendarDate;
   bool _showAllLogs = false;
+  bool _exitingPage = false;
+  bool _openingRooms = false;
+  bool _confirmingLeave = false;
 
   @override
   void initState() {
     super.initState();
+    _readinessStream =
+        widget.readinessStream ?? StayBookingReadiness.watch(widget.shopId);
+    _shopStream =
+        widget.shopStream ?? ShopService.instance.streamShop(widget.shopId);
+    _logsStream =
+        widget.actionLogsStream ??
+        ActionLogService.instance.streamShopLogs(widget.shopId);
+    _readinessSubscription = _readinessStream.listen(
+      (state) {
+        if (mounted) {
+          setState(
+            () => _readinessSnapshot = AsyncSnapshot.withData(
+              ConnectionState.active,
+              state,
+            ),
+          );
+        }
+      },
+      onError: (Object error, StackTrace stack) {
+        if (mounted) {
+          setState(
+            () => _readinessSnapshot = AsyncSnapshot.withError(
+              ConnectionState.active,
+              error,
+              stack,
+            ),
+          );
+        }
+      },
+    );
+    _logsSubscription = _logsStream.listen(
+      (logs) {
+        if (mounted) {
+          setState(
+            () => _logsSnapshot = AsyncSnapshot.withData(
+              ConnectionState.active,
+              logs,
+            ),
+          );
+        }
+      },
+      onError: (Object error, StackTrace stack) {
+        if (mounted) {
+          setState(
+            () => _logsSnapshot = AsyncSnapshot.withError(
+              ConnectionState.active,
+              error,
+              stack,
+            ),
+          );
+        }
+      },
+    );
     widget.leaveGuard?.bind(_handleLeave);
     _loadRole();
   }
@@ -96,10 +158,17 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
   @override
   void dispose() {
+    _readinessSubscription.cancel();
+    _logsSubscription.cancel();
     widget.leaveGuard?.unbind();
     _maxAdvanceBookingDaysController.dispose();
     super.dispose();
   }
+
+  bool get _stayConfigurationReady =>
+      _readinessSnapshot.hasData &&
+      !_readinessSnapshot.hasError &&
+      _readinessSnapshot.data!.ready;
 
   bool get _dirty {
     if (!_settingsInitialized) {
@@ -120,12 +189,30 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   }
 
   Future<bool> _handleLeave() async {
+    if (_confirmingLeave) return false;
+    _confirmingLeave = true;
+    try {
+      return await _confirmLeaveDraft();
+    } finally {
+      _confirmingLeave = false;
+    }
+  }
+
+  Future<bool> _confirmLeaveDraft() async {
+    if (_savingSettings) return false;
     if (!_dirty) {
       return true;
     }
     final UnsavedBookingSettingsAction? action =
         await showUnsavedBookingSettingsDialog(context);
+    if (!mounted) return false;
     if (action == UnsavedBookingSettingsAction.discard) {
+      setState(() {
+        _bookingEnabled = _savedBookingEnabled;
+        _daycareEnabled = _savedDaycareEnabled;
+        _maxAdvanceBookingDaysController.text = _savedMaxAdvanceDays;
+        _draftBlockedDates = Set<String>.from(_savedBlockedDates);
+      });
       return true;
     }
     if (action == UnsavedBookingSettingsAction.saveAndLeave) {
@@ -135,6 +222,20 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   }
 
   Future<void> _loadRole() async {
+    if (widget.loadMember != null) {
+      try {
+        final member = await widget.loadMember!();
+        if (!mounted) return;
+        setState(() {
+          _memberData = member;
+          _currentUserRole = member?['role']?.toString();
+          _roleLoaded = true;
+        });
+      } catch (_) {
+        if (mounted) setState(() => _roleLoaded = true);
+      }
+      return;
+    }
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
@@ -169,38 +270,58 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     }
   }
 
+  Future<void> _manageRooms() async {
+    if (_openingRooms) return;
+    _openingRooms = true;
+    try {
+      if (widget.onManageRooms != null) {
+        await widget.onManageRooms!();
+      } else if (await _handleLeave() && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ShopBookingSetupCenterPage(shopId: widget.shopId),
+          ),
+        );
+      }
+    } finally {
+      _openingRooms = false;
+    }
+  }
+
   Widget _wrapPage(Widget body) {
     if (widget.embeddedInSetupCenter) {
       return body;
     }
     return PopScope(
-      canPop: !_dirty,
+      canPop: !_dirty && !_savingSettings,
       onPopInvokedWithResult: (bool didPop, Object? result) async {
         if (didPop) {
           return;
         }
-        final bool leave = await _handleLeave();
-        if (leave && mounted) {
-          Navigator.of(context).pop();
-        }
+        await _exitPage();
       },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('預約管理'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              final bool leave = await _handleLeave();
-              if (leave && mounted) {
-                Navigator.of(context).maybePop();
-              }
-            },
+            onPressed: _exitPage,
           ),
           actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
         ),
         body: body,
       ),
     );
+  }
+
+  Future<void> _exitPage() async {
+    if (_exitingPage) return;
+    _exitingPage = true;
+    try {
+      if (await _handleLeave() && mounted) Navigator.of(context).pop();
+    } finally {
+      _exitingPage = false;
+    }
   }
 
   @override
@@ -241,7 +362,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     }
     return _wrapPage(
       StreamBuilder<Map<String, dynamic>?>(
-        stream: ShopService.instance.streamShop(widget.shopId),
+        stream: _shopStream,
         builder: (context, shopSnapshot) {
           if (shopSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -256,6 +377,13 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             return const Center(child: Text('找不到店家資料'));
           }
 
+          _persistedBookingEnabled = StayBookingReadiness.requested(shop);
+          // The room tab may close accommodation while this page stays mounted.
+          // Adopt that change only when there is no draft to preserve.
+          if (_settingsInitialized && !_dirty) {
+            _bookingEnabled = _persistedBookingEnabled;
+            _savedBookingEnabled = _persistedBookingEnabled;
+          }
           if (!_settingsInitialized) {
             _initSettingsIfNeeded(shop);
           }
@@ -386,12 +514,66 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             const SizedBox(height: 8),
             _buildSwitchRow(
               title: '開放前台預約',
-              subtitle: _bookingEnabled ? '目前可預約' : '目前已關閉',
-              value: _bookingEnabled,
-              onChanged: (bool value) {
-                setState(() {
-                  _bookingEnabled = value;
-                });
+              subtitle: _readinessSnapshot.hasError
+                  ? '房間資格確認失敗，請稍後再試'
+                  : !_readinessSnapshot.hasData
+                  ? '正在確認住宿預約條件…'
+                  : '變更後請儲存，住宿須具備可用房間才能開放',
+              value: _bookingEnabled && _stayConfigurationReady,
+              onChanged:
+                  !_readinessSnapshot.hasData || _readinessSnapshot.hasError
+                  ? null
+                  : (bool value) async {
+                      if (value) {
+                        try {
+                          final readiness = await StayBookingReadiness.load(
+                            widget.shopId,
+                          );
+                          if (!mounted) return;
+                          if (!readiness.ready) {
+                            _showSnackBar(readiness.reason);
+                            return;
+                          }
+                        } catch (e) {
+                          if (mounted) _showSnackBar('無法確認住宿預約條件：$e');
+                          return;
+                        }
+                      }
+                      if (mounted) setState(() => _bookingEnabled = value);
+                    },
+            ),
+            Builder(
+              builder: (context) {
+                final snapshot = _readinessSnapshot;
+                if (snapshot.hasError) {
+                  return const Text('房型與房間讀取失敗，無法確認住宿預約條件');
+                }
+                if (!snapshot.hasData) return const Text('正在確認住宿預約條件…');
+                final readiness = snapshot.data!;
+                if (readiness.ready) {
+                  return Text(
+                    _persistedBookingEnabled ? '目前可預約' : '住宿房間已準備好，可手動開放預約',
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('尚未具備住宿預約條件'),
+                    Text(readiness.reason),
+                    if (ShopService.instance.hasPermission(
+                          _memberData,
+                          ShopPermissionKeys.manageRooms,
+                        ) ||
+                        ShopService.instance.hasPermission(
+                          _memberData,
+                          ShopPermissionKeys.manageRoomTypes,
+                        ))
+                      TextButton(
+                        onPressed: _manageRooms,
+                        child: Text(readiness.action),
+                      ),
+                  ],
+                );
               },
             ),
             Divider(height: 24, color: Colors.grey.shade200),
@@ -461,7 +643,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     required String title,
     required String subtitle,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    required ValueChanged<bool>? onChanged,
   }) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 44),
@@ -735,9 +917,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   }
 
   Widget _buildBookingActionLogs({required bool compact}) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ActionLogService.instance.streamShopLogs(widget.shopId),
-      builder: (context, snapshot) {
+    return Builder(
+      builder: (context) {
+        final snapshot = _logsSnapshot;
         final logs = (snapshot.data ?? [])
             .where((log) {
               final action = log['action']?.toString() ?? '';
@@ -851,7 +1033,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   void _initSettingsIfNeeded(Map<String, dynamic> shop) {
     if (_settingsInitialized) return;
 
-    _bookingEnabled = DaycareBool.parse(shop['bookingEnabled'], fallback: true);
+    _bookingEnabled = StayBookingReadiness.requested(shop);
     _daycareEnabled = DaycareBool.parse(shop['daycareEnabled']);
     _savedBookingEnabled = _bookingEnabled;
     _savedDaycareEnabled = _daycareEnabled;
@@ -905,33 +1087,38 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   }
 
   Future<bool> _saveSettings() async {
+    if (_savingSettings) return false;
+    setState(() => _savingSettings = true);
     final maxAdvanceBookingDays =
         int.tryParse(_maxAdvanceBookingDaysController.text.trim()) ?? 0;
 
-    final shopDoc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .get();
-
-    final shop = shopDoc.data() ?? {};
-
-    final maxLimit = ShopPlanService.bookingOpenDaysLimit(shop);
-
-    if (maxAdvanceBookingDays > maxLimit) {
-      _showSnackBar('目前方案最多只能設定 $maxLimit 天');
-      return false;
-    }
-
-    if (maxAdvanceBookingDays <= 0) {
-      _showSnackBar('最遠可預約天數至少要 1');
-      return false;
-    }
-
-    setState(() {
-      _savingSettings = true;
-    });
-
     try {
+      final shopDoc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .get();
+
+      if (!mounted) return false;
+
+      final shop = shopDoc.data() ?? {};
+
+      final maxLimit = ShopPlanService.bookingOpenDaysLimit(shop);
+
+      if (maxAdvanceBookingDays > maxLimit) {
+        _showSnackBar('目前方案最多只能設定 $maxLimit 天');
+        return false;
+      }
+
+      if (maxAdvanceBookingDays <= 0) {
+        _showSnackBar('最遠可預約天數至少要 1');
+        return false;
+      }
+
+      if (_bookingEnabled) {
+        final readiness = await StayBookingReadiness.load(widget.shopId);
+        if (!readiness.ready) throw StateError(readiness.reason);
+        if (!mounted) return false;
+      }
       await ShopService.instance.updateBookingSettings(
         shopId: widget.shopId,
         bookingEnabled: _bookingEnabled,
@@ -1020,6 +1207,8 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
       });
       _showSnackBar('儲存失敗：$e');
       return false;
+    } finally {
+      if (mounted) setState(() => _savingSettings = false);
     }
   }
 

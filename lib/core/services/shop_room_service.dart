@@ -9,6 +9,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 
 class ShopRoomService {
   ShopRoomService._();
@@ -244,6 +246,7 @@ class ShopRoomService {
     required String name,
     required String roomTypeId,
   }) async {
+    final readiness = await StayBookingReadiness.load(shopId);
     final WriteBatch batch = _firestore.batch();
     _enqueueNewRoom(
       batch: batch,
@@ -251,6 +254,10 @@ class ShopRoomService {
       name: name,
       roomTypeId: roomTypeId,
     );
+    // Legacy/new-shop defaults must not open stays as a side effect of setup.
+    if (!readiness.ready) {
+      batch.update(_shops.doc(shopId), {'bookingEnabled': false});
+    }
     await batch.commit();
   }
 
@@ -265,6 +272,10 @@ class ShopRoomService {
     if (names.length * 2 > 500) {
       throw StateError('一次最多建立 250 間房間，請分批建立');
     }
+    final readiness = await StayBookingReadiness.load(shopId);
+    if (names.length * 2 + (readiness.ready ? 0 : 1) > 500) {
+      throw StateError('本次建立房間數超過單次操作上限，請分次建立');
+    }
     final WriteBatch batch = _firestore.batch();
     for (final String name in names) {
       _enqueueNewRoom(
@@ -274,6 +285,9 @@ class ShopRoomService {
         roomTypeId: roomTypeId,
       );
     }
+    if (!readiness.ready) {
+      batch.update(_shops.doc(shopId), {'bookingEnabled': false});
+    }
     await batch.commit();
   }
 
@@ -282,9 +296,65 @@ class ShopRoomService {
     required String roomId,
     required bool enabled,
   }) async {
-    await roomsRef(shopId).doc(roomId).update({
+    final batch = _firestore.batch();
+    if (enabled) {
+      final room = await roomsRef(
+        shopId,
+      ).doc(roomId).get(const GetOptions(source: Source.server));
+      if (!room.exists ||
+          DaycareOccupancyService.isPermanentStatusUnsellable(
+            DaycareOccupancyService.permanentStatusOf(room.data()!),
+          )) {
+        throw StateError('請先解除此房間的永久維修或停用狀態');
+      }
+      final readiness = await StayBookingReadiness.load(shopId);
+      if (!readiness.ready) {
+        batch.update(_shops.doc(shopId), {'bookingEnabled': false});
+      }
+    }
+    batch.update(roomsRef(shopId).doc(roomId), {
       'enabled': enabled,
       'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  Future<int> enableRoomsForRoomType({
+    required String shopId,
+    required String roomTypeId,
+  }) async {
+    final readiness = await StayBookingReadiness.load(shopId);
+    final snapshot = await roomsRef(shopId)
+        .where('roomTypeId', isEqualTo: roomTypeId)
+        .get(const GetOptions(source: Source.server));
+    final candidates = snapshot.docs
+        .where((doc) => StayBookingReadiness.canBatchEnable(doc.data()))
+        .toList();
+    if (candidates.length + (readiness.ready ? 0 : 1) > 500) {
+      throw StateError('本次房間數超過單次操作上限，請分次啟用');
+    }
+    return _firestore.runTransaction<int>((transaction) async {
+      final type = await transaction.get(roomTypesRef(shopId).doc(roomTypeId));
+      if (!type.exists) throw StateError('房型已不存在，請重新載入');
+      final latest = await Future.wait(
+        candidates.map((doc) => transaction.get(doc.reference)),
+      );
+      int count = 0;
+      for (final doc in latest) {
+        if (doc.exists &&
+            doc.data()?['roomTypeId'] == roomTypeId &&
+            StayBookingReadiness.canBatchEnable(doc.data()!)) {
+          transaction.update(doc.reference, {
+            'enabled': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          count++;
+        }
+      }
+      if (count > 0 && !readiness.ready) {
+        transaction.update(_shops.doc(shopId), {'bookingEnabled': false});
+      }
+      return count;
     });
   }
 

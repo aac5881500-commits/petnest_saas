@@ -172,7 +172,17 @@ class ShopRoomTypeLivePreview extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Expanded(child: phone),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) => Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                height: constraints.maxHeight.clamp(0, 740).toDouble(),
+                child: phone,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

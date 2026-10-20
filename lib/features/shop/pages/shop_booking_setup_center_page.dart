@@ -1,3 +1,6 @@
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_setup_leave_guard.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_room_type_live_preview.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_setup_center_page.dart
 // 功能說明：房型、房間與預約設定整合頁，頂部分頁為房型與房間、預約設定。
 
@@ -16,8 +19,24 @@ class ShopBookingSetupCenterPage extends StatefulWidget {
     super.key,
     required this.shopId,
     this.initialTab = ShopBookingSetupTab.roomTypes,
+    this.loadMember,
+    this.roomTypesStream,
+    this.roomsStream,
+    this.shopStream,
+    this.readinessStream,
+    this.actionLogsStream,
+    this.saveRoomType,
+    this.appBarActions,
   });
 
+  final Future<Map<String, dynamic>?> Function()? loadMember;
+  final Stream<List<Map<String, dynamic>>>? roomTypesStream,
+      roomsStream,
+      actionLogsStream;
+  final Stream<Map<String, dynamic>?>? shopStream;
+  final Stream<StayBookingReadiness>? readinessStream;
+  final Future<String> Function(ShopRoomTypeDraft)? saveRoomType;
+  final List<Widget>? appBarActions;
   final String shopId;
   final ShopBookingSetupTab initialTab;
 
@@ -31,6 +50,8 @@ class _ShopBookingSetupCenterPageState
   final ShopBookingSettingsLeaveGuard _bookingLeaveGuard =
       ShopBookingSettingsLeaveGuard();
 
+  final ShopSetupLeaveGuard _roomLeaveGuard = ShopSetupLeaveGuard();
+  bool _navigating = false;
   Map<String, dynamic>? _memberData;
   bool _roleLoaded = false;
   ShopBookingSetupTab _tab = ShopBookingSetupTab.roomTypes;
@@ -43,6 +64,20 @@ class _ShopBookingSetupCenterPageState
   }
 
   Future<void> _loadRole() async {
+    if (widget.loadMember != null) {
+      try {
+        final member = await widget.loadMember!();
+        if (!mounted) return;
+        setState(() {
+          _memberData = member;
+          _roleLoaded = true;
+          _tab = _firstAllowedTab();
+        });
+      } catch (_) {
+        if (mounted) setState(() => _roleLoaded = true);
+      }
+      return;
+    }
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (!mounted) {
@@ -111,15 +146,27 @@ class _ShopBookingSetupCenterPageState
     return ShopBookingSetupTab.roomTypes;
   }
 
-  Future<void> _onBack() async {
-    if (_can(ShopPermissionKeys.manageBookingSettings)) {
-      final bool leave = await _bookingLeaveGuard.confirmLeave();
-      if (!leave || !mounted) {
-        return;
-      }
+  Future<bool> _leaveCurrentTab() => _tab == ShopBookingSetupTab.booking
+      ? _bookingLeaveGuard.confirmLeave()
+      : _roomLeaveGuard.confirmLeave();
+
+  Future<void> _selectTab(ShopBookingSetupTab tab) async {
+    if (_navigating || tab == _tab || !_allowedTabs.contains(tab)) return;
+    _navigating = true;
+    try {
+      if (await _leaveCurrentTab() && mounted) setState(() => _tab = tab);
+    } finally {
+      _navigating = false;
     }
-    if (mounted) {
-      Navigator.of(context).pop();
+  }
+
+  Future<void> _onBack() async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      if (await _leaveCurrentTab() && mounted) Navigator.of(context).pop();
+    } finally {
+      _navigating = false;
     }
   }
 
@@ -162,7 +209,9 @@ class _ShopBookingSetupCenterPageState
             icon: const Icon(Icons.arrow_back),
             onPressed: _onBack,
           ),
-          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+          actions:
+              widget.appBarActions ??
+              <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
         ),
         body: Column(
           children: <Widget>[
@@ -179,11 +228,7 @@ class _ShopBookingSetupCenterPageState
                       final Widget chip = _SetupTabChip(
                         tab: tab,
                         selected: current == tab,
-                        onTap: () {
-                          setState(() {
-                            _tab = tab;
-                          });
-                        },
+                        onTap: () => _selectTab(tab),
                       );
                       if (equalTabs) {
                         return Expanded(child: chip);
@@ -233,6 +278,10 @@ class _ShopBookingSetupCenterPageState
           key: ValueKey<String>('setup-room-hub-${widget.shopId}'),
           shopId: widget.shopId,
           embeddedInSetupCenter: true,
+          leaveGuard: _roomLeaveGuard,
+          roomTypesStream: widget.roomTypesStream,
+          roomsStream: widget.roomsStream,
+          saveDraft: widget.saveRoomType,
           canManageRoomTypes: _can(ShopPermissionKeys.manageRoomTypes),
           canManageRooms: _can(ShopPermissionKeys.manageRooms),
         );
@@ -242,6 +291,11 @@ class _ShopBookingSetupCenterPageState
           shopId: widget.shopId,
           embeddedInSetupCenter: true,
           leaveGuard: _bookingLeaveGuard,
+          onManageRooms: () => _selectTab(ShopBookingSetupTab.roomTypes),
+          loadMember: widget.loadMember,
+          shopStream: widget.shopStream,
+          readinessStream: widget.readinessStream,
+          actionLogsStream: widget.actionLogsStream,
         );
     }
   }

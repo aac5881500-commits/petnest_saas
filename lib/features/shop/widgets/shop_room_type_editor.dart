@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/shop/widgets/shop_room_type_workspace.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_setup_leave_guard.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_room_type_editor.dart
 // 功能說明：新增與編輯共用的房型編輯器，包含分區表單與即時預覽。
 
@@ -100,8 +102,14 @@ class ShopRoomTypeEditorPage extends StatefulWidget {
     this.onDraftChanged,
     this.onCancel,
     this.onSaved,
+    this.leaveGuard,
+    this.saveDraft,
+    this.pickCroppedPhoto,
   });
 
+  final ShopSetupLeaveGuard? leaveGuard;
+  final Future<String> Function(ShopRoomTypeDraft)? saveDraft;
+  final Future<Uint8List?> Function()? pickCroppedPhoto;
   final String shopId;
   final Map<String, dynamic>? existing;
   final bool embedded;
@@ -141,6 +149,8 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
   bool _showPreviewPane = false;
   bool _iconPickerExpanded = false;
   String _initialFingerprint = '';
+  bool _leaving = false;
+  String? _persistedRoomTypeId;
 
   static const InputDecoration _fieldDecoration = InputDecoration(
     border: OutlineInputBorder(
@@ -158,6 +168,7 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
   @override
   void initState() {
     super.initState();
+    widget.leaveGuard?.bind(_leaveEmbedded);
     final Map<String, dynamic>? existing = widget.existing;
     if (existing != null) {
       _nameController.text = (existing['name'] ?? '').toString();
@@ -203,7 +214,7 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
       controller.addListener(_onDraftChanged);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onDraftChanged?.call(_draft());
+      if (mounted) widget.onDraftChanged?.call(_draft());
     });
   }
 
@@ -280,12 +291,34 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
 
   @override
   void dispose() {
+    widget.leaveGuard?.unbind();
     for (final TextEditingController controller in _textControllers) {
       controller.removeListener(_onDraftChanged);
       controller.dispose();
     }
     _customFeatureNameController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ShopRoomTypeEditorPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.leaveGuard != widget.leaveGuard) {
+      oldWidget.leaveGuard?.unbind();
+      widget.leaveGuard?.bind(_leaveEmbedded);
+    }
+  }
+
+  Future<bool> _leaveEmbedded() async {
+    if (_loading || _leaving) return false;
+    _leaving = true;
+    try {
+      final leave = await _confirmLeave();
+      if (leave && mounted) widget.onCancel?.call();
+      return leave && mounted;
+    } finally {
+      _leaving = false;
+    }
   }
 
   Future<bool> _confirmLeave() async {
@@ -315,15 +348,18 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
   }
 
   Future<void> _handlePop() async {
-    if (_loading) {
-      return;
-    }
-    if (await _confirmLeave() && mounted) {
-      if (widget.embedded) {
-        widget.onCancel?.call();
-      } else {
-        Navigator.pop(context);
+    if (_loading || _leaving) return;
+    _leaving = true;
+    try {
+      if (await _confirmLeave() && mounted) {
+        if (widget.embedded) {
+          widget.onCancel?.call();
+        } else {
+          Navigator.pop(context);
+        }
       }
+    } finally {
+      _leaving = false;
     }
   }
 
@@ -378,32 +414,45 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
       return;
     }
 
-    if (!widget.isEditing) {
-      final List<Map<String, dynamic>> roomTypes = await ShopService.instance
-          .getRoomTypes(widget.shopId);
-      final DocumentSnapshot<Map<String, dynamic>> shopDoc =
-          await FirebaseFirestore.instance
-              .collection('shops')
-              .doc(widget.shopId)
-              .get();
-      final Map<String, dynamic> shop = shopDoc.data() ?? <String, dynamic>{};
-      final int limit = ShopPlanService.roomTypeLimit(shop);
-      if (roomTypes.length >= limit) {
-        if (!mounted) {
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('免費版最多建立 $limit 種房型，升級 999 方案即可解除限制')),
-        );
-        return;
-      }
-    }
-
     setState(() => _loading = true);
     try {
+      if (widget.saveDraft != null) {
+        final id = await widget.saveDraft!(_draft());
+        if (!mounted) return;
+        _initialFingerprint = _fingerprint();
+        if (widget.embedded) {
+          widget.onSaved?.call(id);
+        } else {
+          Navigator.pop(context, true);
+        }
+        return;
+      }
+      if (!widget.isEditing && _persistedRoomTypeId == null) {
+        final List<Map<String, dynamic>> roomTypes = await ShopService.instance
+            .getRoomTypes(widget.shopId);
+        final DocumentSnapshot<Map<String, dynamic>> shopDoc =
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(widget.shopId)
+                .get();
+        final Map<String, dynamic> shop = shopDoc.data() ?? <String, dynamic>{};
+        final int limit = ShopPlanService.roomTypeLimit(shop);
+        if (roomTypes.length >= limit) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('免費版最多建立 $limit 種房型，升級 999 方案即可解除限制')),
+          );
+          return;
+        }
+      }
+
+      if (!mounted) return;
       final User? user = FirebaseAuth.instance.currentUser;
-      String roomTypeId = (widget.existing?['id'] ?? '').toString();
-      if (widget.isEditing) {
+      String roomTypeId =
+          _persistedRoomTypeId ?? (widget.existing?['id'] ?? '').toString();
+      if (widget.isEditing || _persistedRoomTypeId != null) {
         await FirebaseFirestore.instance
             .collection('shops')
             .doc(widget.shopId)
@@ -474,17 +523,20 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
         roomTypeId = foundId;
       }
 
+      _persistedRoomTypeId = roomTypeId.isEmpty ? null : roomTypeId;
       if (roomTypeId.isNotEmpty) {
         try {
           for (final Uint8List bytes in List<Uint8List>.from(
             _pendingImageBytes,
           )) {
-            await ShopService.instance.uploadRoomTypeImage(
+            final url = await ShopService.instance.uploadRoomTypeImage(
               shopId: widget.shopId,
               roomTypeId: roomTypeId,
               bytes: bytes,
               contentType: 'image/jpeg',
             );
+            _existingImageUrls.add(url);
+            _pendingImageBytes.remove(bytes);
           }
           for (final String url in List<String>.from(_removedImageUrls)) {
             await ShopService.instance.deleteRoomTypeImage(
@@ -492,6 +544,7 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
               roomTypeId: roomTypeId,
               imageUrl: url,
             );
+            _removedImageUrls.remove(url);
           }
         } catch (e) {
           if (mounted) {
@@ -499,6 +552,7 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
               context,
             ).showSnackBar(SnackBar(content: Text('房型已儲存，但照片處理失敗：$e')));
           }
+          return;
         }
       }
 
@@ -534,6 +588,13 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('最多只能上傳5張圖片')));
+      return;
+    }
+    if (widget.pickCroppedPhoto != null) {
+      final bytes = await widget.pickCroppedPhoto!();
+      if (!mounted || bytes == null) return;
+      setState(() => _pendingImageBytes.add(bytes));
+      widget.onDraftChanged?.call(_draft());
       return;
     }
     final XFile? file = await ImagePicker().pickImage(
@@ -647,64 +708,13 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
             onPressed: _handlePop,
           ),
         ),
-        body: LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final bool split =
-                constraints.maxWidth >= ShopRoomTypeEditorPage.splitMinWidth;
-            if (split) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                child: Row(
-                  key: const ValueKey<String>('shop-room-type-editor-split'),
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    SizedBox(
-                      width: (constraints.maxWidth - 64) * 0.4,
-                      child: ShopRoomTypeLivePreview(draft: _draft()),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(child: _formColumn(colors, scroll: true)),
-                  ],
-                ),
-              );
-            }
-            return Column(
-              key: const ValueKey<String>('shop-room-type-editor-mobile'),
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: SegmentedButton<bool>(
-                    segments: const <ButtonSegment<bool>>[
-                      ButtonSegment<bool>(
-                        value: false,
-                        label: Text('編輯'),
-                        icon: Icon(Icons.edit_outlined),
-                      ),
-                      ButtonSegment<bool>(
-                        value: true,
-                        label: Text('預覽'),
-                        icon: Icon(Icons.visibility_outlined),
-                      ),
-                    ],
-                    selected: <bool>{_showPreviewPane},
-                    onSelectionChanged: (Set<bool> value) {
-                      setState(() {
-                        _showPreviewPane = value.first;
-                      });
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: _showPreviewPane
-                      ? Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                          child: ShopRoomTypeLivePreview(draft: _draft()),
-                        )
-                      : _formColumn(colors, scroll: true),
-                ),
-              ],
-            );
-          },
+        body: ShopRoomTypeWorkspace(
+          editor: _formColumn(colors, scroll: true),
+          preview: ShopRoomTypeLivePreview(draft: _draft()),
+          editLabel: '編輯',
+          previewLabel: '預覽',
+          showPreview: _showPreviewPane,
+          onPreviewChanged: (value) => setState(() => _showPreviewPane = value),
         ),
       ),
     );
@@ -722,52 +732,65 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
               decoration: _fieldDecoration.copyWith(labelText: '房型名稱'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _priceController,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-                MaxValueInputFormatter(9999),
-              ],
-              decoration: _fieldDecoration.copyWith(labelText: '每晚價格'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _capacityController,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-                MaxValueInputFormatter(10),
-              ],
-              decoration: _fieldDecoration.copyWith(labelText: '最多入住數'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _extraPriceController,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-                MaxValueInputFormatter(999),
-              ],
-              decoration: _fieldDecoration.copyWith(labelText: '每隻加價'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _totalRoomsController,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-                MaxValueInputFormatter(30),
-              ],
-              decoration: _fieldDecoration.copyWith(labelText: '房間數量／上限'),
+            _shortFields([
+              TextField(
+                controller: _priceController,
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxValueInputFormatter(9999),
+                ],
+                decoration: _fieldDecoration.copyWith(
+                  labelText: '每晚價格',
+                  suffixText: '元／晚',
+                ),
+              ),
+              TextField(
+                controller: _capacityController,
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxValueInputFormatter(10),
+                ],
+                decoration: _fieldDecoration.copyWith(
+                  labelText: '最多入住數',
+                  suffixText: '隻',
+                ),
+              ),
+              TextField(
+                controller: _extraPriceController,
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxValueInputFormatter(999),
+                ],
+                decoration: _fieldDecoration.copyWith(
+                  labelText: '每隻加價',
+                  suffixText: '元',
+                ),
+              ),
+              TextField(
+                controller: _totalRoomsController,
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxValueInputFormatter(30),
+                ],
+                decoration: _fieldDecoration.copyWith(labelText: '房間數量／上限'),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            const Text(
+              '設定上限不等於已建立實際房間，實際房號需另行建立。',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        _sectionCard(title: '照片', children: <Widget>[_photoEditor()]),
+        _sectionCard(title: '房型照片', children: <Widget>[_photoEditor()]),
         const SizedBox(height: 12),
         _sectionCard(
-          title: '空間資料',
+          title: '空間尺寸 · 選填',
           children: <Widget>[
             LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
@@ -816,51 +839,88 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
           children: <Widget>[
             TextField(
               controller: _descriptionController,
-              maxLines: 6,
+              minLines: 3,
+              maxLines: 5,
               decoration: _fieldDecoration.copyWith(
                 labelText: '房型介紹',
+                hintText: '例如：適合喜歡安靜空間的貓咪，提供獨立休息與活動區。',
                 helperText:
                     '${_descriptionController.text.characters.length} 字',
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _loading ? null : _handlePop,
-                child: const Text('取消'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: FilledButton(
-                onPressed: _loading ? null : _save,
-                child: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('儲存房型'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
       ],
     );
-    if (!scroll) {
-      return form;
-    }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: form,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Text(
+            widget.isEditing ? '編輯房型' : '新增房型',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+            child: form,
+          ),
+        ),
+        Material(
+          color: Colors.white,
+          elevation: 0,
+          shape: const Border(top: BorderSide(color: Color(0xFFE4E9EF))),
+          child: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : _handlePop,
+                    child: const Text('取消'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: _loading ? null : _save,
+                    child: _loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(widget.isEditing ? '儲存變更' : '建立房型'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
+
+  Widget _shortFields(List<Widget> fields) => LayoutBuilder(
+    builder: (context, constraints) => Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: fields
+          .map(
+            (field) => SizedBox(
+              width: constraints.maxWidth >= 440
+                  ? (constraints.maxWidth - 12) / 2
+                  : constraints.maxWidth,
+              child: field,
+            ),
+          )
+          .toList(),
+    ),
+  );
 
   Widget _sizeField(TextEditingController controller, String label) {
     return TextField(
@@ -933,8 +993,15 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Text('房型照片', style: TextStyle(fontWeight: FontWeight.w700)),
-        const FixedImageSpecHint(spec: FixedImageSpec.roomTypePhoto),
+        const Text(
+          '最多 5 張，每張 5MB 以內',
+          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+        const ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: Text('照片格式與尺寸說明', style: TextStyle(fontSize: 13)),
+          children: [FixedImageSpecHint(spec: FixedImageSpec.roomTypePhoto)],
+        ),
         if (thumbs.isEmpty)
           Container(
             width: double.infinity,
@@ -945,9 +1012,16 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE2E6EE)),
             ),
-            child: Text(
-              '尚未選擇照片',
-              style: TextStyle(color: Colors.grey.shade600),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.add_photo_alternate_outlined,
+                  color: Colors.grey.shade500,
+                ),
+                const SizedBox(height: 6),
+                Text('尚未選擇照片', style: TextStyle(color: Colors.grey.shade600)),
+              ],
             ),
           )
         else
@@ -1019,7 +1093,7 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
         final String key = item['key'] as String;
         final bool selected = _selectedFeatures.contains(key);
         return FilterChip(
-          label: Text(item['name'] as String),
+          label: Text((item['name'] as String).split(' ').skip(1).join(' ')),
           avatar: Icon(
             item['icon'] as IconData,
             size: 16,

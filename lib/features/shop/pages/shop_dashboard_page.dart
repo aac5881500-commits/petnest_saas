@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/legal_pet/shop_profile_lock.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_opening_progress.dart';
 // 檔案名稱：lib/features/shop/pages/shop_dashboard_page.dart
 // 功能說明：店家後台首頁，支援手機單欄與桌機多欄的響應式模組導覽。
 
@@ -371,8 +373,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   bool _isProfileComplete(Map<String, dynamic> shop) {
-    return (shop['phone'] ?? '').toString().trim().isNotEmpty &&
-        (shop['address'] ?? '').toString().trim().isNotEmpty;
+    return isPhoneSetupCompleted(shop) && isAddressSetupCompleted(shop);
   }
 
   void _scheduleAdminWelcome(Map<String, dynamic> shop) {
@@ -418,17 +419,13 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       userData: userData,
     );
     if (!show) return;
-    await _presentAdminWelcome(persist: true);
+    await _presentAdminWelcome();
   }
 
-  Future<void> _replayAdminWelcome() {
-    return _presentAdminWelcome(persist: false);
-  }
-
-  Future<void> _presentAdminWelcome({required bool persist}) async {
+  Future<void> _presentAdminWelcome() async {
     if (!mounted || _welcomeVisible) return;
     final user = FirebaseAuth.instance.currentUser;
-    if (persist && user == null) return;
+    if (user == null) return;
     _welcomeVisible = true;
     try {
       final choice = await showGeneralDialog<ShopAdminWelcomeChoice>(
@@ -464,19 +461,17 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       );
       if (!mounted) return;
       final saved = choice ?? ShopAdminWelcomeChoice.later;
-      if (persist && user != null) {
-        try {
-          await ShopAdminWelcome.remember(
-            uid: user.uid,
-            shopId: widget.shopId,
-            choice: saved,
+      try {
+        await ShopAdminWelcome.remember(
+          uid: user.uid,
+          shopId: widget.shopId,
+          choice: saved,
+        );
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('歡迎引導狀態暫時沒有儲存，下次進入會再提醒一次')),
           );
-        } catch (_) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('歡迎引導狀態暫時沒有儲存，下次進入會再提醒一次')),
-            );
-          }
         }
       }
       if (!mounted || saved != ShopAdminWelcomeChoice.started) return;
@@ -891,10 +886,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       memberData: _currentMemberData,
                                       isProfileComplete: isComplete,
                                       showSetupReminder: remindSetup,
-                                      onReplayWelcome:
-                                          _currentUserRole == ShopRoles.owner
-                                          ? _replayAdminWelcome
-                                          : null,
                                       onPreviewFrontend: () =>
                                           _handleFrontendPreview(
                                             shopCode: shopCode,
@@ -1129,7 +1120,6 @@ class _BasicInfoTab extends StatelessWidget {
     required this.memberData,
     required this.isProfileComplete,
     required this.showSetupReminder,
-    required this.onReplayWelcome,
     required this.onPreviewFrontend,
   });
   final Map<String, dynamic> shop;
@@ -1138,7 +1128,6 @@ class _BasicInfoTab extends StatelessWidget {
   final Map<String, dynamic>? memberData;
   final bool isProfileComplete;
   final bool showSetupReminder;
-  final VoidCallback? onReplayWelcome;
   final VoidCallback onPreviewFrontend;
   bool _can(String permissionKey) {
     return ShopService.instance.hasPermission(memberData, permissionKey);
@@ -1155,10 +1144,30 @@ class _BasicInfoTab extends StatelessWidget {
     final canUseEnvironment = ShopPlanService.canUseEnvironment(shop);
     final canUseAboutUs = ShopPlanService.canUseAboutUs(shop);
 
+    final openingGuideEligible =
+        currentUserRole == ShopRoles.owner &&
+        FirebaseAuth.instance.currentUser != null &&
+        ShopService.instance
+            .normalizeEnabledModules(shop['enabledModules'])
+            .any(
+              (module) =>
+                  module == ShopModules.catHotel ||
+                  module == ShopModules.dogHotel,
+            ) &&
+        ShopAdminWelcome.isNewShop(shop);
+
     return _DashboardResponsiveBody(
       children: [
         _ShopPlanStatusCard(shopId: shopId),
-        if (showSetupReminder)
+        if (openingGuideEligible)
+          ShopOpeningProgress(
+            shopId: shopId,
+            shop: shop,
+            userId: FirebaseAuth.instance.currentUser!.uid,
+          ),
+        if (showSetupReminder &&
+            currentUserRole == ShopRoles.owner &&
+            !openingGuideEligible)
           ShopAdminWelcomeReminder(
             onOpen: currentUserRole == ShopRoles.owner
                 ? () {
@@ -1170,7 +1179,6 @@ class _BasicInfoTab extends StatelessWidget {
                     );
                   }
                 : null,
-            onReplay: onReplayWelcome,
           ),
         _DashboardSection(
           title: '店家資料',
@@ -1188,20 +1196,6 @@ class _BasicInfoTab extends StatelessWidget {
                     ),
                   );
                 },
-              ),
-            if (isProfileComplete && onReplayWelcome != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  key: const ValueKey('shop-admin-welcome-replay-quiet'),
-                  onPressed: onReplayWelcome,
-                  icon: const Icon(Icons.replay_rounded, size: 18),
-                  label: const Text('重新觀看開店引導'),
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(44, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                ),
               ),
             if (_can(ShopPermissionKeys.editBusinessInfo))
               _MenuTile(

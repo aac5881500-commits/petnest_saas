@@ -1,8 +1,12 @@
+import 'package:petnest_saas/features/shop/widgets/shop_room_type_workspace.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_setup_leave_guard.dart';
+import 'package:petnest_saas/features/shop/widgets/room_enabled_action.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_room_type_rooms_hub.dart
 // 功能說明：房型與房間同一操作畫面：左預覽、右管理，房間內嵌於房型卡片。
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -21,8 +25,14 @@ class ShopRoomTypeRoomsHub extends StatefulWidget {
     this.canManageRooms = true,
     this.roomTypesStream,
     this.roomsStream,
+    this.leaveGuard,
+    this.saveDraft,
+    this.guideUserId,
   });
 
+  final ShopSetupLeaveGuard? leaveGuard;
+  final Future<String> Function(ShopRoomTypeDraft)? saveDraft;
+  final String? guideUserId;
   final String shopId;
   final bool embeddedInSetupCenter;
   final bool canManageRoomTypes;
@@ -35,16 +45,84 @@ class ShopRoomTypeRoomsHub extends StatefulWidget {
 }
 
 class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
+  late final ShopSetupLeaveGuard _editorLeaveGuard;
+  bool _leaving = false;
+  late Stream<List<Map<String, dynamic>>> _typesStream;
+  late Stream<List<Map<String, dynamic>>> _roomsStream;
+  @override
+  void initState() {
+    super.initState();
+    _editorLeaveGuard = widget.leaveGuard ?? ShopSetupLeaveGuard();
+    _typesStream =
+        widget.roomTypesStream ??
+        ShopService.instance.streamRoomTypes(widget.shopId);
+    _roomsStream =
+        widget.roomsStream ?? ShopService.instance.streamRooms(widget.shopId);
+  }
+
   String? _selectedRoomTypeId;
   final Set<String> _expandedIds = <String>{};
   bool _creating = false;
   Map<String, dynamic>? _editing;
   ShopRoomTypeDraft? _draft;
   bool _mobilePreview = false;
+  String? _recentCreatedId;
+  String? _guideTypeId;
+  bool _awaitingCreatedSelection = false;
+  String? _pendingScrollId;
+  List<Map<String, dynamic>> _latestRooms = [];
+  final Map<String, GlobalKey> _expandKeys = {};
+  final Map<String, GlobalKey> _roomAreaKeys = {};
 
-  static const double splitMinWidth = 1100;
+  void _scrollTo(GlobalKey target) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || target.currentContext == null) return;
+      final reduced = MediaQuery.disableAnimationsOf(context);
+      Scrollable.ensureVisible(
+        target.currentContext!,
+        alignment: .35,
+        duration: reduced ? Duration.zero : const Duration(milliseconds: 300),
+      );
+    });
+  }
+
+  Future<void> _showCreationGuide(String id) async {
+    final uid = widget.guideUserId ?? FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || !widget.canManageRooms) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'roomCreationGuide:$uid:${widget.shopId}:$id';
+      if (!mounted ||
+          _recentCreatedId != id ||
+          prefs.getBool(key) == true ||
+          _latestRooms.any((room) => room['roomTypeId'] == id)) {
+        return;
+      }
+      setState(() {
+        _guideTypeId = id;
+        _pendingScrollId = id;
+      });
+      await prefs.setBool(key, true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('引導偏好儲存失敗：$error')));
+      }
+    }
+  }
 
   void _ensureSelection(List<Map<String, dynamic>> types) {
+    if (_awaitingCreatedSelection &&
+        types.any((type) => type['id'] == _recentCreatedId)) {
+      _selectedRoomTypeId = _recentCreatedId;
+      _awaitingCreatedSelection = false;
+    }
+    if (_pendingScrollId != null &&
+        types.any((type) => type['id'] == _pendingScrollId)) {
+      _scrollTo(_expandKeys.putIfAbsent(_pendingScrollId!, GlobalKey.new));
+      _pendingScrollId = null;
+    }
     if (types.isEmpty) {
       _selectedRoomTypeId = null;
       return;
@@ -93,16 +171,24 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
       (Map<String, dynamic> room) =>
           SafeParse.parseString(room['roomTypeId']) == roomTypeId,
     );
-    for (final Map<String, dynamic> room in targetRooms) {
-      await ShopService.instance.deleteRoom(
-        shopId: widget.shopId,
-        roomId: SafeParse.parseString(room['id']),
-      );
+    try {
+      if (!mounted) return;
+      if (!await deleteRoomsWithStayGuard(
+        context,
+        widget.shopId,
+        targetRooms.map((room) => SafeParse.parseString(room['id'])).toSet(),
+        roomTypeId: roomTypeId,
+      )) {
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+      return;
     }
-    await ShopService.instance.deleteRoomType(
-      shopId: widget.shopId,
-      roomTypeId: roomTypeId,
-    );
     final User? user = FirebaseAuth.instance.currentUser;
     await ActionLogService.instance.logAction(
       shopId: widget.shopId,
@@ -143,9 +229,7 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
   @override
   Widget build(BuildContext context) {
     final Widget body = StreamBuilder<List<Map<String, dynamic>>>(
-      stream:
-          widget.roomTypesStream ??
-          ShopService.instance.streamRoomTypes(widget.shopId),
+      stream: _typesStream,
       builder:
           (
             BuildContext context,
@@ -159,9 +243,7 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
               return const Center(child: CircularProgressIndicator());
             }
             return StreamBuilder<List<Map<String, dynamic>>>(
-              stream:
-                  widget.roomsStream ??
-                  ShopService.instance.streamRooms(widget.shopId),
+              stream: _roomsStream,
               builder:
                   (
                     BuildContext context,
@@ -178,149 +260,20 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
                         typeSnap.data ?? <Map<String, dynamic>>[];
                     final List<Map<String, dynamic>> rooms =
                         roomSnap.data ?? <Map<String, dynamic>>[];
+                    _latestRooms = rooms;
                     _ensureSelection(types);
-                    return LayoutBuilder(
-                      builder:
-                          (BuildContext context, BoxConstraints constraints) {
-                            final bool split =
-                                constraints.maxWidth >= splitMinWidth;
-                            final Widget pane;
-                            if (split) {
-                              pane = Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  12,
-                                  16,
-                                  16,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: <Widget>[
-                                    Expanded(
-                                      flex: 4,
-                                      child:
-                                          types.isEmpty &&
-                                              !_creating &&
-                                              _editing == null
-                                          ? const Center(
-                                              child: Text('新增房型後即可在此預覽'),
-                                            )
-                                          : ShopRoomTypeLivePreview(
-                                              draft: _previewDraft(types),
-                                            ),
-                                    ),
-                                    const SizedBox(width: 20),
-                                    Expanded(
-                                      flex: 6,
-                                      child: _rightPane(types, rooms),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            } else {
-                              pane = Column(
-                                children: <Widget>[
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      8,
-                                      16,
-                                      0,
-                                    ),
-                                    child: SegmentedButton<bool>(
-                                      showSelectedIcon: false,
-                                      segments: const <ButtonSegment<bool>>[
-                                        ButtonSegment<bool>(
-                                          value: false,
-                                          label: Text('管理'),
-                                        ),
-                                        ButtonSegment<bool>(
-                                          value: true,
-                                          label: Text('前台預覽'),
-                                        ),
-                                      ],
-                                      selected: <bool>{_mobilePreview},
-                                      onSelectionChanged: (Set<bool> value) {
-                                        setState(() {
-                                          _mobilePreview = value.first;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: IndexedStack(
-                                      index: _mobilePreview ? 1 : 0,
-                                      children: <Widget>[
-                                        _rightPane(types, rooms),
-                                        Padding(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            children: <Widget>[
-                                              if (types.isNotEmpty)
-                                                DropdownButton<String>(
-                                                  isExpanded: true,
-                                                  value: _selectedRoomTypeId,
-                                                  items: types.map((
-                                                    Map<String, dynamic> item,
-                                                  ) {
-                                                    final String id =
-                                                        SafeParse.parseString(
-                                                          item['id'],
-                                                        );
-                                                    return DropdownMenuItem<
-                                                      String
-                                                    >(
-                                                      value: id,
-                                                      child: Text(
-                                                        SafeParse.parseString(
-                                                          item['name'],
-                                                          fallback: '未命名房型',
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }).toList(),
-                                                  onChanged: (String? id) {
-                                                    setState(() {
-                                                      _selectedRoomTypeId = id;
-                                                    });
-                                                  },
-                                                ),
-                                              Expanded(
-                                                child:
-                                                    types.isEmpty &&
-                                                        !_creating &&
-                                                        _editing == null
-                                                    ? const Center(
-                                                        child: Text(
-                                                          '新增房型後即可在此預覽',
-                                                        ),
-                                                      )
-                                                    : ShopRoomTypeLivePreview(
-                                                        draft: _previewDraft(
-                                                          types,
-                                                        ),
-                                                      ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }
-                            return Center(
-                              child: SizedBox(
-                                width: constraints.maxWidth > 1460
-                                    ? 1460
-                                    : constraints.maxWidth,
-                                height: constraints.maxHeight,
-                                child: pane,
-                              ),
-                            );
-                          },
+                    return ShopRoomTypeWorkspace(
+                      previewAvailable:
+                          types.isNotEmpty || _creating || _editing != null,
+                      editor: _rightPane(types, rooms),
+                      preview: types.isEmpty && !_creating && _editing == null
+                          ? const Center(child: Text('新增房型後即可在此預覽'))
+                          : ShopRoomTypeLivePreview(
+                              draft: _previewDraft(types),
+                            ),
+                      showPreview: _mobilePreview,
+                      onPreviewChanged: (value) =>
+                          setState(() => _mobilePreview = value),
                     );
                   },
             );
@@ -330,14 +283,36 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
     if (widget.embeddedInSetupCenter) {
       return Material(color: const Color(0xFFF6F8FB), child: body);
     }
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(
-        title: const Text('房型與房間管理'),
-        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) await _leavePage();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F8FB),
+        appBar: AppBar(
+          title: const Text('房型與房間管理'),
+          leading: IconButton(
+            icon: const BackButtonIcon(),
+            onPressed: _leavePage,
+          ),
+          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+        ),
+        body: body,
       ),
-      body: body,
     );
+  }
+
+  Future<void> _leavePage() async {
+    if (_leaving) return;
+    _leaving = true;
+    try {
+      if (await _editorLeaveGuard.confirmLeave() && mounted) {
+        Navigator.of(context).pop();
+      }
+    } finally {
+      _leaving = false;
+    }
   }
 
   Widget _rightPane(
@@ -354,8 +329,10 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
         shopId: widget.shopId,
         existing: _editing,
         embedded: true,
+        leaveGuard: _editorLeaveGuard,
+        saveDraft: widget.saveDraft,
         onDraftChanged: (ShopRoomTypeDraft draft) {
-          setState(() => _draft = draft);
+          if (mounted) setState(() => _draft = draft);
         },
         onCancel: () {
           setState(() {
@@ -365,18 +342,69 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
           });
         },
         onSaved: (String id) {
+          final created = _creating;
           setState(() {
             _creating = false;
             _editing = null;
             _draft = null;
             if (id.isNotEmpty) {
               _selectedRoomTypeId = id;
+              if (created) {
+                _recentCreatedId = id;
+                _awaitingCreatedSelection = true;
+                _pendingScrollId = id;
+              }
             }
           });
+          if (created && id.isNotEmpty) _showCreationGuide(id);
         },
       );
     }
 
+    if (types.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Card(
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.home_work_outlined,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '建立你的第一個房型',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    '先設定房型與價格，再建立實際房號，準備開放住宿預約。',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.canManageRoomTypes)
+                    FilledButton.icon(
+                      onPressed: () => setState(() {
+                        _creating = true;
+                        _mobilePreview = false;
+                      }),
+                      icon: const Icon(Icons.add),
+                      label: const Text('新增第一個房型'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 24),
       children: <Widget>[
@@ -420,7 +448,7 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF8F0),
+            color: const Color(0xFFF5F6F8),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE8D4B8)),
           ),
@@ -434,73 +462,60 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
           ),
         ),
         const SizedBox(height: 16),
-        if (types.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 24),
-            child: Column(
-              children: <Widget>[
-                const Text('尚未建立房型'),
-                const SizedBox(height: 12),
-                if (widget.canManageRoomTypes)
-                  FilledButton(
-                    onPressed: () {
-                      setState(() {
-                        _creating = true;
-                        _mobilePreview = false;
-                      });
-                    },
-                    child: const Text('新增第一個房型'),
-                  ),
-              ],
-            ),
-          )
-        else
-          ...types.map((Map<String, dynamic> type) {
-            return _RoomTypeManageCard(
-              shopId: widget.shopId,
-              roomType: type,
-              rooms: rooms
-                  .where(
-                    (Map<String, dynamic> room) =>
-                        SafeParse.parseString(room['roomTypeId']) ==
-                        SafeParse.parseString(type['id']),
-                  )
-                  .toList(),
-              selected:
-                  SafeParse.parseString(type['id']) == _selectedRoomTypeId,
-              expanded: _expandedIds.contains(
-                SafeParse.parseString(type['id']),
-              ),
-              canManageTypes: widget.canManageRoomTypes,
-              canManageRooms: widget.canManageRooms,
-              onSelect: () {
-                setState(() {
-                  _selectedRoomTypeId = SafeParse.parseString(type['id']);
-                });
-              },
-              onToggleExpand: () {
-                final String id = SafeParse.parseString(type['id']);
-                setState(() {
-                  if (_expandedIds.contains(id)) {
-                    _expandedIds.remove(id);
-                  } else {
-                    _expandedIds.add(id);
-                  }
-                  _selectedRoomTypeId = id;
-                });
-              },
-              onEdit: () {
-                setState(() {
-                  _editing = type;
-                  _creating = false;
-                  _draft = ShopRoomTypeDraft.fromRoomType(type);
-                  _selectedRoomTypeId = SafeParse.parseString(type['id']);
-                  _mobilePreview = false;
-                });
-              },
-              onDelete: () => _deleteRoomType(type),
-            );
-          }),
+        ...[
+          ...types.where((type) => type['id'] == _recentCreatedId),
+          ...types.where((type) => type['id'] != _recentCreatedId),
+        ].map((Map<String, dynamic> type) {
+          final id = SafeParse.parseString(type['id']);
+          return _RoomTypeManageCard(
+            key: ValueKey('room-type-card-$id'),
+            expandKey: _expandKeys.putIfAbsent(id, GlobalKey.new),
+            roomAreaKey: _roomAreaKeys.putIfAbsent(id, GlobalKey.new),
+            showCreationGuide: _guideTypeId == id && widget.canManageRooms,
+            onDismissGuide: () => setState(() => _guideTypeId = null),
+            shopId: widget.shopId,
+            roomType: type,
+            rooms: rooms
+                .where(
+                  (Map<String, dynamic> room) =>
+                      SafeParse.parseString(room['roomTypeId']) ==
+                      SafeParse.parseString(type['id']),
+                )
+                .toList(),
+            selected: SafeParse.parseString(type['id']) == _selectedRoomTypeId,
+            expanded: _expandedIds.contains(SafeParse.parseString(type['id'])),
+            canManageTypes: widget.canManageRoomTypes,
+            canManageRooms: widget.canManageRooms,
+            onSelect: () {
+              setState(() {
+                _selectedRoomTypeId = SafeParse.parseString(type['id']);
+              });
+            },
+            onToggleExpand: () {
+              final String id = SafeParse.parseString(type['id']);
+              setState(() {
+                if (_expandedIds.contains(id)) {
+                  _expandedIds.remove(id);
+                } else {
+                  _expandedIds.add(id);
+                }
+                _selectedRoomTypeId = id;
+                if (_guideTypeId == id) _guideTypeId = null;
+              });
+              if (_expandedIds.contains(id)) _scrollTo(_roomAreaKeys[id]!);
+            },
+            onEdit: () {
+              setState(() {
+                _editing = type;
+                _creating = false;
+                _draft = ShopRoomTypeDraft.fromRoomType(type);
+                _selectedRoomTypeId = SafeParse.parseString(type['id']);
+                _mobilePreview = false;
+              });
+            },
+            onDelete: () => _deleteRoomType(type),
+          );
+        }),
       ],
     );
   }
@@ -508,6 +523,11 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
 
 class _RoomTypeManageCard extends StatelessWidget {
   const _RoomTypeManageCard({
+    super.key,
+    required this.expandKey,
+    required this.roomAreaKey,
+    required this.showCreationGuide,
+    required this.onDismissGuide,
     required this.shopId,
     required this.roomType,
     required this.rooms,
@@ -522,6 +542,10 @@ class _RoomTypeManageCard extends StatelessWidget {
   });
 
   final String shopId;
+  final GlobalKey expandKey;
+  final GlobalKey roomAreaKey;
+  final bool showCreationGuide;
+  final VoidCallback onDismissGuide;
   final Map<String, dynamic> roomType;
   final List<Map<String, dynamic>> rooms;
   final bool selected;
@@ -544,10 +568,7 @@ class _RoomTypeManageCard extends StatelessWidget {
     final int capacity = SafeParse.parseInt(roomType['capacity']);
     final int limit = SafeParse.parseInt(roomType['totalRooms']);
     final int enabledCount = rooms.where((Map<String, dynamic> room) {
-      return SafeParse.parseBool(room['enabled'], fallback: true) &&
-          !DaycareOccupancyService.isPermanentStatusUnsellable(
-            DaycareOccupancyService.permanentStatusOf(room),
-          );
+      return !DaycareOccupancyService.isRoomDocumentUnsellable(room);
     }).length;
     final List<String> images = SafeParse.parseList(roomType['images'])
         .map((dynamic e) => e.toString())
@@ -674,14 +695,81 @@ class _RoomTypeManageCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          ListTile(
-            dense: true,
-            title: const Text('展開／收合房間'),
-            trailing: Icon(expanded ? Icons.expand_less : Icons.expand_more),
-            onTap: onToggleExpand,
+          Container(
+            key: expandKey,
+            decoration: BoxDecoration(
+              color: showCreationGuide && rooms.isEmpty
+                  ? colors.primary.withValues(alpha: .08)
+                  : null,
+              border: showCreationGuide && rooms.isEmpty
+                  ? Border.all(color: colors.primary, width: 2)
+                  : null,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                if (showCreationGuide && rooms.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.arrow_downward_rounded,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '房型建立成功！下一步請點這裡，建立實際房間。',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '房間數量上限不代表房間已建立。',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '關閉建立房間引導',
+                          onPressed: onDismissGuide,
+                          icon: const Icon(Icons.close, size: 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                ListTile(
+                  dense: true,
+                  title: const Text('展開／收合房間'),
+                  subtitle: rooms.isEmpty ? const Text('尚未建立實際房間') : null,
+                  trailing: Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                  ),
+                  onTap: onToggleExpand,
+                ),
+                if (rooms.isEmpty &&
+                    !expanded &&
+                    !showCreationGuide &&
+                    canManageRooms)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onToggleExpand,
+                      icon: const Icon(Icons.add_home_outlined, size: 18),
+                      label: const Text('建立房間'),
+                    ),
+                  ),
+              ],
+            ),
           ),
           if (expanded)
             RoomManagementSection(
+              key: roomAreaKey,
               shopId: shopId,
               roomType: roomType,
               rooms: rooms,

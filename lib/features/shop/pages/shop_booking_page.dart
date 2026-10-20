@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_page.dart
 // 功能說明：前台住宿預約主頁，負責日期、寵物、房型、加值服務、優惠與送單流程。
 
@@ -102,6 +103,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   @override
   void initState() {
     super.initState();
+    _stayReadiness = StayBookingReadiness.watch(widget.shopId);
 
     _shopStream = ShopService.instance.streamShop(widget.shopId);
 
@@ -573,8 +575,27 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     return null;
   }
 
+  // Keep one subscription while draft fields and booking steps rebuild.
+  late final Stream<StayBookingReadiness> _stayReadiness;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => StreamBuilder<StayBookingReadiness>(
+    stream: _stayReadiness,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('住宿預約')),
+          body: const Center(child: Text('住宿房間資料讀取失敗，請稍後再試')),
+        );
+      }
+      if (!snapshot.hasData) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return _buildWithReadiness(context, snapshot.data!.ready);
+    },
+  );
+
+  Widget _buildWithReadiness(BuildContext context, bool stayReady) {
     return PopScope(
       canPop: _currentStep <= 1,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -672,10 +693,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               _selectedServiceType = serviceTypes.first;
             }
 
-            final bool bookingEnabled = BookingAddonsHelper.parseBool(
-              shop['bookingEnabled'],
-              fallback: true,
-            );
+            final bool bookingEnabled =
+                stayReady && StayBookingReadiness.requested(shop);
 
             if (_isBlacklisted) {
               return Padding(
@@ -1287,11 +1306,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       dates.add(_formatDate(cursor));
       cursor = cursor.add(const Duration(days: 1));
     }
-    final Map<String, dynamic> availability =
-        await StayBookingFunctionService.instance.getAvailability(
-          shopId: widget.shopId,
-          dates: dates,
-        );
+    final Map<String, dynamic> availability = await StayBookingFunctionService
+        .instance
+        .getAvailability(shopId: widget.shopId, dates: dates);
     final Object? rawDays = availability['dates'];
     if (rawDays is! List) {
       throw const StayBookingFunctionException(

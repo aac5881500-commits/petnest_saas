@@ -25,14 +25,7 @@ void main() {
   testWidgets('390 與 800 為單欄，可切換預覽且草稿保留', (WidgetTester tester) async {
     for (final double width in <double>[390, 430, 800]) {
       await pumpEditor(tester, width: width);
-      expect(
-        find.byKey(const ValueKey<String>('shop-room-type-editor-mobile')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey<String>('shop-room-type-editor-split')),
-        findsNothing,
-      );
+      expect(find.text('編輯'), findsOneWidget);
       await tester.enterText(find.widgetWithText(TextField, '房型名稱'), '豪華套房');
       await tester.pump();
       await tester.tap(find.text('預覽'));
@@ -57,13 +50,10 @@ void main() {
   testWidgets('1366 與 1920 為左預覽右表單', (WidgetTester tester) async {
     for (final double width in <double>[1366, 1920]) {
       await pumpEditor(tester, width: width);
-      expect(
-        find.byKey(const ValueKey<String>('shop-room-type-editor-split')),
-        findsOneWidget,
-      );
+      expect(find.text('編輯'), findsNothing);
       expect(find.byType(ShopRoomTypeLivePreview), findsOneWidget);
       expect(find.text('新增房型'), findsWidgets);
-      expect(find.text('儲存房型'), findsOneWidget);
+      expect(find.text('建立房型'), findsOneWidget);
     }
   });
 
@@ -99,7 +89,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('儲存房型'), findsOneWidget);
+    expect(find.text('儲存變更'), findsOneWidget);
     expect(find.text('標準房'), findsWidgets);
     expect(find.text('安靜舒適'), findsWidgets);
     expect(find.textContaining('每多一隻 +200 元'), findsOneWidget);
