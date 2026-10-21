@@ -59,6 +59,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _reloadShops() async {
     _shopStats.clear();
+    _shopHeroHeights.clear();
     setState(() {
       _shopsFuture = ShopService.instance.getMyShops();
     });
@@ -367,6 +368,9 @@ class _HomePageState extends State<HomePage> {
                                 ShopEntryPanel.heroHeightFor(
                                   contentWidth,
                                   textScale: textScale,
+                                  minimalPlain: ShopHouseAppearance.fromMap(
+                                    current['houseAppearance'],
+                                  ).isMinimalPlain,
                                 );
                             return ListView(
                               children: <Widget>[

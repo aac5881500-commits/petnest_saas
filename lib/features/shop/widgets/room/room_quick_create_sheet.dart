@@ -47,6 +47,8 @@ class RoomQuickCreateSheet extends StatefulWidget {
       return showModalBottomSheet<RoomQuickCreateResult>(
         context: context,
         isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
         showDragHandle: true,
         builder: (BuildContext context) {
           return Padding(
@@ -233,192 +235,195 @@ class _RoomQuickCreateSheetState extends State<RoomQuickCreateSheet> {
     final bool canSubmit =
         !_loading && plan.toCreate.isNotEmpty && !plan.exceedsRemaining;
 
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Text(
-                  '快速建房',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '$_roomTypeName｜已建立 $created 間／上限 $_limit 間｜還可建立 $remaining 間',
-                  style: TextStyle(color: Colors.blue.shade700, height: 1.4),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        SegmentedButton<bool>(
-                          showSelectedIcon: false,
-                          segments: const <ButtonSegment<bool>>[
-                            ButtonSegment<bool>(
-                              value: false,
-                              label: Text('連續房號'),
-                            ),
-                            ButtonSegment<bool>(
-                              value: true,
-                              label: Text('自行輸入'),
-                            ),
-                          ],
-                          selected: <bool>{_useCustom},
-                          onSelectionChanged: _loading
-                              ? null
-                              : (Set<bool> value) {
-                                  setState(() {
-                                    _useCustom = value.first;
-                                    _error = null;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 12),
-                        if (!_useCustom) ...<Widget>[
-                          TextField(
-                            controller: _prefixController,
-                            enabled: !_loading,
-                            decoration: const InputDecoration(
-                              labelText: '房號前綴',
-                              hintText: '例如 A、B、VIP、2F',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _startController,
-                            enabled: !_loading,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: <TextInputFormatter>[
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: '起始編號',
-                              hintText: '例如 1',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _countController,
-                            enabled: !_loading,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: <TextInputFormatter>[
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: '建立數量',
-                              hintText: '例如 5',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text('數字位數'),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: <Widget>[
-                              ChoiceChip(
-                                label: const Text('1 位'),
-                                selected: _digitCount == 1,
-                                onSelected: _loading
-                                    ? null
-                                    : (_) => setState(() => _digitCount = 1),
-                              ),
-                              ChoiceChip(
-                                label: const Text('2 位'),
-                                selected: _digitCount == 2,
-                                onSelected: _loading
-                                    ? null
-                                    : (_) => setState(() => _digitCount = 2),
-                              ),
-                              ChoiceChip(
-                                label: const Text('3 位'),
-                                selected: _digitCount == 3,
-                                onSelected: _loading
-                                    ? null
-                                    : (_) => setState(() => _digitCount = 3),
-                              ),
-                            ],
-                          ),
-                        ] else
-                          TextField(
-                            controller: _customController,
-                            enabled: !_loading,
-                            maxLines: 6,
-                            decoration: const InputDecoration(
-                              labelText: '自行輸入房號',
-                              hintText: '可用換行、逗號或空格分隔\n例如：\nA01\nA02\nVIP01',
-                              border: OutlineInputBorder(),
-                              alignLabelWithHint: true,
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        const SizedBox(height: 12),
-                        _previewBox(plan),
-                        if (plan.exceedsRemaining)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              '此房型最多還能建立 $remaining 間房',
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        if (_error != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              _error!,
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                          ),
-                      ],
+    return PopScope(
+      canPop: !_loading,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    '快速建房',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _loading
-                            ? null
-                            : () => Navigator.pop(context),
-                        child: const Text('取消'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: canSubmit ? _submit : null,
-                        child: _loading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                  const SizedBox(height: 8),
+                  Text(
+                    '$_roomTypeName｜已建立 $created 間／上限 $_limit 間｜還可建立 $remaining 間',
+                    style: TextStyle(color: Colors.blue.shade700, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          SegmentedButton<bool>(
+                            showSelectedIcon: false,
+                            segments: const <ButtonSegment<bool>>[
+                              ButtonSegment<bool>(
+                                value: false,
+                                label: Text('連續房號'),
+                              ),
+                              ButtonSegment<bool>(
+                                value: true,
+                                label: Text('自行輸入'),
+                              ),
+                            ],
+                            selected: <bool>{_useCustom},
+                            onSelectionChanged: _loading
+                                ? null
+                                : (Set<bool> value) {
+                                    setState(() {
+                                      _useCustom = value.first;
+                                      _error = null;
+                                    });
+                                  },
+                          ),
+                          const SizedBox(height: 12),
+                          if (!_useCustom) ...<Widget>[
+                            TextField(
+                              controller: _prefixController,
+                              enabled: !_loading,
+                              decoration: const InputDecoration(
+                                labelText: '房號前綴',
+                                hintText: '例如 A、B、VIP、2F',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _startController,
+                              enabled: !_loading,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: <TextInputFormatter>[
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: '起始編號',
+                                hintText: '例如 1',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _countController,
+                              enabled: !_loading,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: <TextInputFormatter>[
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: '建立數量',
+                                hintText: '例如 5',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text('數字位數'),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: <Widget>[
+                                ChoiceChip(
+                                  label: const Text('1 位'),
+                                  selected: _digitCount == 1,
+                                  onSelected: _loading
+                                      ? null
+                                      : (_) => setState(() => _digitCount = 1),
                                 ),
-                              )
-                            : const Text('確認建立'),
+                                ChoiceChip(
+                                  label: const Text('2 位'),
+                                  selected: _digitCount == 2,
+                                  onSelected: _loading
+                                      ? null
+                                      : (_) => setState(() => _digitCount = 2),
+                                ),
+                                ChoiceChip(
+                                  label: const Text('3 位'),
+                                  selected: _digitCount == 3,
+                                  onSelected: _loading
+                                      ? null
+                                      : (_) => setState(() => _digitCount = 3),
+                                ),
+                              ],
+                            ),
+                          ] else
+                            TextField(
+                              controller: _customController,
+                              enabled: !_loading,
+                              maxLines: 6,
+                              decoration: const InputDecoration(
+                                labelText: '自行輸入房號',
+                                hintText: '可用換行、逗號或空格分隔\n例如：\nA01\nA02\nVIP01',
+                                border: OutlineInputBorder(),
+                                alignLabelWithHint: true,
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          const SizedBox(height: 12),
+                          _previewBox(plan),
+                          if (plan.exceedsRemaining)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                '此房型最多還能建立 $remaining 間房',
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _loading
+                              ? null
+                              : () => Navigator.pop(context),
+                          child: const Text('取消'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: canSubmit ? _submit : null,
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('確認建立'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

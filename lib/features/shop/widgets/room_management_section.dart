@@ -19,12 +19,21 @@ class RoomManagementSection extends StatefulWidget {
     required this.roomType,
     required this.rooms,
     required this.canManage,
+    this.addButtonKey,
+    this.addFormKey,
+    this.onAddingChanged,
+    this.onRoomCreated,
+    this.onQuickCreateChanged,
   });
 
   final String shopId;
   final Map<String, dynamic> roomType;
   final List<Map<String, dynamic>> rooms;
   final bool canManage;
+  final GlobalKey? addButtonKey, addFormKey;
+  final ValueChanged<bool>? onAddingChanged;
+  final Future<void> Function()? onRoomCreated;
+  final ValueChanged<bool>? onQuickCreateChanged;
 
   @override
   State<RoomManagementSection> createState() => _RoomManagementSectionState();
@@ -34,6 +43,13 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
   final TextEditingController _nameController = TextEditingController();
   bool _adding = false;
   bool _enabling = false;
+  bool _submitting = false;
+  bool _quickCreateOpen = false;
+
+  void _setAdding(bool adding) {
+    setState(() => _adding = adding);
+    widget.onAddingChanged?.call(adding);
+  }
 
   Future<void> _enableBatch() async {
     if (_enabling) return;
@@ -84,6 +100,7 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
   }
 
   Future<void> _createRoom() async {
+    if (_submitting || !widget.canManage) return;
     final String name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(
@@ -91,81 +108,82 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
       ).showSnackBar(const SnackBar(content: Text('請填寫房號')));
       return;
     }
-    final List<Map<String, dynamic>> roomTypes = await ShopService.instance
-        .getRoomTypes(widget.shopId);
-    final Map<String, dynamic> selectedType = roomTypes.firstWhere(
-      (Map<String, dynamic> e) => e['id'] == _roomTypeId,
-      orElse: () => widget.roomType,
-    );
-    final int totalRooms = SafeParse.parseInt(selectedType['totalRooms']);
-    final List<Map<String, dynamic>> allRooms = await ShopService.instance
-        .getRooms(widget.shopId);
-    final List<Map<String, dynamic>> sameTypeRooms = allRooms
-        .where(
-          (Map<String, dynamic> room) =>
-              SafeParse.parseString(room['roomTypeId']) == _roomTypeId,
-        )
-        .toList();
-    final DocumentSnapshot<Map<String, dynamic>> shopDoc =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .get();
-    final Map<String, dynamic> shop = shopDoc.data() ?? <String, dynamic>{};
-    final int planLimit = ShopPlanService.roomLimit(shop);
-    if (allRooms.length >= planLimit) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('免費版最多建立 $planLimit 間房間，升級 999 方案即可解除限制')),
-      );
-      return;
-    }
-    if (sameTypeRooms.length >= totalRooms) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('此房型已達最大房間數')));
-      return;
-    }
-    final bool isDuplicate = allRooms.any(
-      (Map<String, dynamic> room) =>
-          SafeParse.parseString(room['name']) == name,
-    );
-    if (isDuplicate) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('此房號已存在，請使用不同房號')));
-      return;
-    }
+    setState(() => _submitting = true);
     try {
+      final List<Map<String, dynamic>> roomTypes = await ShopService.instance
+          .getRoomTypes(widget.shopId);
+      final Map<String, dynamic> selectedType = roomTypes.firstWhere(
+        (Map<String, dynamic> e) => e['id'] == _roomTypeId,
+        orElse: () => widget.roomType,
+      );
+      final int totalRooms = SafeParse.parseInt(selectedType['totalRooms']);
+      final List<Map<String, dynamic>> allRooms = await ShopService.instance
+          .getRooms(widget.shopId);
+      final List<Map<String, dynamic>> sameTypeRooms = allRooms
+          .where(
+            (Map<String, dynamic> room) =>
+                SafeParse.parseString(room['roomTypeId']) == _roomTypeId,
+          )
+          .toList();
+      final DocumentSnapshot<Map<String, dynamic>> shopDoc =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .get();
+      final Map<String, dynamic> shop = shopDoc.data() ?? <String, dynamic>{};
+      final int planLimit = ShopPlanService.roomLimit(shop);
+      if (allRooms.length >= planLimit) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('免費版最多建立 $planLimit 間房間，升級 999 方案即可解除限制')),
+        );
+        return;
+      }
+      if (sameTypeRooms.length >= totalRooms) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('此房型已達最大房間數')));
+        return;
+      }
+      final bool isDuplicate = allRooms.any(
+        (Map<String, dynamic> room) =>
+            SafeParse.parseString(room['name']) == name,
+      );
+      if (isDuplicate) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('此房號已存在，請使用不同房號')));
+        return;
+      }
       await ShopService.instance.createRoom(
         shopId: widget.shopId,
         name: name,
         roomTypeId: _roomTypeId,
       );
+      if (!mounted) return;
+      _nameController.clear();
+      _setAdding(false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('新增房間成功')));
+      await widget.onRoomCreated?.call();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
       }
-      return;
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
-    if (!mounted) {
-      return;
-    }
-    _nameController.clear();
-    setState(() => _adding = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('新增房間成功')));
   }
 
   Future<void> _renameRoom(Map<String, dynamic> room) async {
@@ -276,13 +294,19 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
   }
 
   Future<void> _openQuickCreate() async {
+    if (_quickCreateOpen || _submitting || !widget.canManage) return;
+    setState(() => _quickCreateOpen = true);
+    // Release the workspace spotlight before opening the existing modal.
+    _setAdding(false);
+    widget.onQuickCreateChanged?.call(true);
+    RoomQuickCreateResult? result;
     try {
       final List<Map<String, dynamic>> allRooms = await ShopService.instance
           .getRooms(widget.shopId);
       if (!mounted) {
         return;
       }
-      final RoomQuickCreateResult? result = await RoomQuickCreateSheet.show(
+      result = await RoomQuickCreateSheet.show(
         context: context,
         shopId: widget.shopId,
         roomType: widget.roomType,
@@ -304,34 +328,44 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('無法開啟快速建房：$error')));
+    } finally {
+      if (mounted) {
+        setState(() => _quickCreateOpen = false);
+        widget.onQuickCreateChanged?.call(false);
+      }
+    }
+    // A modal being opened (or cancelled) is never a successful creation.
+    if (mounted && result != null && result.createdCount > 0) {
+      await widget.onRoomCreated?.call();
     }
   }
 
   Widget _actionButtons({required bool atCap, required bool compact}) {
     final Widget addButton = FilledButton.tonalIcon(
-      onPressed: atCap
+      onPressed: atCap || _submitting || _quickCreateOpen
           ? null
           : () {
-              setState(() => _adding = true);
+              _setAdding(true);
             },
       icon: const Icon(Icons.add),
       label: const Text('新增房間'),
     );
     final Widget quickButton = FilledButton.icon(
-      onPressed: atCap ? null : _openQuickCreate,
+      onPressed: atCap || _submitting || _quickCreateOpen
+          ? null
+          : _openQuickCreate,
       icon: const Icon(Icons.auto_awesome),
       label: const Text('快速建房'),
     );
     if (compact) {
-      return Row(
-        children: <Widget>[
-          Expanded(child: addButton),
-          const SizedBox(width: 8),
-          Expanded(child: quickButton),
-        ],
+      return Column(
+        key: widget.addButtonKey,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[addButton, const SizedBox(height: 8), quickButton],
       );
     }
     return Row(
+      key: widget.addButtonKey,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[addButton, const SizedBox(width: 8), quickButton],
     );
@@ -465,36 +499,39 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
                   : null,
             );
           }),
-          if (widget.canManage && _adding && !atCap) ...<Widget>[
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '房號（例如 A1）',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
+          if (widget.canManage && _adding && !atCap)
+            Column(
+              key: widget.addFormKey,
               children: <Widget>[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      setState(() => _adding = false);
-                    },
-                    child: const Text('取消'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _nameController,
+                  readOnly: _submitting,
+                  decoration: const InputDecoration(
+                    labelText: '房號（例如 A1）',
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _createRoom,
-                    child: const Text('確認新增'),
-                  ),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _submitting ? null : () => _setAdding(false),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _submitting ? null : _createRoom,
+                        child: Text(_submitting ? '新增中…' : '確認新增'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
         ],
       ),
     );

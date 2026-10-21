@@ -1,4 +1,10 @@
 import 'package:petnest_saas/features/shop/widgets/shop_room_type_workspace.dart';
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
+import 'package:petnest_saas/core/constants/shop_roles.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_settings_page.dart';
+import 'package:petnest_saas/features/shop/shop_admin_welcome.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_setup_spotlight.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_setup_leave_guard.dart';
 import 'package:petnest_saas/features/shop/widgets/room_enabled_action.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_room_type_rooms_hub.dart
@@ -28,11 +34,15 @@ class ShopRoomTypeRoomsHub extends StatefulWidget {
     this.leaveGuard,
     this.saveDraft,
     this.guideUserId,
+    this.onOpenBookingSettings,
+    this.isActive = true,
   });
 
   final ShopSetupLeaveGuard? leaveGuard;
   final Future<String> Function(ShopRoomTypeDraft)? saveDraft;
   final String? guideUserId;
+  final Future<void> Function()? onOpenBookingSettings;
+  final bool isActive;
   final String shopId;
   final bool embeddedInSetupCenter;
   final bool canManageRoomTypes;
@@ -52,6 +62,7 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
   @override
   void initState() {
     super.initState();
+    _loadTutorialEligibility();
     _editorLeaveGuard = widget.leaveGuard ?? ShopSetupLeaveGuard();
     _typesStream =
         widget.roomTypesStream ??
@@ -66,13 +77,315 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
   Map<String, dynamic>? _editing;
   ShopRoomTypeDraft? _draft;
   bool _mobilePreview = false;
+  bool _nextChoiceVisible = false;
+  int _createFormVersion = 0;
+
+  Future<bool> _canOpenBookingSettings() async {
+    if (widget.embeddedInSetupCenter) {
+      return widget.onOpenBookingSettings != null;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    final member = await ShopService.instance.getUserMemberInShop(
+      shopId: widget.shopId,
+      uid: uid,
+    );
+    return FirebaseAuth.instance.currentUser?.uid == uid &&
+        ShopService.instance.hasPermission(
+          member,
+          ShopPermissionKeys.manageBookingSettings,
+        );
+  }
+
+  Future<void> _offerNextStep() async {
+    // Invoked only by the successful creation callback, never by a stream/build.
+    if (!mounted || _nextChoiceVisible) return;
+    setState(() {
+      _nextChoiceVisible = true;
+      _paused = true;
+    });
+    try {
+      bool canBook = false;
+      try {
+        canBook = await _canOpenBookingSettings();
+      } catch (_) {
+        /* Fail closed. */
+      }
+      if (!mounted ||
+          !widget.isActive ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      bool submitted = false;
+      void choose(BuildContext dialogContext, String? choice) {
+        if (submitted) return;
+        submitted = true;
+        Navigator.pop(dialogContext, choice);
+      }
+
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('房型建立成功！'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('你可以繼續新增其他房型，或前往預約設定。'),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final buttons = <Widget>[
+                        OutlinedButton(
+                          onPressed: widget.canManageRoomTypes
+                              ? () => choose(dialogContext, 'create')
+                              : null,
+                          child: const Text('繼續新增房型'),
+                        ),
+                        FilledButton(
+                          onPressed: canBook
+                              ? () => choose(dialogContext, 'booking')
+                              : null,
+                          child: const Text('前往預約設定'),
+                        ),
+                      ];
+                      if (constraints.maxWidth < 380 ||
+                          MediaQuery.textScalerOf(context).scale(1) > 1.2) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            buttons[0],
+                            const SizedBox(height: 8),
+                            buttons[1],
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: buttons[0]),
+                          const SizedBox(width: 8),
+                          Expanded(child: buttons[1]),
+                        ],
+                      );
+                    },
+                  ),
+                  if (!canBook) const Text('目前無法確認預約設定權限，請從既有授權入口操作。'),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => choose(dialogContext, null),
+              child: const Text('稍後再說'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted ||
+          !widget.isActive ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      if (choice == 'create' && widget.canManageRoomTypes) {
+        if (!await _editorLeaveGuard.confirmLeave() || !mounted) return;
+        setState(() {
+          _createFormVersion++;
+          _creating = true;
+          _editing = null;
+          _draft = null;
+          _mobilePreview = false;
+        });
+      } else if (choice == 'booking') {
+        if (!await _canOpenBookingSettings() || !mounted) return;
+        if (widget.onOpenBookingSettings != null) {
+          await widget.onOpenBookingSettings!();
+        } else if (!widget.embeddedInSetupCenter &&
+            await _editorLeaveGuard.confirmLeave() &&
+            mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ShopBookingSettingsPage(
+                shopId: widget.shopId,
+                onManageRooms: () async {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted &&
+          widget.isActive &&
+          ModalRoute.of(context)?.isCurrent == true) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('暫時無法開啟預約設定，請稍後再試')));
+      }
+    } finally {
+      if (mounted) setState(() => _nextChoiceVisible = false);
+    }
+  }
+
   String? _recentCreatedId;
   String? _guideTypeId;
   bool _awaitingCreatedSelection = false;
   String? _pendingScrollId;
-  List<Map<String, dynamic>> _latestRooms = [];
   final Map<String, GlobalKey> _expandKeys = {};
   final Map<String, GlobalKey> _roomAreaKeys = {};
+  final Map<String, GlobalKey> _addKeys = {}, _formKeys = {};
+  final Set<String> _openForms = {};
+  bool _tutorialEligible = false, _paused = false, _completed = false;
+  bool _tutorialStarted = false, _verifying = false;
+  bool _confirmationFailed = false;
+  bool _quickCreateActive = false;
+  int _guideStep = 1;
+
+  String get _pauseKey =>
+      'firstRoomTutorialPaused:${FirebaseAuth.instance.currentUser?.uid}:${widget.shopId}';
+
+  Future<void> _loadTutorialEligibility() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final shop = await ShopService.instance.getShop(widget.shopId);
+      final member = await ShopService.instance.getUserMemberInShop(
+        shopId: widget.shopId,
+        uid: uid,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+      setState(() {
+        _tutorialEligible =
+            shop != null &&
+            shop['ownerUid'] == uid &&
+            member?['role'] == ShopRoles.owner &&
+            ShopAdminWelcome.isNewShop(shop);
+        _paused =
+            _nextChoiceVisible ||
+            _paused ||
+            (prefs.getBool(_pauseKey) ?? false);
+      });
+    } catch (_) {
+      // Failure to establish eligibility leaves normal management available.
+    }
+  }
+
+  Future<void> _pauseTutorial(bool pause) async {
+    setState(() => _paused = pause);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_pauseKey, pause);
+    } catch (_) {
+      /* Pausing never marks the task complete. */
+    }
+    if (!pause && mounted) _scrollGuideTarget();
+  }
+
+  GlobalKey? get _guideTarget => _guideTypeId == null
+      ? null
+      : _guideStep == 1
+      ? _expandKeys[_guideTypeId]
+      : _guideStep == 2
+      ? _addKeys[_guideTypeId]
+      : _formKeys[_guideTypeId];
+
+  void _scrollGuideTarget() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _guideTarget != null) _scrollTo(_guideTarget!);
+    });
+  }
+
+  Future<void> _verifyCompletion() async {
+    if (!_tutorialEligible ||
+        _verifying ||
+        _completed ||
+        _quickCreateActive ||
+        _nextChoiceVisible) {
+      return;
+    }
+    _verifying = true;
+    try {
+      final state = await StayBookingReadiness.load(widget.shopId);
+      if (!mounted ||
+          !state.ready ||
+          _quickCreateActive ||
+          _nextChoiceVisible) {
+        return;
+      }
+      final celebrate = _tutorialStarted;
+      setState(() {
+        _completed = true;
+        _confirmationFailed = false;
+        _guideTypeId = null;
+      });
+      if (celebrate && ModalRoute.of(context)?.isCurrent == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('第一間房間準備好了！接著可前往預約設定，確認後再手動開放。')),
+        );
+      }
+    } catch (_) {
+      // Server confirmation is required; a local optimistic snapshot is insufficient.
+      if (mounted && !_confirmationFailed) {
+        setState(() => _confirmationFailed = true);
+      }
+    } finally {
+      _verifying = false;
+    }
+  }
+
+  void _syncTutorial(
+    List<Map<String, dynamic>> types,
+    List<Map<String, dynamic>> rooms,
+  ) {
+    if (!_tutorialEligible ||
+        !widget.canManageRooms ||
+        !widget.canManageRoomTypes ||
+        _completed ||
+        _quickCreateActive) {
+      return;
+    }
+    final readiness = StayBookingReadiness(types, rooms, shopId: widget.shopId);
+    if (readiness.ready) {
+      if (_confirmationFailed) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _verifyCompletion();
+      });
+      return;
+    }
+    if (types.isEmpty) return;
+    final candidates = readiness.rooms.isNotEmpty
+        ? types
+              .where(
+                (t) => readiness.rooms.any((r) => r['roomTypeId'] == t['id']),
+              )
+              .toList()
+        : types;
+    if (candidates.isEmpty) return;
+    final id = SafeParse.parseString(
+      candidates.firstWhere(
+        (t) => t['id'] == (_recentCreatedId ?? _guideTypeId),
+        orElse: () => candidates.first,
+      )['id'],
+    );
+    if (id.isEmpty || _guideTypeId == id) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _guideTypeId = id;
+        _selectedRoomTypeId = id;
+        _tutorialStarted = true;
+        _guideStep = _expandedIds.contains(id)
+            ? (_openForms.contains(id) ? 3 : 2)
+            : 1;
+      });
+      if (!_paused) _scrollGuideTarget();
+    });
+  }
 
   void _scrollTo(GlobalKey target) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -87,29 +400,9 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
   }
 
   Future<void> _showCreationGuide(String id) async {
-    final uid = widget.guideUserId ?? FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || !widget.canManageRooms) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'roomCreationGuide:$uid:${widget.shopId}:$id';
-      if (!mounted ||
-          _recentCreatedId != id ||
-          prefs.getBool(key) == true ||
-          _latestRooms.any((room) => room['roomTypeId'] == id)) {
-        return;
-      }
-      setState(() {
-        _guideTypeId = id;
-        _pendingScrollId = id;
-      });
-      await prefs.setBool(key, true);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('引導偏好儲存失敗：$error')));
-      }
-    }
+    // Ignore the old seen preference: actual data drives the task.
+    if (!_tutorialEligible || !mounted) return;
+    setState(() => _recentCreatedId = id);
   }
 
   void _ensureSelection(List<Map<String, dynamic>> types) {
@@ -260,20 +553,41 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
                         typeSnap.data ?? <Map<String, dynamic>>[];
                     final List<Map<String, dynamic>> rooms =
                         roomSnap.data ?? <Map<String, dynamic>>[];
-                    _latestRooms = rooms;
                     _ensureSelection(types);
-                    return ShopRoomTypeWorkspace(
-                      previewAvailable:
-                          types.isNotEmpty || _creating || _editing != null,
-                      editor: _rightPane(types, rooms),
-                      preview: types.isEmpty && !_creating && _editing == null
-                          ? const Center(child: Text('新增房型後即可在此預覽'))
-                          : ShopRoomTypeLivePreview(
-                              draft: _previewDraft(types),
-                            ),
-                      showPreview: _mobilePreview,
-                      onPreviewChanged: (value) =>
-                          setState(() => _mobilePreview = value),
+                    _syncTutorial(types, rooms);
+                    final guideHasRooms = rooms.any(
+                      (r) => r['roomTypeId'] == _guideTypeId,
+                    );
+                    final active =
+                        _tutorialEligible &&
+                        !_paused &&
+                        !_completed &&
+                        !_nextChoiceVisible &&
+                        widget.isActive &&
+                        !_quickCreateActive &&
+                        widget.canManageRooms &&
+                        widget.canManageRoomTypes &&
+                        !_creating &&
+                        _editing == null &&
+                        !_mobilePreview &&
+                        !guideHasRooms;
+                    return ShopSetupSpotlight(
+                      target: active ? _guideTarget : null,
+                      step: _guideStep,
+                      onPause: () => _pauseTutorial(true),
+                      child: ShopRoomTypeWorkspace(
+                        previewAvailable:
+                            types.isNotEmpty || _creating || _editing != null,
+                        editor: _rightPane(types, rooms),
+                        preview: types.isEmpty && !_creating && _editing == null
+                            ? const Center(child: Text('新增房型後即可在此預覽'))
+                            : ShopRoomTypeLivePreview(
+                                draft: _previewDraft(types),
+                              ),
+                        showPreview: _mobilePreview,
+                        onPreviewChanged: (value) =>
+                            setState(() => _mobilePreview = value),
+                      ),
                     );
                   },
             );
@@ -323,7 +637,7 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
       return ShopRoomTypeEditorPage(
         key: ValueKey<String>(
           _creating
-              ? 'create-room-type'
+              ? 'create-room-type-$_createFormVersion'
               : 'edit-${SafeParse.parseString(_editing?['id'])}',
         ),
         shopId: widget.shopId,
@@ -356,7 +670,10 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
               }
             }
           });
-          if (created && id.isNotEmpty) _showCreationGuide(id);
+          if (created && id.isNotEmpty) {
+            _showCreationGuide(id);
+            _offerNextStep();
+          }
         },
       );
     }
@@ -444,6 +761,23 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
           ],
         ),
         const SizedBox(height: 12),
+        if (_tutorialEligible &&
+            widget.canManageRooms &&
+            widget.canManageRoomTypes &&
+            !_completed &&
+            _guideTypeId != null) ...[
+          if (_confirmationFailed)
+            TextButton(
+              onPressed: _verifyCompletion,
+              child: const Text('尚無法向伺服器確認房間狀態，點此重試'),
+            ),
+          if (rooms.any((r) => r['roomTypeId'] == _guideTypeId))
+            const Text('房間已建立，請確認房間已啟用，且不是永久維修或停用狀態；不需要再新增房間。'),
+          TextButton(
+            onPressed: () => _pauseTutorial(!_paused),
+            child: Text(_paused ? '繼續開店教學' : '稍後繼續'),
+          ),
+        ],
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -471,8 +805,27 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
             key: ValueKey('room-type-card-$id'),
             expandKey: _expandKeys.putIfAbsent(id, GlobalKey.new),
             roomAreaKey: _roomAreaKeys.putIfAbsent(id, GlobalKey.new),
-            showCreationGuide: _guideTypeId == id && widget.canManageRooms,
-            onDismissGuide: () => setState(() => _guideTypeId = null),
+            addKey: _addKeys.putIfAbsent(id, GlobalKey.new),
+            formKey: _formKeys.putIfAbsent(id, GlobalKey.new),
+            onAddingChanged: (adding) {
+              setState(() {
+                if (adding) {
+                  _openForms.add(id);
+                } else {
+                  _openForms.remove(id);
+                }
+                if (_guideTypeId == id) _guideStep = adding ? 3 : 2;
+              });
+              if (!_paused) _scrollGuideTarget();
+            },
+            onRoomCreated: _verifyCompletion,
+            onQuickCreateChanged: (active) {
+              setState(() {
+                _quickCreateActive = active;
+                if (_guideTypeId == id) _guideStep = 2;
+              });
+              if (!active && !_paused) _scrollGuideTarget();
+            },
             shopId: widget.shopId,
             roomType: type,
             rooms: rooms
@@ -500,9 +853,17 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
                   _expandedIds.add(id);
                 }
                 _selectedRoomTypeId = id;
-                if (_guideTypeId == id) _guideTypeId = null;
+                if (_guideTypeId == id) {
+                  _guideStep = _expandedIds.contains(id)
+                      ? (_openForms.contains(id) ? 3 : 2)
+                      : 1;
+                }
               });
-              if (_expandedIds.contains(id)) _scrollTo(_roomAreaKeys[id]!);
+              if (_guideTypeId == id && !_paused) {
+                _scrollGuideTarget();
+              } else if (_expandedIds.contains(id)) {
+                _scrollTo(_roomAreaKeys[id]!);
+              }
             },
             onEdit: () {
               setState(() {
@@ -525,9 +886,12 @@ class _RoomTypeManageCard extends StatelessWidget {
   const _RoomTypeManageCard({
     super.key,
     required this.expandKey,
+    required this.addKey,
+    required this.formKey,
+    required this.onAddingChanged,
+    required this.onRoomCreated,
+    required this.onQuickCreateChanged,
     required this.roomAreaKey,
-    required this.showCreationGuide,
-    required this.onDismissGuide,
     required this.shopId,
     required this.roomType,
     required this.rooms,
@@ -543,9 +907,11 @@ class _RoomTypeManageCard extends StatelessWidget {
 
   final String shopId;
   final GlobalKey expandKey;
+  final GlobalKey addKey, formKey;
+  final ValueChanged<bool> onAddingChanged;
+  final Future<void> Function() onRoomCreated;
+  final ValueChanged<bool> onQuickCreateChanged;
   final GlobalKey roomAreaKey;
-  final bool showCreationGuide;
-  final VoidCallback onDismissGuide;
   final Map<String, dynamic> roomType;
   final List<Map<String, dynamic>> rooms;
   final bool selected;
@@ -695,86 +1061,44 @@ class _RoomTypeManageCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          Container(
-            key: expandKey,
-            decoration: BoxDecoration(
-              color: showCreationGuide && rooms.isEmpty
-                  ? colors.primary.withValues(alpha: .08)
-                  : null,
-              border: showCreationGuide && rooms.isEmpty
-                  ? Border.all(color: colors.primary, width: 2)
-                  : null,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                if (showCreationGuide && rooms.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.arrow_downward_rounded,
-                          color: colors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '房型建立成功！下一步請點這裡，建立實際房間。',
-                                style: TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '房間數量上限不代表房間已建立。',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: '關閉建立房間引導',
-                          onPressed: onDismissGuide,
-                          icon: const Icon(Icons.close, size: 18),
-                        ),
-                      ],
-                    ),
-                  ),
-                ListTile(
-                  dense: true,
-                  title: const Text('展開／收合房間'),
-                  subtitle: rooms.isEmpty ? const Text('尚未建立實際房間') : null,
-                  trailing: Icon(
-                    expanded ? Icons.expand_less : Icons.expand_more,
-                  ),
-                  onTap: onToggleExpand,
+          Column(
+            children: [
+              ListTile(
+                key: expandKey,
+                dense: true,
+                title: const Text('展開／收合房間'),
+                subtitle: rooms.isEmpty ? const Text('尚未建立實際房間') : null,
+                trailing: Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
                 ),
-                if (rooms.isEmpty &&
-                    !expanded &&
-                    !showCreationGuide &&
-                    canManageRooms)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: onToggleExpand,
-                      icon: const Icon(Icons.add_home_outlined, size: 18),
-                      label: const Text('建立房間'),
-                    ),
+                onTap: onToggleExpand,
+              ),
+              if (rooms.isEmpty && !expanded && canManageRooms)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onToggleExpand,
+                    icon: const Icon(Icons.add_home_outlined, size: 18),
+                    label: const Text('建立房間'),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-          if (expanded)
-            RoomManagementSection(
+          Offstage(
+            offstage: !expanded,
+            child: RoomManagementSection(
               key: roomAreaKey,
+              addButtonKey: addKey,
+              addFormKey: formKey,
+              onAddingChanged: onAddingChanged,
+              onRoomCreated: onRoomCreated,
+              onQuickCreateChanged: onQuickCreateChanged,
               shopId: shopId,
               roomType: roomType,
               rooms: rooms,
               canManage: canManageRooms,
             ),
+          ),
         ],
       ),
     );

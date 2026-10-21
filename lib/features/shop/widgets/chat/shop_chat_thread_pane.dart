@@ -36,6 +36,7 @@ class ShopChatThreadPane extends StatefulWidget {
     this.onOpenFull,
     this.focusNode,
     this.onUserActivity,
+    this.initialCustomerName,
   });
 
   final String shopId;
@@ -52,6 +53,7 @@ class ShopChatThreadPane extends StatefulWidget {
   final VoidCallback? onOpenFull;
   final FocusNode? focusNode;
   final VoidCallback? onUserActivity;
+  final String? initialCustomerName;
 
   @override
   State<ShopChatThreadPane> createState() => _ShopChatThreadPaneState();
@@ -60,8 +62,29 @@ class ShopChatThreadPane extends StatefulWidget {
 class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   final ScrollController _scroll = ScrollController();
   final List<ShopChatMessageModel> _older = <ShopChatMessageModel>[];
-  late final TextEditingController _ownedInput;
+  TextEditingController? _ownedInput;
+  late Stream<Map<String, dynamic>?> _shopStream;
+  late Stream<ShopChatThreadModel?> _threadStream;
+  late Stream<List<ShopChatMessageModel>> _messagesStream;
+  void _bindStreams() {
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
+    _threadStream = ShopChatService.instance.watchThread(
+      shopId: widget.shopId,
+      threadId: widget.threadId,
+    );
+    _messagesStream = ShopChatService.instance.watchLatestMessages(
+      shopId: widget.shopId,
+      threadId: widget.threadId,
+    );
+  }
+
   bool _sending = false;
+  bool get _threadSending =>
+      _sending ||
+      (ShopAdminWorkspaceScope.maybeOf(
+            context,
+          )?.chat.sendingThreadIds.contains(widget.threadId) ??
+          false);
   bool _loadingOlder = false;
   bool _olderExhausted = false;
   bool _showNew = false;
@@ -75,13 +98,13 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
     if (workspace != null) {
       return workspace.draftOf(widget.threadId);
     }
-    return _ownedInput;
+    return _ownedInput ??= TextEditingController();
   }
 
   @override
   void initState() {
     super.initState();
-    _ownedInput = TextEditingController();
+    _bindStreams();
     _scroll.addListener(_onScroll);
     _bootstrap();
   }
@@ -89,7 +112,9 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   @override
   void didUpdateWidget(covariant ShopChatThreadPane oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.threadId != widget.threadId) {
+    if (oldWidget.threadId != widget.threadId ||
+        oldWidget.shopId != widget.shopId) {
+      _bindStreams();
       _older.clear();
       _olderExhausted = false;
       _showNew = false;
@@ -104,7 +129,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   @override
   void dispose() {
     _scroll.dispose();
-    _ownedInput.dispose();
+    _ownedInput?.dispose();
     super.dispose();
   }
 
@@ -129,7 +154,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   }
 
   Future<void> _markRead() async {
-    if (!widget.active) {
+    if (!mounted || !widget.active) {
       return;
     }
     try {
@@ -178,11 +203,16 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   }
 
   Future<void> _sendText() async {
+    if (!mounted) return;
     final String text = _input.text.trim();
-    if (text.isEmpty || _sending) {
+    if (text.isEmpty || _threadSending) {
       return;
     }
     widget.onUserActivity?.call();
+    final chat = ShopAdminWorkspaceScope.maybeOf(context)?.chat;
+    final shopId = widget.shopId;
+    final threadId = widget.threadId;
+    chat?.setThreadSending(shopId, threadId, true);
     setState(() => _sending = true);
     try {
       await ShopChatService.instance.sendTextMessage(
@@ -192,7 +222,9 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
         text: text,
         senderDisplayName: _senderDisplayName,
       );
-      if (mounted) {
+      if (chat != null) {
+        chat.clearSentDraft(shopId, threadId, text);
+      } else if (mounted) {
         _input.clear();
       }
     } catch (error) {
@@ -205,6 +237,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
         );
       }
     } finally {
+      chat?.setThreadSending(shopId, threadId, false);
       if (mounted) {
         setState(() => _sending = false);
       }
@@ -212,16 +245,23 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   }
 
   Future<void> _sendImage() async {
-    if (_sending) {
+    if (!mounted) return;
+    if (_threadSending) {
       return;
     }
+    final chat = ShopAdminWorkspaceScope.maybeOf(context)?.chat;
+    final shopId = widget.shopId;
+    final threadId = widget.threadId;
+    var sendingImage = false;
     try {
       final XFile? image = await InventoryImageService.instance
           .pickAndValidateImage();
-      if (image == null) {
+      if (image == null || !mounted || _threadSending) {
         return;
       }
       widget.onUserActivity?.call();
+      chat?.setThreadSending(shopId, threadId, true);
+      sendingImage = true;
       setState(() => _sending = true);
       await ShopChatService.instance.sendImageMessage(
         shopId: widget.shopId,
@@ -237,6 +277,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
         ).showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
+      if (sendingImage) chat?.setThreadSending(shopId, threadId, false);
       if (mounted) {
         setState(() => _sending = false);
       }
@@ -344,7 +385,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
   Widget build(BuildContext context) {
     final Color primary = Theme.of(context).colorScheme.primary;
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(widget.shopId),
+      stream: _shopStream,
       builder:
           (
             BuildContext context,
@@ -355,10 +396,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
             final String shopName = (shop['name'] ?? '店家').toString();
             final bool enabled = ShopChatService.isEnabled(shop);
             return StreamBuilder<ShopChatThreadModel?>(
-              stream: ShopChatService.instance.watchThread(
-                shopId: widget.shopId,
-                threadId: widget.threadId,
-              ),
+              stream: _threadStream,
               builder:
                   (
                     BuildContext context,
@@ -368,7 +406,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
                     final String customerName =
                         thread?.customerName.trim().isNotEmpty == true
                         ? thread!.customerName
-                        : '會員';
+                        : (widget.initialCustomerName ?? '會員');
                     final String photo = thread?.customerPhotoUrl ?? '';
                     if (widget.active &&
                         thread != null &&
@@ -453,11 +491,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
                             ),
                           Expanded(
                             child: StreamBuilder<List<ShopChatMessageModel>>(
-                              stream: ShopChatService.instance
-                                  .watchLatestMessages(
-                                    shopId: widget.shopId,
-                                    threadId: widget.threadId,
-                                  ),
+                              stream: _messagesStream,
                               builder:
                                   (
                                     BuildContext context,
@@ -518,8 +552,8 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
                           ShopChatComposer(
                             controller: _input,
                             focusNode: widget.focusNode,
-                            enabled: true,
-                            sending: _sending,
+                            enabled: enabled,
+                            sending: _threadSending,
                             onSendText: _sendText,
                             onPickImage: _sendImage,
                             showAttach: !widget.slotMode,
@@ -566,6 +600,7 @@ class _ThreadToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final desktopCompact = compact && MediaQuery.sizeOf(context).width >= 1100;
     return Material(
       color: Colors.white,
       child: SizedBox(
@@ -591,7 +626,7 @@ class _ThreadToolbar extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     name,
-                    maxLines: 1,
+                    maxLines: desktopCompact ? 2 : 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
@@ -617,31 +652,61 @@ class _ThreadToolbar extends StatelessWidget {
               onPressed: onMember,
               icon: const Icon(Icons.person_outline),
             ),
-            IconButton(
-              tooltip: '最近訂單',
-              visualDensity: VisualDensity.compact,
-              onPressed: onOpenRecentOrders,
-              icon: const Icon(Icons.receipt_long_outlined),
-            ),
-            if (onOpenBooking != null)
+            if (desktopCompact)
+              PopupMenuButton<String>(
+                tooltip: '更多對話操作',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'orders':
+                      onOpenRecentOrders?.call();
+                    case 'booking':
+                      onOpenBooking?.call();
+                    case 'full':
+                      onOpenFull?.call();
+                    case 'minimize':
+                      onMinimize?.call();
+                    case 'close':
+                      onClose?.call();
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'orders', child: Text('最近訂單')),
+                  if (onOpenBooking != null)
+                    const PopupMenuItem(value: 'booking', child: Text('查看訂單')),
+                  if (onOpenFull != null)
+                    const PopupMenuItem(value: 'full', child: Text('開啟完整聊天頁')),
+                  if (onMinimize != null)
+                    const PopupMenuItem(value: 'minimize', child: Text('最小化')),
+                  if (onClose != null)
+                    const PopupMenuItem(value: 'close', child: Text('關閉此對話')),
+                ],
+              ),
+            if (!desktopCompact)
+              IconButton(
+                tooltip: '最近訂單',
+                visualDensity: VisualDensity.compact,
+                onPressed: onOpenRecentOrders,
+                icon: const Icon(Icons.receipt_long_outlined),
+              ),
+            if (!desktopCompact && onOpenBooking != null)
               IconButton(
                 tooltip: '查看訂單',
                 onPressed: onOpenBooking,
                 icon: const Icon(Icons.hotel_outlined),
               ),
-            if (onOpenFull != null)
+            if (!desktopCompact && onOpenFull != null)
               IconButton(
                 tooltip: '開啟完整聊天頁',
                 onPressed: onOpenFull,
                 icon: const Icon(Icons.open_in_full),
               ),
-            if (onMinimize != null)
+            if (!desktopCompact && onMinimize != null)
               IconButton(
                 tooltip: '最小化',
                 onPressed: onMinimize,
                 icon: const Icon(Icons.remove),
               ),
-            if (onClose != null)
+            if (!desktopCompact && onClose != null)
               IconButton(
                 tooltip: '關閉此對話',
                 visualDensity: VisualDensity.compact,

@@ -15,6 +15,9 @@ class ShopPolicyViewPage extends StatefulWidget {
     required this.theme,
     this.readOnly = false,
     this.serviceType = PolicyApplicableService.accommodation,
+    this.draftPolicy,
+    this.draftPendingCount = 0,
+    this.draftContainsUrls = false,
   });
 
   final String shopId;
@@ -22,11 +25,17 @@ class ShopPolicyViewPage extends StatefulWidget {
   final bool readOnly;
   final String serviceType;
 
+  /// Read-only local preview; never loads or publishes this draft.
+  final Map<String, dynamic>? draftPolicy;
+  final int draftPendingCount;
+  final bool draftContainsUrls;
+
   @override
   State<ShopPolicyViewPage> createState() => _ShopPolicyViewPageState();
 }
 
 class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
+  bool get _readOnly => widget.readOnly || widget.draftPolicy != null;
   bool _loading = true;
 
   Map<String, dynamic> _sections = {};
@@ -46,7 +55,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
     super.initState();
     _load();
 
-    if (widget.readOnly) {
+    if (_readOnly) {
       _scrolledToBottom = true;
     }
     _scrollController.addListener(() {
@@ -54,7 +63,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
 
       final max = _scrollController.position.maxScrollExtent;
 
-      if (widget.readOnly) {
+      if (_readOnly) {
         return;
       }
 
@@ -65,7 +74,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
       }
 
       if (_scrollController.position.pixels >= max - 20) {
-        if (!widget.readOnly && !_scrolledToBottom) {
+        if (!_readOnly && !_scrolledToBottom) {
           setState(() {
             _scrolledToBottom = true;
           });
@@ -81,7 +90,10 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
   }
 
   Future<void> _load() async {
-    final data = await ShopService.instance.getCheckinPolicy(widget.shopId);
+    final data =
+        widget.draftPolicy ??
+        await ShopService.instance.getCheckinPolicy(widget.shopId);
+    if (!mounted) return;
 
     if (data != null) {
       final filtered = ShopPolicyService.instance.filterPolicyForService(
@@ -118,6 +130,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
   }
 
   Future<void> _accept() async {
+    if (_readOnly) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -171,7 +184,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () async => widget.readOnly,
+      onWillPop: () async => _readOnly,
       child: Scaffold(
         backgroundColor: widget.theme.backgroundColor,
         appBar: AppBar(
@@ -210,6 +223,25 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
               )
             : Column(
                 children: [
+                  if (widget.draftPolicy != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      color: const Color(0xFFFFF3CD),
+                      child: Text(
+                        widget.draftPendingCount > 0
+                            ? '草稿預覽：尚有 ${widget.draftPendingCount} 項待填，補齊前無法發布。'
+                            : '草稿預覽：待填資料已補齊，尚未發布。',
+                      ),
+                    ),
+                  if (widget.draftPolicy != null && widget.draftContainsUrls)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      color: const Color(0xFFFFF3CD),
+                      child: const Text('草稿含網址，移除後才能發布。'),
+                    ),
+
                   /// 🔥 條款內容
                   Expanded(
                     child: Stack(
@@ -256,7 +288,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
 
                                 if (_enabled['facility'] == true)
                                   _buildCard(
-                                    '貓厝邊提供的基本設施',
+                                    '本店提供的基本設施',
                                     _sections['facility'] ?? '',
                                   ),
 
@@ -399,7 +431,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                         ),
 
                         /// 🔥 滑到底提示
-                        if (!widget.readOnly && !_scrolledToBottom)
+                        if (!_readOnly && !_scrolledToBottom)
                           Positioned(
                             bottom: 10,
                             left: 16,
@@ -467,7 +499,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
-                            if (!widget.readOnly) ...[
+                            if (!_readOnly) ...[
                               Row(
                                 children: [
                                   Checkbox(
@@ -519,7 +551,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                 ),
-                                onPressed: widget.readOnly
+                                onPressed: _readOnly
                                     ? () {
                                         if (_step == 0) {
                                           setState(() {
@@ -546,8 +578,9 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                                           WidgetsBinding.instance
                                               .addPostFrameCallback((_) {
                                                 if (!_scrollController
-                                                    .hasClients)
+                                                    .hasClients) {
                                                   return;
+                                                }
 
                                                 final max = _scrollController
                                                     .position
@@ -564,7 +597,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                                         }
                                       },
                                 child: Text(
-                                  widget.readOnly
+                                  _readOnly
                                       ? (_step == 0 ? '下一步' : '關閉')
                                       : (_step == 0 ? '下一步' : '我已閱讀並同意'),
                                 ),

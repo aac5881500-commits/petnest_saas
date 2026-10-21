@@ -72,9 +72,38 @@ class ShopChatMultiDockController extends ChangeNotifier {
   final Map<String, TextEditingController> _inputs =
       <String, TextEditingController>{};
   final Set<String> liveMessageListeners = <String>{};
+  final Set<String> sendingThreadIds = <String>{};
+  bool _disposed = false;
+  void setThreadSending(String shopId, String threadId, bool sending) {
+    if (_disposed || shopId != _shopId) return;
+    if (sending) {
+      sendingThreadIds.add(threadId);
+    } else {
+      sendingThreadIds.remove(threadId);
+    }
+    notifyListeners();
+  }
+
+  void clearSentDraft(String shopId, String threadId, String text) {
+    if (_disposed || shopId != _shopId) return;
+    final input = _inputs[threadId];
+    if (input?.text.trim() == text) input!.clear();
+    if (drafts[threadId]?.trim() == text) drafts.remove(threadId);
+    persist();
+  }
+
   final Map<String, GlobalKey> windowKeys = <String, GlobalKey>{};
 
   bool inboxOpen = false;
+  // 後台占位模式只顯示一個對話；保留原控制器與本機文字草稿。
+  bool useSingleWorkspace = false;
+  bool workspaceExpanded = false;
+  void setWorkspaceExpanded(bool expanded) {
+    if (workspaceExpanded == expanded) return;
+    workspaceExpanded = expanded;
+    notifyListeners();
+  }
+
   bool dockOpen = false;
   bool dockMinimized = false;
   String? highlightId;
@@ -166,7 +195,9 @@ class ShopChatMultiDockController extends ChangeNotifier {
           ((map['slotIds'] as List?) ?? const <dynamic>[])
               .map((dynamic item) => item.toString())
               .where((String id) => id.isNotEmpty)
-              .take(ShopChatLayout.desktopSlotMax),
+              .take(
+                useSingleWorkspace ? maxSlots : ShopChatLayout.desktopSlotMax,
+              ),
         );
       lastActiveAt
         ..clear()
@@ -177,6 +208,17 @@ class ShopChatMultiDockController extends ChangeNotifier {
       inboxOpen = map['inboxOpen'] == true;
       dockOpen = map['dockOpen'] == true;
       dockMinimized = map['dockMinimized'] == true;
+      if (useSingleWorkspace) {
+        final restored = <String>{
+          ...slotIds,
+          ...openIds,
+        }.take(maxSlots).toList();
+        slotIds
+          ..clear()
+          ..addAll(restored);
+        inboxOpen = inboxOpen || dockOpen;
+        dockOpen = false;
+      }
       for (final String id in <String>{...openIds, ...slotIds}) {
         _inputs[id] = TextEditingController(text: drafts[id] ?? '');
       }
@@ -237,6 +279,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
   }
 
   ShopChatOpenResult openFromInbox(ShopChatThreadModel thread) {
+    if (useSingleWorkspace) return openDesktopSlot(thread);
     if (thread.id.isEmpty) {
       return const ShopChatOpenResult(
         kind: ShopChatOpenKind.added,
@@ -322,6 +365,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
 
   void toggleInbox() {
     inboxOpen = !inboxOpen;
+    if (!inboxOpen) workspaceExpanded = false;
     persist();
     notifyListeners();
   }
@@ -334,6 +378,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
 
   void closeInbox() {
     inboxOpen = false;
+    workspaceExpanded = false;
     persist();
     notifyListeners();
   }
@@ -346,6 +391,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
       );
     }
     snapshots[thread.id] = thread;
+    lastActiveAt[thread.id] = DateTime.now();
     inboxOpen = true;
     if (slotIds.contains(thread.id)) {
       focusedThreadId = thread.id;
@@ -357,7 +403,26 @@ class ShopChatMultiDockController extends ChangeNotifier {
         threadId: thread.id,
       );
     }
-    if (slotIds.length >= ShopChatLayout.desktopSlotMax) {
+    if (useSingleWorkspace && slotIds.length >= maxSlots) {
+      final evicted = slotIds.reduce(
+        (a, b) =>
+            (lastActiveAt[a] ?? DateTime.fromMillisecondsSinceEpoch(0))
+                .isBefore(
+                  lastActiveAt[b] ?? DateTime.fromMillisecondsSinceEpoch(0),
+                )
+            ? a
+            : b,
+      );
+      _captureDraft(evicted);
+      slotIds.remove(evicted);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!slotIds.contains(evicted) && focusedThreadId != evicted) {
+          _disposeInput(evicted);
+        }
+      });
+    }
+    if (!useSingleWorkspace &&
+        slotIds.length >= ShopChatLayout.desktopSlotMax) {
       return ShopChatOpenResult(
         kind: ShopChatOpenKind.rejectedFull,
         threadId: thread.id,
@@ -436,7 +501,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get showDockWindows => dockOpen && !dockMinimized;
+  bool get showDockWindows => !useSingleWorkspace && dockOpen && !dockMinimized;
 
   void _moveToFront(String threadId) {
     openIds.remove(threadId);
@@ -496,6 +561,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
     snapshots.clear();
     drafts.clear();
     liveMessageListeners.clear();
+    sendingThreadIds.clear();
     windowKeys.clear();
     inboxOpen = false;
     dockOpen = false;
@@ -503,6 +569,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
     highlightId = null;
     lastReplacedId = null;
     focusedThreadId = null;
+    workspaceExpanded = false;
   }
 
   static Map<String, DateTime> _readTimes(Object? raw) {
@@ -533,6 +600,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _highlightTimer?.cancel();
     _inboxSub?.cancel();
     for (final TextEditingController input in _inputs.values) {

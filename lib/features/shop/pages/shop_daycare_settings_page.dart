@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
@@ -27,7 +28,18 @@ class ShopDaycareSettingsPage extends StatefulWidget {
       _ShopDaycareSettingsPageState();
 }
 
-class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
+class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage>
+    with ShopDashboardLeaveAware<ShopDaycareSettingsPage> {
+  String? _dashboardSavedDraft;
+  String get _dashboardDraft =>
+      '${_settings.toMap()}|${_name.text.length}:${_name.text}|${_intro.text.length}:${_intro.text}';
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      !_loading &&
+      _dashboardSavedDraft != null &&
+      _dashboardSavedDraft != _dashboardDraft;
+  @override
+  bool get dashboardIsBusy => _saving;
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -60,6 +72,7 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
         _settings = settings;
         _name.text = settings.serviceName;
         _intro.text = settings.intro;
+        _dashboardSavedDraft = _dashboardDraft;
         _loading = false;
       });
     } catch (error) {
@@ -92,6 +105,7 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
       }
       setState(() {
         _settings = next;
+        _dashboardSavedDraft = _dashboardDraft;
         _saving = false;
       });
       ScaffoldMessenger.of(

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_permission_settings_page.dart
 // 功能說明：權限與員工管理。分成員工、權限、操作紀錄，邀請與編輯分開。
 // 保留：既有 shop_members、Email 邀請、權限鍵與儲存 API。
@@ -34,7 +35,17 @@ class ShopPermissionSettingsPage extends StatefulWidget {
 }
 
 class _ShopPermissionSettingsPageState extends State<ShopPermissionSettingsPage>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        ShopDashboardLeaveAware<ShopPermissionSettingsPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => _dirty;
+  @override
+  bool get dashboardIsBusy => _saving;
+  @override
+  Future<bool> dashboardConfirmLeave() async =>
+      !_saving && await _discardIfNeeded('有尚未儲存的修改，確定離開？');
+
   late final TabController _tabController;
 
   String _selectedRole = ShopRoles.staff;
@@ -381,10 +392,10 @@ class _ShopPermissionSettingsPageState extends State<ShopPermissionSettingsPage>
     final bool phoneEditor =
         !_wide && _tabController.index == 1 && _editingMemberId != null;
     return PopScope(
-      canPop: _forcePop || !_dirty,
+      canPop: _forcePop || (!_dirty && !_saving),
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) return;
-        _discardIfNeeded('有尚未儲存的修改，確定離開？').then((bool leave) {
+        dashboardConfirmLeave().then((bool leave) {
           if (!leave || !mounted) return;
           setState(() => _forcePop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {

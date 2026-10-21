@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/legal_pet/shop_profile_lock.dart';
 import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,11 +23,13 @@ class ShopOpeningProgress extends StatefulWidget {
     required this.shop,
     required this.userId,
     this.readinessStream,
+    this.loadStayPolicy,
   });
   final String shopId;
   final Map<String, dynamic> shop;
   final String userId;
   final Stream<StayBookingReadiness>? readinessStream;
+  final Future<bool> Function()? loadStayPolicy;
   @override
   State<ShopOpeningProgress> createState() => _ShopOpeningProgressState();
 }
@@ -32,10 +40,65 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
       isAddressSetupCompleted(widget.shop);
   late Stream<StayBookingReadiness> _stream;
   bool? _collapsed;
+  AsyncSnapshot<bool> _policyState = const AsyncSnapshot.waiting();
+  int _policyRequest = 0;
+  bool _canManagePolicy = false;
+
+  Future<void> _loadPolicyPermission() async {
+    final shopId = widget.shopId;
+    final userId = widget.userId;
+    try {
+      final member = await ShopService.instance.getUserMemberInShop(
+        shopId: shopId,
+        uid: userId,
+      );
+      if (mounted && widget.shopId == shopId && widget.userId == userId) {
+        setState(
+          () => _canManagePolicy = ShopService.instance.hasPermission(
+            member,
+            ShopPermissionKeys.managePolicy,
+          ),
+        );
+      }
+    } catch (_) {
+      /* No edit permission is granted on read failure. */
+    }
+  }
+
+  Future<void> _reloadPolicy() async {
+    final request = ++_policyRequest;
+    setState(() => _policyState = const AsyncSnapshot.waiting());
+    try {
+      final ready =
+          await (widget.loadStayPolicy?.call() ??
+              ShopPolicyService.instance.hasEffectiveStayPolicy(widget.shopId));
+      if (mounted && request == _policyRequest) {
+        setState(
+          () => _policyState = AsyncSnapshot.withData(
+            ConnectionState.done,
+            ready,
+          ),
+        );
+      }
+    } catch (e, stack) {
+      if (mounted && request == _policyRequest) {
+        setState(
+          () => _policyState = AsyncSnapshot.withError(
+            ConnectionState.done,
+            e,
+            stack,
+          ),
+        );
+      }
+    }
+  }
+
   String get _key => 'openingOptional:${widget.userId}:${widget.shopId}';
   @override
   void initState() {
     super.initState();
+    _reloadPolicy();
+    _loadPolicyPermission();
     _stream =
         widget.readinessStream ?? StayBookingReadiness.watch(widget.shopId);
     _load();
@@ -44,9 +107,17 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
   @override
   void didUpdateWidget(covariant ShopOpeningProgress oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.loadStayPolicy != widget.loadStayPolicy &&
+        oldWidget.shopId == widget.shopId &&
+        oldWidget.userId == widget.userId) {
+      _reloadPolicy();
+    }
     if (oldWidget.shopId != widget.shopId ||
         oldWidget.userId != widget.userId) {
       _collapsed = null;
+      _canManagePolicy = false;
+      _reloadPolicy();
+      _loadPolicyPermission();
       _stream =
           widget.readinessStream ?? StayBookingReadiness.watch(widget.shopId);
       _load();
@@ -67,8 +138,16 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
   }
 
   Future<void> _open(Widget page) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    final desktop =
+        ShopDashboardNavigationScope.maybeOf(context)?.desktop == true;
+    await Navigator.of(context, rootNavigator: !desktop).push(
+      MaterialPageRoute(
+        settings: RouteSettings(name: page.runtimeType.toString()),
+        builder: (_) => page,
+      ),
+    );
     if (mounted) {
+      _reloadPolicy();
       setState(
         () => _stream =
             widget.readinessStream ?? StayBookingReadiness.watch(widget.shopId),
@@ -83,7 +162,9 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
       StreamBuilder<StayBookingReadiness>(
         stream: _stream,
         builder: (context, snapshot) {
-          if (!_basicComplete) return _mainCard(null);
+          if (!_basicComplete) {
+            return _mainCard(null, policyReady: _policyState.data);
+          }
           if (snapshot.hasError) {
             return Card(
               child: Padding(
@@ -115,23 +196,33 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
             );
           }
           final state = snapshot.data!;
-          if (state.ready && StayBookingReadiness.requested(widget.shop)) {
+          if (state.ready &&
+              _policyState.data == true &&
+              StayBookingReadiness.requested(widget.shop)) {
             return const SizedBox.shrink();
           }
-          return _mainCard(state);
+          return _mainCard(
+            state,
+            policyReady: _policyState.hasError ? null : _policyState.data,
+            policyError: _policyState.error,
+          );
         },
       ),
       if (_collapsed != null && _basicComplete) _optionalCard(),
     ],
   );
 
-  Widget _mainCard(StayBookingReadiness? state) {
+  Widget _mainCard(
+    StayBookingReadiness? state, {
+    bool? policyReady,
+    Object? policyError,
+  }) {
     final colors = Theme.of(context).colorScheme;
     final ready = state?.ready ?? false;
     final current = !_basicComplete
         ? 0
         : ready
-        ? 2
+        ? (policyReady == true ? 3 : 2)
         : 1;
     final task = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,9 +236,9 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          '準備開放住宿預約',
-          style: TextStyle(
+        Text(
+          current == 2 ? '設定住宿入住條款' : '準備開放住宿預約',
+          style: const TextStyle(
             fontSize: 23,
             height: 1.3,
             fontWeight: FontWeight.w800,
@@ -157,6 +248,15 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
         Text(
           !_basicComplete
               ? '先完成電話與詳細地址，再準備住宿房間。'
+              : current == 2
+              ? policyError != null
+                    ? policyError is FirebaseException &&
+                              policyError.code == 'permission-denied'
+                          ? '沒有讀取住宿條款的權限，尚無法確認資格。'
+                          : '住宿條款讀取失敗，尚無法確認資格。'
+                    : policyReady == null
+                    ? '正在確認住宿入住條款…'
+                    : '請先設定並發布入住條款，讓顧客在預約前了解入住規定。'
               : ready
               ? '房間已準備好，請確認預約設定後手動開放。'
               : state!.reason,
@@ -164,25 +264,37 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: () => _open(
-            !_basicComplete
-                ? ShopBasicInfoPage(shopId: widget.shopId)
-                : ShopBookingSetupCenterPage(
-                    shopId: widget.shopId,
-                    initialTab: ready
-                        ? ShopBookingSetupTab.booking
-                        : ShopBookingSetupTab.roomTypes,
-                  ),
-          ),
+          onPressed: current == 2
+              ? policyError != null
+                    ? _reloadPolicy
+                    : policyReady == null || !_canManagePolicy
+                    ? null
+                    : () => _open(ShopPolicyPage(shopId: widget.shopId))
+              : () => _open(
+                  !_basicComplete
+                      ? ShopBasicInfoPage(shopId: widget.shopId)
+                      : ShopBookingSetupCenterPage(
+                          shopId: widget.shopId,
+                          initialTab: ready
+                              ? ShopBookingSetupTab.booking
+                              : ShopBookingSetupTab.roomTypes,
+                        ),
+                ),
           icon: const Icon(Icons.arrow_forward_rounded, size: 18),
           label: Text(
             !_basicComplete
                 ? '前往完善基本資料'
+                : current == 2
+                ? policyError != null
+                      ? '重試條款確認'
+                      : '前往條款設定'
                 : ready
                 ? '前往預約設定'
                 : state!.action,
           ),
         ),
+        if (current == 2 && !_canManagePolicy)
+          const Text('請由店主或有條款管理權限的人完成設定。'),
       ],
     );
     final steps = Container(
@@ -192,8 +304,8 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
-        children: List.generate(3, (i) {
-          final done = i < current;
+        children: List.generate(4, (i) {
+          final done = i == 2 ? policyReady == true : i < current;
           final active = i == current;
           final color = done
               ? const Color(0xFF23846B)
@@ -216,7 +328,7 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    ['基本資料', '房型與房間', '開放住宿預約'][i],
+                    ['基本資料', '房型與房間', '發布入住條款', '開放住宿預約'][i],
                     style: TextStyle(color: color, fontWeight: FontWeight.w700),
                   ),
                 ),

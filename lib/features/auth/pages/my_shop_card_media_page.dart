@@ -13,6 +13,7 @@ import 'package:petnest_saas/core/services/platform_media_library_service.dart';
 import 'package:petnest_saas/core/services/shop_card_media_service.dart';
 import 'package:petnest_saas/core/services/shop_profile_service.dart';
 import 'package:petnest_saas/features/shop/widgets/platform_media_asset_picker.dart';
+import '../widgets/shop_house_mode_selector.dart';
 
 class MyShopCardMediaPage extends StatefulWidget {
   const MyShopCardMediaPage({
@@ -48,6 +49,8 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
   final Map<String, PlatformMediaAsset> _assets = {};
   bool _namesReady = false;
   String _savingPlacement = '';
+  bool _savingMode = false;
+  late String _modeDraft;
 
   @override
   void initState() {
@@ -55,6 +58,7 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
     _coverUrl = widget.coverUrl;
     _logoUrl = widget.logoUrl;
     _house = ShopHouseAppearance.fromMap(widget.houseAppearance);
+    _modeDraft = _house.mode;
     _resolveHouseNames();
   }
 
@@ -90,7 +94,7 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
     bool phone = false,
     bool reset = false,
   }) async {
-    if (_savingPlacement.isNotEmpty) {
+    if (_savingPlacement.isNotEmpty || _savingMode) {
       return;
     }
     final PlatformMediaPick? picked = reset
@@ -163,6 +167,39 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
           _savingPlacement = '';
         });
       }
+    }
+  }
+
+  Future<void> _saveMode() async {
+    if (_savingMode || _savingPlacement.isNotEmpty) return;
+    final next = _house.copyWith(mode: _modeDraft);
+    setState(() => _savingMode = true);
+    try {
+      if (widget.saveHouseAppearance != null) {
+        await widget.saveHouseAppearance!(next);
+      } else {
+        // 只改模式，不覆蓋先前或同時更新的圖片 ID。
+        await ShopProfileService.instance.updateShop(
+          shopId: widget.shopId,
+          data: {
+            '${ShopHouseAppearance.fieldName}.mode': next.mode,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        );
+      }
+      if (!mounted) return;
+      setState(() => _house = next);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('外觀模式已儲存')));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('外觀模式儲存失敗，請重試')));
+      }
+    } finally {
+      if (mounted) setState(() => _savingMode = false);
     }
   }
 
@@ -282,6 +319,20 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
             children: <Widget>[
+              ShopHouseModeSelector(
+                mode: _modeDraft,
+                saving: _savingMode,
+                onChanged: _savingMode || _savingPlacement.isNotEmpty
+                    ? null
+                    : (mode) => setState(() => _modeDraft = mode),
+                onApply:
+                    _savingMode ||
+                        _savingPlacement.isNotEmpty ||
+                        _modeDraft == _house.mode
+                    ? null
+                    : _saveMode,
+              ),
+              const SizedBox(height: 24),
               Text(
                 '管理這間店在 PetNest 中顯示的照片與 Logo',
                 style: text.bodyMedium?.copyWith(
@@ -347,7 +398,7 @@ class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
                         )
                       : fallback();
                 },
-                savingPlacement: _savingPlacement,
+                savingPlacement: _savingMode ? 'mode' : _savingPlacement,
                 onChange: (placement, phone, reset) =>
                     _changePlacement(placement, phone: phone, reset: reset),
               ),

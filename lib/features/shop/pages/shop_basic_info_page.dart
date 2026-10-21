@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_basic_info_page.dart
 // 功能說明：店家基本資料（完整版）
 // ✅ 縣市區域沿用創店資料並鎖定
@@ -30,7 +31,27 @@ class ShopBasicInfoPage extends StatefulWidget {
   State<ShopBasicInfoPage> createState() => _ShopBasicInfoPageState();
 }
 
-class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
+class _ShopBasicInfoPageState extends State<ShopBasicInfoPage>
+    with ShopDashboardLeaveAware<ShopBasicInfoPage> {
+  String? _dashboardSavedDraft;
+  String get _dashboardDraft => [
+    _nameController.text,
+    _phoneController.text,
+    _addressController.text,
+    _lineUrlController.text,
+    _igUrlController.text,
+    _fbUrlController.text,
+    _licenseController.text,
+    _taxIdController.text,
+    _showTaxId.toString(),
+    _isPublic.toString(),
+  ].map((value) => '${value.length}:$value').join();
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      !_loading && _dashboardSavedDraft != _dashboardDraft;
+  @override
+  bool get dashboardIsBusy => _saving || _lookingUp;
+
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
@@ -95,6 +116,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
   Future<void> _loadShopData() async {
     final shop = await ShopService.instance.getShop(widget.shopId);
+    if (!mounted) return;
 
     _nameController.text = shop?['name'] ?? '';
     _phoneController.text = shop?['phone'] ?? '';
@@ -114,11 +136,13 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _taxIdVerified = shop?['taxIdVerified'] == true;
     _isPublic = shop?['isPublic'] == true;
     _verifyRequestStatus = await _loadVerifyRequestStatus();
+    if (!mounted) return;
 
     _addressSetupCompleted = isAddressSetupCompleted(shop);
     _phoneSetupCompleted = isPhoneSetupCompleted(shop);
     _isNewShop = ShopAdminWelcome.isNewShop(shop ?? <String, dynamic>{});
     _profileChangePending = await _hasPendingProfileChange();
+    if (!mounted) return;
 
     final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
 
@@ -136,6 +160,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
     if (!mounted) return;
 
+    _dashboardSavedDraft = _dashboardDraft;
     setState(() => _loading = false);
   }
 
@@ -333,6 +358,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
       if (!mounted) return;
 
+      _dashboardSavedDraft = _dashboardDraft;
       if (finishFirstStep) {
         ScaffoldMessenger.of(
           context,
@@ -684,289 +710,300 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F4F0),
-      appBar: AppBar(
-        title: const Text('店家基本資料'),
-        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  final double width = constraints.maxWidth;
-                  final bool tablet = width >= 720;
-                  final bool desktop = width >= 980;
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                    children: <Widget>[
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: desktop ? 920 : 720,
-                          ),
-                          child: Column(
-                            children: <Widget>[
-                              if (_contactIncomplete) ..._guidedLead(tablet),
-                              if (!_contactIncomplete) ...<Widget>[
-                                _introCard(),
-                                const SizedBox(height: 10),
-                                _verifyStatusRow(),
+    return dashboardGuard(
+      Scaffold(
+        backgroundColor: const Color(0xFFF7F4F0),
+        appBar: AppBar(
+          title: const Text('店家基本資料'),
+          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Form(
+                key: _formKey,
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    final double width = constraints.maxWidth;
+                    final bool tablet = width >= 720;
+                    final bool desktop = width >= 980;
+                    return ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                      children: <Widget>[
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: desktop ? 920 : 720,
+                            ),
+                            child: Column(
+                              children: <Widget>[
+                                if (_contactIncomplete) ..._guidedLead(tablet),
+                                if (!_contactIncomplete) ...<Widget>[
+                                  _introCard(),
+                                  const SizedBox(height: 10),
+                                  _verifyStatusRow(),
+                                  const SizedBox(height: 12),
+                                  _sectionCard(
+                                    title: '基本資料',
+                                    children: <Widget>[
+                                      _twoCol(
+                                        split: tablet,
+                                        left: _lockedField(
+                                          label: '店名',
+                                          controller: _nameController,
+                                          locked: true,
+                                        ),
+                                        right: DropdownButtonFormField<String>(
+                                          initialValue: _businessType,
+                                          decoration: _fieldDecoration(
+                                            label: '店家類型',
+                                            locked: true,
+                                            firstSetup: false,
+                                          ),
+                                          items:
+                                              const <DropdownMenuItem<String>>[
+                                                DropdownMenuItem(
+                                                  value: 'cat_hotel',
+                                                  child: Text('貓咪旅店'),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: 'dog_hotel',
+                                                  child: Text('狗狗旅店'),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: 'grooming',
+                                                  child: Text('美容功能'),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: 'hospital',
+                                                  child: Text('動物醫院'),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: 'shop',
+                                                  child: Text('賣場功能'),
+                                                ),
+                                              ],
+                                          onChanged: null,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _lockedField(
+                                        label: '電話',
+                                        controller: _phoneController,
+                                        locked: _phoneSetupCompleted,
+                                        firstSetup: !_phoneSetupCompleted,
+                                        keyboardType: TextInputType.phone,
+                                      ),
+                                    ],
+                                    footer: _applyEditButton(),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _sectionCard(
+                                    title: '店址資料',
+                                    children: <Widget>[
+                                      _locationCard(),
+                                      const SizedBox(height: 12),
+                                      _lockedField(
+                                        label: '地址',
+                                        controller: _addressController,
+                                        locked: _addressSetupCompleted,
+                                        firstSetup: !_addressSetupCompleted,
+                                      ),
+                                    ],
+                                    footer: _applyEditButton(),
+                                  ),
+                                ],
                                 const SizedBox(height: 12),
                                 _sectionCard(
-                                  title: '基本資料',
+                                  title: '商業與公開資訊',
+                                  laterTitle: '商業與認證資料',
+                                  laterHeading: true,
                                   children: <Widget>[
                                     _twoCol(
                                       split: tablet,
-                                      left: _lockedField(
-                                        label: '店名',
-                                        controller: _nameController,
-                                        locked: true,
+                                      left: LegalPetLicenseInput(
+                                        controller: _licenseController,
+                                        locked: !_licenseInitialSetup,
+                                        firstSetup: _licenseInitialSetup,
+                                        onChanged: _clearLookupResult,
                                       ),
-                                      right: DropdownButtonFormField<String>(
-                                        initialValue: _businessType,
-                                        decoration: _fieldDecoration(
-                                          label: '店家類型',
-                                          locked: true,
-                                          firstSetup: false,
-                                        ),
-                                        items: const <DropdownMenuItem<String>>[
-                                          DropdownMenuItem(
-                                            value: 'cat_hotel',
-                                            child: Text('貓咪旅店'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'dog_hotel',
-                                            child: Text('狗狗旅店'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'grooming',
-                                            child: Text('美容功能'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'hospital',
-                                            child: Text('動物醫院'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'shop',
-                                            child: Text('賣場功能'),
-                                          ),
-                                        ],
-                                        onChanged: null,
+                                      right: _lockedField(
+                                        label: '統編',
+                                        controller: _taxIdController,
+                                        locked: !_taxIdInitialSetup,
+                                        firstSetup: _taxIdInitialSetup,
                                       ),
                                     ),
-                                    const SizedBox(height: 12),
-                                    _lockedField(
-                                      label: '電話',
-                                      controller: _phoneController,
-                                      locked: _phoneSetupCompleted,
-                                      firstSetup: !_phoneSetupCompleted,
-                                      keyboardType: TextInputType.phone,
+                                    const SizedBox(height: 8),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: OutlinedButton.icon(
+                                        onPressed: _lookingUp
+                                            ? null
+                                            : _lookupLicense,
+                                        icon: const Icon(
+                                          Icons.fact_check_outlined,
+                                        ),
+                                        label: Text(
+                                          _lookingUp ? '查核中' : '查核字號',
+                                        ),
+                                      ),
+                                    ),
+                                    if (_lookup != null) ...[
+                                      const SizedBox(height: 8),
+                                      LegalPetLicenseCheckCard(
+                                        result: _lookup!,
+                                        stale:
+                                            _lookupInputs == null ||
+                                            !_lookupInputs!.matches(
+                                              LegalPetLookupInputs(
+                                                license:
+                                                    _licenseController.text,
+                                                city: _cityController.text,
+                                                district:
+                                                    _districtController.text,
+                                                address:
+                                                    _addressController.text,
+                                              ),
+                                            ),
+                                        addressLocked: _addressSetupCompleted,
+                                        currentAddress:
+                                            '${_cityController.text}${_districtController.text}${_addressController.text}',
+                                        onApply: _applyGovernmentAddress,
+                                        onKeep: () => setState(() {}),
+                                        onRequestChange:
+                                            _requestRegisteredAddress,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '相關資料須經平台確認，公開資格依審核結果為準。',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        height: 1.4,
+                                        color: Colors.brown.shade600,
+                                      ),
+                                    ),
+                                    SwitchListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      value: _showTaxId,
+                                      title: const Text('前台顯示統編'),
+                                      onChanged: (bool v) =>
+                                          setState(() => _showTaxId = v),
+                                    ),
+                                    Text(
+                                      '統編是否公開仍以平台審核設定為準',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        height: 1.4,
+                                        color: Colors.brown.shade600,
+                                      ),
                                     ),
                                   ],
                                   footer: _applyEditButton(),
                                 ),
                                 const SizedBox(height: 12),
                                 _sectionCard(
-                                  title: '店址資料',
+                                  title: '聯絡與社群',
+                                  laterTitle: '聯絡與社群',
                                   children: <Widget>[
-                                    _locationCard(),
+                                    _lockedField(
+                                      label: 'LINE',
+                                      controller: _lineUrlController,
+                                      locked: !_lineInitialSetup,
+                                      firstSetup: _lineInitialSetup,
+                                      validator: (String? value) =>
+                                          _validateSocialUrl(
+                                            value: value,
+                                            type: 'line',
+                                          ),
+                                    ),
                                     const SizedBox(height: 12),
                                     _lockedField(
-                                      label: '地址',
-                                      controller: _addressController,
-                                      locked: _addressSetupCompleted,
-                                      firstSetup: !_addressSetupCompleted,
+                                      label: 'Instagram',
+                                      controller: _igUrlController,
+                                      locked: !_igInitialSetup,
+                                      firstSetup: _igInitialSetup,
+                                      validator: (String? value) =>
+                                          _validateSocialUrl(
+                                            value: value,
+                                            type: 'ig',
+                                          ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _lockedField(
+                                      label: 'Facebook',
+                                      controller: _fbUrlController,
+                                      locked: !_fbInitialSetup,
+                                      firstSetup: _fbInitialSetup,
+                                      validator: (String? value) =>
+                                          _validateSocialUrl(
+                                            value: value,
+                                            type: 'fb',
+                                          ),
                                     ),
                                   ],
                                   footer: _applyEditButton(),
                                 ),
+                                const SizedBox(height: 16),
+                                FilledButton(
+                                  key: const ValueKey(
+                                    'shop-contact-setup-save',
+                                  ),
+                                  onPressed: _saving
+                                      ? null
+                                      : (_contactIncomplete
+                                            ? _saveFirstStep
+                                            : _save),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: _contactIncomplete
+                                        ? const Color(0xFFF45B14)
+                                        : null,
+                                    minimumSize: const Size.fromHeight(50),
+                                    shape: _contactIncomplete
+                                        ? const StadiumBorder()
+                                        : null,
+                                  ),
+                                  child: Text(
+                                    _saving
+                                        ? '儲存中'
+                                        : _contactIncomplete
+                                        ? '儲存並完成第一步 →'
+                                        : '儲存顯示設定',
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: _openVerifyRequest,
+                                  icon: const Icon(
+                                    Icons.verified_user_outlined,
+                                  ),
+                                  label: const Text('申請認證／平台公開'),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => ShopRequestCenterPage(
+                                          shopId: widget.shopId,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.history),
+                                  label: const Text('查看申請紀錄'),
+                                ),
                               ],
-                              const SizedBox(height: 12),
-                              _sectionCard(
-                                title: '商業與公開資訊',
-                                laterTitle: '商業與認證資料',
-                                laterHeading: true,
-                                children: <Widget>[
-                                  _twoCol(
-                                    split: tablet,
-                                    left: LegalPetLicenseInput(
-                                      controller: _licenseController,
-                                      locked: !_licenseInitialSetup,
-                                      firstSetup: _licenseInitialSetup,
-                                      onChanged: _clearLookupResult,
-                                    ),
-                                    right: _lockedField(
-                                      label: '統編',
-                                      controller: _taxIdController,
-                                      locked: !_taxIdInitialSetup,
-                                      firstSetup: _taxIdInitialSetup,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _lookingUp
-                                          ? null
-                                          : _lookupLicense,
-                                      icon: const Icon(
-                                        Icons.fact_check_outlined,
-                                      ),
-                                      label: Text(_lookingUp ? '查核中' : '查核字號'),
-                                    ),
-                                  ),
-                                  if (_lookup != null) ...[
-                                    const SizedBox(height: 8),
-                                    LegalPetLicenseCheckCard(
-                                      result: _lookup!,
-                                      stale:
-                                          _lookupInputs == null ||
-                                          !_lookupInputs!.matches(
-                                            LegalPetLookupInputs(
-                                              license: _licenseController.text,
-                                              city: _cityController.text,
-                                              district:
-                                                  _districtController.text,
-                                              address: _addressController.text,
-                                            ),
-                                          ),
-                                      addressLocked: _addressSetupCompleted,
-                                      currentAddress:
-                                          '${_cityController.text}${_districtController.text}${_addressController.text}',
-                                      onApply: _applyGovernmentAddress,
-                                      onKeep: () => setState(() {}),
-                                      onRequestChange:
-                                          _requestRegisteredAddress,
-                                    ),
-                                  ],
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '相關資料須經平台確認，公開資格依審核結果為準。',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      height: 1.4,
-                                      color: Colors.brown.shade600,
-                                    ),
-                                  ),
-                                  SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    value: _showTaxId,
-                                    title: const Text('前台顯示統編'),
-                                    onChanged: (bool v) =>
-                                        setState(() => _showTaxId = v),
-                                  ),
-                                  Text(
-                                    '統編是否公開仍以平台審核設定為準',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      height: 1.4,
-                                      color: Colors.brown.shade600,
-                                    ),
-                                  ),
-                                ],
-                                footer: _applyEditButton(),
-                              ),
-                              const SizedBox(height: 12),
-                              _sectionCard(
-                                title: '聯絡與社群',
-                                laterTitle: '聯絡與社群',
-                                children: <Widget>[
-                                  _lockedField(
-                                    label: 'LINE',
-                                    controller: _lineUrlController,
-                                    locked: !_lineInitialSetup,
-                                    firstSetup: _lineInitialSetup,
-                                    validator: (String? value) =>
-                                        _validateSocialUrl(
-                                          value: value,
-                                          type: 'line',
-                                        ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _lockedField(
-                                    label: 'Instagram',
-                                    controller: _igUrlController,
-                                    locked: !_igInitialSetup,
-                                    firstSetup: _igInitialSetup,
-                                    validator: (String? value) =>
-                                        _validateSocialUrl(
-                                          value: value,
-                                          type: 'ig',
-                                        ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _lockedField(
-                                    label: 'Facebook',
-                                    controller: _fbUrlController,
-                                    locked: !_fbInitialSetup,
-                                    firstSetup: _fbInitialSetup,
-                                    validator: (String? value) =>
-                                        _validateSocialUrl(
-                                          value: value,
-                                          type: 'fb',
-                                        ),
-                                  ),
-                                ],
-                                footer: _applyEditButton(),
-                              ),
-                              const SizedBox(height: 16),
-                              FilledButton(
-                                key: const ValueKey('shop-contact-setup-save'),
-                                onPressed: _saving
-                                    ? null
-                                    : (_contactIncomplete
-                                          ? _saveFirstStep
-                                          : _save),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: _contactIncomplete
-                                      ? const Color(0xFFF45B14)
-                                      : null,
-                                  minimumSize: const Size.fromHeight(50),
-                                  shape: _contactIncomplete
-                                      ? const StadiumBorder()
-                                      : null,
-                                ),
-                                child: Text(
-                                  _saving
-                                      ? '儲存中'
-                                      : _contactIncomplete
-                                      ? '儲存並完成第一步 →'
-                                      : '儲存顯示設定',
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              OutlinedButton.icon(
-                                onPressed: _openVerifyRequest,
-                                icon: const Icon(Icons.verified_user_outlined),
-                                label: const Text('申請認證／平台公開'),
-                              ),
-                              const SizedBox(height: 8),
-                              TextButton.icon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => ShopRequestCenterPage(
-                                        shopId: widget.shopId,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.history),
-                                label: const Text('查看申請紀錄'),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
+      ),
     );
   }
 

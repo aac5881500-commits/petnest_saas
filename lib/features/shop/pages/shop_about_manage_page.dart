@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_about_manage_page.dart
 // 功能說明：後台關於我們管理頁
 // 店家可編輯前台關於我們的標題、簡介與品牌文字，並設定封面圖顯示範圍
@@ -26,7 +27,13 @@ class ShopAboutManagePage extends StatefulWidget {
   State<ShopAboutManagePage> createState() => _ShopAboutManagePageState();
 }
 
-class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
+class _ShopAboutManagePageState extends State<ShopAboutManagePage>
+    with ShopDashboardLeaveAware<ShopAboutManagePage> {
+  @override
+  bool get dashboardHasUnsavedChanges => _hasUnsavedChanges;
+  @override
+  bool get dashboardIsBusy => _imageBusy;
+
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
@@ -102,6 +109,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
         .doc(widget.shopId)
         .get();
 
+    if (!mounted) return;
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
 
     _titleController.text = (data['aboutTitle'] ?? '用心照顧每一隻貓咪，讓牠們在這裡安心生活。')
@@ -524,15 +532,20 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
   }
 
   Future<void> _onPopAttempt({required bool didPop}) async {
-    if (didPop) {
-      return;
+    if (!didPop && await dashboardConfirmLeave() && mounted) {
+      Navigator.of(context).pop();
     }
+  }
+
+  @override
+  Future<bool> dashboardConfirmLeave() async {
+    if (!dashboardHasUnsavedChanges && !dashboardIsBusy) return true;
 
     if (_imageBusy) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_saving ? '儲存中，請稍候再離開' : '圖片處理中，請稍候再離開')),
       );
-      return;
+      return false;
     }
 
     final bool? discard = await showDialog<bool>(
@@ -556,14 +569,14 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
     );
 
     if (discard != true || !mounted) {
-      return;
+      return false;
     }
 
     await _cleanupPendingUploads(reason: 'discard-unsaved');
     if (!mounted) {
-      return;
+      return false;
     }
-    Navigator.of(context).pop();
+    return true;
   }
 
   void _openPreview() {

@@ -8,8 +8,8 @@ import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/services/shop_plan_access.dart';
 import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
-import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_profile_service.dart';
 
 class ShopService {
@@ -328,6 +328,9 @@ class ShopService {
     int? maxAdvanceBookingDays,
     int? defaultPricePerNight,
   }) async {
+    if (bookingEnabled == true) {
+      await ShopPolicyService.instance.requireEffectiveStayPolicy(shopId);
+    }
     final Map<String, dynamic> data = {
       'updatedAt': FieldValue.serverTimestamp(),
     };

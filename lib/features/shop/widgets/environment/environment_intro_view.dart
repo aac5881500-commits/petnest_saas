@@ -2,6 +2,8 @@
 // 功能說明：環境介紹前台 Renderer：預覽與正式頁共用，避免兩套排版。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/environment_presentation.dart';
+import 'environment_service_section.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -31,9 +33,15 @@ class EnvironmentIntroView extends StatelessWidget {
     required this.bottomNote,
     required this.imageBuilder,
     required this.featureIconOf,
+    this.scrollController,
+    this.presentation,
+    this.sectionKeys,
   });
 
+  final EnvironmentPresentation? presentation;
+  final Map<String, GlobalKey>? sectionKeys;
   final EnvironmentIntroStyle style;
+  final ScrollController? scrollController;
   final HomeThemeModel theme;
   final String heroTitle;
   final String heroSubtitle;
@@ -65,9 +73,17 @@ class EnvironmentIntroView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.only(bottom: style.sectionGap + 8),
-      children: <Widget>[
+    final p = presentation ?? EnvironmentPresentation();
+    final modern =
+        p.groupedFacilities ||
+        p.preset.isNotEmpty ||
+        p.equipmentLayout != 'legacy' ||
+        p.serviceLayout != 'legacy' ||
+        p.services.isNotEmpty ||
+        p.hiddenFacilityKeys.isNotEmpty ||
+        p.facilityOrder.isNotEmpty;
+    final sections = <String, List<Widget>>{
+      'hero': [
         if (_showHero)
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
@@ -88,6 +104,8 @@ class EnvironmentIntroView extends StatelessWidget {
               );
             },
           ),
+      ],
+      'features': [
         if (features.isNotEmpty) ...<Widget>[
           SizedBox(height: style.sectionGap),
           EnvironmentSectionTitle(
@@ -99,7 +117,8 @@ class EnvironmentIntroView extends StatelessWidget {
             horizontalPadding: style.pagePadding,
           ),
           SizedBox(height: style.itemGap),
-          ...features.map((Map<String, dynamic> item) {
+          ...features.asMap().entries.map((entry) {
+            final item = entry.value;
             return EnvironmentFeatureCard(
               icon: featureIconOf((item['icon'] ?? '').toString()),
               title: (item['title'] ?? '').toString(),
@@ -108,10 +127,15 @@ class EnvironmentIntroView extends StatelessWidget {
               imageBuilder: imageBuilder,
               theme: theme,
               style: style,
-              reverse: item['layout'] == 'imageLeft',
+              reverse: p.preset == 'warm'
+                  ? entry.key.isOdd
+                  : item['layout'] == 'imageLeft',
+              minimal: p.preset == 'minimal',
             );
           }),
         ],
+      ],
+      'banner': [
         if (_showBanner) ...<Widget>[
           SizedBox(height: style.sectionGap),
           LayoutBuilder(
@@ -132,7 +156,9 @@ class EnvironmentIntroView extends StatelessWidget {
             },
           ),
         ],
-        if (careItems.isNotEmpty) ...<Widget>[
+      ],
+      'care': [
+        if (!modern && careItems.isNotEmpty) ...<Widget>[
           SizedBox(height: style.sectionGap),
           EnvironmentSectionTitle(
             icon: Icons.verified_user_rounded,
@@ -143,39 +169,30 @@ class EnvironmentIntroView extends StatelessWidget {
             horizontalPadding: style.pagePadding,
           ),
           SizedBox(height: style.itemGap),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: style.pagePadding),
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                final int cols = style.careColumns(constraints.maxWidth);
-                final double gap = style.careSpacing;
-                final double itemWidth =
-                    (constraints.maxWidth - gap * (cols - 1)) / cols;
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: careItems.map((Map<String, dynamic> item) {
-                    return SizedBox(
-                      width: itemWidth,
-                      child: EnvironmentCareItem(
-                        icon: item['icon'] as IconData,
-                        title: (item['title'] ?? '').toString(),
-                        subtitle: (item['description'] ?? '').toString(),
-                        theme: theme,
-                        titleSize: style.careTitleSize,
-                        subtitleSize: style.careDescriptionSize,
-                        iconSize: style.careIconSize,
-                        padding: style.carePadding,
-                        avatarRadius: style.careAvatarRadius,
-                        radius: style.cardRadius - 2,
-                      ),
-                    );
-                  }).toList(),
-                );
-              },
-            ),
+          EnvironmentLegacyCareGrid(
+            items: careItems,
+            theme: theme,
+            style: style,
           ),
         ],
+
+        if (modern &&
+            (careItems.any(
+                  (item) => !p.hiddenFacilityKeys.contains(item['key']),
+                ) ||
+                p.services.any((s) => s.visible))) ...[
+          SizedBox(height: style.sectionGap),
+          EnvironmentServiceSection(
+            presentation: p,
+            items: careItems,
+            theme: theme,
+            style: style,
+            iconOf: featureIconOf,
+            imageBuilder: imageBuilder,
+          ),
+        ],
+      ],
+      'note': [
         if (bottomNote.trim().isNotEmpty) ...<Widget>[
           SizedBox(height: style.sectionGap),
           EnvironmentBottomNote(
@@ -186,6 +203,8 @@ class EnvironmentIntroView extends StatelessWidget {
             horizontalMargin: style.pagePadding,
           ),
         ],
+      ],
+      'gallery': [
         if (galleryImages.isNotEmpty) ...<Widget>[
           SizedBox(height: style.sectionGap),
           EnvironmentSectionTitle(
@@ -206,6 +225,35 @@ class EnvironmentIntroView extends StatelessWidget {
           ),
         ],
       ],
+    };
+    final order = switch (p.preset) {
+      'care' => ['hero', 'care', 'features', 'banner', 'gallery', 'note'],
+      'photo' => ['hero', 'gallery', 'features', 'banner', 'care', 'note'],
+      'warm' ||
+      'minimal' => ['hero', 'features', 'banner', 'care', 'gallery', 'note'],
+      _ => ['hero', 'features', 'banner', 'care', 'note', 'gallery'],
+    };
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: SingleChildScrollView(
+          controller: scrollController,
+          padding: EdgeInsets.only(bottom: style.sectionGap + 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final id in order)
+                if (sections[id]!.isNotEmpty)
+                  Column(
+                    key: sectionKeys?[id] ?? ValueKey('environment-$id'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: sections[id]!,
+                  ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

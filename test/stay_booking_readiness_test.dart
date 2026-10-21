@@ -279,6 +279,7 @@ void main() {
           home: Scaffold(
             body: SingleChildScrollView(
               child: ShopOpeningProgress(
+                loadStayPolicy: () async => true,
                 shopId: 's',
                 userId: 'u',
                 readinessStream: readiness,
@@ -312,6 +313,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ShopOpeningProgress(
+              loadStayPolicy: () async => true,
               shopId: shop,
               userId: user,
               shop: const {
@@ -358,6 +360,7 @@ void main() {
             home: Scaffold(
               body: SingleChildScrollView(
                 child: ShopOpeningProgress(
+                  loadStayPolicy: () async => true,
                   key: ValueKey('$width:$user:$shop'),
                   shopId: shop,
                   userId: user,

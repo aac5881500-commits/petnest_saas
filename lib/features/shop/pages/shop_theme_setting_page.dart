@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_theme_setting_page.dart
 // 功能說明：設定首頁版型、主題顏色、卡片與圖示樣式
 // 🎨 店家前台外觀設定頁
@@ -67,7 +68,20 @@ class ShopThemeSettingPage extends StatefulWidget {
 }
 
 class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        ShopDashboardLeaveAware<ShopThemeSettingPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => _hasUnsaved;
+  @override
+  bool get dashboardIsBusy => _isSaving || _isUploadingModernLogo;
+  @override
+  Future<bool> dashboardConfirmLeave() async {
+    if (dashboardIsBusy) return false;
+    if (!_hasUnsaved) return true;
+    return _confirmDashboardDiscard();
+  }
+
   final ImagePicker _imagePicker = ImagePicker();
 
   String _modernLogoUrl = '';
@@ -533,6 +547,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           .doc(widget.shopId)
           .get();
 
+      if (!mounted) return;
       final shopData = snapshot.data();
 
       _shopPhone = (shopData?['phone'] ?? '').toString().trim();
@@ -976,7 +991,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
     final bool pinSaveOnEditor = desktopModern;
     return PopScope(
-      canPop: !_hasUnsaved,
+      canPop: !_hasUnsaved && !dashboardIsBusy,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop || !_hasUnsaved) {
           return;
@@ -1040,6 +1055,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   Future<void> _confirmLeave() async {
+    if (await dashboardConfirmLeave() && mounted) Navigator.of(context).pop();
+  }
+
+  Future<bool> _confirmDashboardDiscard() async {
     final bool? leave = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -1059,9 +1078,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         );
       },
     );
-    if (leave == true && mounted) {
-      Navigator.of(context).pop();
-    }
+    return leave == true && mounted;
   }
 
   FrontendNavShopState get _navShopState {

@@ -2,6 +2,7 @@
 // 功能說明：點數制度、安親發點與折抵設定；發點固定訂單完成後才入點。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import '../../admin/pages/admin_point_center_stats.dart';
 import '../../admin/pages/admin_point_reward_list_page.dart';
 import '../../../core/models/daycare_settings_model.dart';
@@ -24,7 +25,37 @@ class ShopPointSettingPage extends StatefulWidget {
   State<ShopPointSettingPage> createState() => _ShopPointSettingPageState();
 }
 
-class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
+class _ShopPointSettingPageState extends State<ShopPointSettingPage>
+    with ShopDashboardLeaveAware<ShopPointSettingPage> {
+  String? _dashboardSavedDraft;
+  String get _dashboardDraft => [
+    _enabled.toString(),
+    _allowPointsExchange.toString(),
+    _calculationType,
+    _daycareEarnEnabled.toString(),
+    _spendEnabled.toString(),
+    _staySpendEnabled.toString(),
+    _daycareSpendEnabled.toString(),
+    _storeSpendEnabled.toString(),
+    _amountPerPointController.text,
+    _pointsPerNightController.text,
+    _minimumOrderAmountController.text,
+    _maximumPointsController.text,
+    _expireDaysController.text,
+    _pointNameController.text,
+    _descriptionController.text,
+    _daycareAmountPerPointController.text,
+    _daycareMinimumController.text,
+    _daycareMaximumController.text,
+    _pointsPerNtdController.text,
+  ].map((value) => '${value.length}:$value').join();
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      _initialized &&
+      _dashboardSavedDraft != null &&
+      _dashboardSavedDraft != _dashboardDraft;
+  @override
+  bool get dashboardIsBusy => _saving;
   static const double _maxWidth = 1200;
   static const double _desktopWidth = 900;
 
@@ -108,6 +139,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
         .toString();
     _daycareMaximumController.text = setting.daycareMaximumPointsPerBooking
         .toString();
+    _dashboardSavedDraft = _dashboardDraft;
   }
 
   Future<void> _save() async {
@@ -155,6 +187,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
       _showMessage('請輸入點數名稱');
       return;
     }
+    final draftAtSave = _dashboardDraft;
     setState(() => _saving = true);
     try {
       await _service.savePointSetting(
@@ -187,6 +220,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
             int.tryParse(_daycareMaximumController.text.trim()) ?? 0,
       );
       if (mounted) {
+        _dashboardSavedDraft = draftAtSave;
         _showMessage('點數設定已儲存');
       }
     } catch (error) {

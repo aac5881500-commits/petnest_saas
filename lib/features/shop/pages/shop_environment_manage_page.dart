@@ -1,7 +1,14 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_environment_manage_page.dart
 // 功能說明：後台環境介紹管理頁
 
 import 'dart:typed_data';
+import 'dart:convert';
+import 'package:petnest_saas/core/models/environment_presentation.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_services_editor.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_intro_view.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_draft_preview.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +36,36 @@ class ShopEnvironmentManagePage extends StatefulWidget {
       _ShopEnvironmentManagePageState();
 }
 
-class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
+class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
+    with
+        SingleTickerProviderStateMixin,
+        ShopDashboardLeaveAware<ShopEnvironmentManagePage> {
+  late final TabController _settingsTabs;
+  List<String> _savedFacilities = [];
+  EnvironmentPresentation _presentation = EnvironmentPresentation();
+  EnvironmentPresentation _savedPresentation = EnvironmentPresentation();
+  String _savedFeaturesSnapshot = '', _savedGallerySnapshot = '';
+  String _dataSnapshot(Object? value) =>
+      jsonEncode(value, toEncodable: (value) => value.toString());
+  bool _inlinePreviewVisible = false;
+  final _previewKey = GlobalKey<EnvironmentDraftPreviewState>();
+  final Map<String, GlobalKey> _previewSections = {
+    for (final id in ['features', 'care', 'gallery']) id: GlobalKey(),
+  };
+  String _presentationSnapshot(EnvironmentPresentation value) =>
+      jsonEncode(value.toMap(), toEncodable: (value) => value.toString());
+  @override
+  bool get dashboardHasUnsavedChanges => _hasUnsavedImageChanges;
+  @override
+  bool get dashboardIsBusy => _imageBusy;
+  String? _dashboardSavedText;
+  String get _dashboardText => [
+    heroTitleController.text,
+    heroSubtitleController.text,
+    bannerTitleController.text,
+    bottomNoteController.text,
+  ].map((value) => '${value.length}:$value').join();
+
   bool _loading = true;
   bool _pickingImage = false;
   bool _uploadingHeroImage = false;
@@ -99,6 +135,16 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       _pickingImage || _uploadingHeroImage || _uploadingBannerImage || _saving;
 
   bool get _hasUnsavedImageChanges {
+    if (!_loading &&
+        (_dataSnapshot(environmentFeatures) != _savedFeaturesSnapshot ||
+            _dataSnapshot(_galleryPayload()) != _savedGallerySnapshot ||
+            _presentationSnapshot(_presentation) !=
+                _presentationSnapshot(_savedPresentation) ||
+            _dashboardSavedText != _dashboardText ||
+            selectedFacilityKeys.length != _savedFacilities.length ||
+            !selectedFacilityKeys.every(_savedFacilities.contains))) {
+      return true;
+    }
     if (_pendingUploads.isNotEmpty || _retiredOfficialImages.isNotEmpty) {
       return true;
     }
@@ -121,9 +167,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   @override
   void initState() {
     super.initState();
+    _settingsTabs = TabController(length: 5, vsync: this);
     heroTitleController.addListener(_onPreviewTextChanged);
     heroSubtitleController.addListener(_onPreviewTextChanged);
     bannerTitleController.addListener(_onPreviewTextChanged);
+    bottomNoteController.addListener(_onPreviewTextChanged);
     _loadEnvironmentIntro();
   }
 
@@ -140,10 +188,15 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         .doc(widget.shopId)
         .get();
 
+    if (!mounted) return;
     final Map<String, dynamic>? data = doc.data();
     final Map<String, dynamic>? environmentIntro =
         data?['environmentIntro'] as Map<String, dynamic>?;
 
+    _presentation = EnvironmentPresentation.fromMap(
+      environmentIntro?['environmentPresentation'],
+    );
+    _savedPresentation = _presentation;
     if (environmentIntro != null) {
       heroTitleController.text =
           environmentIntro['heroTitle'] ?? heroTitleController.text;
@@ -184,6 +237,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     _savedHeroFrame = _heroFrame;
     _savedBannerFrame = _bannerFrame;
     _savedStyle = _style;
+    _dashboardSavedText = _dashboardText;
+    _savedFacilities = List<String>.from(selectedFacilityKeys);
+    _savedFeaturesSnapshot = _dataSnapshot(environmentFeatures);
+    _savedGallerySnapshot = _dataSnapshot(_galleryPayload());
     _pendingUploads.clear();
     _retiredOfficialImages.clear();
 
@@ -197,9 +254,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
   @override
   void dispose() {
+    _settingsTabs.dispose();
     heroTitleController.removeListener(_onPreviewTextChanged);
     heroSubtitleController.removeListener(_onPreviewTextChanged);
     bannerTitleController.removeListener(_onPreviewTextChanged);
+    bottomNoteController.removeListener(_onPreviewTextChanged);
     heroTitleController.dispose();
     heroSubtitleController.dispose();
     bannerTitleController.dispose();
@@ -297,16 +356,26 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     );
   }
 
+  Future<bool> _deleteTrackedImage(_TrackedEnvImage image) {
+    if (image.slot == 'service') {
+      return ShopService.instance.tryDeleteEnvironmentFeatureImage(
+        shopId: widget.shopId,
+        imageStoragePath: image.path,
+        imageUrl: image.url,
+      );
+    }
+    return ShopService.instance.tryDeleteEnvironmentIntroImage(
+      shopId: widget.shopId,
+      imageStoragePath: image.path,
+      imageUrl: image.url,
+    );
+  }
+
   Future<void> _cleanupTracked(
     _TrackedEnvImage image, {
     required String reason,
   }) async {
-    final bool cleaned = await ShopService.instance
-        .tryDeleteEnvironmentIntroImage(
-          shopId: widget.shopId,
-          imageStoragePath: image.path,
-          imageUrl: image.url,
-        );
+    final bool cleaned = await _deleteTrackedImage(image);
     if (!cleaned) {
       debugPrint(
         'Environment intro image leftover after $reason: '
@@ -321,6 +390,15 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     );
     _pendingUploads.clear();
     for (final _TrackedEnvImage image in pending) {
+      if (image.path == _savedHeroImagePath ||
+          image.path == _savedBannerImagePath ||
+          _savedPresentation.services.any(
+            (service) =>
+                (image.path.isNotEmpty && service.imagePath == image.path) ||
+                (image.url.isNotEmpty && service.imageUrl == image.url),
+          )) {
+        continue;
+      }
       await _cleanupTracked(image, reason: reason);
     }
   }
@@ -592,7 +670,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       });
 
       try {
-        await _persistAuxiliarySections();
+        await _persistAuxiliarySections(section: 'galleryImages');
       } catch (_) {
         environmentGalleryImages.removeLast();
         await ShopService.instance.tryDeleteEnvironmentGalleryImage(
@@ -664,7 +742,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     });
 
     try {
-      await _persistAuxiliarySections();
+      await _persistAuxiliarySections(section: 'galleryImages');
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -750,7 +828,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                     'description': descriptionController.text.trim(),
                   };
                 });
-                _persistAuxiliarySections();
+                _persistAuxiliarySections(
+                  section: 'features',
+                  propagateError: false,
+                );
                 Navigator.pop(context);
               },
               child: const Text('儲存'),
@@ -780,7 +861,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                 'icon': selectedKey,
               };
             });
-            _persistAuxiliarySections();
+            _persistAuxiliarySections(
+              section: 'features',
+              propagateError: false,
+            );
           },
         );
       },
@@ -863,7 +947,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       });
 
       try {
-        await _persistAuxiliarySections();
+        await _persistAuxiliarySections(section: 'features');
       } catch (_) {
         if (mounted) {
           setState(() {
@@ -962,7 +1046,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     });
 
     try {
-      await _persistAuxiliarySections();
+      await _persistAuxiliarySections(section: 'features');
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1120,7 +1204,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     });
 
     try {
-      await _persistAuxiliarySections();
+      await _persistAuxiliarySections(section: 'features');
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1184,21 +1268,45 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       };
     });
 
-    await _persistAuxiliarySections();
+    await _persistAuxiliarySections(section: 'features');
   }
 
-  Future<void> _persistAuxiliarySections() async {
-    await FirebaseFirestore.instance.collection('shops').doc(widget.shopId).set(
-      {
-        'environmentIntro': {
-          'galleryImages': _galleryPayload(),
-          'features': environmentFeatures,
-          'facilityKeys': selectedFacilityKeys,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      },
-      SetOptions(merge: true),
-    );
+  Future<void> _persistAuxiliarySections({
+    required String section,
+    bool propagateError = true,
+  }) async {
+    assert(section == 'features' || section == 'galleryImages');
+    final payload = section == 'features'
+        ? environmentFeatures
+              .map((item) => Map<String, dynamic>.of(item))
+              .toList()
+        : _galleryPayload();
+    final snapshot = _dataSnapshot(payload);
+    try {
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .update({
+            'environmentIntro.$section': payload,
+            'environmentIntro.updatedAt': FieldValue.serverTimestamp(),
+          });
+      if (mounted) {
+        setState(() {
+          if (section == 'features') {
+            _savedFeaturesSnapshot = snapshot;
+          } else {
+            _savedGallerySnapshot = snapshot;
+          }
+        });
+      }
+    } catch (_) {
+      if (propagateError) rethrow;
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('局部儲存失敗，草稿已保留，請使用上方儲存重試')));
+      }
+    }
   }
 
   Map<String, dynamic> _environmentIntroPayload() {
@@ -1217,6 +1325,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       'galleryImages': _galleryPayload(),
       'features': environmentFeatures,
       'facilityKeys': selectedFacilityKeys,
+      'environmentPresentation': _presentation.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -1228,6 +1337,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
     setState(() {
       _saving = true;
+      _busyMessage = '正在儲存環境介紹…';
     });
 
     try {
@@ -1241,25 +1351,29 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       final Set<String> usedPaths = <String>{
         if (_heroImagePath.isNotEmpty) _heroImagePath,
         if (_bannerImagePath.isNotEmpty) _bannerImagePath,
+        ..._presentation.services.map((s) => s.imagePath),
+        ...environmentFeatures.map(_mapImagePath),
+        ...environmentGalleryImages.map(_mapImagePath),
       };
       final Set<String> usedUrls = <String>{
         if (_heroImageUrl.isNotEmpty) _heroImageUrl,
         if (_bannerImageUrl.isNotEmpty) _bannerImageUrl,
+        ..._presentation.services.map((s) => s.imageUrl),
+        ...environmentFeatures.map(_mapImageUrl),
+        ...environmentGalleryImages.map(_mapImageUrl),
       };
 
       bool cleanupFailed = false;
-      for (final _TrackedEnvImage retired in _retiredOfficialImages) {
+      for (final _TrackedEnvImage retired in [
+        ..._retiredOfficialImages,
+        ..._pendingUploads,
+      ]) {
         if ((retired.path.isNotEmpty && usedPaths.contains(retired.path)) ||
             (retired.url.isNotEmpty && usedUrls.contains(retired.url))) {
           continue;
         }
 
-        final bool cleaned = await ShopService.instance
-            .tryDeleteEnvironmentIntroImage(
-              shopId: widget.shopId,
-              imageStoragePath: retired.path,
-              imageUrl: retired.url,
-            );
+        final bool cleaned = await _deleteTrackedImage(retired);
         if (!cleaned) {
           cleanupFailed = true;
         }
@@ -1277,6 +1391,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         _savedHeroFrame = _heroFrame;
         _savedBannerFrame = _bannerFrame;
         _savedStyle = _style;
+        _savedPresentation = _presentation;
+        _savedFeaturesSnapshot = _dataSnapshot(environmentFeatures);
+        _savedGallerySnapshot = _dataSnapshot(_galleryPayload());
+        _dashboardSavedText = _dashboardText;
+        _savedFacilities = List<String>.from(selectedFacilityKeys);
         _pendingUploads.clear();
         _retiredOfficialImages.clear();
       });
@@ -1297,21 +1416,27 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       if (mounted) {
         setState(() {
           _saving = false;
+          _busyMessage = null;
         });
       }
     }
   }
 
   Future<void> _onPopAttempt({required bool didPop}) async {
-    if (didPop) {
-      return;
+    if (!didPop && await dashboardConfirmLeave() && mounted) {
+      Navigator.of(context).pop();
     }
+  }
+
+  @override
+  Future<bool> dashboardConfirmLeave() async {
+    if (!dashboardHasUnsavedChanges && !dashboardIsBusy) return true;
 
     if (_imageBusy) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_saving ? '儲存中，請稍候再離開' : '圖片處理中，請稍候再離開')),
       );
-      return;
+      return false;
     }
 
     final bool? discard = await showDialog<bool>(
@@ -1335,14 +1460,14 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     );
 
     if (discard != true || !mounted) {
-      return;
+      return false;
     }
 
     await _cleanupPendingUploads(reason: 'discard-unsaved');
     if (!mounted) {
-      return;
+      return false;
     }
-    Navigator.of(context).pop();
+    return true;
   }
 
   void _openPreview() {
@@ -1360,6 +1485,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
           heroFrame: _heroFrame,
           bannerFrame: _bannerFrame,
           style: _style,
+          presentation: _presentation,
           features: environmentFeatures,
           galleryImages: environmentGalleryImages
               .map(_mapImageUrl)
@@ -1405,6 +1531,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = MediaQuery.sizeOf(context).width >= 1100;
     return PopScope(
       canPop: !_imageBusy && !_hasUnsavedImageChanges,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -1418,288 +1545,46 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
               backgroundColor: const Color(0xFFFFFCF7),
               appBar: AppBar(
                 title: const Text('環境介紹管理'),
+                bottom: desktop && !_loading
+                    ? PreferredSize(
+                        preferredSize: const Size.fromHeight(36),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            _hasUnsavedImageChanges ? '有未儲存變更' : '已儲存',
+                          ),
+                        ),
+                      )
+                    : null,
                 backgroundColor: const Color(0xFFFFFCF7),
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 actions: [
                   TextButton(
-                    onPressed: _imageBusy ? null : _openPreview,
-                    child: const Text('預覽'),
+                    onPressed: _imageBusy
+                        ? null
+                        : (desktop ? _openDraftPreview : _openPreview),
+                    child: Text(desktop ? '放大預覽' : '預覽'),
                   ),
-                  TextButton(
-                    onPressed: _imageBusy ? null : _save,
-                    child: Text(_saving ? '儲存中' : '儲存'),
-                  ),
+                  if (desktop)
+                    FilledButton(
+                      onPressed: _imageBusy || _loading ? null : _save,
+                      child: Text(_saving ? '儲存中' : '儲存'),
+                    )
+                  else
+                    TextButton(
+                      onPressed: _imageBusy ? null : _save,
+                      child: Text(_saving ? '儲存中' : '儲存'),
+                    ),
                 ],
               ),
               body: _loading
                   ? const Center(child: CircularProgressIndicator())
+                  : desktop
+                  ? _buildDesktopWorkspace()
                   : ListView(
                       padding: const EdgeInsets.all(16),
-                      children: [
-                        _buildTipCard(),
-                        _groupLabel('整體顯示設定'),
-                        _buildSectionCard(
-                          title: '整體顯示尺寸',
-                          subtitle: '調整卡片間距、圖片區塊與設備卡大小',
-                          children: [
-                            _buildChoiceChips(
-                              value: _style.displaySize,
-                              options: const <Map<String, String>>[
-                                {
-                                  'value': EnvironmentIntroStyle.sizeCompact,
-                                  'label': '小',
-                                },
-                                {
-                                  'value': EnvironmentIntroStyle.sizeStandard,
-                                  'label': '標準',
-                                },
-                                {
-                                  'value': EnvironmentIntroStyle.sizeLarge,
-                                  'label': '大',
-                                },
-                              ],
-                              onSelected: (String value) {
-                                setState(() {
-                                  _style = _style.copyWith(displaySize: value);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '整體字體大小',
-                          subtitle: '一次調整標題、卡片與提醒文字',
-                          children: [
-                            _buildChoiceChips(
-                              value: _style.fontSize,
-                              options: const <Map<String, String>>[
-                                {
-                                  'value': EnvironmentIntroStyle.fontSmall,
-                                  'label': '小',
-                                },
-                                {
-                                  'value': EnvironmentIntroStyle.fontStandard,
-                                  'label': '標準',
-                                },
-                                {
-                                  'value': EnvironmentIntroStyle.fontLarge,
-                                  'label': '大',
-                                },
-                              ],
-                              onSelected: (String value) {
-                                setState(() {
-                                  _style = _style.copyWith(fontSize: value);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '環境特色卡片版型',
-                          subtitle: '所有特色卡使用同一種版型',
-                          children: [
-                            _buildChoiceChips(
-                              value: _style.cardLayout,
-                              options: const <Map<String, String>>[
-                                {
-                                  'value':
-                                      EnvironmentIntroStyle.layoutHorizontal,
-                                  'label': '橫向圖卡',
-                                },
-                                {
-                                  'value': EnvironmentIntroStyle.layoutVertical,
-                                  'label': '上圖下文',
-                                },
-                                {
-                                  'value': EnvironmentIntroStyle.layoutText,
-                                  'label': '重點文字卡',
-                                },
-                              ],
-                              onSelected: (String value) {
-                                setState(() {
-                                  _style = _style.copyWith(cardLayout: value);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '環境特色卡片高度',
-                          subtitle: '調整內距與圖片大小，文字多時卡片仍會長高',
-                          children: [
-                            _buildChoiceChips(
-                              value: _style.cardDensity,
-                              options: const <Map<String, String>>[
-                                {
-                                  'value': EnvironmentIntroStyle.densityCompact,
-                                  'label': '精簡',
-                                },
-                                {
-                                  'value':
-                                      EnvironmentIntroStyle.densityStandard,
-                                  'label': '標準',
-                                },
-                                {
-                                  'value':
-                                      EnvironmentIntroStyle.densityComfortable,
-                                  'label': '寬鬆',
-                                },
-                              ],
-                              onSelected: (String value) {
-                                setState(() {
-                                  _style = _style.copyWith(cardDensity: value);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        _groupLabel('首頁主視覺'),
-                        _buildSectionCard(
-                          title: '首頁大圖文案',
-                          subtitle: '顯示在環境介紹頁最上方',
-                          children: [
-                            _buildTextField(
-                              controller: heroTitleController,
-                              label: '主標題',
-                              maxLines: 2,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTextField(
-                              controller: heroSubtitleController,
-                              label: '副標題',
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '首頁大圖',
-                          subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
-                          children: [
-                            EnvironmentImageUploadBox(
-                              title: '首頁大圖',
-                              imageUrl: _heroImageUrl,
-                              frame: _heroFrame,
-                              uploading: _uploadingHeroImage,
-                              busy: _imageBusy,
-                              overlayTitle: heroTitleController.text,
-                              overlaySubtitle: heroSubtitleController.text,
-                              hint: FixedImageSpec.environmentHero.hintText,
-                              onUpload: () => _pickAndUploadImage(type: 'hero'),
-                              onDelete: () => _removeSlotImage(type: 'hero'),
-                              onFrameChanged:
-                                  (EnvironmentImageFrameSetting value) {
-                                    setState(() {
-                                      _heroFrame = value;
-                                    });
-                                  },
-                            ),
-                          ],
-                        ),
-                        _groupLabel('環境內容'),
-                        _buildSectionCard(
-                          title: '環境特色卡片',
-                          subtitle: '顯示在前台「我們的環境特色」區塊',
-                          children: [
-                            EnvironmentFeatureManager(
-                              features: environmentFeatures,
-                              busy: _imageBusy,
-                              onAdd: () {
-                                setState(() {
-                                  environmentFeatures.add({
-                                    'icon': 'home',
-                                    'title': '新的環境特色',
-                                    'description': '請輸入環境特色說明',
-                                    'imageUrl': '',
-                                    'imageStoragePath': '',
-                                    'layout': 'imageRight',
-                                  });
-                                });
-                                _persistAuxiliarySections();
-                              },
-                              onEdit: _editFeature,
-                              onManageImage: _openFeatureImageManager,
-                              onChangeIcon: _changeFeatureIcon,
-                              onChangeLayout: _changeFeatureLayout,
-                              onDelete: _deleteFeatureAt,
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '安心照護設備',
-                          subtitle: '勾選後會顯示在前台設備區塊',
-                          children: [_buildFacilitySelector()],
-                        ),
-                        _groupLabel('其他內容'),
-                        _buildSectionCard(
-                          title: '中間橫幅文案',
-                          subtitle: '顯示在環境介紹中段的大圖上',
-                          children: [
-                            _buildTextField(
-                              controller: bannerTitleController,
-                              label: '橫幅文字',
-                              maxLines: 2,
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '中間橫幅圖片',
-                          subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
-                          children: [
-                            EnvironmentImageUploadBox(
-                              title: '中間橫幅圖',
-                              imageUrl: _bannerImageUrl,
-                              frame: _bannerFrame,
-                              uploading: _uploadingBannerImage,
-                              busy: _imageBusy,
-                              overlayTitle: bannerTitleController.text,
-                              hint: FixedImageSpec.environmentBanner.hintText,
-                              onUpload: () =>
-                                  _pickAndUploadImage(type: 'banner'),
-                              onDelete: () => _removeSlotImage(type: 'banner'),
-                              onFrameChanged:
-                                  (EnvironmentImageFrameSetting value) {
-                                    setState(() {
-                                      _bannerFrame = value;
-                                    });
-                                  },
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '底部提醒文字',
-                          subtitle: '顯示在環境照片牆上方',
-                          children: [
-                            _buildTextField(
-                              controller: bottomNoteController,
-                              label: '提醒文字',
-                              maxLines: 3,
-                            ),
-                          ],
-                        ),
-                        _buildSectionCard(
-                          title: '環境照片牆',
-                          subtitle: '顯示在環境介紹主要內容最下方，最多 12 張',
-                          children: [
-                            EnvironmentGalleryManager(
-                              images: environmentGalleryImages
-                                  .map(_mapImageUrl)
-                                  .toList(),
-                              busy: _imageBusy,
-                              onDelete: _deleteGalleryImage,
-                              onUpload: _pickAndUploadGalleryImage,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            onPressed: _imageBusy ? null : _save,
-                            icon: const Icon(Icons.save_rounded),
-                            label: Text(_saving ? '儲存中' : '儲存環境介紹'),
-                          ),
-                        ),
-                      ],
+                      children: _buildManagementChildren(),
                     ),
             ),
             _buildBusyOverlay(),
@@ -1708,6 +1593,442 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       ),
     );
   }
+
+  Widget _draftContent(
+    ScrollController controller, {
+    Map<String, GlobalKey>? sectionKeys,
+  }) {
+    return ColoredBox(
+      color: HomeThemeModel.classicDefault.backgroundColor,
+      child: EnvironmentIntroView(
+        scrollController: controller,
+        style: _style,
+        presentation: _presentation,
+        sectionKeys: sectionKeys ?? _previewSections,
+        theme: HomeThemeModel.classicDefault,
+        heroTitle: heroTitleController.text,
+        heroSubtitle: heroSubtitleController.text,
+        heroImageUrl: _heroImageUrl,
+        heroFrame: _heroFrame,
+        bannerTitle: bannerTitleController.text,
+        bannerImageUrl: _bannerImageUrl,
+        bannerFrame: _bannerFrame,
+        features: environmentFeatures,
+        galleryImages: environmentGalleryImages.map(_mapImageUrl).toList(),
+        careItems: environmentFacilityOptions
+            .where((item) => selectedFacilityKeys.contains(item['key']))
+            .toList(),
+        bottomNote: bottomNoteController.text,
+        imageBuilder: environmentIntroNetworkImage,
+        featureIconOf: environmentIntroIcon,
+      ),
+    );
+  }
+
+  Future<void> _openDraftPreview({String? locate}) async {
+    final previewKey = GlobalKey<EnvironmentDraftPreviewState>();
+    final sectionKeys = {
+      for (final id in ['features', 'care', 'gallery']) id: GlobalKey(),
+    };
+    if (locate != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        previewKey.currentState?.reveal(sectionKeys[locate]!);
+      });
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(20),
+        child: SizedBox(
+          width: 1400,
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  tooltip: '關閉預覽',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+              Expanded(
+                child: EnvironmentDraftPreview(
+                  key: previewKey,
+                  contentBuilder: (controller) =>
+                      _draftContent(controller, sectionKeys: sectionKeys),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopWorkspace() {
+    final sections = _buildManagementChildren()
+        .whereType<_EnvironmentSettingSection>()
+        .toList();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final split = constraints.maxWidth >= 1100;
+        _inlinePreviewVisible = split;
+        final contentWidth = constraints.maxWidth.clamp(0.0, 1680.0);
+        final previewWidth = (contentWidth - 68).clamp(600.0, 1680.0) * .4;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: contentWidth,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Keep the preview mounted when chat temporarily reduces available width.
+                  SizedBox(
+                    width: split ? previewWidth : 0,
+                    child: Offstage(
+                      offstage: !split,
+                      child: OverflowBox(
+                        alignment: Alignment.topLeft,
+                        minWidth: previewWidth,
+                        maxWidth: previewWidth,
+                        child: EnvironmentDraftPreview(
+                          key: _previewKey,
+                          contentBuilder: _draftContent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: split ? 20 : 0),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        if (!split)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: _imageBusy ? null : _openDraftPreview,
+                              icon: const Icon(Icons.preview_outlined),
+                              label: const Text('查看即時預覽'),
+                            ),
+                          ),
+                        TabBar(
+                          controller: _settingsTabs,
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          tabs: const [
+                            Tab(text: '版型與樣式'),
+                            Tab(text: '封面與文案'),
+                            Tab(text: '環境特色'),
+                            Tab(text: '設備與服務'),
+                            Tab(text: '相簿與提醒'),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: TabBarView(
+                            controller: _settingsTabs,
+                            children: List.generate(
+                              5,
+                              (index) => ListView(
+                                key: PageStorageKey(
+                                  'environment-settings-$index',
+                                ),
+                                padding: EdgeInsets.zero,
+                                children: [
+                                  if (index == 1) _buildTipCard(),
+                                  if (index == 2 || index == 4)
+                                    const Padding(
+                                      padding: EdgeInsets.only(bottom: 12),
+                                      child: Text(
+                                        '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。',
+                                      ),
+                                    ),
+                                  if (index == 0) ...[
+                                    sections.firstWhere(
+                                      (section) => section.tab == 0,
+                                    ),
+                                    _groupLabel('進階調整'),
+                                    ...sections
+                                        .where((section) => section.tab == 0)
+                                        .skip(1),
+                                  ] else
+                                    ...sections.where(
+                                      (section) => section.tab == index,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildManagementChildren() => [
+    _buildTipCard(),
+    _buildTemplateSelector(),
+    _groupLabel('進階調整'),
+    _buildSectionCard(
+      settingsTab: 0,
+      title: '整體顯示尺寸',
+      subtitle: '調整卡片間距、圖片區塊與設備卡大小',
+      children: [
+        _buildChoiceChips(
+          value: _style.displaySize,
+          options: const <Map<String, String>>[
+            {'value': EnvironmentIntroStyle.sizeCompact, 'label': '小'},
+            {'value': EnvironmentIntroStyle.sizeStandard, 'label': '標準'},
+            {'value': EnvironmentIntroStyle.sizeLarge, 'label': '大'},
+          ],
+          onSelected: (String value) {
+            setState(() {
+              _presentation = _presentation.copyWith({'customized': true});
+              _style = _style.copyWith(displaySize: value);
+            });
+          },
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 0,
+      title: '整體字體大小',
+      subtitle: '一次調整標題、卡片與提醒文字',
+      children: [
+        _buildChoiceChips(
+          value: _style.fontSize,
+          options: const <Map<String, String>>[
+            {'value': EnvironmentIntroStyle.fontSmall, 'label': '小'},
+            {'value': EnvironmentIntroStyle.fontStandard, 'label': '標準'},
+            {'value': EnvironmentIntroStyle.fontLarge, 'label': '大'},
+          ],
+          onSelected: (String value) {
+            setState(() {
+              _presentation = _presentation.copyWith({'customized': true});
+              _style = _style.copyWith(fontSize: value);
+            });
+          },
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 0,
+      title: '環境特色卡片版型',
+      subtitle: '所有特色卡使用同一種版型',
+      children: [
+        _buildChoiceChips(
+          value: _style.cardLayout,
+          options: const <Map<String, String>>[
+            {'value': EnvironmentIntroStyle.layoutHorizontal, 'label': '橫向圖卡'},
+            {'value': EnvironmentIntroStyle.layoutVertical, 'label': '上圖下文'},
+            {'value': EnvironmentIntroStyle.layoutText, 'label': '重點文字卡'},
+          ],
+          onSelected: (String value) {
+            setState(() {
+              _presentation = _presentation.copyWith({'customized': true});
+              _style = _style.copyWith(cardLayout: value);
+            });
+          },
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 0,
+      title: '環境特色卡片高度',
+      subtitle: '調整內距與圖片大小，文字多時卡片仍會長高',
+      children: [
+        _buildChoiceChips(
+          value: _style.cardDensity,
+          options: const <Map<String, String>>[
+            {'value': EnvironmentIntroStyle.densityCompact, 'label': '精簡'},
+            {'value': EnvironmentIntroStyle.densityStandard, 'label': '標準'},
+            {'value': EnvironmentIntroStyle.densityComfortable, 'label': '寬鬆'},
+          ],
+          onSelected: (String value) {
+            setState(() {
+              _presentation = _presentation.copyWith({'customized': true});
+              _style = _style.copyWith(cardDensity: value);
+            });
+          },
+        ),
+      ],
+    ),
+    _groupLabel('首頁主視覺'),
+    _buildSectionCard(
+      settingsTab: 1,
+      title: '首頁大圖文案',
+      subtitle: '顯示在環境介紹頁最上方',
+      children: [
+        _buildTextField(
+          controller: heroTitleController,
+          label: '主標題',
+          maxLines: 2,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(controller: heroSubtitleController, label: '副標題'),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 1,
+      title: '首頁大圖',
+      subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
+      children: [
+        EnvironmentImageUploadBox(
+          title: '首頁大圖',
+          imageUrl: _heroImageUrl,
+          frame: _heroFrame,
+          uploading: _uploadingHeroImage,
+          busy: _imageBusy,
+          overlayTitle: heroTitleController.text,
+          overlaySubtitle: heroSubtitleController.text,
+          hint: FixedImageSpec.environmentHero.hintText,
+          onUpload: () => _pickAndUploadImage(type: 'hero'),
+          onDelete: () => _removeSlotImage(type: 'hero'),
+          onFrameChanged: (EnvironmentImageFrameSetting value) {
+            setState(() {
+              _heroFrame = value;
+            });
+          },
+        ),
+      ],
+    ),
+    _groupLabel('環境內容'),
+    _buildSectionCard(
+      settingsTab: 2,
+      title: '環境特色卡片',
+      subtitle: '顯示在前台「我們的環境特色」區塊',
+      children: [
+        _locateButton('features'),
+        EnvironmentFeatureManager(
+          features: environmentFeatures,
+          busy: _imageBusy,
+          onAdd: () {
+            setState(() {
+              environmentFeatures.add({
+                'icon': 'home',
+                'title': '新的環境特色',
+                'description': '請輸入環境特色說明',
+                'imageUrl': '',
+                'imageStoragePath': '',
+                'layout': 'imageRight',
+              });
+            });
+            _persistAuxiliarySections(
+              section: 'features',
+              propagateError: false,
+            );
+          },
+          onEdit: _editFeature,
+          onManageImage: _openFeatureImageManager,
+          onChangeIcon: _changeFeatureIcon,
+          onChangeLayout: _changeFeatureLayout,
+          onDelete: _deleteFeatureAt,
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 3,
+      title: '安心設備與貼心服務',
+      subtitle: '勾選後會顯示在前台設備區塊',
+      children: [
+        _locateButton('care'),
+        EnvironmentServicesEditor(
+          selectedKeys: selectedFacilityKeys,
+          presentation: _presentation,
+          busy: _imageBusy,
+          iconOf: environmentIntroIcon,
+          onSelected: (keys) => setState(() {
+            selectedFacilityKeys = keys;
+            _presentation = _presentation.copyWith({'groupFacilities': true});
+          }),
+          onChanged: _setPresentation,
+          onUpload: _uploadServiceImage,
+          onRemoveImage: _removeServiceImage,
+          onDelete: _deleteService,
+        ),
+      ],
+    ),
+    _groupLabel('其他內容'),
+    _buildSectionCard(
+      settingsTab: 1,
+      title: '中間橫幅文案',
+      subtitle: '顯示在環境介紹中段的大圖上',
+      children: [
+        _buildTextField(
+          controller: bannerTitleController,
+          label: '橫幅文字',
+          maxLines: 2,
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 1,
+      title: '中間橫幅圖片',
+      subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
+      children: [
+        EnvironmentImageUploadBox(
+          title: '中間橫幅圖',
+          imageUrl: _bannerImageUrl,
+          frame: _bannerFrame,
+          uploading: _uploadingBannerImage,
+          busy: _imageBusy,
+          overlayTitle: bannerTitleController.text,
+          hint: FixedImageSpec.environmentBanner.hintText,
+          onUpload: () => _pickAndUploadImage(type: 'banner'),
+          onDelete: () => _removeSlotImage(type: 'banner'),
+          onFrameChanged: (EnvironmentImageFrameSetting value) {
+            setState(() {
+              _bannerFrame = value;
+            });
+          },
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 4,
+      title: '底部提醒文字',
+      subtitle: '顯示在環境照片牆上方',
+      children: [
+        _buildTextField(
+          controller: bottomNoteController,
+          label: '提醒文字',
+          maxLines: 3,
+        ),
+      ],
+    ),
+    _buildSectionCard(
+      settingsTab: 4,
+      title: '環境照片牆',
+      subtitle: '顯示在環境介紹主要內容最下方，最多 12 張',
+      children: [
+        _locateButton('gallery'),
+        EnvironmentGalleryManager(
+          images: environmentGalleryImages.map(_mapImageUrl).toList(),
+          busy: _imageBusy,
+          onDelete: _deleteGalleryImage,
+          onUpload: _pickAndUploadGalleryImage,
+        ),
+      ],
+    ),
+    const SizedBox(height: 12),
+    SizedBox(
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: _imageBusy ? null : _save,
+        icon: const Icon(Icons.save_rounded),
+        label: Text(_saving ? '儲存中' : '儲存環境介紹'),
+      ),
+    ),
+  ];
 
   Widget _groupLabel(String text) {
     return Padding(
@@ -1753,7 +2074,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         border: Border.all(color: const Color(0xFFFFD7A8)),
       ),
       child: const Text(
-        '首頁大圖與中間橫幅圖會先上傳暫存，按「儲存環境介紹」後才會成為正式圖片。整體顯示尺寸、字體與特色卡版型也需按儲存後才會更新前台。更換後，舊圖會在儲存成功後才清除。',
+        '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。大圖、橫幅與自訂服務照片會先上傳暫存，儲存成功後才發布並清理不再使用的舊圖。',
         style: TextStyle(
           height: 1.5,
           color: Color(0xFF6F5A43),
@@ -1764,75 +2085,257 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   }
 
   Widget _buildSectionCard({
+    required int settingsTab,
     required String title,
     required String subtitle,
     required List<Widget> children,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0E0CC)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF3A2A1A),
+    return _EnvironmentSettingSection(
+      tab: settingsTab,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFF0E0CC)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF3A2A1A),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF8A6A45)),
-          ),
-          const SizedBox(height: 14),
-          ...children,
-        ],
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF8A6A45)),
+            ),
+            const SizedBox(height: 14),
+            ...children,
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFacilitySelector() {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: environmentFacilityOptions.map((Map<String, dynamic> item) {
-        final String key = item['key'] as String;
-        final bool selected = selectedFacilityKeys.contains(key);
+  void _setPresentation(EnvironmentPresentation value) {
+    setState(() => _presentation = value.copyWith({'customized': true}));
+  }
 
-        return FilterChip(
-          label: Text(item['title']),
-          selected: selected,
-          avatar: Icon(
-            item['icon'] as IconData,
-            size: 18,
-            color: selected ? Colors.white : const Color(0xFFB87535),
-          ),
-          selectedColor: const Color(0xFFB87535),
-          checkmarkColor: Colors.white,
-          labelStyle: TextStyle(
-            color: selected ? Colors.white : const Color(0xFF3A2A1A),
-            fontWeight: FontWeight.w700,
-          ),
-          onSelected: (bool value) {
-            setState(() {
-              if (value) {
-                selectedFacilityKeys.add(key);
-              } else {
-                selectedFacilityKeys.remove(key);
-              }
-            });
-          },
-        );
-      }).toList(),
+  Widget _locateButton(String section) => Align(
+    alignment: Alignment.centerRight,
+    child: TextButton.icon(
+      onPressed: () => _locatePreview(section),
+      icon: const Icon(Icons.my_location, size: 18),
+      label: const Text('定位預覽'),
+    ),
+  );
+
+  Future<void> _locatePreview(String section) async {
+    final shown = switch (section) {
+      'features' => environmentFeatures.isNotEmpty,
+      'gallery' => environmentGalleryImages.isNotEmpty,
+      _ =>
+        environmentFacilityOptions.any(
+              (item) =>
+                  selectedFacilityKeys.contains(item['key']) &&
+                  !_presentation.hiddenFacilityKeys.contains(item['key']),
+            ) ||
+            _presentation.services.any((s) => s.visible),
+    };
+    if (!shown) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此區塊目前沒有顯示內容')));
+      return;
+    }
+    if (!_inlinePreviewVisible || _previewKey.currentState == null) {
+      await _openDraftPreview(locate: section);
+      return;
+    }
+    await _previewKey.currentState!.reveal(_previewSections[section]!);
+  }
+
+  Widget _buildTemplateSelector() => _buildSectionCard(
+    settingsTab: 0,
+    title: '整頁快速範本',
+    subtitle: _presentation.preset.isEmpty
+        ? '目前沿用原有版面；選擇範本不會變更文案或照片。'
+        : '${EnvironmentPresentation.presets[_presentation.preset]}${_presentation.customized ? '・已自訂' : ''}（儲存後生效）',
+    children: [
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (final preset in EnvironmentPresentation.presets.entries)
+            SizedBox(
+              width: 150,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(10),
+                  side: BorderSide(
+                    color: _presentation.preset == preset.key
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                onPressed: _imageBusy
+                    ? null
+                    : () => setState(() {
+                        _presentation = _presentation.applyPreset(preset.key);
+                        _style = _style.copyWith(
+                          displaySize: preset.key == 'minimal'
+                              ? 'compact'
+                              : 'standard',
+                          cardLayout: preset.key == 'photo'
+                              ? 'vertical'
+                              : 'horizontal',
+                          cardDensity: preset.key == 'minimal'
+                              ? 'compact'
+                              : 'comfortable',
+                        );
+                      }),
+                child: Column(
+                  children: [
+                    EnvironmentTemplateThumbnail(preset: preset.key),
+                    const SizedBox(height: 6),
+                    Text(preset.value),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
+
+  void _retireServicePhoto(EnvironmentServiceCard service) {
+    if (service.imageUrl.isEmpty && service.imagePath.isEmpty) return;
+    _trackRetiredOfficial(
+      slot: 'service',
+      path: service.imagePath,
+      url: service.imageUrl,
     );
+  }
+
+  void _removeServiceImage(String id) {
+    if (_imageBusy) return;
+    final services = _presentation.services;
+    final index = services.indexWhere((s) => s.id == id);
+    if (index < 0) return;
+    _retireServicePhoto(services[index]);
+    services[index] = services[index].copyWith({
+      'imageUrl': '',
+      'imageStoragePath': '',
+    });
+    _setPresentation(
+      _presentation.copyWith({
+        'customServices': services.map((s) => s.toMap()).toList(),
+      }),
+    );
+  }
+
+  Future<void> _deleteService(String id) async {
+    if (_imageBusy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('刪除自訂服務？'),
+        content: const Text('按儲存後才會從正式內容移除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final services = _presentation.services;
+    final index = services.indexWhere((s) => s.id == id);
+    if (index < 0) return;
+    _retireServicePhoto(services.removeAt(index));
+    _setPresentation(
+      _presentation.copyWith({
+        'customServices': services.map((s) => s.toMap()).toList(),
+      }),
+    );
+  }
+
+  Future<void> _uploadServiceImage(String id) async {
+    if (_imageBusy) return;
+    setState(() {
+      _pickingImage = true;
+      _busyMessage = '選擇服務照片…';
+    });
+    try {
+      final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (image == null || !mounted) return;
+      final bytes = await image.readAsBytes();
+      if (!mounted) return;
+      if (bytes.isEmpty || bytes.length > _maxImageBytes) {
+        _showImageError('單張圖片須為有效圖片，且不超過 5 MB');
+        return;
+      }
+      final cropped = await FixedAspectImageCropPage.open(
+        context: context,
+        imageBytes: bytes,
+        spec: FixedImageSpec.environmentFeature,
+        title: '裁切服務照片',
+      );
+      if (cropped == null || !mounted) return;
+      if (cropped.isEmpty || cropped.length > _maxImageBytes) {
+        _showImageError('處理後的圖片不可超過 5 MB');
+        return;
+      }
+      setState(() => _busyMessage = '正在上傳服務照片…');
+      final uploaded = await ShopService.instance.uploadEnvironmentFeatureImage(
+        shopId: widget.shopId,
+        bytes: cropped,
+      );
+      final tracked = _TrackedEnvImage(
+        slot: 'service',
+        path: uploaded.imageStoragePath,
+        url: uploaded.imageUrl,
+      );
+      if (!mounted) {
+        await _cleanupTracked(tracked, reason: 'closed-service-upload');
+        return;
+      }
+      _pendingUploads.add(tracked);
+      final services = _presentation.services;
+      final index = services.indexWhere((s) => s.id == id);
+      if (index < 0) return;
+      _retireServicePhoto(services[index]);
+      services[index] = services[index].copyWith({
+        'imageUrl': uploaded.imageUrl,
+        'imageStoragePath': uploaded.imageStoragePath,
+      });
+      _setPresentation(
+        _presentation.copyWith({
+          'customServices': services.map((s) => s.toMap()).toList(),
+        }),
+      );
+    } catch (_) {
+      _showImageError('服務照片處理失敗，請稍後再試');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pickingImage = false;
+          _busyMessage = null;
+        });
+      }
+    }
   }
 
   Widget _buildTextField({
@@ -1863,4 +2366,13 @@ class _TrackedEnvImage {
   final String slot;
   final String path;
   final String url;
+}
+
+// 設定分類僅用於桌機分頁；手機仍沿用原本順序。
+class _EnvironmentSettingSection extends StatelessWidget {
+  const _EnvironmentSettingSection({required this.tab, required this.child});
+  final int tab;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => child;
 }

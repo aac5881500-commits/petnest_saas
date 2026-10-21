@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_media_page.dart
 // 功能說明：首頁活動海報管理。手機先看清單，桌機左側預覽完整新版首頁。
 
@@ -35,7 +36,22 @@ class ShopMediaPage extends StatefulWidget {
 
 enum _HomePreviewWidth { phone, tablet, desktop }
 
-class _ShopMediaPageState extends State<ShopMediaPage> {
+class _ShopMediaPageState extends State<ShopMediaPage>
+    with ShopDashboardLeaveAware<ShopMediaPage> {
+  @override
+  bool get dashboardHasUnsavedChanges {
+    if (_pendingDraft != null || (_editor.dirty && !_editor.saved)) return true;
+    final draft = _editDraft;
+    if (draft == null) return false;
+    final originals = _banners.where((banner) => banner.id == draft.id);
+    return originals.isEmpty ||
+        posterComposeSignature(draft) !=
+            posterComposeSignature(originals.first);
+  }
+
+  @override
+  bool get dashboardIsBusy => _busy || _editor.busy;
+
   bool _loaded = false;
   bool _busy = false;
   List<StoreBannerModel> _banners = <StoreBannerModel>[];
@@ -369,43 +385,45 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F4F0),
-      appBar: AppBar(
-        title: const Text('活動海報管理'),
-        actions: <Widget>[
-          if (_loaded && MediaQuery.sizeOf(context).width < 600)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: _countChip(
-                  '${_banners.length} / ${HomeBannerService.maxCount} 張',
+    return dashboardGuard(
+      Scaffold(
+        backgroundColor: const Color(0xFFF7F4F0),
+        appBar: AppBar(
+          title: const Text('活動海報管理'),
+          actions: <Widget>[
+            if (_loaded && MediaQuery.sizeOf(context).width < 600)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Center(
+                  child: _countChip(
+                    '${_banners.length} / ${HomeBannerService.maxCount} 張',
+                  ),
                 ),
               ),
-            ),
-          if (_editingId != null && MediaQuery.sizeOf(context).width >= 1100)
-            TextButton(
-              onPressed: _busy ? null : _deleteEditing,
-              child: const Text('刪除'),
-            ),
-        ],
+            if (_editingId != null && MediaQuery.sizeOf(context).width >= 1100)
+              TextButton(
+                onPressed: _busy ? null : _deleteEditing,
+                child: const Text('刪除'),
+              ),
+          ],
+        ),
+        body: !_loaded
+            ? const Center(child: CircularProgressIndicator())
+            : LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  if (constraints.maxWidth >= 1350) {
+                    return _desktopTriple(constraints.maxWidth);
+                  }
+                  if (constraints.maxWidth >= 1100) {
+                    return _desktopSplit();
+                  }
+                  if (constraints.maxWidth < 600) {
+                    return _mobileManageList();
+                  }
+                  return _bannerList(mobile: true);
+                },
+              ),
       ),
-      body: !_loaded
-          ? const Center(child: CircularProgressIndicator())
-          : LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth >= 1350) {
-                  return _desktopTriple(constraints.maxWidth);
-                }
-                if (constraints.maxWidth >= 1100) {
-                  return _desktopSplit();
-                }
-                if (constraints.maxWidth < 600) {
-                  return _mobileManageList();
-                }
-                return _bannerList(mobile: true);
-              },
-            ),
     );
   }
 
@@ -1079,7 +1097,12 @@ class _HomeBannerMobileEditor extends StatefulWidget {
       _HomeBannerMobileEditorState();
 }
 
-class _HomeBannerMobileEditorState extends State<_HomeBannerMobileEditor> {
+class _HomeBannerMobileEditorState extends State<_HomeBannerMobileEditor>
+    with ShopDashboardLeaveAware<_HomeBannerMobileEditor> {
+  @override
+  bool get dashboardHasUnsavedChanges => _editor.dirty && !_editor.saved;
+  @override
+  bool get dashboardIsBusy => _busy || _editor.busy;
   final StoreBannerEditorController _editor = StoreBannerEditorController();
   late StoreBannerModel _draft = widget.banner;
   bool _busy = false;
@@ -1128,173 +1151,180 @@ class _HomeBannerMobileEditorState extends State<_HomeBannerMobileEditor> {
   @override
   Widget build(BuildContext context) {
     final StoreBannerModel banner = _editor.draft ?? _draft;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('編輯活動海報'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () async {
-                    final bool? confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: const Text('刪除海報'),
-                          content: const Text('確定刪除此活動海報？'),
-                          actions: <Widget>[
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('取消'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('刪除'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                    if (confirmed != true || !context.mounted) {
-                      return;
-                    }
-                    if (!widget.banner.hasPublishedPoster) {
-                      Navigator.of(context).pop('deleted');
-                      return;
-                    }
-                    final List<HomeBannerStoredImage> images = _editor
-                        .detachStoredImages();
-                    final List<StoreBannerModel> next = widget.banners
-                        .where(
-                          (StoreBannerModel item) =>
-                              item.id != widget.banner.id,
-                        )
-                        .toList();
-                    try {
-                      await widget.persist(next);
-                      for (final HomeBannerStoredImage image in images) {
-                        await HomeBannerService.instance.deleteBannerImage(
-                          shopId: widget.shopId,
-                          imageUrl: image.url,
-                          imageStoragePath: image.path,
-                        );
+    return dashboardGuard(
+      Scaffold(
+        appBar: AppBar(
+          title: const Text('編輯活動海報'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final bool? confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('刪除海報'),
+                            content: const Text('確定刪除此活動海報？'),
+                            actions: <Widget>[
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('取消'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('刪除'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                      if (confirmed != true || !context.mounted) {
+                        return;
                       }
-                      widget.onPublished(next);
-                      if (context.mounted) {
+                      if (!widget.banner.hasPublishedPoster) {
                         Navigator.of(context).pop('deleted');
+                        return;
                       }
-                    } catch (error) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('刪除失敗，已發布圖片未刪除：$error')),
-                        );
+                      final List<HomeBannerStoredImage> images = _editor
+                          .detachStoredImages();
+                      final List<StoreBannerModel> next = widget.banners
+                          .where(
+                            (StoreBannerModel item) =>
+                                item.id != widget.banner.id,
+                          )
+                          .toList();
+                      try {
+                        await widget.persist(next);
+                        for (final HomeBannerStoredImage image in images) {
+                          await HomeBannerService.instance.deleteBannerImage(
+                            shopId: widget.shopId,
+                            imageUrl: image.url,
+                            imageStoragePath: image.path,
+                          );
+                        }
+                        widget.onPublished(next);
+                        if (context.mounted) {
+                          Navigator.of(context).pop('deleted');
+                        }
+                      } catch (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('刪除失敗，已發布圖片未刪除：$error')),
+                          );
+                        }
                       }
-                    }
-                  },
-            child: const Text('刪除'),
-          ),
-        ],
-      ),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+                    },
+              child: const Text('刪除'),
+            ),
+          ],
+        ),
+        body: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  LayoutBuilder(
+                    builder:
+                        (BuildContext context, BoxConstraints constraints) {
+                          final double rawHeight =
+                              constraints.maxWidth /
+                              HomeBannerDisplay.aspectRatio;
+                          final double height = rawHeight > 210
+                              ? 210
+                              : rawHeight;
+                          return Center(
+                            child: SizedBox(
+                              width: height * HomeBannerDisplay.aspectRatio,
+                              height: height,
+                              child: StoreBannerView(
+                                banner: banner,
+                                theme: widget.theme,
+                                scope: PetNestBannerScope.home,
+                                composeLive: true,
+                                borderRadius: 12,
+                                interactMode: StoreBannerInteractMode.text,
+                                previewImageBytes: _editor.localImageBytes,
+                                selectedTextId: _editor.selectedTextId,
+                                ctaSelected: _editor.ctaFocused,
+                                onChanged: (StoreBannerModel value) {
+                                  _editor.applyExternalDraft(value);
+                                  setState(() => _draft = value);
+                                },
+                                onTextSelected: (String? id) {
+                                  _editor.focusText(id);
+                                },
+                                onCtaSelected: _editor.focusCta,
+                              ),
+                            ),
+                          );
+                        },
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    banner.hasPublishedPoster ? '已發布成品' : '尚未發布',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('啟用'),
+                    value: banner.enabled,
+                    onChanged: (bool value) {
+                      _editor.updateEnabled(value);
+                      setState(() => _draft = _draft.copyWith(enabled: value));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ShopStoreBannerEditorPage(
+                key: ValueKey<String>('mobile-editor-${widget.banner.id}'),
+                shopId: widget.shopId,
+                banner: widget.banner,
+                existingBanners: widget.banners,
+                isNew:
+                    !widget.banner.hasPublishedPoster &&
+                    !widget.banner.hasImage,
+                shopTheme: widget.theme,
+                scope: PetNestBannerScope.home,
+                embedded: true,
+                showInlinePreview: false,
+                controller: _editor,
+                persistBanners: widget.persist,
+                onDraftChanged: (StoreBannerModel draft) {
+                  widget.onDraft(draft);
+                  setState(() => _draft = draft);
+                },
+                onPublished: widget.onPublished,
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Row(
               children: <Widget>[
-                LayoutBuilder(
-                  builder: (BuildContext context, BoxConstraints constraints) {
-                    final double rawHeight =
-                        constraints.maxWidth / HomeBannerDisplay.aspectRatio;
-                    final double height = rawHeight > 210 ? 210 : rawHeight;
-                    return Center(
-                      child: SizedBox(
-                        width: height * HomeBannerDisplay.aspectRatio,
-                        height: height,
-                        child: StoreBannerView(
-                          banner: banner,
-                          theme: widget.theme,
-                          scope: PetNestBannerScope.home,
-                          composeLive: true,
-                          borderRadius: 12,
-                          interactMode: StoreBannerInteractMode.text,
-                          previewImageBytes: _editor.localImageBytes,
-                          selectedTextId: _editor.selectedTextId,
-                          ctaSelected: _editor.ctaFocused,
-                          onChanged: (StoreBannerModel value) {
-                            _editor.applyExternalDraft(value);
-                            setState(() => _draft = value);
-                          },
-                          onTextSelected: (String? id) {
-                            _editor.focusText(id);
-                          },
-                          onCtaSelected: _editor.focusCta,
-                        ),
-                      ),
-                    );
-                  },
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _openFullPreview,
+                    child: const Text('預覽海報'),
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  banner.hasPublishedPoster ? '已發布成品' : '尚未發布',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('啟用'),
-                  value: banner.enabled,
-                  onChanged: (bool value) {
-                    _editor.updateEnabled(value);
-                    setState(() => _draft = _draft.copyWith(enabled: value));
-                  },
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _busy ? null : _publish,
+                    child: Text(_busy ? '發布中…' : '發布海報'),
+                  ),
                 ),
               ],
             ),
-          ),
-          Expanded(
-            child: ShopStoreBannerEditorPage(
-              key: ValueKey<String>('mobile-editor-${widget.banner.id}'),
-              shopId: widget.shopId,
-              banner: widget.banner,
-              existingBanners: widget.banners,
-              isNew:
-                  !widget.banner.hasPublishedPoster && !widget.banner.hasImage,
-              shopTheme: widget.theme,
-              scope: PetNestBannerScope.home,
-              embedded: true,
-              showInlinePreview: false,
-              controller: _editor,
-              persistBanners: widget.persist,
-              onDraftChanged: (StoreBannerModel draft) {
-                widget.onDraft(draft);
-                setState(() => _draft = draft);
-              },
-              onPublished: widget.onPublished,
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _busy ? null : _openFullPreview,
-                  child: const Text('預覽海報'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _busy ? null : _publish,
-                  child: Text(_busy ? '發布中…' : '發布海報'),
-                ),
-              ),
-            ],
           ),
         ),
       ),

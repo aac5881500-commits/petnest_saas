@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_module_settings_page.dart
 // 功能說明：模組開關頁
 
@@ -22,7 +23,16 @@ class ShopModuleSettingsPage extends StatefulWidget {
   State<ShopModuleSettingsPage> createState() => _ShopModuleSettingsPageState();
 }
 
-class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
+class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
+    with ShopDashboardLeaveAware<ShopModuleSettingsPage> {
+  String? _dashboardSavedDraft;
+  String get _dashboardDraft => ([..._selectedModules]..sort()).join('|');
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      _dashboardSavedDraft != null && _dashboardSavedDraft != _dashboardDraft;
+  @override
+  bool get dashboardIsBusy => _saving;
+
   bool _saving = false;
   List<String> _selectedModules = [];
   String _plan = 'free';
@@ -46,6 +56,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
     if (!mounted) return;
     setState(() {
       _selectedModules = modules;
+      _dashboardSavedDraft = _dashboardDraft;
       _plan = ShopPlanAccess.effectivePlan(shop);
     });
   }
@@ -217,6 +228,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('模組設定已儲存')));
+      _dashboardSavedDraft = _dashboardDraft;
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -237,59 +249,61 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
         .where((String module) => module != ShopModules.daycare)
         .toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-        title: const Text('模組設定'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              '可先保留未來模組位置，不一定全部顯示。\n'
-              '基本資訊、表格統計先固定保留；其他模組可依方案或需求開關。',
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...visibleModules.map((module) {
-            final locked = _isLockedAlwaysOn(module);
-            final checked = _selectedModules.contains(module) || locked;
-
-            return Card(
-              child: CheckboxListTile(
-                value: checked,
-                onChanged: (!_canEdit || locked)
-                    ? null
-                    : (v) => _toggleModule(module, v ?? false),
-                title: Text(_label(module)),
-                subtitle: Text(
-                  locked
-                      ? '${_subtitle(module)}\n此模組目前固定保留'
-                      : _subtitle(module),
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
+    return dashboardGuard(
+      Scaffold(
+        appBar: AppBar(
+          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+          title: const Text('模組設定'),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
               ),
-            );
-          }),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: (_saving || !_canEdit) ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save),
-            label: Text(_canEdit ? '儲存模組設定' : '你沒有修改權限'),
-          ),
-        ],
+              child: const Text(
+                '可先保留未來模組位置，不一定全部顯示。\n'
+                '基本資訊、表格統計先固定保留；其他模組可依方案或需求開關。',
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...visibleModules.map((module) {
+              final locked = _isLockedAlwaysOn(module);
+              final checked = _selectedModules.contains(module) || locked;
+
+              return Card(
+                child: CheckboxListTile(
+                  value: checked,
+                  onChanged: (!_canEdit || locked)
+                      ? null
+                      : (v) => _toggleModule(module, v ?? false),
+                  title: Text(_label(module)),
+                  subtitle: Text(
+                    locked
+                        ? '${_subtitle(module)}\n此模組目前固定保留'
+                        : _subtitle(module),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: (_saving || !_canEdit) ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(_canEdit ? '儲存模組設定' : '你沒有修改權限'),
+            ),
+          ],
+        ),
       ),
     );
   }

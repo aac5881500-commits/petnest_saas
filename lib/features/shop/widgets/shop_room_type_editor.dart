@@ -560,9 +560,12 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
         return;
       }
       _initialFingerprint = _fingerprint();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.isEditing ? '已儲存變更' : '新增成功')),
-      );
+      // The embedded creation owner presents the next-step choice instead.
+      if (!widget.embedded || widget.isEditing || widget.onSaved == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.isEditing ? '已儲存變更' : '新增成功')),
+        );
+      }
       if (widget.embedded) {
         widget.onSaved?.call(roomTypeId);
       } else {

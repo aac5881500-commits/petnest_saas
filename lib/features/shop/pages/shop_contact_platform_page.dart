@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_contact_platform_page.dart
 // 功能說明：店主查看自己的聯絡平台案件，並建立新案件後進入聊天室。
 
@@ -139,7 +140,17 @@ class _PendingImage {
 }
 
 class _ShopContactRequestCreatePageState
-    extends State<ShopContactRequestCreatePage> {
+    extends State<ShopContactRequestCreatePage>
+    with ShopDashboardLeaveAware<ShopContactRequestCreatePage> {
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      _title.text.isNotEmpty ||
+      _content.text.isNotEmpty ||
+      _images.isNotEmpty ||
+      _category != contactCaseCategories.first;
+  @override
+  bool get dashboardIsBusy => _submitting;
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _title = TextEditingController();
   final TextEditingController _content = TextEditingController();
@@ -314,124 +325,128 @@ class _ShopContactRequestCreatePageState
   @override
   Widget build(BuildContext context) {
     final bool phone = MediaQuery.sizeOf(context).width < 720;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(title: const Text('建立案件')),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: <Widget>[
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    children: <Widget>[
-                      const Text(
-                        '送出後可在同一案件繼續補充，不必重新填表。',
-                        style: TextStyle(color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(height: 12),
-                      if (phone)
-                        _CategoryButton(
-                          category: _category,
+    return dashboardGuard(
+      Scaffold(
+        backgroundColor: const Color(0xFFF6F7FB),
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(title: const Text('建立案件')),
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: <Widget>[
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      children: <Widget>[
+                        const Text(
+                          '送出後可在同一案件繼續補充，不必重新填表。',
+                          style: TextStyle(color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 12),
+                        if (phone)
+                          _CategoryButton(
+                            category: _category,
+                            enabled: !_submitting,
+                            onTap: _pickCategory,
+                          )
+                        else
+                          DropdownButtonFormField<String>(
+                            initialValue: _category,
+                            decoration: const InputDecoration(
+                              labelText: '問題分類',
+                            ),
+                            items: contactCaseCategories
+                                .map(
+                                  (String item) => DropdownMenuItem<String>(
+                                    value: item,
+                                    child: Text(item),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _submitting
+                                ? null
+                                : (String? value) {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    setState(() => _category = value);
+                                  },
+                          ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _title,
                           enabled: !_submitting,
-                          onTap: _pickCategory,
-                        )
-                      else
-                        DropdownButtonFormField<String>(
-                          initialValue: _category,
-                          decoration: const InputDecoration(labelText: '問題分類'),
-                          items: contactCaseCategories
-                              .map(
-                                (String item) => DropdownMenuItem<String>(
-                                  value: item,
-                                  child: Text(item),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: _submitting
-                              ? null
-                              : (String? value) {
-                                  if (value == null) {
-                                    return;
-                                  }
-                                  setState(() => _category = value);
-                                },
+                          decoration: const InputDecoration(
+                            labelText: '標題',
+                            hintText: '例如：訂單列表無法正常顯示',
+                          ),
+                          validator: (String? value) {
+                            final String text = (value ?? '').trim();
+                            if (text.isEmpty) {
+                              return '請輸入標題';
+                            }
+                            if (text.length < 3) {
+                              return '標題至少 3 個字';
+                            }
+                            return null;
+                          },
                         ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _title,
-                        enabled: !_submitting,
-                        decoration: const InputDecoration(
-                          labelText: '標題',
-                          hintText: '例如：訂單列表無法正常顯示',
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _content,
+                          enabled: !_submitting,
+                          minLines: 4,
+                          maxLines: 8,
+                          decoration: const InputDecoration(
+                            labelText: '問題內容',
+                            alignLabelWithHint: true,
+                            hintText: '請寫下頁面、操作步驟與錯誤情況',
+                          ),
+                          validator: (String? value) {
+                            final String text = (value ?? '').trim();
+                            if (text.isEmpty) {
+                              return '請輸入問題內容';
+                            }
+                            if (text.length < 10) {
+                              return '內容至少 10 個字';
+                            }
+                            return null;
+                          },
                         ),
-                        validator: (String? value) {
-                          final String text = (value ?? '').trim();
-                          if (text.isEmpty) {
-                            return '請輸入標題';
-                          }
-                          if (text.length < 3) {
-                            return '標題至少 3 個字';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _content,
-                        enabled: !_submitting,
-                        minLines: 4,
-                        maxLines: 8,
-                        decoration: const InputDecoration(
-                          labelText: '問題內容',
-                          alignLabelWithHint: true,
-                          hintText: '請寫下頁面、操作步驟與錯誤情況',
+                        const SizedBox(height: 12),
+                        _AttachmentBox(
+                          images: _images,
+                          submitting: _submitting,
+                          onPick: _pickImages,
+                          onRemove: (int index) {
+                            if (_submitting) {
+                              return;
+                            }
+                            setState(() => _images.removeAt(index));
+                          },
                         ),
-                        validator: (String? value) {
-                          final String text = (value ?? '').trim();
-                          if (text.isEmpty) {
-                            return '請輸入問題內容';
-                          }
-                          if (text.length < 10) {
-                            return '內容至少 10 個字';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _AttachmentBox(
-                        images: _images,
-                        submitting: _submitting,
-                        onPick: _pickImages,
-                        onRemove: (int index) {
-                          if (_submitting) {
-                            return;
-                          }
-                          setState(() => _images.removeAt(index));
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _submitting ? null : _submit,
-                        child: Text(_submitting ? '送出中' : '建立並開始對話'),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: _submitting ? null : _submit,
+                          child: Text(_submitting ? '送出中' : '建立並開始對話'),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

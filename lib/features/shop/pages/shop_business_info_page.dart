@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_business_info_page.dart
 // 功能說明：店家營業資訊設定頁（含時間選擇 + 服務類型）
 
@@ -13,7 +14,17 @@ class ShopBusinessInfoPage extends StatefulWidget {
   State<ShopBusinessInfoPage> createState() => _ShopBusinessInfoPageState();
 }
 
-class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
+class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage>
+    with ShopDashboardLeaveAware<ShopBusinessInfoPage> {
+  String? _dashboardSavedDraft;
+  String get _dashboardDraft =>
+      '$_isOpen|$_isPublic|$_startTime|$_endTime|${_businessHoursController.text}|${_serviceTypes.join(',')}';
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      !_loading && _dashboardSavedDraft != _dashboardDraft;
+  @override
+  bool get dashboardIsBusy => _saving;
+
   bool _isOpen = true;
   bool _isPublic = false;
   bool _licenseVerified = false;
@@ -43,6 +54,7 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
 
   Future<void> _load() async {
     final shop = await ShopService.instance.getShop(widget.shopId);
+    if (!mounted) return;
 
     if (shop != null) {
       _isOpen = shop['isOpen'] ?? true;
@@ -66,6 +78,7 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
     if (!mounted) return;
 
     setState(() {
+      _dashboardSavedDraft = _dashboardDraft;
       _loading = false;
     });
   }
@@ -135,19 +148,24 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
       _saving = true;
     });
 
-    await ShopService.instance.updateBusinessInfo(
-      shopId: widget.shopId,
-      isOpen: _isOpen,
-      businessHours: _businessHoursController.text,
-      openTime: _startTime == null
-          ? ''
-          : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
-      closeTime: _endTime == null
-          ? ''
-          : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
-      isPublic: _isPublic,
-      serviceTypes: _serviceTypes,
-    );
+    try {
+      await ShopService.instance.updateBusinessInfo(
+        shopId: widget.shopId,
+        isOpen: _isOpen,
+        businessHours: _businessHoursController.text,
+        openTime: _startTime == null
+            ? ''
+            : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+        closeTime: _endTime == null
+            ? ''
+            : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
+        isPublic: _isPublic,
+        serviceTypes: _serviceTypes,
+      );
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      rethrow;
+    }
 
     if (!mounted) return;
 
@@ -155,6 +173,7 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
       context,
     ).showSnackBar(const SnackBar(content: Text('已儲存')));
 
+    _dashboardSavedDraft = _dashboardDraft;
     Navigator.pop(context);
   }
 
@@ -164,99 +183,101 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('營業資訊')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ListView(
-          children: [
-            /// 營業開關
-            SwitchListTile(
-              title: const Text('目前營業中'),
-              value: _isOpen,
-              onChanged: (v) => setState(() => _isOpen = v),
-            ),
-
-            const SizedBox(height: 16),
-
-            /// 🔥 時間選擇器
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _pickStartTime,
-                    child: Text(
-                      _startTime == null
-                          ? '開始時間'
-                          : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _pickEndTime,
-                    child: Text(
-                      _endTime == null
-                          ? '結束時間'
-                          : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            /// 顯示時間文字
-            TextField(
-              controller: _businessHoursController,
-              readOnly: true,
-              decoration: const InputDecoration(
-                labelText: '營業時間',
-                border: OutlineInputBorder(),
+    return dashboardGuard(
+      Scaffold(
+        appBar: AppBar(title: const Text('營業資訊')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ListView(
+            children: [
+              /// 營業開關
+              SwitchListTile(
+                title: const Text('目前營業中'),
+                value: _isOpen,
+                onChanged: (v) => setState(() => _isOpen = v),
               ),
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-            /// 公開開關
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (!_licenseVerified || !_taxIdVerified)
-                    ? Colors.red.shade50
-                    : Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
+              /// 🔥 時間選擇器
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _pickStartTime,
+                      child: Text(
+                        _startTime == null
+                            ? '開始時間'
+                            : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _pickEndTime,
+                      child: Text(
+                        _endTime == null
+                            ? '結束時間'
+                            : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              /// 顯示時間文字
+              TextField(
+                controller: _businessHoursController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: '營業時間',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              /// 公開開關
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
                   color: (!_licenseVerified || !_taxIdVerified)
-                      ? Colors.red.shade200
-                      : Colors.green.shade200,
+                      ? Colors.red.shade50
+                      : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (!_licenseVerified || !_taxIdVerified)
+                        ? Colors.red.shade200
+                        : Colors.green.shade200,
+                  ),
+                ),
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('是否公開顯示'),
+                  subtitle: Text(
+                    (!_licenseVerified || !_taxIdVerified)
+                        ? '特寵字號與統編需平台認證通過後，才能公開在平台找店。'
+                        : '認證已通過，可公開顯示在平台找店。',
+                  ),
+                  value: _isPublic,
+                  onChanged: (!_licenseVerified || !_taxIdVerified)
+                      ? null
+                      : (v) => setState(() => _isPublic = v),
                 ),
               ),
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('是否公開顯示'),
-                subtitle: Text(
-                  (!_licenseVerified || !_taxIdVerified)
-                      ? '特寵字號與統編需平台認證通過後，才能公開在平台找店。'
-                      : '認證已通過，可公開顯示在平台找店。',
-                ),
-                value: _isPublic,
-                onChanged: (!_licenseVerified || !_taxIdVerified)
-                    ? null
-                    : (v) => setState(() => _isPublic = v),
+
+              const SizedBox(height: 24),
+
+              /// 儲存
+              ElevatedButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? '儲存中...' : '儲存'),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            /// 儲存
-            ElevatedButton(
-              onPressed: _saving ? null : _save,
-              child: Text(_saving ? '儲存中...' : '儲存'),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_setup_leave_guard.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
@@ -58,6 +60,91 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   final _maxAdvanceBookingDaysController = TextEditingController();
 
   bool _bookingEnabled = false;
+  AsyncSnapshot<bool> _policyState = const AsyncSnapshot.waiting();
+  bool _checkingStay = false;
+  bool _openingPolicy = false;
+  int _policyRequest = 0;
+
+  Future<void> _refreshPolicy() async {
+    final request = ++_policyRequest;
+    setState(() => _policyState = const AsyncSnapshot.waiting());
+    try {
+      final ready = await ShopPolicyService.instance.hasEffectiveStayPolicy(
+        widget.shopId,
+      );
+      if (mounted && request == _policyRequest) {
+        setState(
+          () => _policyState = AsyncSnapshot.withData(
+            ConnectionState.done,
+            ready,
+          ),
+        );
+      }
+    } catch (e, stack) {
+      if (mounted && request == _policyRequest) {
+        setState(
+          () => _policyState = AsyncSnapshot.withError(
+            ConnectionState.done,
+            e,
+            stack,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openPolicy() async {
+    if (_openingPolicy ||
+        !ShopService.instance.hasPermission(
+          _memberData,
+          ShopPermissionKeys.managePolicy,
+        )) {
+      return;
+    }
+    _openingPolicy = true;
+    try {
+      // Keep this editor mounted so dates, service switches and days remain drafts.
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ShopPolicyPage(shopId: widget.shopId),
+        ),
+      );
+    } finally {
+      _openingPolicy = false;
+      if (mounted) await _refreshPolicy();
+    }
+  }
+
+  Widget _policyStatus() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        _policyState.hasError
+            ? (_policyState.error is FirebaseException &&
+                      (_policyState.error as FirebaseException).code ==
+                          'permission-denied'
+                  ? '無權讀取住宿條款，尚無法確認資格'
+                  : '住宿條款讀取失敗，尚無法確認資格')
+            : !_policyState.hasData
+            ? '正在確認入住條款…'
+            : _policyState.data == true
+            ? '住宿入住條款已發布'
+            : '請先設定並發布入住條款，才能開放住宿預約。',
+      ),
+      if (_persistedBookingEnabled && _policyState.data != true)
+        const Text('住宿預約原設定仍為開啟，請補齊條款；本頁未自動變更設定。'),
+      if (_policyState.hasError)
+        TextButton(onPressed: _refreshPolicy, child: const Text('重試條款確認')),
+      if (_policyState.data != true)
+        if (ShopService.instance.hasPermission(
+          _memberData,
+          ShopPermissionKeys.managePolicy,
+        ))
+          TextButton(onPressed: _openPolicy, child: const Text('前往條款設定'))
+        else
+          const Text('請由店主或有條款管理權限的人完成設定。'),
+    ],
+  );
   bool _daycareEnabled = false;
   bool _settingsInitialized = false;
   bool _savingSettings = false;
@@ -90,6 +177,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   @override
   void initState() {
     super.initState();
+    _refreshPolicy();
     _readinessStream =
         widget.readinessStream ?? StayBookingReadiness.watch(widget.shopId);
     _shopStream =
@@ -521,10 +609,15 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                   : '變更後請儲存，住宿須具備可用房間才能開放',
               value: _bookingEnabled && _stayConfigurationReady,
               onChanged:
-                  !_readinessSnapshot.hasData || _readinessSnapshot.hasError
+                  _checkingStay ||
+                      _savingSettings ||
+                      (!_bookingEnabled &&
+                          (!_readinessSnapshot.hasData ||
+                              _readinessSnapshot.hasError))
                   ? null
                   : (bool value) async {
                       if (value) {
+                        setState(() => _checkingStay = true);
                         try {
                           final readiness = await StayBookingReadiness.load(
                             widget.shopId,
@@ -534,14 +627,32 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                             _showSnackBar(readiness.reason);
                             return;
                           }
+                          await _refreshPolicy();
+                          if (!mounted) return;
+                          if (_policyState.hasError) {
+                            throw StateError('住宿條款讀取失敗或權限不足，請重試');
+                          }
+                          if (_policyState.data != true) {
+                            throw StateError('請先設定並發布入住條款，才能開放住宿預約。');
+                          }
                         } catch (e) {
                           if (mounted) _showSnackBar('無法確認住宿預約條件：$e');
                           return;
+                        } finally {
+                          if (mounted) setState(() => _checkingStay = false);
                         }
                       }
                       if (mounted) setState(() => _bookingEnabled = value);
                     },
             ),
+            _policyStatus(),
+            if (_bookingEnabled && !_stayConfigurationReady)
+              TextButton(
+                onPressed: _savingSettings || _checkingStay
+                    ? null
+                    : () => setState(() => _bookingEnabled = false),
+                child: const Text('關閉住宿預約（儲存後生效）'),
+              ),
             Builder(
               builder: (context) {
                 final snapshot = _readinessSnapshot;
@@ -552,7 +663,11 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                 final readiness = snapshot.data!;
                 if (readiness.ready) {
                   return Text(
-                    _persistedBookingEnabled ? '目前可預約' : '住宿房間已準備好，可手動開放預約',
+                    _policyState.data != true
+                        ? '住宿房間已準備好，入住條款資格仍待確認'
+                        : _persistedBookingEnabled
+                        ? '目前可預約'
+                        : '住宿房間與條款已準備好，可手動開放預約',
                   );
                 }
                 return Column(
@@ -1087,7 +1202,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   }
 
   Future<bool> _saveSettings() async {
-    if (_savingSettings) return false;
+    if (_savingSettings || _checkingStay) return false;
     setState(() => _savingSettings = true);
     final maxAdvanceBookingDays =
         int.tryParse(_maxAdvanceBookingDaysController.text.trim()) ?? 0;
@@ -1117,6 +1232,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
       if (_bookingEnabled) {
         final readiness = await StayBookingReadiness.load(widget.shopId);
         if (!readiness.ready) throw StateError(readiness.reason);
+        await ShopPolicyService.instance.requireEffectiveStayPolicy(
+          widget.shopId,
+        );
         if (!mounted) return false;
       }
       await ShopService.instance.updateBookingSettings(

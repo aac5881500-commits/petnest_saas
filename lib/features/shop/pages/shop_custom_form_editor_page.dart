@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/models/custom_form_default_templates.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
@@ -25,7 +26,15 @@ class ShopCustomFormEditorPage extends StatefulWidget {
       _ShopCustomFormEditorPageState();
 }
 
-class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
+class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage>
+    with ShopDashboardLeaveAware<ShopCustomFormEditorPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => _dirty;
+  @override
+  bool get dashboardIsBusy => _saving;
+  @override
+  Future<bool> dashboardConfirmLeave() async =>
+      !_saving && await _confirmLeave();
   bool _loading = true;
   bool _saving = false;
   bool _dirty = false;

@@ -4,6 +4,7 @@
 // 備註：目前舊長住折扣暫時保留，之後確認新版優惠正常後再移除
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
@@ -28,7 +29,12 @@ class ShopDepositSettingPage extends StatefulWidget {
   State<ShopDepositSettingPage> createState() => _ShopDepositSettingPageState();
 }
 
-class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
+class _ShopDepositSettingPageState extends State<ShopDepositSettingPage>
+    with ShopDashboardLeaveAware<ShopDepositSettingPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => !_loading && _dirty;
+  @override
+  bool get dashboardIsBusy => _saving;
   bool _depositEnabled = false;
 
   String _depositType = 'fixed';

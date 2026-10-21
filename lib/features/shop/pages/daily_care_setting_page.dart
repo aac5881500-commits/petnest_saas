@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 
 import '../../../core/models/daily_care_journal_appearance.dart';
 import '../../../core/models/daily_care_journal_layout.dart';
@@ -64,7 +65,15 @@ class DailyCareSettingPage extends StatefulWidget {
   State<DailyCareSettingPage> createState() => _DailyCareSettingPageState();
 }
 
-class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
+class _DailyCareSettingPageState extends State<DailyCareSettingPage>
+    with ShopDashboardLeaveAware<DailyCareSettingPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => !_loading && _sectionDirty(_tabIndex);
+  @override
+  bool get dashboardIsBusy => _saving;
+  @override
+  Future<bool> dashboardConfirmLeave() async =>
+      !_saving && await _onLeaveEditor();
   bool _loading = true;
   bool _saving = false;
   bool _shopDaycareOn = false;

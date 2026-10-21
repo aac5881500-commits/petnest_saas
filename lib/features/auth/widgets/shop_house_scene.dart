@@ -558,6 +558,7 @@ class ShopHouseScene extends StatelessWidget {
 class ShopHouseDisplayWindow extends StatelessWidget {
   const ShopHouseDisplayWindow({
     super.key,
+    this.plain = false,
     this.media = ShopHouseMedia.empty,
     required this.coverUrl,
     required this.logoUrl,
@@ -567,6 +568,7 @@ class ShopHouseDisplayWindow extends StatelessWidget {
     this.fallbackLogoUrl = '',
     this.fallbackCoverUrl = '',
   });
+  final bool plain;
   final String fallbackLogoUrl;
   final String fallbackCoverUrl;
   final String coverUrl;
@@ -598,6 +600,10 @@ class ShopHouseDisplayWindow extends StatelessWidget {
       ),
     );
     final candidates = <(String, bool)>[
+      if (plain) ...[
+        (coverUrl.trim(), false),
+        (fallbackCoverUrl.trim(), false),
+      ],
       (logoUrl.trim(), true),
       (fallbackLogoUrl.trim(), true),
       (coverUrl.trim(), false),
@@ -616,6 +622,33 @@ class ShopHouseDisplayWindow extends StatelessWidget {
             fit: logo ? BoxFit.contain : BoxFit.cover,
             semanticLabel: logo ? '店家 Logo' : '店家照片',
             errorBuilder: (_, _, _) => photoAt(index + 1, size),
+          ),
+        ),
+      );
+    }
+
+    if (plain) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: AspectRatio(
+          aspectRatio: 16 / 10,
+          child: LayoutBuilder(
+            builder: (context, box) => Stack(
+              fit: StackFit.expand,
+              children: [
+                photoAt(0, box.maxWidth),
+                if (allowPhotoHint)
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    child: IconButton.filledTonal(
+                      tooltip: '編輯照片',
+                      onPressed: onEditMedia,
+                      icon: const Icon(Icons.camera_alt_outlined),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );

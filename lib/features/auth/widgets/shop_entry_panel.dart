@@ -137,10 +137,15 @@ class ShopEntryPanel extends StatelessWidget {
   }
 
   /// PageView 需要明確高度。對齊整棟小屋，避免窄螢幕 overflow。
-  static double heroHeightFor(double width, {double textScale = 1}) {
+  static double heroHeightFor(
+    double width, {
+    double textScale = 1,
+    bool minimalPlain = false,
+  }) {
     final double scale = textScale < 1 ? 1 : textScale;
     final double extra = scale <= 1 ? 0 : (scale - 1) * 140;
     final wide = width >= 1000;
+    if (minimalPlain) return (wide ? 520 : 760) + extra;
     return roofZoneHeight(availableWidth: width, wide: wide) * .95 +
         (wide ? 480 : 800) +
         width / 15 +
@@ -154,45 +159,72 @@ class ShopEntryPanel extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints constraints) {
         final double width = constraints.maxWidth;
         final bool wide = width >= 1000;
-        final Widget house = ShopHouseMediaBuilder(
-          appearance:
-              houseAppearance.roofAssetId.isEmpty && roofAssetId.isNotEmpty
-              ? houseAppearance.copyWith(roofAssetId: roofAssetId)
-              : houseAppearance,
-          assetsOverride: houseAssetsOverride,
-          builder: (media) => ShopHouseCourtyard(
-            media: media,
-            wide: wide,
-            child: ShopHouseScene(
-              media: media,
-              shopName: shopName,
-              wide: wide,
-              child: _HouseInterior(
-                media: media,
-                fallbackLogoUrl: fallbackLogoUrl,
-                fallbackCoverUrl: fallbackCoverUrl,
-                shopName: shopName,
-                shopId: shopId,
-                shopCode: shopCode,
-                businessType: businessType,
-                enabledModules: enabledModules,
-                city: city,
-                district: district,
-                role: role,
-                coverUrl: coverUrl,
-                logoUrl: logoUrl,
-                isOpenNow: isOpenNow,
-                isPublic: isPublic,
-                wide: wide,
-                allowPhotoHint: allowPhotoHint,
-                statsFuture: statsFuture,
-                onEnter: onEnter,
-                onEditMedia: onEditMedia,
-              ),
-            ),
-          ),
+        final plain = houseAppearance.isMinimalPlain;
+        Widget interior(ShopHouseMedia media) => _HouseInterior(
+          plain: plain,
+          media: media,
+          fallbackLogoUrl: fallbackLogoUrl,
+          fallbackCoverUrl: fallbackCoverUrl,
+          shopName: shopName,
+          shopId: shopId,
+          shopCode: shopCode,
+          businessType: businessType,
+          enabledModules: enabledModules,
+          city: city,
+          district: district,
+          role: role,
+          coverUrl: coverUrl,
+          logoUrl: logoUrl,
+          isOpenNow: isOpenNow,
+          isPublic: isPublic,
+          wide: wide,
+          allowPhotoHint: allowPhotoHint,
+          statsFuture: statsFuture,
+          onEnter: onEnter,
+          onEditMedia: onEditMedia,
         );
+        final Widget house = plain
+            ? Container(
+                key: const ValueKey('minimal-plain-card'),
+                padding: EdgeInsets.all(wide ? 28 : 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: .5),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0C243040),
+                      blurRadius: 18,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: interior(ShopHouseMedia.empty),
+              )
+            : ShopHouseMediaBuilder(
+                appearance:
+                    houseAppearance.roofAssetId.isEmpty &&
+                        roofAssetId.isNotEmpty
+                    ? houseAppearance.copyWith(roofAssetId: roofAssetId)
+                    : houseAppearance,
+                assetsOverride: houseAssetsOverride,
+                builder: (media) => ShopHouseCourtyard(
+                  media: media,
+                  wide: wide,
+                  child: ShopHouseScene(
+                    media: media,
+                    shopName: shopName,
+                    wide: wide,
+                    child: interior(media),
+                  ),
+                ),
+              );
         final Widget file = _FileNest(
+          plain: plain,
           child: MyShopMetaInfo(
             enabledModules: enabledModules,
             openTime: openTime,
@@ -223,7 +255,8 @@ class ShopEntryPanel extends StatelessWidget {
 }
 
 class _FileNest extends StatelessWidget {
-  const _FileNest({required this.child});
+  const _FileNest({required this.child, this.plain = false});
+  final bool plain;
 
   final Widget child;
 
@@ -234,7 +267,9 @@ class _FileNest extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
-        color: colors.brightness == Brightness.dark
+        color: plain
+            ? colors.surface
+            : colors.brightness == Brightness.dark
             ? const Color(0xFF342F28)
             : const Color(0xFFFFFBF1),
         borderRadius: BorderRadius.circular(24),
@@ -276,11 +311,12 @@ class _FileNest extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(
-                Icons.eco_outlined,
-                size: 24,
-                color: Color(0xFF9AA783),
-              ),
+              if (!plain)
+                const Icon(
+                  Icons.eco_outlined,
+                  size: 24,
+                  color: Color(0xFF9AA783),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -293,6 +329,7 @@ class _FileNest extends StatelessWidget {
 
 class _HouseInterior extends StatelessWidget {
   const _HouseInterior({
+    this.plain = false,
     required this.media,
     required this.fallbackLogoUrl,
     required this.fallbackCoverUrl,
@@ -315,6 +352,7 @@ class _HouseInterior extends StatelessWidget {
     required this.onEditMedia,
   });
 
+  final bool plain;
   final ShopHouseMedia media;
   final String fallbackLogoUrl;
   final String fallbackCoverUrl;
@@ -350,7 +388,12 @@ class _HouseInterior extends StatelessWidget {
           addressFontSize: wide ? 16 : 14,
         ),
         const SizedBox(height: 10),
-        _ShopPlaque(shopId: shopId),
+        plain
+            ? Text(
+                '店家編號 $shopId',
+                style: Theme.of(context).textTheme.labelLarge,
+              )
+            : _ShopPlaque(shopId: shopId),
         if (_serviceText.isNotEmpty) ...<Widget>[
           const SizedBox(height: 10),
           Text(
@@ -381,7 +424,9 @@ class _HouseInterior extends StatelessWidget {
         Container(
           padding: EdgeInsets.all(wide ? 18 : 12),
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
+            color: plain
+                ? Theme.of(context).colorScheme.surfaceContainerLow
+                : Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xFF3E352B)
                 : const Color(0xFFFFF6E6),
             borderRadius: BorderRadius.circular(18),
@@ -392,7 +437,12 @@ class _HouseInterior extends StatelessWidget {
           child: _HouseToday(statsFuture: statsFuture, prominent: wide),
         ),
         SizedBox(height: wide ? 22 : 16),
-        _ShopActions(shopCode: shopCode, stacked: !wide, onEnter: onEnter),
+        _ShopActions(
+          shopCode: shopCode,
+          stacked: !wide,
+          onEnter: onEnter,
+          plain: plain,
+        ),
       ],
     );
 
@@ -403,10 +453,13 @@ class _HouseInterior extends StatelessWidget {
             : 320;
         final double photoWidth = wide
             ? ((maxWidth - 28) * 0.40).clamp(0, 500).toDouble()
+            : plain
+            ? maxWidth
             : maxWidth.clamp(0, 260).toDouble();
         final Widget window = SizedBox(
           width: photoWidth,
           child: ShopHouseDisplayWindow(
+            plain: plain,
             media: media,
             fallbackLogoUrl: fallbackLogoUrl,
             fallbackCoverUrl: fallbackCoverUrl,
@@ -424,20 +477,21 @@ class _HouseInterior extends StatelessWidget {
               Stack(
                 children: [
                   Center(child: window),
-                  Positioned(
-                    left: 0,
-                    bottom: 3,
-                    width: 38,
-                    child: IgnorePointer(
-                      child: ShopHouseDecoration(
-                        asset: ShopHouseArtwork.warmWood.plants,
-                        media: media,
+                  if (!plain)
+                    Positioned(
+                      left: 0,
+                      bottom: 3,
+                      width: 38,
+                      child: IgnorePointer(
+                        child: ShopHouseDecoration(
+                          asset: ShopHouseArtwork.warmWood.plants,
+                          media: media,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: plain ? 18 : 4),
               story,
             ],
           );
@@ -634,11 +688,13 @@ class _HouseToday extends StatelessWidget {
 
 class _ShopActions extends StatelessWidget {
   const _ShopActions({
+    this.plain = false,
     required this.shopCode,
     required this.stacked,
     required this.onEnter,
   });
 
+  final bool plain;
   final String shopCode;
   final bool stacked;
   final VoidCallback onEnter;
@@ -649,12 +705,14 @@ class _ShopActions extends StatelessWidget {
       Theme.of(context).colorScheme,
     );
     final Widget doorway = Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: wood.plaque,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: wood.roofEdge.withValues(alpha: 0.38)),
-      ),
+      padding: EdgeInsets.all(plain ? 0 : 6),
+      decoration: plain
+          ? null
+          : BoxDecoration(
+              color: wood.plaque,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: wood.roofEdge.withValues(alpha: 0.38)),
+            ),
       child: FilledButton.icon(
         onPressed: onEnter,
         icon: const Icon(Icons.door_front_door_outlined, size: 18),

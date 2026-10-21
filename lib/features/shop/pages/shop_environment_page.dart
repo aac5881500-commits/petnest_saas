@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/environment_presentation.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -84,6 +85,7 @@ class ShopEnvironmentPage extends StatelessWidget {
     this.features,
     this.galleryImages,
     this.facilityKeys,
+    this.presentation,
   });
 
   final String shopId;
@@ -100,6 +102,7 @@ class ShopEnvironmentPage extends StatelessWidget {
   final List<Map<String, dynamic>>? features;
   final List<String>? galleryImages;
   final List<String>? facilityKeys;
+  final EnvironmentPresentation? presentation;
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +219,11 @@ class ShopEnvironmentPage extends StatelessWidget {
               body: ShopAppBackdrop.behind(
                 theme: theme,
                 child: EnvironmentIntroView(
+                  presentation:
+                      presentation ??
+                      EnvironmentPresentation.fromMap(
+                        environmentIntro?['environmentPresentation'],
+                      ),
                   style: resolvedStyle,
                   theme: theme,
                   heroTitle: displayHeroTitle,
@@ -229,8 +237,8 @@ class ShopEnvironmentPage extends StatelessWidget {
                   galleryImages: displayGalleryImages,
                   careItems: displayCareItems,
                   bottomNote: displayBottomNote,
-                  imageBuilder: _networkImage,
-                  featureIconOf: _environmentIcon,
+                  imageBuilder: environmentIntroNetworkImage,
+                  featureIconOf: environmentIntroIcon,
                 ),
               ),
             );
@@ -239,7 +247,7 @@ class ShopEnvironmentPage extends StatelessWidget {
   }
 }
 
-IconData _environmentIcon(String key) {
+IconData environmentIntroIcon(String key) {
   switch (key) {
     case 'home':
       return Icons.home_rounded;
@@ -287,7 +295,7 @@ List<String> _readGalleryImageUrls(dynamic raw) {
   return urls;
 }
 
-Widget _networkImage({
+Widget environmentIntroNetworkImage({
   required String imageUrl,
   double? width,
   double? height,

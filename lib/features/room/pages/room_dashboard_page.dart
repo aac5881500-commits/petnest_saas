@@ -4,6 +4,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
@@ -75,7 +76,12 @@ class RoomDashboardPage extends StatefulWidget {
   State<RoomDashboardPage> createState() => _RoomDashboardPageState();
 }
 
-class _RoomDashboardPageState extends State<RoomDashboardPage> {
+class _RoomDashboardPageState extends State<RoomDashboardPage>
+    with ShopDashboardLeaveAware<RoomDashboardPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => false;
+  @override
+  bool get dashboardIsBusy => _busyKeys.isNotEmpty;
   static const double _desktopMin = 700;
   static const double _splitMin = 1100;
   static const Color _accent = Color(0xFF1565C0);

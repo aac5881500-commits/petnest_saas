@@ -16,6 +16,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
     this.theme = HomeThemeModel.classicDefault,
     this.style = const EnvironmentIntroStyle(),
     this.reverse = false,
+    this.minimal = false,
   });
 
   final IconData icon;
@@ -23,6 +24,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
   final String description;
   final String imageUrl;
   final bool reverse;
+  final bool minimal;
   final HomeThemeModel theme;
   final EnvironmentIntroStyle style;
   final Widget Function({
@@ -51,14 +53,15 @@ class EnvironmentFeatureCard extends StatelessWidget {
       constraints: BoxConstraints(minHeight: style.featureMinHeight),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(style.cardRadius),
+        borderRadius: BorderRadius.circular(minimal ? 6 : style.cardRadius),
         border: Border.all(color: theme.cardBorderColor),
         boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.045),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+          if (!minimal)
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.045),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
         ],
       ),
       child: style.isVerticalCard ? _vertical() : _horizontalOrText(),

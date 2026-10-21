@@ -87,6 +87,8 @@ class StoreBannerEditorController {
 
   StoreBannerModel? get draft => _state?.currentDraft;
 
+  bool get busy => (_state?._saving ?? false) || (_state?._uploading ?? false);
+
   bool get dirty => _state?._dirty ?? false;
 
   bool get saved => _state?._saved ?? false;

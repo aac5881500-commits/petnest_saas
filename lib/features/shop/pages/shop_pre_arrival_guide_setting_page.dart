@@ -2,6 +2,7 @@
 // 功能說明：店家後台：入住前準備圖文設定（住宿／安親），不是條款。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
 import 'package:petnest_saas/core/services/pre_arrival_guide_service.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
@@ -22,7 +23,16 @@ class ShopPreArrivalGuideSettingPage extends StatefulWidget {
 
 class _ShopPreArrivalGuideSettingPageState
     extends State<ShopPreArrivalGuideSettingPage>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        ShopDashboardLeaveAware<ShopPreArrivalGuideSettingPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => _dirty;
+  @override
+  bool get dashboardIsBusy => _saving;
+  @override
+  Future<bool> dashboardConfirmLeave() async =>
+      !_saving && await _confirmLeave();
   late final TabController _tabs;
   PreArrivalGuideModel? _accommodation;
   PreArrivalGuideModel? _daycare;

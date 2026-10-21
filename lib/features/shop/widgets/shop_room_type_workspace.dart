@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
 
 /// Keep both panes under the same parents while the viewport changes.
 /// Offstage panes stay bounded and mounted, including text focus and photos.
@@ -25,6 +26,12 @@ class ShopRoomTypeWorkspace extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final split = constraints.maxWidth >= 1100 && previewAvailable;
+      final workspace = ShopAdminWorkspaceScope.maybeOf(context);
+      final collapsedForChat =
+          MediaQuery.sizeOf(context).width >= 1100 &&
+          workspace?.inboxOpen == true &&
+          !split &&
+          previewAvailable;
       final gap = split ? 20.0 : 0.0;
       return Padding(
         padding: EdgeInsets.fromLTRB(split ? 16 : 8, 8, split ? 16 : 8, 8),
@@ -39,16 +46,56 @@ class ShopRoomTypeWorkspace extends StatelessWidget {
                   child: Offstage(
                     offstage: split || !previewAvailable,
                     child: Align(
-                      child: SegmentedButton<bool>(
-                        showSelectedIcon: false,
-                        segments: [
-                          ButtonSegment(value: false, label: Text(editLabel)),
-                          ButtonSegment(value: true, label: Text(previewLabel)),
-                        ],
-                        selected: {showPreview},
-                        onSelectionChanged: (value) =>
-                            onPreviewChanged(value.first),
-                      ),
+                      child: collapsedForChat
+                          ? TextButton.icon(
+                              icon: const Icon(Icons.smartphone_outlined),
+                              label: const Text('查看預覽'),
+                              onPressed: () => showDialog<void>(
+                                context: context,
+                                builder: (context) => Dialog(
+                                  child: SizedBox(
+                                    width: 440,
+                                    height:
+                                        MediaQuery.sizeOf(context).height * .85,
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const SizedBox(width: 16),
+                                            const Expanded(
+                                              child: Text('房型前台預覽'),
+                                            ),
+                                            IconButton(
+                                              tooltip: '關閉預覽',
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              icon: const Icon(Icons.close),
+                                            ),
+                                          ],
+                                        ),
+                                        Expanded(child: preview),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : SegmentedButton<bool>(
+                              showSelectedIcon: false,
+                              segments: [
+                                ButtonSegment(
+                                  value: false,
+                                  label: Text(editLabel),
+                                ),
+                                ButtonSegment(
+                                  value: true,
+                                  label: Text(previewLabel),
+                                ),
+                              ],
+                              selected: {showPreview},
+                              onSelectionChanged: (value) =>
+                                  onPreviewChanged(value.first),
+                            ),
                     ),
                   ),
                 ),
@@ -62,8 +109,12 @@ class ShopRoomTypeWorkspace extends StatelessWidget {
                         width: left,
                         child: Offstage(
                           offstage:
-                              !previewAvailable || (!split && !showPreview),
-                          child: preview,
+                              collapsedForChat ||
+                              !previewAvailable ||
+                              (!split && !showPreview),
+                          child: collapsedForChat
+                              ? const SizedBox.shrink()
+                              : preview,
                         ),
                       ),
                       Positioned(
@@ -72,7 +123,11 @@ class ShopRoomTypeWorkspace extends StatelessWidget {
                         bottom: 0,
                         width: right,
                         child: Offstage(
-                          offstage: previewAvailable && !split && showPreview,
+                          offstage:
+                              !collapsedForChat &&
+                              previewAvailable &&
+                              !split &&
+                              showPreview,
                           child: editor,
                         ),
                       ),

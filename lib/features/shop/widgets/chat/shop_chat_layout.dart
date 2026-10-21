@@ -8,23 +8,16 @@ class ShopChatLayout {
 
   static const double phoneMax = 600;
   static const double desktopMin = 1024;
-  static const double multiSlotMinWidth = 1280;
+  static const double multiSlotMinWidth = 1100;
   static const double inboxColumnWidth = 160;
-  static const double dockMinWidth = 630;
-  static const double dockMaxWidth = 670;
-  static const double preferredDockWidth = 650;
+  static const double dockMinWidth = 360;
+  static const double dockMaxWidth = 420;
+  static const double preferredDockWidth = 380;
   static const int desktopSlotMax = 3;
   static const String slotFullMessage = '目前已開啟 3 個對話，請先關閉其中一個。';
 
   static double dockWidthFor(double pageWidth) {
-    if (pageWidth < multiSlotMinWidth) {
-      return preferredDockWidth;
-    }
-    final double maxByViewport = pageWidth - 400;
-    final double upper = maxByViewport < dockMinWidth
-        ? dockMinWidth
-        : (maxByViewport > dockMaxWidth ? dockMaxWidth : maxByViewport);
-    return preferredDockWidth.clamp(dockMinWidth, upper);
+    return preferredDockWidth;
   }
 
   static double get dockWidth => preferredDockWidth;

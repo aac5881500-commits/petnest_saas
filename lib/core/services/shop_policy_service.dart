@@ -3,6 +3,7 @@
 // 📜 店家入住條款 Service
 
 import 'dart:convert';
+import 'package:petnest_saas/core/services/policy_url_validation.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -46,8 +47,121 @@ class ShopPolicyService {
     return text.contains('條款已更新');
   }
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// Only check-in content counts; refund-only and local drafts do not qualify.
+  bool hasPublishedStayPolicy({
+    required Map<String, dynamic>? policy,
+    required Map<String, dynamic>? published,
+  }) {
+    if (policy == null || published == null) return false;
+    if (policy['status'] != null && policy['status'] != 'published') {
+      return false;
+    }
+    const stay = PolicyApplicableService.accommodation;
+    if (ShopPolicyHistory.isExplicitDaycarePolicy(published) &&
+        !ShopPolicyHistory.isExplicitStayPolicy(published)) {
+      return false;
+    }
+    final status = published['status']?.toString();
+    // Legacy history documents predate the status field; their versioned
+    // snapshot is the publication evidence. Explicit drafts never qualify.
+    if (status != null && status != 'published') return false;
+    final version = servicePolicyVersion(policy: policy, serviceType: stay);
+    if (version <= 0 ||
+        servicePolicyVersion(policy: published, serviceType: stay) != version) {
+      return false;
+    }
+
+    List<String> content(Map<String, dynamic> source) {
+      dynamic clean(dynamic raw) => raw is List
+          ? raw.where((e) => e is! Map || e['enabled'] != false).toList()
+          : raw;
+      final data = Map<String, dynamic>.from(source);
+      for (final key in ['customPoliciesPage1', 'customPoliciesPage2']) {
+        data[key] = clean(data[key]);
+      }
+      final custom = Map<String, dynamic>.from(
+        data['customPoliciesByService'] ?? {},
+      );
+      if (custom[stay] is Map) {
+        final own = Map<String, dynamic>.from(custom[stay]);
+        own['page1'] = clean(own['page1']);
+        own['page2'] = clean(own['page2']);
+        custom[stay] = own;
+        data['customPoliciesByService'] = custom;
+        final texts = Map<String, dynamic>.from(
+          data['sectionTextsByService'] ?? {},
+        );
+        if (Map<String, dynamic>.from(texts[stay] ?? {}).isEmpty) {
+          texts[stay] = {'__empty__': ''};
+          data['sectionTextsByService'] = texts;
+        }
+      }
+      final filtered = filterPolicyForService(policy: data, serviceType: stay);
+      final sections = Map<String, dynamic>.from(filtered['sections'] ?? {});
+      final enabled = Map<String, dynamic>.from(filtered['enabled'] ?? {});
+      final result = <String>[];
+      for (final key in ShopPolicyHistory.page1Keys) {
+        final text = (sections[key] ?? '').toString().trim();
+        if (enabled[key] != false && text.isNotEmpty) result.add('$key:$text');
+      }
+      final items = PolicyApplicableService.normalizeCustomPolicies(
+        filtered['customPoliciesPage1'],
+      );
+      result.addAll(
+        PolicyApplicableService.textsForService(
+          items: items,
+          serviceType: stay,
+        ).map((text) => 'custom:${text.trim()}'),
+      );
+      return result..sort();
+    }
+
+    final current = content(policy);
+    return current.isNotEmpty &&
+        jsonEncode(current) == jsonEncode(content(published));
+  }
+
+  Future<bool> hasEffectiveStayPolicy(String shopId) async {
+    final shop = _firestore.collection('shops').doc(shopId);
+    final current = await shop
+        .collection('policies')
+        .doc('checkin_policy')
+        .get(const GetOptions(source: Source.server));
+    final policy = current.data();
+    if (policy == null) return false;
+    final version = servicePolicyVersion(
+      policy: policy,
+      serviceType: PolicyApplicableService.accommodation,
+    );
+    if (version <= 0) return false;
+    final history = await shop
+        .collection(ShopPolicyHistory.policyVersions)
+        .doc(
+          ShopPolicyHistory.documentId(
+            serviceType: PolicyApplicableService.accommodation,
+            version: version,
+          ),
+        )
+        .get(const GetOptions(source: Source.server));
+    return hasPublishedStayPolicy(policy: policy, published: history.data());
+  }
+
+  Future<void> requireEffectiveStayPolicy(String shopId) async {
+    try {
+      if (!await hasEffectiveStayPolicy(shopId)) {
+        throw StateError('請先設定並發布入住條款，才能開放住宿預約。');
+      }
+    } on FirebaseException catch (e) {
+      throw StateError(
+        e.code == 'permission-denied'
+            ? '沒有讀取住宿條款的權限，無法確認開放資格'
+            : '住宿條款讀取失敗，請重試後再開放住宿預約',
+      );
+    }
+  }
 
   User? get _currentUser => _auth.currentUser;
 
@@ -250,6 +364,17 @@ class ShopPolicyService {
       'updatedByEmail': user?.email ?? '',
     };
 
+    for (final service in [
+      PolicyApplicableService.accommodation,
+      PolicyApplicableService.daycare,
+    ]) {
+      PolicyUrlValidation.requireValid(
+        PolicyUrlValidation.policyFields(
+          filterPolicyForService(policy: policyData, serviceType: service),
+          service,
+        ),
+      );
+    }
     await docRef.set(policyData);
 
     final DocumentReference<Map<String, dynamic>> historyRef = _firestore
@@ -800,6 +925,14 @@ class ShopPolicyService {
     required String body,
     required bool enabled,
   }) async {
+    PolicyUrlValidation.requireValid(
+      PolicyUrlValidation.refundFields(
+        title: title,
+        description: description,
+        body: body,
+        enabled: enabled,
+      ),
+    );
     final User? user = _currentUser;
     final DocumentReference<Map<String, dynamic>> docRef = _firestore
         .collection('shops')
@@ -842,6 +975,7 @@ class ShopPolicyService {
     required Map<String, bool> enabled,
     required List<String> customPoliciesPage1,
     required List<String> customPoliciesPage2,
+    bool replaceCustomPolicies = false,
   }) async {
     final User? user = _currentUser;
     final DocumentReference<Map<String, dynamic>> docRef = _firestore
@@ -919,6 +1053,7 @@ class ShopPolicyService {
     textsByService[serviceType] = sections;
     enabledByService[serviceType] = enabled;
     final bool keepExistingCustom =
+        !replaceCustomPolicies &&
         customPoliciesPage1.every((String e) => e.trim().isEmpty) &&
         customPoliciesPage2.every((String e) => e.trim().isEmpty) &&
         customByService[serviceType] is Map;
@@ -1052,6 +1187,12 @@ class ShopPolicyService {
     policyData['updatedAt'] = FieldValue.serverTimestamp();
     policyData['updatedByUid'] = user?.uid ?? '';
     policyData['updatedByEmail'] = user?.email ?? '';
+    PolicyUrlValidation.requireValid(
+      PolicyUrlValidation.policyFields(
+        filterPolicyForService(policy: policyData, serviceType: serviceType),
+        serviceType,
+      ),
+    );
     await docRef.set(policyData);
     if (contentChanged) {
       final String historyId = serviceType == PolicyApplicableService.daycare

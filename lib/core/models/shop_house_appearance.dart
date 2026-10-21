@@ -5,6 +5,7 @@ import 'platform_media_asset.dart';
 
 class ShopHouseAppearance {
   const ShopHouseAppearance({
+    this.mode = houseMode,
     this.roofAssetId = '',
     this.wallAssetId = '',
     this.windowFrameAssetId = '',
@@ -16,6 +17,11 @@ class ShopHouseAppearance {
     this.sceneBackgroundAssetId = '',
     this.roofPhoneAssetId = '',
   });
+
+  static const String houseMode = 'house';
+  static const String minimalPlainMode = 'minimal_plain';
+  final String mode;
+  bool get isMinimalPlain => mode == minimalPlainMode;
 
   static const String fieldName = 'houseAppearance';
   static const ShopHouseAppearance empty = ShopHouseAppearance();
@@ -37,6 +43,7 @@ class ShopHouseAppearance {
     }
     final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
     return ShopHouseAppearance(
+      mode: _id(map['mode']).isEmpty ? houseMode : _id(map['mode']),
       roofAssetId: _id(map['roofAssetId']),
       wallAssetId: _id(map['wallAssetId']),
       windowFrameAssetId: _id(map['windowFrameAssetId']),
@@ -52,6 +59,7 @@ class ShopHouseAppearance {
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
+      'mode': mode,
       'roofAssetId': roofAssetId,
       'wallAssetId': wallAssetId,
       'windowFrameAssetId': windowFrameAssetId,
@@ -91,6 +99,7 @@ class ShopHouseAppearance {
   }
 
   ShopHouseAppearance copyWith({
+    String? mode,
     String? roofAssetId,
     String? wallAssetId,
     String? windowFrameAssetId,
@@ -103,6 +112,7 @@ class ShopHouseAppearance {
     String? roofPhoneAssetId,
   }) {
     return ShopHouseAppearance(
+      mode: mode ?? this.mode,
       roofAssetId: roofAssetId ?? this.roofAssetId,
       wallAssetId: wallAssetId ?? this.wallAssetId,
       windowFrameAssetId: windowFrameAssetId ?? this.windowFrameAssetId,

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_payout_setting_page.dart
 // 功能說明：管理店家的銀行轉帳收款資料，並提供綠界金流資料填寫
 // 🏦 收款帳戶 / 金流設定頁
@@ -21,7 +22,33 @@ class ShopPayoutSettingPage extends StatefulWidget {
   State<ShopPayoutSettingPage> createState() => _ShopPayoutSettingPageState();
 }
 
-class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
+class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage>
+    with ShopDashboardLeaveAware<ShopPayoutSettingPage> {
+  String? _dashboardSavedBank;
+  String? _dashboardSavedEcpay;
+  bool _dashboardOperationSaving = false;
+  String get _dashboardBank => [
+    _bankNameCtrl.text,
+    _accountNameCtrl.text,
+    _accountNumberCtrl.text,
+  ].map((v) => '${v.length}:$v').join();
+  String get _dashboardEcpay => [
+    _merchantNameCtrl.text,
+    _merchantIdCtrl.text,
+    _hashKeyCtrl.text,
+    _hashIvCtrl.text,
+    _ecpayEnvironment,
+    '$_creditCardEnabled|$_atmEnabled|$_cvsCodeEnabled',
+  ].map((v) => '${v.length}:$v').join();
+  @override
+  bool get dashboardHasUnsavedChanges =>
+      !_loading &&
+      (_dashboardSavedBank != _dashboardBank ||
+          _dashboardSavedEcpay != _dashboardEcpay);
+  @override
+  bool get dashboardIsBusy =>
+      _saving || _submittingEcpay || _dashboardOperationSaving;
+
   // 🏦 銀行轉帳設定欄位
   final TextEditingController _bankNameCtrl = TextEditingController();
   final TextEditingController _accountNameCtrl = TextEditingController();
@@ -117,6 +144,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
       }
 
       // 🏦 銀行轉帳資料
+      if (!mounted) return;
       _bankNameCtrl.text = (data['bankName'] ?? '').toString();
       _accountNameCtrl.text = (data['accountName'] ?? '').toString();
       _accountNumberCtrl.text = (data['accountNumber'] ?? '').toString();
@@ -185,6 +213,8 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
       // 🔐 敏感資料不從前端讀取
       _hashKeyCtrl.clear();
       _hashIvCtrl.clear();
+      _dashboardSavedBank = _dashboardBank;
+      _dashboardSavedEcpay = _dashboardEcpay;
     } catch (error) {
       if (!mounted) {
         return;
@@ -196,6 +226,8 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
     } finally {
       if (mounted) {
         setState(() {
+          _dashboardSavedBank ??= _dashboardBank;
+          _dashboardSavedEcpay ??= _dashboardEcpay;
           _loading = false;
         });
       }
@@ -257,7 +289,12 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
       return;
     }
     setState(() {});
-    await _saveOperationSettings();
+    _dashboardOperationSaving = true;
+    try {
+      await _saveOperationSettings();
+    } finally {
+      _dashboardOperationSaving = false;
+    }
   }
 
   /// 🏦 儲存銀行轉帳收款資料
@@ -293,6 +330,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('銀行收款資料已儲存')));
+      _dashboardSavedBank = _dashboardBank;
     } catch (error) {
       if (!mounted) {
         return;
@@ -416,6 +454,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
         _paymentRejectionReason = '';
         _hashKeyCtrl.clear();
         _hashIvCtrl.clear();
+        _dashboardSavedEcpay = _dashboardEcpay;
         _showHashKey = false;
         _showHashIv = false;
       });
@@ -1077,21 +1116,23 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
     }
 
     // 🏦 將收款設定分成銀行轉帳與綠界金流兩個分頁
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('收款帳戶 / 金流設定'),
-          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-          bottom: const TabBar(
-            tabs: <Widget>[
-              Tab(icon: Icon(Icons.account_balance_outlined), text: '銀行轉帳'),
-              Tab(icon: Icon(Icons.credit_card_outlined), text: '綠界金流'),
-            ],
+    return dashboardGuard(
+      DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('收款帳戶 / 金流設定'),
+            actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+            bottom: const TabBar(
+              tabs: <Widget>[
+                Tab(icon: Icon(Icons.account_balance_outlined), text: '銀行轉帳'),
+                Tab(icon: Icon(Icons.credit_card_outlined), text: '綠界金流'),
+              ],
+            ),
           ),
-        ),
-        body: TabBarView(
-          children: <Widget>[_buildBankTransferTab(), _buildEcpayTab()],
+          body: TabBarView(
+            children: <Widget>[_buildBankTransferTab(), _buildEcpayTab()],
+          ),
         ),
       ),
     );

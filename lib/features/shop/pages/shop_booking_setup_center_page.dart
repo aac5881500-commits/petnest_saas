@@ -5,6 +5,7 @@ import 'package:petnest_saas/features/shop/widgets/shop_room_type_live_preview.d
 // 功能說明：房型、房間與預約設定整合頁，頂部分頁為房型與房間、預約設定。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
@@ -45,8 +46,23 @@ class ShopBookingSetupCenterPage extends StatefulWidget {
       _ShopBookingSetupCenterPageState();
 }
 
-class _ShopBookingSetupCenterPageState
-    extends State<ShopBookingSetupCenterPage> {
+class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
+    with ShopDashboardLeaveAware<ShopBookingSetupCenterPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => false;
+  @override
+  bool get dashboardIsBusy => _navigating;
+  @override
+  Future<bool> dashboardConfirmLeave() async {
+    if (_navigating) return false;
+    _navigating = true;
+    try {
+      return await _leaveCurrentTab();
+    } finally {
+      _navigating = false;
+    }
+  }
+
   final ShopBookingSettingsLeaveGuard _bookingLeaveGuard =
       ShopBookingSettingsLeaveGuard();
 
@@ -284,6 +300,12 @@ class _ShopBookingSetupCenterPageState
           saveDraft: widget.saveRoomType,
           canManageRoomTypes: _can(ShopPermissionKeys.manageRoomTypes),
           canManageRooms: _can(ShopPermissionKeys.manageRooms),
+          isActive:
+              _tab == ShopBookingSetupTab.roomTypes ||
+              _tab == ShopBookingSetupTab.rooms,
+          onOpenBookingSettings: _can(ShopPermissionKeys.manageBookingSettings)
+              ? () => _selectTab(ShopBookingSetupTab.booking)
+              : null,
         );
       case ShopBookingSetupTab.booking:
         return ShopBookingSettingsPage(

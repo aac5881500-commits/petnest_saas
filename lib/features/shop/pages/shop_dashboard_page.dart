@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/legal_pet/shop_profile_lock.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_opening_progress.dart';
 // 檔案名稱：lib/features/shop/pages/shop_dashboard_page.dart
@@ -42,6 +43,8 @@ import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_pre_arrival_guide_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_custom_form_settings_page.dart';
 import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
+import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_camera_access_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
@@ -78,16 +81,27 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   late final ShopAdminWorkspaceController _workspace =
       ShopAdminWorkspaceController();
 
+  final _basicNavigation = ShopDashboardNavigation(
+    moduleId: ShopModules.basicInfo,
+  );
+  final _catNavigation = ShopDashboardNavigation(
+    moduleId: ShopModules.catHotel,
+  );
+  // 安親條件只訂閱一次，供卡片與快速選單共用。
+  late Stream<DaycareSettingsModel> _daycareStream;
+  final _navigationScopeKey = GlobalKey();
+  late Stream<Map<String, dynamic>?> _shopStream;
+  bool _basicDetailWasOpen = false;
   String? _currentUserRole;
   Map<String, dynamic>? _currentMemberData;
   bool _roleLoaded = false;
   bool _frontendPrefsLoaded = false;
   bool _frontendOpenPref = false;
-  bool _chatSurfacesOnTop = false;
-  bool _wasChatVisible = false;
   bool _frontendExpanded = false;
   bool _welcomeScheduled = false;
   bool _welcomeVisible = false;
+  bool _dashboardWasCurrent = true;
+  int _dashboardVisit = 0;
   final GlobalKey _frontendTabBarViewKey = GlobalKey();
   final GlobalKey<ShopFrontendPreviewFrameState> _frontendPreviewKey =
       GlobalKey<ShopFrontendPreviewFrameState>();
@@ -95,15 +109,80 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
+    _daycareStream = DaycareSettingsService.instance.stream(widget.shopId);
     _loadRole();
     _updateLastActiveAt();
     _loadFrontendPrefs();
-    _workspace.chat.addListener(_onChatSurfacesChanged);
+    _basicNavigation.addListener(_onBasicNavigationChanged);
+    _catNavigation.addListener(_onCatNavigationChanged);
+  }
+
+  void _onCatNavigationChanged() {
+    if (!mounted) return;
+    final detail = _catNavigation.hasDetail;
+    if (detail == _catDetailWasOpen) return;
+    if (detail != _catDetailWasOpen) {
+      _catDetailWasOpen = detail;
+      _dashboardVisit++;
+      if (!detail) _welcomeScheduled = false;
+    }
+    setState(() {});
+  }
+
+  bool _catDetailWasOpen = false;
+
+  void _onBasicNavigationChanged() {
+    final detailOpen = _basicNavigation.hasDetail;
+    if (!mounted || detailOpen == _basicDetailWasOpen) return;
+    _basicDetailWasOpen = detailOpen;
+    _dashboardVisit++;
+    setState(() {
+      if (!detailOpen) _welcomeScheduled = false;
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ShopDashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId == widget.shopId) return;
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
+    _daycareStream = DaycareSettingsService.instance.stream(widget.shopId);
+    _welcomeScheduled = false;
+    _dashboardVisit++;
+    _roleLoaded = false;
+    _currentMemberData = null;
+    _currentUserRole = null;
+    _workspace.canUseChat = false;
+    _loadRole();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _workspace.chat.useSingleWorkspace = ShopChatLayout.useDesktopDock(
+      MediaQuery.sizeOf(context).width,
+    );
+    final current = ModalRoute.of(context)?.isCurrent ?? false;
+    // The reminder's own dialog is part of this visit, not a navigation away.
+    if (_welcomeVisible || current == _dashboardWasCurrent) return;
+    _dashboardWasCurrent = current;
+    _dashboardVisit++;
+    if (current) _welcomeScheduled = false;
+  }
+
+  bool _canPresentWelcome(int visit) {
+    return mounted &&
+        !_basicNavigation.hasDetail &&
+        !_catNavigation.hasDetail &&
+        visit == _dashboardVisit &&
+        ModalRoute.of(context)?.isCurrent == true;
   }
 
   @override
   void dispose() {
-    _workspace.chat.removeListener(_onChatSurfacesChanged);
+    _basicNavigation.dispose();
+    _catNavigation.dispose();
     _workspace.dispose();
     super.dispose();
   }
@@ -136,6 +215,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   Future<void> _loadRole() async {
+    final shopId = widget.shopId;
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
@@ -149,14 +229,14 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
 
     try {
       await ShopMemberPermissionService.instance.syncOwnerMembershipForShop(
-        widget.shopId,
+        shopId,
       );
       final memberData = await ShopService.instance.getUserMemberInShop(
-        shopId: widget.shopId,
+        shopId: shopId,
         uid: user.uid,
       );
 
-      if (!mounted) return;
+      if (!mounted || widget.shopId != shopId) return;
       setState(() {
         _currentMemberData = memberData;
         _currentUserRole = memberData?['role']?.toString();
@@ -164,11 +244,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       });
       _workspace.canUseChat = _can(ShopPermissionKeys.manageChat);
       _workspace.bindChat(
-        shopId: widget.shopId,
+        shopId: shopId,
         uid: FirebaseAuth.instance.currentUser?.uid ?? 'anon',
       );
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || widget.shopId != shopId) return;
       setState(() {
         _currentUserRole = null;
         _roleLoaded = true;
@@ -200,23 +280,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     await prefs.setBool(_frontendOpenPrefKey(), open);
   }
 
-  void _onChatSurfacesChanged() {
-    final bool visible =
-        _workspace.chat.inboxOpen || _workspace.chat.showDockWindows;
-    if (visible == _wasChatVisible) {
-      return;
-    }
-    _wasChatVisible = visible;
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      if (visible && !_chatSurfacesOnTop) {
-        _chatSurfacesOnTop = true;
-      }
-    });
-  }
-
   double _chatDockWidth(double pageWidth) {
     final bool desktopChatOpen =
         _can(ShopPermissionKeys.manageChat) &&
@@ -231,8 +294,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   /// 判斷內嵌前台時，要先扣掉聊天桌機欄已占用的寬度。
-  double _frontendAvailableWidth(double pageWidth) {
-    final double available = pageWidth - _chatDockWidth(pageWidth);
+  double _frontendAvailableWidth(double pageWidth, {double? viewportWidth}) {
+    final double available =
+        pageWidth - _chatDockWidth(viewportWidth ?? pageWidth);
     if (available < 0) {
       return 0;
     }
@@ -243,9 +307,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     final bool next = !_frontendOpenPref;
     setState(() {
       _frontendOpenPref = next;
-      if (next) {
-        _chatSurfacesOnTop = false;
-      } else {
+      if (!next) {
         _frontendExpanded = false;
       }
     });
@@ -255,7 +317,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   void _openFrontendPanel() {
     setState(() {
       _frontendOpenPref = true;
-      _chatSurfacesOnTop = false;
     });
     _saveFrontendOpen(true);
   }
@@ -276,7 +337,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       _frontendExpanded = !_frontendExpanded;
       if (_frontendExpanded) {
         _frontendOpenPref = true;
-        _chatSurfacesOnTop = false;
       }
     });
     _saveFrontendOpen(true);
@@ -377,7 +437,13 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   void _scheduleAdminWelcome(Map<String, dynamic> shop) {
-    if (_welcomeScheduled || !_roleLoaded) return;
+    if (_welcomeScheduled ||
+        _basicNavigation.hasDetail ||
+        _catNavigation.hasDetail ||
+        !_roleLoaded ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final eligible =
         _currentUserRole == ShopRoles.owner &&
@@ -389,18 +455,26 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       return;
     }
     _welcomeScheduled = true;
-    final snapshot = Map<String, dynamic>.from(shop);
+    final visit = _dashboardVisit;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _openAdminWelcome(snapshot);
+      if (_canPresentWelcome(visit)) _openAdminWelcome(visit);
     });
   }
 
-  Future<void> _openAdminWelcome(Map<String, dynamic> shop) async {
-    if (!mounted) return;
+  Future<void> _openAdminWelcome(int visit) async {
+    if (!_canPresentWelcome(visit)) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    Map<String, dynamic>? shop;
     Map<String, dynamic>? userData;
     try {
+      final shopDoc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .get(const GetOptions(source: Source.server));
+      if (!_canPresentWelcome(visit)) return;
+      shop = shopDoc.data();
+      if (shop == null) return;
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -409,7 +483,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     } catch (_) {
       return;
     }
-    if (!mounted) return;
+    if (!_canPresentWelcome(visit) ||
+        FirebaseAuth.instance.currentUser?.uid != user.uid)
+      return;
     final show = ShopAdminWelcome.shouldShow(
       shop: shop,
       shopId: widget.shopId,
@@ -418,12 +494,23 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       userLoaded: true,
       userData: userData,
     );
-    if (!show) return;
-    await _presentAdminWelcome();
+    final needsRequiredInfo =
+        _currentUserRole == ShopRoles.owner &&
+        (shop['ownerUid'] ?? '').toString() == user.uid &&
+        ShopAdminWelcome.shouldRemind(
+          shop: shop,
+          profileComplete: _isProfileComplete(shop),
+        );
+    if (!show && !needsRequiredInfo) return;
+    await _presentAdminWelcome(rememberChoice: show);
   }
 
-  Future<void> _presentAdminWelcome() async {
-    if (!mounted || _welcomeVisible) return;
+  Future<void> _presentAdminWelcome({required bool rememberChoice}) async {
+    if (!mounted ||
+        _welcomeVisible ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     _welcomeVisible = true;
@@ -462,11 +549,13 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       if (!mounted) return;
       final saved = choice ?? ShopAdminWelcomeChoice.later;
       try {
-        await ShopAdminWelcome.remember(
-          uid: user.uid,
-          shopId: widget.shopId,
-          choice: saved,
-        );
+        if (rememberChoice) {
+          await ShopAdminWelcome.remember(
+            uid: user.uid,
+            shopId: widget.shopId,
+            choice: saved,
+          );
+        }
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -474,7 +563,17 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
           );
         }
       }
-      if (!mounted || saved != ShopAdminWelcomeChoice.started) return;
+      if (!mounted ||
+          saved != ShopAdminWelcomeChoice.started ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      final navigationScope =
+          _navigationScopeKey.currentWidget as ShopDashboardNavigationScope?;
+      if (navigationScope?.desktop == true) {
+        await navigationScope!.openEntry('ShopBasicInfoPage');
+        return;
+      }
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -642,9 +741,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       );
     }
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(widget.shopId),
+      key: ValueKey(widget.shopId),
+      stream: _shopStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
@@ -734,379 +835,965 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         );
         final ColorScheme colors = Theme.of(context).colorScheme;
         final double pageWidth = MediaQuery.sizeOf(context).width;
-        final double frontendAvailableWidth = _frontendAvailableWidth(
-          pageWidth,
-        );
         final _DashboardMetrics metrics = _DashboardLayout.metrics(pageWidth);
-        return ShopAdminWorkspaceScope(
-          controller: _workspace,
-          child: DefaultTabController(
-            length: visibleModules.length,
-            child: Scaffold(
-              backgroundColor: _DashboardLayout.pageBg,
-              appBar: AppBar(
-                backgroundColor: Colors.white,
-                foregroundColor: _DashboardLayout.ink,
-                surfaceTintColor: Colors.transparent,
-                elevation: 0,
-                title: Text(
-                  shop['name'] ?? '店家後台',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: metrics.appBarTitleSize,
-                    fontWeight: FontWeight.w700,
-                    color: _DashboardLayout.ink,
-                  ),
-                ),
-                actions: <Widget>[
-                  _buildFrontendAppBarButton(
-                    canUse: canOpenFrontend,
-                    isProfileComplete: isComplete,
-                    canUsePublicPage: canUsePublicPage,
-                    panelOpen:
-                        _frontendOpenPref &&
-                        canOpenFrontend &&
-                        ShopFrontendPreviewFrame.canShowInlinePreview(
-                          frontendAvailableWidth,
-                        ),
-                    showLabel: pageWidth >= _DashboardLayout.phoneBreakpoint,
-                    shopCode: shopCode,
-                    pageWidth: frontendAvailableWidth,
-                  ),
-                  if (_can(ShopPermissionKeys.manageChat))
-                    ShopChatAppBarButton(shopId: widget.shopId),
-                  ShopTaskCenterButton(shopId: widget.shopId),
-                ],
-                bottom: TabBar(
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  labelColor: colors.primary,
-                  unselectedLabelColor: const Color(0xFF4B5563),
-                  labelStyle: TextStyle(
-                    fontSize: metrics.tabLabelSelected,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  unselectedLabelStyle: TextStyle(
-                    fontSize: metrics.tabLabelUnselected,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  labelPadding: EdgeInsets.symmetric(
-                    horizontal: metrics.tabLabelPadH,
-                  ),
-                  indicatorSize: TabBarIndicatorSize.label,
-                  indicator: UnderlineTabIndicator(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                      width: metrics.tabIndicatorHeight,
-                      color: colors.primary,
-                    ),
-                  ),
-                  dividerColor: _DashboardLayout.cardBorder,
-                  tabs: visibleModules
-                      .map(
-                        (module) => Tab(
-                          height: metrics.tabHeight,
-                          text: _moduleLabel(module),
-                          icon: Icon(
-                            _moduleIcon(module),
-                            size: metrics.tabIconSize,
-                          ),
-                          iconMargin: EdgeInsets.only(
-                            bottom: metrics.tabIconGap,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-              body: Column(
-                children: [
-                  if (!isComplete && !remindSetup)
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: _DashboardLayout.maxContentWidth(pageWidth),
-                        ),
-                        child: Container(
-                          width: double.infinity,
-                          margin: EdgeInsets.fromLTRB(
-                            metrics.pagePadH,
-                            metrics.pagePadV,
-                            metrics.pagePadH,
-                            0,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF4E8),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFFD8A8)),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.orange.shade700,
-                                size: 22,
-                              ),
-                              const SizedBox(width: 8),
-                              const Expanded(
-                                child: Text(
-                                  '⚠️ 請先完成店家基本資料，才能使用完整功能',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: _DashboardLayout.ink,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+        return StreamBuilder<DaycareSettingsModel>(
+          key: ValueKey(widget.shopId),
+          stream: visibleModules.contains(ShopModules.catHotel)
+              ? _daycareStream
+              : null,
+          builder: (context, daycareSnapshot) {
+            final daycareOn = DaycareSettingsService.instance.isEnabledForShop(
+              shop: shop,
+              settings: daycareSnapshot.data,
+            );
+            return ShopAdminWorkspaceScope(
+              controller: _workspace,
+              child: _DashboardModuleHost(
+                modules: visibleModules,
+                builder: (context, tabController) => LayoutBuilder(
+                  builder: (context, outerConstraints) {
+                    final sideNavigation = outerConstraints.maxWidth >= 1200;
+                    final workspaceWidth =
+                        outerConstraints.maxWidth - (sideNavigation ? 240 : 0);
+                    final frontendAvailableWidth = _frontendAvailableWidth(
+                      workspaceWidth,
+                      viewportWidth: pageWidth,
+                    );
+                    final basicTab = _BasicInfoTab(
+                      shopId: widget.shopId,
+                      shop: shop,
+                      currentUserRole: _currentUserRole,
+                      memberData: _currentMemberData,
+                      isProfileComplete: isComplete,
+                      showSetupReminder: remindSetup,
+                      onPreviewFrontend: () => _handleFrontendPreview(
+                        shopCode: shopCode,
+                        pageWidth: frontendAvailableWidth,
+                        forceOpen: true,
                       ),
-                    ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder:
-                          (BuildContext context, BoxConstraints constraints) {
-                            final Widget tabViews = TabBarView(
-                              key: _frontendTabBarViewKey,
-                              children: visibleModules.map((module) {
-                                switch (module) {
-                                  case ShopModules.basicInfo:
-                                    return _BasicInfoTab(
-                                      shopId: widget.shopId,
-                                      shop: shop,
-                                      currentUserRole: _currentUserRole,
-                                      memberData: _currentMemberData,
-                                      isProfileComplete: isComplete,
-                                      showSetupReminder: remindSetup,
-                                      onPreviewFrontend: () =>
-                                          _handleFrontendPreview(
-                                            shopCode: shopCode,
-                                            pageWidth: _frontendAvailableWidth(
-                                              MediaQuery.sizeOf(context).width,
-                                            ),
-                                            forceOpen: true,
-                                          ),
-                                    );
-                                  case ShopModules.catHotel:
-                                    return _CatHotelTab(
-                                      shopId: widget.shopId,
-                                      shop: shop,
-                                      isProfileComplete: isComplete,
-                                      memberData: _currentMemberData,
-                                    );
-                                  case ShopModules.dogHotel:
-                                    return const _ModuleTemplateTab(
-                                      title: '狗狗旅店',
-                                      description:
-                                          '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
-                                    );
-                                  case ShopModules.grooming:
-                                    return const _ModuleTemplateTab(
-                                      title: '美容功能',
-                                      description:
-                                          '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
-                                    );
-                                  case ShopModules.hospital:
-                                    return const _ModuleTemplateTab(
-                                      title: '動物醫院',
-                                      description:
-                                          '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
-                                    );
-                                  case ShopModules.store:
-                                    return ShopStoreHubPage(
-                                      shopId: widget.shopId,
-                                      memberData: _currentMemberData,
-                                    );
-                                  case ShopModules.reports:
-                                    return _ReportsTab(
-                                      shopId: widget.shopId,
-                                      currentUserRole: _currentUserRole,
-                                    );
-                                  case ShopModules.inventory:
-                                    return _InventoryTab(
-                                      shopId: widget.shopId,
-                                      isProfileComplete: isComplete,
-                                      memberData: _currentMemberData,
-                                    );
-                                  default:
-                                    return const Center(child: Text('模組尚未定義'));
-                                }
-                              }).toList(),
-                            );
+                    );
+                    final sections = basicTab
+                        .menuChildren(context)
+                        .whereType<_DashboardSection>()
+                        .toList();
+                    final catTab = _CatHotelTab(
+                      shopId: widget.shopId,
+                      shop: shop,
+                      isProfileComplete: isComplete,
+                      memberData: _currentMemberData,
+                      daycareOn: daycareOn,
+                    );
+                    final catSections = catTab.menuChildren(context);
+                    final activeModule = visibleModules.isEmpty
+                        ? null
+                        : visibleModules[tabController.index];
+                    final navigation = activeModule == ShopModules.catHotel
+                        ? _catNavigation
+                        : _basicNavigation;
+                    final activeSections = activeModule == ShopModules.catHotel
+                        ? catSections
+                        : sections;
+                    Future<void> openEntry(String id) async {
+                      final basicEntry = sections
+                          .expand((section) => section.children)
+                          .whereType<_MenuTile>()
+                          .any((entry) => entry.destinationId == id);
+                      final module = basicEntry
+                          ? ShopModules.basicInfo
+                          : ShopModules.catHotel;
+                      final targetNavigation = basicEntry
+                          ? _basicNavigation
+                          : _catNavigation;
+                      if (!visibleModules.contains(module)) return;
+                      final entries = (basicEntry ? sections : catSections)
+                          .expand((section) => section.children)
+                          .whereType<_MenuTile>();
+                      final matching = entries.where(
+                        (entry) => entry.destinationId == id,
+                      );
+                      if (matching.isEmpty || !matching.first.enabled) return;
+                      final entry = matching.first;
+                      if (entry.pageBuilder == null) {
+                        entry.onTap?.call();
+                        return;
+                      }
+                      if (targetNavigation != navigation) {
+                        await navigation.switchTo(
+                          afterLeave: () => tabController.index = visibleModules
+                              .indexOf(module),
+                        );
+                        if (tabController.index !=
+                            visibleModules.indexOf(module)) {
+                          return;
+                        }
+                      }
+                      await targetNavigation.switchTo(
+                        id: id,
+                        page: entry.pageBuilder,
+                        afterLeave: () => tabController.index = visibleModules
+                            .indexOf(module),
+                      );
+                    }
 
-                            final bool chatAllowed = _can(
-                              ShopPermissionKeys.manageChat,
-                            );
-                            final Widget liveFrontend =
-                                ShopFrontendPreviewFrame(
-                                  key: _frontendPreviewKey,
-                                  shopId: widget.shopId,
+                    Future<void> selectModule(int index) => navigation.switchTo(
+                      afterLeave: () => tabController.animateTo(index),
+                    );
+                    return ShopDashboardNavigationScope(
+                      key: _navigationScopeKey,
+                      navigation: navigation,
+                      desktop: sideNavigation,
+                      openEntry: openEntry,
+                      child: Scaffold(
+                        backgroundColor: _DashboardLayout.pageBg,
+                        appBar: AppBar(
+                          backgroundColor: Colors.white,
+                          foregroundColor: _DashboardLayout.ink,
+                          surfaceTintColor: Colors.transparent,
+                          elevation: 0,
+                          title: Text(
+                            shop['name'] ?? '店家後台',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: metrics.appBarTitleSize,
+                              fontWeight: FontWeight.w700,
+                              color: _DashboardLayout.ink,
+                            ),
+                          ),
+                          actions: <Widget>[
+                            ListenableBuilder(
+                              listenable: _workspace.chat,
+                              builder: (context, _) {
+                                final currentFrontendWidth =
+                                    _frontendAvailableWidth(
+                                      workspaceWidth,
+                                      viewportWidth: pageWidth,
+                                    );
+                                return _buildFrontendAppBarButton(
+                                  canUse: canOpenFrontend,
+                                  isProfileComplete: isComplete,
+                                  canUsePublicPage: canUsePublicPage,
+                                  panelOpen:
+                                      _frontendOpenPref &&
+                                      canOpenFrontend &&
+                                      ShopFrontendPreviewFrame.canShowInlinePreview(
+                                        currentFrontendWidth,
+                                      ),
+                                  showLabel:
+                                      pageWidth >=
+                                      _DashboardLayout.phoneBreakpoint,
                                   shopCode: shopCode,
-                                  showExpand: true,
-                                  expanded: _frontendExpanded,
-                                  scaleToFit: !_frontendExpanded,
-                                  onToggleExpand: _toggleFrontendExpand,
-                                  onClose: _closeFrontendPanel,
-                                );
-
-                            return ListenableBuilder(
-                              listenable: Listenable.merge(<Listenable>[
-                                _workspace,
-                                _workspace.chat,
-                              ]),
-                              builder: (BuildContext context, Widget? child) {
-                                final bool desktopChatOpen =
-                                    chatAllowed &&
-                                    ShopChatLayout.shouldShowDesktopDock(
-                                      pageWidth: pageWidth,
-                                      inboxOpen: _workspace.chat.inboxOpen,
-                                    );
-                                final double chatDockWidth = desktopChatOpen
-                                    ? ShopChatLayout.dockWidthFor(pageWidth)
-                                    : 0;
-                                final double availableWidth =
-                                    pageWidth - chatDockWidth < 0
-                                    ? 0
-                                    : pageWidth - chatDockWidth;
-                                final bool canInlinePreview =
-                                    ShopFrontendPreviewFrame.canShowInlinePreview(
-                                      availableWidth,
-                                    );
-                                final bool frontendWanted =
-                                    _frontendPrefsLoaded &&
-                                    _frontendOpenPref &&
-                                    canOpenFrontend &&
-                                    canInlinePreview;
-                                final bool showInline =
-                                    frontendWanted && !_frontendExpanded;
-                                final bool showExpanded =
-                                    frontendWanted && _frontendExpanded;
-                                final double frontendWidth =
-                                    ShopFrontendPreviewFrame.inlineWidthFor(
-                                      availableWidth,
-                                    );
-                                final Widget mainRow = Row(
-                                  key: const Key(
-                                    'shop-dashboard-frontend-inline-split',
-                                  ),
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: <Widget>[
-                                    if (showInline) ...<Widget>[
-                                      SizedBox(
-                                        key: ShopDashboardLiveFrontendOverlay
-                                            .overlayKey,
-                                        width: frontendWidth,
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 8,
-                                            bottom: 12,
-                                          ),
-                                          child: Listener(
-                                            onPointerDown: (_) {
-                                              if (_chatSurfacesOnTop) {
-                                                setState(() {
-                                                  _chatSurfacesOnTop = false;
-                                                });
-                                              }
-                                            },
-                                            child: liveFrontend,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(
-                                        width: ShopFrontendPreviewFrame
-                                            .inlineColumnGap,
-                                      ),
-                                    ],
-                                    Expanded(child: tabViews),
-                                    if (showInline && chatDockWidth > 0)
-                                      SizedBox(width: chatDockWidth),
-                                  ],
-                                );
-                                final Widget expandedLayer = Positioned(
-                                  key: ShopDashboardLiveFrontendOverlay
-                                      .overlayKey,
-                                  left: 0,
-                                  top: 0,
-                                  right: 0,
-                                  bottom: 0,
-                                  child: ColoredBox(
-                                    color: const Color(0x99000000),
-                                    child: Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                          horizontal: 24,
-                                        ),
-                                        child: ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth:
-                                                ShopFrontendPhoneFrame
-                                                    .liveLogicalWidth +
-                                                ShopFrontendPreviewFrame
-                                                    .inlineCanvasInset,
-                                            maxHeight: constraints.maxHeight,
-                                          ),
-                                          child: liveFrontend,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                                final List<Widget> chatLayers = <Widget>[
-                                  if (desktopChatOpen)
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      bottom: 0,
-                                      width: chatDockWidth,
-                                      child: Listener(
-                                        onPointerDown: (_) {
-                                          if (!_chatSurfacesOnTop) {
-                                            setState(() {
-                                              _chatSurfacesOnTop = true;
-                                            });
-                                          }
-                                        },
-                                        child: ShopChatDesktopWorkspace(
-                                          shopId: widget.shopId,
-                                          controller: _workspace.chat,
-                                        ),
-                                      ),
-                                    ),
-                                ];
-                                return SizedBox.expand(
-                                  child: Stack(
-                                    children: <Widget>[
-                                      mainRow,
-                                      if (showExpanded && _chatSurfacesOnTop)
-                                        expandedLayer,
-                                      ...chatLayers,
-                                      if (showExpanded && !_chatSurfacesOnTop)
-                                        expandedLayer,
-                                    ],
-                                  ),
+                                  pageWidth: currentFrontendWidth,
                                 );
                               },
-                            );
-                          },
+                            ),
+                            if (_can(ShopPermissionKeys.manageChat))
+                              ShopChatAppBarButton(shopId: widget.shopId),
+                            ShopTaskCenterButton(shopId: widget.shopId),
+                          ],
+                          bottom: sideNavigation
+                              ? null
+                              : TabBar(
+                                  controller: tabController,
+                                  onTap: (index) {
+                                    if (navigation.hasDetail) {
+                                      tabController.index =
+                                          tabController.previousIndex;
+                                      selectModule(index);
+                                    }
+                                  },
+                                  isScrollable: true,
+                                  tabAlignment: TabAlignment.start,
+                                  labelColor: colors.primary,
+                                  unselectedLabelColor: const Color(0xFF4B5563),
+                                  labelStyle: TextStyle(
+                                    fontSize: metrics.tabLabelSelected,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  unselectedLabelStyle: TextStyle(
+                                    fontSize: metrics.tabLabelUnselected,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  labelPadding: EdgeInsets.symmetric(
+                                    horizontal: metrics.tabLabelPadH,
+                                  ),
+                                  indicatorSize: TabBarIndicatorSize.label,
+                                  indicator: UnderlineTabIndicator(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: BorderSide(
+                                      width: metrics.tabIndicatorHeight,
+                                      color: colors.primary,
+                                    ),
+                                  ),
+                                  dividerColor: _DashboardLayout.cardBorder,
+                                  tabs: visibleModules
+                                      .map(
+                                        (module) => Tab(
+                                          height: metrics.tabHeight,
+                                          text: _moduleLabel(module),
+                                          icon: Icon(
+                                            _moduleIcon(module),
+                                            size: metrics.tabIconSize,
+                                          ),
+                                          iconMargin: EdgeInsets.only(
+                                            bottom: metrics.tabIconGap,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                        ),
+                        body: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (sideNavigation)
+                              _DashboardSideNavigation(
+                                modules: visibleModules,
+                                controller: tabController,
+                                labelFor: _moduleLabel,
+                                iconFor: _moduleIcon,
+                                sections: activeSections,
+                                navigation: navigation,
+                                detailModule: navigation.moduleId,
+                                onModuleSelected: selectModule,
+                                onOpen: openEntry,
+                              ),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  if (!isComplete && !remindSetup)
+                                    Align(
+                                      alignment: Alignment.topCenter,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth:
+                                              _DashboardLayout.maxContentWidth(
+                                                pageWidth,
+                                              ),
+                                        ),
+                                        child: Container(
+                                          width: double.infinity,
+                                          margin: EdgeInsets.fromLTRB(
+                                            metrics.pagePadH,
+                                            metrics.pagePadV,
+                                            metrics.pagePadH,
+                                            0,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFF4E8),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFFFD8A8),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(
+                                                Icons.warning_amber_rounded,
+                                                color: Colors.orange.shade700,
+                                                size: 22,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              const Expanded(
+                                                child: Text(
+                                                  '⚠️ 請先完成店家基本資料，才能使用完整功能',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: _DashboardLayout.ink,
+                                                    height: 1.35,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: LayoutBuilder(
+                                      builder:
+                                          (
+                                            BuildContext context,
+                                            BoxConstraints constraints,
+                                          ) {
+                                            final Widget tabViews = TabBarView(
+                                              controller: tabController,
+                                              physics:
+                                                  sideNavigation ||
+                                                      navigation.hasDetail
+                                                  ? const NeverScrollableScrollPhysics()
+                                                  : null,
+                                              key: _frontendTabBarViewKey,
+                                              children: visibleModules
+                                                  .map(
+                                                    (module) => KeyedSubtree(
+                                                      key: ValueKey(module),
+                                                      child: () {
+                                                        switch (module) {
+                                                          case ShopModules
+                                                              .basicInfo:
+                                                            return ShopDashboardContentNavigator(
+                                                              navigation:
+                                                                  _basicNavigation,
+                                                              child: _BasicInfoTab(
+                                                                shopId: widget
+                                                                    .shopId,
+                                                                shop: shop,
+                                                                currentUserRole:
+                                                                    _currentUserRole,
+                                                                memberData:
+                                                                    _currentMemberData,
+                                                                isProfileComplete:
+                                                                    isComplete,
+                                                                showSetupReminder:
+                                                                    remindSetup,
+                                                                onPreviewFrontend: () => _handleFrontendPreview(
+                                                                  shopCode:
+                                                                      shopCode,
+                                                                  pageWidth: _frontendAvailableWidth(
+                                                                    constraints
+                                                                        .maxWidth,
+                                                                    viewportWidth:
+                                                                        pageWidth,
+                                                                  ),
+                                                                  forceOpen:
+                                                                      true,
+                                                                ),
+                                                              ),
+                                                            );
+                                                          case ShopModules
+                                                              .catHotel:
+                                                            return ShopDashboardContentNavigator(
+                                                              navigation:
+                                                                  _catNavigation,
+                                                              child: catTab,
+                                                            );
+                                                          case ShopModules
+                                                              .dogHotel:
+                                                            return const _ModuleTemplateTab(
+                                                              title: '狗狗旅店',
+                                                              description:
+                                                                  '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
+                                                            );
+                                                          case ShopModules
+                                                              .grooming:
+                                                            return const _ModuleTemplateTab(
+                                                              title: '美容功能',
+                                                              description:
+                                                                  '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
+                                                            );
+                                                          case ShopModules
+                                                              .hospital:
+                                                            return const _ModuleTemplateTab(
+                                                              title: '動物醫院',
+                                                              description:
+                                                                  '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
+                                                            );
+                                                          case ShopModules
+                                                              .store:
+                                                            return ShopStoreHubPage(
+                                                              shopId:
+                                                                  widget.shopId,
+                                                              memberData:
+                                                                  _currentMemberData,
+                                                            );
+                                                          case ShopModules
+                                                              .reports:
+                                                            return _ReportsTab(
+                                                              shopId:
+                                                                  widget.shopId,
+                                                              currentUserRole:
+                                                                  _currentUserRole,
+                                                            );
+                                                          case ShopModules
+                                                              .inventory:
+                                                            return _InventoryTab(
+                                                              shopId:
+                                                                  widget.shopId,
+                                                              isProfileComplete:
+                                                                  isComplete,
+                                                              memberData:
+                                                                  _currentMemberData,
+                                                            );
+                                                          default:
+                                                            return const Center(
+                                                              child: Text(
+                                                                '模組尚未定義',
+                                                              ),
+                                                            );
+                                                        }
+                                                      }(),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                            );
+
+                                            final bool chatAllowed = _can(
+                                              ShopPermissionKeys.manageChat,
+                                            );
+                                            final Widget liveFrontend =
+                                                ShopFrontendPreviewFrame(
+                                                  key: _frontendPreviewKey,
+                                                  shopId: widget.shopId,
+                                                  shopCode: shopCode,
+                                                  showExpand: true,
+                                                  expanded: _frontendExpanded,
+                                                  scaleToFit:
+                                                      !_frontendExpanded,
+                                                  onToggleExpand:
+                                                      _toggleFrontendExpand,
+                                                  onClose: _closeFrontendPanel,
+                                                );
+
+                                            return ListenableBuilder(
+                                              listenable: Listenable.merge(
+                                                <Listenable>[
+                                                  _workspace,
+                                                  _workspace.chat,
+                                                ],
+                                              ),
+                                              builder: (BuildContext context, Widget? child) {
+                                                final desktopChatOpen =
+                                                    chatAllowed &&
+                                                    ShopChatLayout.shouldShowDesktopDock(
+                                                      pageWidth: pageWidth,
+                                                      inboxOpen: _workspace
+                                                          .chat
+                                                          .inboxOpen,
+                                                    );
+                                                final narrowChat =
+                                                    constraints.maxWidth < 940;
+                                                final focusChat =
+                                                    desktopChatOpen &&
+                                                    (_workspace
+                                                            .chat
+                                                            .workspaceExpanded ||
+                                                        narrowChat);
+                                                final dockWidth =
+                                                    desktopChatOpen
+                                                    ? ShopChatLayout.dockWidthFor(
+                                                        constraints.maxWidth,
+                                                      )
+                                                    : 0.0;
+                                                final normalMain =
+                                                    (constraints.maxWidth -
+                                                            dockWidth)
+                                                        .clamp(
+                                                          0.0,
+                                                          constraints.maxWidth,
+                                                        )
+                                                        .toDouble();
+                                                // 集中聊天時保留後台原有實例與合理寬度，不以零寬重新排版表單。
+                                                final layoutMain = focusChat
+                                                    ? (constraints.maxWidth >
+                                                              560
+                                                          ? normalMain
+                                                                .clamp(
+                                                                  560.0,
+                                                                  constraints
+                                                                      .maxWidth,
+                                                                )
+                                                                .toDouble()
+                                                          : constraints
+                                                                .maxWidth)
+                                                    : normalMain;
+                                                final chatWidth = focusChat
+                                                    ? constraints.maxWidth
+                                                    : dockWidth;
+                                                final frontendWanted =
+                                                    _frontendPrefsLoaded &&
+                                                    _frontendOpenPref &&
+                                                    canOpenFrontend &&
+                                                    ShopFrontendPreviewFrame.canShowInlinePreview(
+                                                      layoutMain,
+                                                    );
+                                                final showInline =
+                                                    frontendWanted &&
+                                                    !_frontendExpanded;
+                                                final showExpanded =
+                                                    frontendWanted &&
+                                                    _frontendExpanded;
+                                                final frontendWidth =
+                                                    ShopFrontendPreviewFrame.inlineWidthFor(
+                                                      layoutMain,
+                                                    );
+                                                final management = SizedBox.expand(
+                                                  child: Stack(
+                                                    children: [
+                                                      Row(
+                                                        key: const Key(
+                                                          'shop-dashboard-frontend-inline-split',
+                                                        ),
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .stretch,
+                                                        children: [
+                                                          if (showInline) ...[
+                                                            SizedBox(
+                                                              key: ShopDashboardLiveFrontendOverlay
+                                                                  .overlayKey,
+                                                              width:
+                                                                  frontendWidth,
+                                                              child: Padding(
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      vertical:
+                                                                          12,
+                                                                    ),
+                                                                child:
+                                                                    liveFrontend,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              width: ShopFrontendPreviewFrame
+                                                                  .inlineColumnGap,
+                                                            ),
+                                                          ],
+                                                          Expanded(
+                                                            child: _DashboardWorkspaceScope(
+                                                              enabled:
+                                                                  !showInline &&
+                                                                  !showExpanded &&
+                                                                  !desktopChatOpen,
+                                                              child: tabViews,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      if (showExpanded)
+                                                        Positioned.fill(
+                                                          key:
+                                                              ShopDashboardLiveFrontendOverlay
+                                                                  .overlayKey,
+                                                          child: ColoredBox(
+                                                            color: const Color(
+                                                              0x99000000,
+                                                            ),
+                                                            child: Center(
+                                                              child: Padding(
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      vertical:
+                                                                          12,
+                                                                      horizontal:
+                                                                          24,
+                                                                    ),
+                                                                child: ConstrainedBox(
+                                                                  constraints: BoxConstraints(
+                                                                    maxWidth:
+                                                                        ShopFrontendPhoneFrame
+                                                                            .liveLogicalWidth +
+                                                                        ShopFrontendPreviewFrame
+                                                                            .inlineCanvasInset,
+                                                                    maxHeight:
+                                                                        constraints
+                                                                            .maxHeight,
+                                                                  ),
+                                                                  child:
+                                                                      liveFrontend,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                );
+                                                return Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: focusChat
+                                                          ? 0
+                                                          : normalMain,
+                                                      child: Offstage(
+                                                        offstage: focusChat,
+                                                        child: TickerMode(
+                                                          enabled: !focusChat,
+                                                          child: OverflowBox(
+                                                            alignment: Alignment
+                                                                .topLeft,
+                                                            minWidth:
+                                                                layoutMain,
+                                                            maxWidth:
+                                                                layoutMain,
+                                                            child: management,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (desktopChatOpen)
+                                                      SizedBox(
+                                                        width: chatWidth,
+                                                        child:
+                                                            ShopChatDesktopWorkspace(
+                                                              shopId:
+                                                                  widget.shopId,
+                                                              controller:
+                                                                  _workspace
+                                                                      .chat,
+                                                              expanded:
+                                                                  focusChat,
+                                                              forcedExpanded:
+                                                                  narrowChat,
+                                                            ),
+                                                      ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+                                          },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Keeps one controller across navigation layout changes, retaining selection by
+/// module identity when permissions or enabled modules change.
+class _DashboardModuleHost extends StatefulWidget {
+  const _DashboardModuleHost({required this.modules, required this.builder});
+
+  final List<String> modules;
+  final Widget Function(BuildContext, TabController) builder;
+
+  @override
+  State<_DashboardModuleHost> createState() => _DashboardModuleHostState();
+}
+
+class _DashboardModuleHostState extends State<_DashboardModuleHost>
+    with TickerProviderStateMixin {
+  late TabController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TabController(length: widget.modules.length, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DashboardModuleHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final changed =
+        oldWidget.modules.length != widget.modules.length ||
+        Iterable<int>.generate(
+          widget.modules.length,
+        ).any((index) => oldWidget.modules[index] != widget.modules[index]);
+    if (!changed) return;
+    final selected = oldWidget.modules.isEmpty
+        ? null
+        : oldWidget.modules[_controller.index];
+    final nextIndex = selected == null ? -1 : widget.modules.indexOf(selected);
+    _controller.dispose();
+    _controller = TabController(
+      length: widget.modules.length,
+      initialIndex: nextIndex < 0 ? 0 : nextIndex,
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _controller,
+    builder: (context, _) => widget.builder(context, _controller),
+  );
+}
+
+// 功能說明：主模組與基本資訊快速入口共用同一條固定導航。
+class _DashboardSideNavigation extends StatefulWidget {
+  const _DashboardSideNavigation({
+    required this.modules,
+    required this.controller,
+    required this.labelFor,
+    required this.iconFor,
+    required this.sections,
+    required this.navigation,
+    required this.onModuleSelected,
+    required this.onOpen,
+    this.detailModule,
+  });
+  final List<String> modules;
+  final TabController controller;
+  final String Function(String) labelFor;
+  final IconData Function(String) iconFor;
+  final List<_DashboardSection> sections;
+  final ShopDashboardNavigation navigation;
+  final Future<void> Function(int) onModuleSelected;
+  final Future<void> Function(String) onOpen;
+  final String? detailModule;
+  @override
+  State<_DashboardSideNavigation> createState() =>
+      _DashboardSideNavigationState();
+}
+
+class _DashboardSideNavigationState extends State<_DashboardSideNavigation> {
+  final _scroll = ScrollController();
+  final Map<String, GlobalKey> _anchors = {};
+  String? _lastSelected;
+  String? _lastModule;
+  @override
+  void initState() {
+    super.initState();
+    widget.navigation.addListener(_selectionChanged);
+    widget.controller.addListener(_moduleChanged);
+    _lastModule = widget.modules.isEmpty
+        ? null
+        : widget.modules[widget.controller.index];
+  }
+
+  void _moduleChanged() {
+    if (!mounted || widget.modules.isEmpty) return;
+    final module = widget.modules[widget.controller.index];
+    if (module == _lastModule) return;
+    _lastModule = module;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _anchors['module:$module']?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        );
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _DashboardSideNavigation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.navigation != widget.navigation) {
+      oldWidget.navigation.removeListener(_selectionChanged);
+      widget.navigation.addListener(_selectionChanged);
+      _lastSelected = null;
+      _selectionChanged();
+    }
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_moduleChanged);
+      widget.controller.addListener(_moduleChanged);
+    }
+    _moduleChanged();
+  }
+
+  void _selectionChanged() {
+    if (!mounted || widget.navigation.selected == _lastSelected) return;
+    _lastSelected = widget.navigation.selected;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _anchors[_lastSelected]?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 160),
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.navigation.removeListener(_selectionChanged);
+    widget.controller.removeListener(_moduleChanged);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    Widget item(
+      String title,
+      IconData icon,
+      bool selected,
+      VoidCallback? onTap, {
+      String? id,
+      bool child = false,
+    }) => Padding(
+      key: id == null ? null : _anchors.putIfAbsent(id, () => GlobalKey()),
+      padding: EdgeInsets.only(bottom: 4, left: child ? 8 : 0),
+      child: Material(
+        color: selected
+            ? colors.primary.withValues(alpha: .09)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          hoverColor: colors.primary.withValues(alpha: .05),
+          child: Semantics(
+            selected: selected,
+            button: true,
+            enabled: onTap != null,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: child ? 10 : 12,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    onTap == null ? Icons.lock_outline : icon,
+                    size: child ? 17 : 21,
+                    color: selected ? colors.primary : _DashboardLayout.muted,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: child ? 13 : 14,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: _DashboardLayout.ink,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+    return Container(
+      width: 240,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: _DashboardLayout.cardBorder)),
+      ),
+      child: ListenableBuilder(
+        listenable: Listenable.merge([widget.controller, widget.navigation]),
+        builder: (context, _) => ListView(
+          controller: _scroll,
+          padding: const EdgeInsets.fromLTRB(10, 20, 10, 16),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 18),
+              child: Text(
+                widget.navigation.hasDetail
+                    ? (widget.detailModule == ShopModules.catHotel
+                          ? '貓咪旅店快速選單'
+                          : '基本資訊快速選單')
+                    : '店家後台',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            if (!widget.navigation.hasDetail)
+              for (var index = 0; index < widget.modules.length; index++)
+                if (const {
+                  ShopModules.basicInfo,
+                  ShopModules.catHotel,
+                  ShopModules.reports,
+                  ShopModules.inventory,
+                }.contains(widget.modules[index]))
+                  item(
+                    widget.labelFor(widget.modules[index]),
+                    widget.iconFor(widget.modules[index]),
+                    widget.controller.index == index,
+                    () => widget.onModuleSelected(index),
+                    id: 'module:${widget.modules[index]}',
+                  ),
+            if (widget.navigation.hasDetail) ...[
+              item(
+                widget.detailModule == ShopModules.catHotel
+                    ? '返回貓咪旅店總覽'
+                    : '返回後台總覽',
+                Icons.arrow_back,
+                false,
+                () {
+                  final index = widget.modules.indexOf(
+                    widget.detailModule ?? ShopModules.basicInfo,
+                  );
+                  if (index >= 0) widget.onModuleSelected(index);
+                },
+              ),
+              for (final section in widget.sections.where(
+                (section) => section.children.isNotEmpty,
+              )) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 6),
+                  child: Text(
+                    section.title ?? '',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _DashboardLayout.muted,
+                    ),
+                  ),
+                ),
+                for (final entry in section.children.whereType<_MenuTile>())
+                  item(
+                    entry.title,
+                    entry.icon,
+                    entry.destinationId != null &&
+                        widget.navigation.selected == entry.destinationId,
+                    !entry.enabled
+                        ? null
+                        : () {
+                            if (entry.destinationId != null) {
+                              widget.onOpen(entry.destinationId!);
+                            } else {
+                              entry.open(context);
+                            }
+                          },
+                    id: entry.destinationId,
+                    child: true,
+                  ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _openBasicInfoPage(BuildContext context, String id, WidgetBuilder page) {
+  final scope = ShopDashboardNavigationScope.maybeOf(context);
+  if (scope != null && scope.desktop) {
+    scope.openEntry(id);
+  } else {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        settings: id == shopOperationsWorkbenchRouteName
+            ? RouteSettings(name: id)
+            : null,
+        builder: page,
+      ),
     );
   }
 }
@@ -1133,8 +1820,7 @@ class _BasicInfoTab extends StatelessWidget {
     return ShopService.instance.hasPermission(memberData, permissionKey);
   }
 
-  @override
-  Widget build(BuildContext context) {
+  List<Widget> menuChildren(BuildContext context) {
     final canUsePublicPage = ShopPlanService.canUsePublicPage(shop);
     final canUseAnnouncement = ShopPlanService.canUseAnnouncement(shop);
     final canUseFaq = ShopPlanService.canUseFaq(shop);
@@ -1156,361 +1842,313 @@ class _BasicInfoTab extends StatelessWidget {
             ) &&
         ShopAdminWelcome.isNewShop(shop);
 
-    return _DashboardResponsiveBody(
-      children: [
-        _ShopPlanStatusCard(shopId: shopId),
-        if (openingGuideEligible)
-          ShopOpeningProgress(
-            shopId: shopId,
-            shop: shop,
-            userId: FirebaseAuth.instance.currentUser!.uid,
-          ),
-        if (showSetupReminder &&
-            currentUserRole == ShopRoles.owner &&
-            !openingGuideEligible)
-          ShopAdminWelcomeReminder(
-            onOpen: currentUserRole == ShopRoles.owner
-                ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ShopBasicInfoPage(shopId: shopId),
-                      ),
-                    );
-                  }
-                : null,
-          ),
-        _DashboardSection(
-          title: '店家資料',
-          children: [
-            if (currentUserRole == ShopRoles.owner)
-              _MenuTile(
-                title: '店家基本資料',
-                subtitle: '設定店名、類型、地址、電話與介紹',
-                icon: Icons.store,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopBasicInfoPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-            if (_can(ShopPermissionKeys.editBusinessInfo))
-              _MenuTile(
-                title: '營業資訊',
-                subtitle: canUseBusinessInfo ? '設定營業時間與服務項目' : '升級方案解鎖',
-                icon: Icons.schedule,
-                enabled: canUseBusinessInfo,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopBusinessInfoPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-            if (_can(ShopPermissionKeys.editMedia))
-              _MenuTile(
-                title: '店家封面',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUseShopBanner ? '上傳封面圖片' : '升級方案解鎖'),
-                icon: Icons.image,
-                enabled: isProfileComplete && canUseShopBanner,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopMediaPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-            if (currentUserRole == ShopRoles.owner)
-              _MenuTile(
-                title: '收款帳戶 / 金流設定',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : '管理銀行轉帳收款資料，未來金流設定也會放這裡',
-                icon: Icons.account_balance,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopPayoutSettingPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-            if (_can(ShopPermissionKeys.managePaymentSettings))
-              _MenuTile(
-                title: '金流中心',
-                subtitle: isProfileComplete ? '查看交易紀錄、付款狀態與金流資料' : '請先完成基本資料',
-                icon: Icons.payments_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminPaymentCenterPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-          ],
+    final children = <Widget>[
+      _ShopPlanStatusCard(shopId: shopId),
+      if (openingGuideEligible)
+        ShopOpeningProgress(
+          shopId: shopId,
+          shop: shop,
+          userId: FirebaseAuth.instance.currentUser!.uid,
         ),
-        _DashboardSection(
-          title: '前台內容',
-          children: [
-            if (_can(ShopPermissionKeys.manageFrontendContent))
-              _MenuTile(
-                title: '前台外觀設定',
-                subtitle: !isProfileComplete ? '請先完成基本資料' : '設定首頁版型、主題顏色與整體外觀',
-                icon: Icons.design_services_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopThemeSettingPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageFrontendContent))
-              _MenuTile(
-                title: '環境介紹管理',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '升級方案解鎖'),
-                icon: Icons.apartment_rounded,
-                enabled: isProfileComplete && canUseEnvironment,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopEnvironmentManagePage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageFrontendContent))
-              _MenuTile(
-                title: '關於我們管理',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '升級方案解鎖'),
-                icon: Icons.favorite_border,
-                enabled: isProfileComplete && canUseAboutUs,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopAboutManagePage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageFrontendContent))
-              _MenuTile(
-                title: '公告管理',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖'),
-                icon: Icons.campaign,
-                enabled: isProfileComplete && canUseAnnouncement,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ShopAnnouncementManagePage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-            if (_can(ShopPermissionKeys.manageFrontendContent))
-              _MenuTile(
-                title: '常見問題管理',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖'),
-                icon: Icons.help_outline,
-                enabled: isProfileComplete && canUseFaq,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopFaqManagePage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
+      if (showSetupReminder &&
+          currentUserRole == ShopRoles.owner &&
+          !openingGuideEligible)
+        ShopAdminWelcomeReminder(
+          onOpen: currentUserRole == ShopRoles.owner
+              ? () => _openBasicInfoPage(
+                  context,
+                  'ShopBasicInfoPage',
+                  (_) => ShopBasicInfoPage(shopId: shopId),
+                )
+              : null,
+        ),
+      _DashboardSection(
+        title: '店家資料',
+        children: [
+          if (currentUserRole == ShopRoles.owner)
             _MenuTile(
-              title: '前台預覽',
+              title: '店家基本資料',
+              subtitle: '設定店名、類型、地址、電話與介紹',
+              icon: Icons.store,
+              destinationId: 'ShopBasicInfoPage',
+              pageBuilder: (_) => ShopBasicInfoPage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.editBusinessInfo))
+            _MenuTile(
+              title: '營業資訊',
+              subtitle: canUseBusinessInfo ? '設定營業時間與服務項目' : '升級方案解鎖',
+              icon: Icons.schedule,
+              enabled: canUseBusinessInfo,
+              destinationId: 'ShopBusinessInfoPage',
+              pageBuilder: (_) => ShopBusinessInfoPage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.editMedia))
+            _MenuTile(
+              title: '店家封面',
               subtitle: !isProfileComplete
                   ? '請先完成基本資料'
-                  : (canUsePublicPage ? '在完整手機前台中操作客戶畫面' : '升級方案解鎖'),
-              icon: Icons.visibility,
-              enabled: isProfileComplete && canUsePublicPage,
-              onTap: onPreviewFrontend,
+                  : (canUseShopBanner ? '上傳封面圖片' : '升級方案解鎖'),
+              icon: Icons.image,
+              enabled: isProfileComplete && canUseShopBanner,
+              destinationId: 'ShopMediaPage',
+              pageBuilder: (_) => ShopMediaPage(shopId: shopId),
             ),
-          ],
-        ),
-        _DashboardSection(
-          title: '會員系統',
-          children: [
-            if (_can(ShopPermissionKeys.manageMembers))
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('member_link_requests')
-                    .where('shopId', isEqualTo: shopId)
-                    .where('status', isEqualTo: 'pending')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data?.docs.length ?? 0;
+          if (currentUserRole == ShopRoles.owner)
+            _MenuTile(
+              title: '收款帳戶 / 金流設定',
+              subtitle: !isProfileComplete
+                  ? '請先完成基本資料'
+                  : '管理銀行轉帳收款資料，未來金流設定也會放這裡',
+              icon: Icons.account_balance,
+              enabled: isProfileComplete,
+              destinationId: 'ShopPayoutSettingPage',
+              pageBuilder: (_) => ShopPayoutSettingPage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.managePaymentSettings))
+            _MenuTile(
+              title: '金流中心',
+              subtitle: isProfileComplete ? '查看交易紀錄、付款狀態與金流資料' : '請先完成基本資料',
+              icon: Icons.payments_outlined,
+              enabled: isProfileComplete,
+              destinationId: 'AdminPaymentCenterPage',
+              pageBuilder: (_) => AdminPaymentCenterPage(shopId: shopId),
+            ),
+        ],
+      ),
+      _DashboardSection(
+        title: '前台內容',
+        children: [
+          if (_can(ShopPermissionKeys.manageFrontendContent))
+            _MenuTile(
+              title: '前台外觀設定',
+              subtitle: !isProfileComplete ? '請先完成基本資料' : '設定首頁版型、主題顏色與整體外觀',
+              icon: Icons.design_services_outlined,
+              enabled: isProfileComplete,
+              destinationId: 'ShopThemeSettingPage',
+              pageBuilder: (_) => ShopThemeSettingPage(shopId: shopId),
+            ),
 
-                  return _MenuTile(
-                    title: '會員管理',
-                    subtitle: count > 0
-                        ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
-                        : '查看會員資料與訂單紀錄',
-                    icon: Icons.people,
-                    enabled: isProfileComplete,
-                    badgeCount: count,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AdminMemberListPage(shopId: shopId),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+          if (_can(ShopPermissionKeys.manageFrontendContent))
+            _MenuTile(
+              title: '環境介紹管理',
+              subtitle: !isProfileComplete
+                  ? '請先完成基本資料'
+                  : (canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '升級方案解鎖'),
+              icon: Icons.apartment_rounded,
+              enabled: isProfileComplete && canUseEnvironment,
+              destinationId: 'ShopEnvironmentManagePage',
+              pageBuilder: (_) => ShopEnvironmentManagePage(shopId: shopId),
+            ),
 
-            if (_can(ShopPermissionKeys.manageReviews))
-              _MenuTile(
-                title: '評價管理',
-                subtitle: '查看客戶評價、照片與店家回覆',
-                icon: Icons.star_rate_rounded,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminReviewListPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-        _DashboardSection(
-          title: '後台管理',
-          children: [
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('shop_notifications')
+          if (_can(ShopPermissionKeys.manageFrontendContent))
+            _MenuTile(
+              title: '關於我們管理',
+              subtitle: !isProfileComplete
+                  ? '請先完成基本資料'
+                  : (canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '升級方案解鎖'),
+              icon: Icons.favorite_border,
+              enabled: isProfileComplete && canUseAboutUs,
+              destinationId: 'ShopAboutManagePage',
+              pageBuilder: (_) => ShopAboutManagePage(shopId: shopId),
+            ),
+
+          if (_can(ShopPermissionKeys.manageFrontendContent))
+            _MenuTile(
+              title: '公告管理',
+              subtitle: !isProfileComplete
+                  ? '請先完成基本資料'
+                  : (canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖'),
+              icon: Icons.campaign,
+              enabled: isProfileComplete && canUseAnnouncement,
+              destinationId: 'ShopAnnouncementManagePage',
+              pageBuilder: (_) => ShopAnnouncementManagePage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.manageFrontendContent))
+            _MenuTile(
+              title: '常見問題管理',
+              subtitle: !isProfileComplete
+                  ? '請先完成基本資料'
+                  : (canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖'),
+              icon: Icons.help_outline,
+              enabled: isProfileComplete && canUseFaq,
+              destinationId: 'ShopFaqManagePage',
+              pageBuilder: (_) => ShopFaqManagePage(shopId: shopId),
+            ),
+
+          _MenuTile(
+            title: '前台預覽',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUsePublicPage ? '在完整手機前台中操作客戶畫面' : '升級方案解鎖'),
+            icon: Icons.visibility,
+            enabled: isProfileComplete && canUsePublicPage,
+            onTap: onPreviewFrontend,
+          ),
+        ],
+      ),
+      _DashboardSection(
+        title: '會員系統',
+        children: [
+          if (_can(ShopPermissionKeys.manageMembers))
+            _MenuTile(
+              title: '會員管理',
+              subtitle: '查看會員資料與訂單紀錄',
+              icon: Icons.people,
+              enabled: isProfileComplete,
+              badgeSource: () => FirebaseFirestore.instance
+                  .collection('member_link_requests')
                   .where('shopId', isEqualTo: shopId)
-                  .where('status', isEqualTo: 'unread')
+                  .where('status', isEqualTo: 'pending')
                   .snapshots(),
-              builder: (context, snapshot) {
-                final unreadCount = (snapshot.data?.docs ?? []).where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-
-                  return (data['shopId'] ?? '').toString() == shopId &&
-                      (data['status'] ?? '').toString() == 'unread';
-                }).length;
-
-                return _MenuTile(
-                  title: '平台通知',
-                  subtitle: unreadCount > 0
-                      ? '有 $unreadCount 則未讀平台通知'
-                      : '查看平台發送的方案、停權、審核與系統通知',
-                  icon: Icons.notifications_active_outlined,
-                  badgeCount: unreadCount,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            ShopPlatformNotificationPage(shopId: shopId),
-                      ),
-                    );
-                  },
-                );
-              },
+              badgeSubtitle: (badgeTotal) => badgeTotal > 0
+                  ? '查看會員資料與訂單紀錄｜有 $badgeTotal 筆會員綁定申請'
+                  : '查看會員資料與訂單紀錄',
+              destinationId: 'AdminMemberListPage',
+              pageBuilder: (_) => AdminMemberListPage(shopId: shopId),
             ),
 
+          if (_can(ShopPermissionKeys.manageReviews))
             _MenuTile(
-              title: '聯絡平台',
-              subtitle: '向平台回報問題、提出需求或聯絡客服',
-              icon: Icons.support_agent,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopContactPlatformPage(shopId: shopId),
-                  ),
-                );
-              },
+              title: '評價管理',
+              subtitle: '查看客戶評價、照片與店家回覆',
+              icon: Icons.star_rate_rounded,
+              enabled: isProfileComplete,
+              destinationId: 'AdminReviewListPage',
+              pageBuilder: (_) => AdminReviewListPage(shopId: shopId),
             ),
+        ],
+      ),
+      _DashboardSection(
+        title: '後台管理',
+        children: [
+          _MenuTile(
+            title: '平台通知',
+            subtitle: '查看平台發送的方案、停權、審核與系統通知',
+            icon: Icons.notifications_active_outlined,
+            badgeSource: () => FirebaseFirestore.instance
+                .collection('shop_notifications')
+                .where('shopId', isEqualTo: shopId)
+                .where('status', isEqualTo: 'unread')
+                .snapshots(),
+            badgeSubtitle: (badgeTotal) => badgeTotal > 0
+                ? '有 $badgeTotal 則未讀平台通知'
+                : '查看平台發送的方案、停權、審核與系統通知',
+            badgeFilter: (doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return (data['shopId'] ?? '').toString() == shopId &&
+                  (data['status'] ?? '').toString() == 'unread';
+            },
+            destinationId: 'ShopPlatformNotificationPage',
+            pageBuilder: (_) => ShopPlatformNotificationPage(shopId: shopId),
+          ),
 
-            _MenuTile(
-              title: '模組設定',
-              subtitle: currentUserRole == ShopRoles.owner
-                  ? '控制哪些模組顯示在後台'
-                  : '目前只有老闆可修改',
-              icon: Icons.dashboard_customize,
-              enabled: currentUserRole == ShopRoles.owner,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopModuleSettingsPage(
-                      shopId: shopId,
-                      currentUserRole: currentUserRole,
-                    ),
-                  ),
-                );
-              },
+          _MenuTile(
+            title: '聯絡平台',
+            subtitle: '向平台回報問題、提出需求或聯絡客服',
+            icon: Icons.support_agent,
+            destinationId: 'ShopContactPlatformPage',
+            pageBuilder: (_) => ShopContactPlatformPage(shopId: shopId),
+          ),
+
+          _MenuTile(
+            title: '模組設定',
+            subtitle: currentUserRole == ShopRoles.owner
+                ? '控制哪些模組顯示在後台'
+                : '目前只有老闆可修改',
+            icon: Icons.dashboard_customize,
+            enabled: currentUserRole == ShopRoles.owner,
+            destinationId: 'ShopModuleSettingsPage',
+            pageBuilder: (_) => ShopModuleSettingsPage(
+              shopId: shopId,
+              currentUserRole: currentUserRole,
             ),
-            _MenuTile(
-              title: '權限設定',
-              subtitle: currentUserRole == ShopRoles.owner
-                  ? '管理店長、員工與功能權限'
-                  : currentUserRole == ShopRoles.manager
-                  ? '可管理已授權的一般員工'
-                  : '目前無法修改權限',
-              icon: Icons.admin_panel_settings,
-              enabled:
-                  currentUserRole == ShopRoles.owner ||
-                  currentUserRole == ShopRoles.manager,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopPermissionSettingsPage(
-                      shopId: shopId,
-                      currentUserRole: currentUserRole,
-                    ),
-                  ),
-                );
-              },
+          ),
+          _MenuTile(
+            title: '權限設定',
+            subtitle: currentUserRole == ShopRoles.owner
+                ? '管理店長、員工與功能權限'
+                : currentUserRole == ShopRoles.manager
+                ? '可管理已授權的一般員工'
+                : '目前無法修改權限',
+            icon: Icons.admin_panel_settings,
+            enabled:
+                currentUserRole == ShopRoles.owner ||
+                currentUserRole == ShopRoles.manager,
+            destinationId: 'ShopPermissionSettingsPage',
+            pageBuilder: (_) => ShopPermissionSettingsPage(
+              shopId: shopId,
+              currentUserRole: currentUserRole,
             ),
+          ),
+        ],
+      ),
+    ];
+    return children;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final children = menuChildren(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide =
+            constraints.maxWidth >= 1180 &&
+            (_DashboardWorkspaceScope.maybeOf(context)?.enabled ?? false);
+        if (!wide) return _DashboardResponsiveBody(children: children);
+        final sections = children.whereType<_DashboardSection>().toList();
+        Widget column(Iterable<_DashboardSection> items) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final item in items.where((s) => s.children.isNotEmpty))
+              Padding(padding: const EdgeInsets.only(bottom: 18), child: item),
           ],
-        ),
-      ],
+        );
+        return _BasicInfoWideScope(
+          enabled: true,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1680),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 20,
+                ),
+                children: [
+                  const Text(
+                    '基本資訊',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _DashboardLayout.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '管理店家資料、前台內容與後台設定',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _DashboardLayout.muted,
+                    ),
+                  ),
+                  for (final child in children.where(
+                    (child) => child is! _DashboardSection,
+                  )) ...[const SizedBox(height: 18), child],
+                  const SizedBox(height: 18),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 65, child: column(sections.take(2))),
+                      const SizedBox(width: 18),
+                      Expanded(flex: 35, child: column(sections.skip(2))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1522,349 +2160,323 @@ class _CatHotelTab extends StatelessWidget {
     required this.shop,
     required this.isProfileComplete,
     required this.memberData,
+    required this.daycareOn,
   });
-
-  final Map<String, dynamic> shop;
   final String shopId;
+  final Map<String, dynamic> shop;
   final bool isProfileComplete;
   final Map<String, dynamic>? memberData;
+  final bool daycareOn;
+  bool _can(String key) => ShopService.instance.hasPermission(memberData, key);
 
-  bool _can(String permissionKey) {
-    return ShopService.instance.hasPermission(memberData, permissionKey);
+  // 卡片與快速選單共用入口；只有卡片掛載即時統計元件。
+  List<_DashboardSection> menuChildren(BuildContext context) {
+    final canUseDeposit = ShopPlanService.canUseDepositSettings(shop);
+    final canUsePolicy = ShopPlanService.canUsePolicySettings(shop);
+    _MenuTile page(
+      String id,
+      String title,
+      String subtitle,
+      IconData icon,
+      WidgetBuilder builder, {
+      bool? enabled,
+      Widget Function(BuildContext, VoidCallback)? tileBuilder,
+    }) => _MenuTile(
+      destinationId: id,
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      enabled: enabled ?? isProfileComplete,
+      pageBuilder: builder,
+      tileBuilder: tileBuilder,
+    );
+    return [
+      _DashboardSection(
+        title: '今日營運',
+        children: [
+          if (_can(ShopPermissionKeys.manageBookings))
+            page(
+              'AdminBookingListPage',
+              '訂單管理',
+              '查看待確認、付款與新留言',
+              Icons.receipt_long,
+              (_) => AdminBookingListPage(shopId: shopId),
+              tileBuilder: (context, open) => _BookingManageTile(
+                shopId: shopId,
+                enabled: isProfileComplete,
+                onTap: open,
+              ),
+            ),
+          if (_can(ShopPermissionKeys.manageRoomDashboard))
+            page(
+              shopOperationsWorkbenchRouteName,
+              '房務管理',
+              '房務與每日照護營運工作台',
+              Icons.grid_view,
+              (_) => RoomDashboardPage(shopId: shopId),
+              tileBuilder: (context, open) => _RoomDashboardTile(
+                shopId: shopId,
+                enabled: isProfileComplete,
+                onTap: open,
+              ),
+            ),
+          if (_can(ShopPermissionKeys.manageChat))
+            _MenuTile(
+              title: '店家聊天',
+              subtitle: '與會員即時聯絡',
+              icon: Icons.chat_bubble_outline,
+              onTap: () => ShopChatEntry.open(
+                context,
+                shopId: shopId,
+                toggleDesktop: false,
+              ),
+              tileBuilder: (context, open) {
+                final unread = ShopAdminWorkspaceScope.maybeOf(
+                  context,
+                )?.unreadCount;
+                Widget tile(int unreadTotal) => _MenuTile(
+                  title: '店家聊天',
+                  subtitle: unreadTotal > 0
+                      ? '${ShopChatService.badgeLabel(unreadTotal)} 則未讀訊息'
+                      : '與會員即時聯絡',
+                  icon: Icons.chat_bubble_outline,
+                  badgeCount: unreadTotal > 99 ? 99 : unreadTotal,
+                  onTap: open,
+                );
+                return unread == null
+                    ? tile(0)
+                    : ValueListenableBuilder<int>(
+                        valueListenable: unread,
+                        builder: (context, unreadTotal, child) =>
+                            tile(unreadTotal),
+                      );
+              },
+            ),
+        ],
+      ),
+      _DashboardSection(
+        title: daycareOn ? '住宿／安親與房型設定' : '住宿與房型設定',
+        children: [
+          if (_can(ShopPermissionKeys.manageBookingSettings) ||
+              _can(ShopPermissionKeys.manageRoomTypes) ||
+              _can(ShopPermissionKeys.manageRooms))
+            page(
+              'ShopBookingSetupCenterPage',
+              '住宿房型與預約',
+              isProfileComplete ? '設定住宿房型、實體房間與預約開放規則' : '請先完成基本資料',
+              Icons.home_work_outlined,
+              (_) => ShopBookingSetupCenterPage(shopId: shopId),
+            ),
+          if (daycareOn && _can(ShopPermissionKeys.manageDaycareSettings))
+            page(
+              'ShopDaycareSettingsPage',
+              '安親設定',
+              isProfileComplete ? '時間、方案、加購、付款與入口卡片' : '請先完成基本資料',
+              Icons.settings_suggest_outlined,
+              (_) => ShopDaycareSettingsPage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.manageBookingSettings) ||
+              _can(ShopPermissionKeys.managePolicy))
+            page(
+              'ShopPreArrivalGuideSettingPage',
+              daycareOn ? '入住／安親前準備' : '入住前準備',
+              !isProfileComplete
+                  ? '請先完成基本資料'
+                  : daycareOn
+                  ? '設定入住／安親前需要攜帶與注意的內容'
+                  : '設定入住前需要攜帶與注意的內容',
+              Icons.checklist_outlined,
+              (_) => ShopPreArrivalGuideSettingPage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.manageDevices))
+            page(
+              'ShopDevicePage',
+              '設備管理',
+              isProfileComplete ? '管理攝影機、溫度監控與房間設備' : '請先完成基本資料',
+              Icons.sensors,
+              (_) => ShopDevicePage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.manageDevices) ||
+              ((FirebaseAuth.instance.currentUser?.uid ?? '').isNotEmpty &&
+                  (shop['ownerUid'] ?? '').toString() ==
+                      FirebaseAuth.instance.currentUser?.uid))
+            page(
+              'ShopCameraAccessPage',
+              '攝影機分享申請',
+              isProfileComplete ? '管理攝影機分享申請' : '請先完成基本資料',
+              Icons.video_camera_front_outlined,
+              (_) => ShopCameraAccessPage(shopId: shopId),
+              tileBuilder: (context, open) => ShopCameraShareEntry(
+                shopId: shopId,
+                enabled: isProfileComplete,
+                builder: (context, view) => _MenuTile(
+                  title: '攝影機分享申請',
+                  subtitle: isProfileComplete ? view.subtitle : '請先完成基本資料',
+                  icon: Icons.video_camera_front_outlined,
+                  enabled: isProfileComplete,
+                  badgeCount: isProfileComplete ? view.badgeCount : 0,
+                  onTap: open,
+                ),
+              ),
+            ),
+        ],
+      ),
+      _DashboardSection(
+        title: '收費、優惠與加購',
+        children: [
+          if (_can(ShopPermissionKeys.manageAddons))
+            page(
+              'ShopAddonPage',
+              '住宿加購 / 附加服務',
+              isProfileComplete ? '設定時間加購、額外服務、價格與開關' : '請先完成基本資料',
+              Icons.add_box,
+              (_) => ShopAddonPage(shopId: shopId),
+            ),
+          if (_can(ShopPermissionKeys.managePaymentSettings))
+            page(
+              'ShopPaymentSettingPage',
+              '收款、優惠與點數',
+              !isProfileComplete
+                  ? '請先完成基本資料'
+                  : canUseDeposit
+                  ? '設定訂金、付款、優惠券與會員點數制度'
+                  : '升級方案解鎖',
+              Icons.payments,
+              (_) => ShopPaymentSettingPage(shopId: shopId),
+              enabled: isProfileComplete && canUseDeposit,
+            ),
+          if (_can(ShopPermissionKeys.managePointRedemptions))
+            page(
+              'AdminPointRedemptionListPage',
+              '商品領取／核銷',
+              isProfileComplete ? '搜尋領取碼、查看待領取商品並完成交付' : '請先完成基本資料',
+              Icons.inventory_2_outlined,
+              (_) => AdminPointRedemptionListPage(shopId: shopId),
+            ),
+        ],
+      ),
+      _DashboardSection(
+        title: '規則與紀錄',
+        children: [
+          page(
+            'ShopPolicyPage',
+            '入住規則與貓咪條件',
+            isProfileComplete ? '設定入住條款、貓咪入住條件與查看同意紀錄' : '請先完成基本資料',
+            Icons.rule,
+            (_) => ShopPolicyPage(
+              shopId: shopId,
+              canEdit: _can(ShopPermissionKeys.managePolicy) && canUsePolicy,
+            ),
+          ),
+          if (_can(ShopPermissionKeys.manageBookingSettings))
+            page(
+              'ShopCustomFormSettingsPage',
+              '自訂表單設定',
+              isProfileComplete ? '設定新增寵物與送出訂單時要填寫的自訂問題' : '請先完成基本資料',
+              Icons.edit_note_outlined,
+              (_) => ShopCustomFormSettingsPage(shopId: shopId),
+            ),
+          page(
+            'DailyCareSettingPage',
+            '每日照護回報設定',
+            isProfileComplete ? '設定每日回報、照護項目、照片與下載期限' : '請先完成基本資料',
+            Icons.pets_outlined,
+            (_) => DailyCareSettingPage(shopId: shopId),
+          ),
+        ],
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
-    final canUseDepositSettings = ShopPlanService.canUseDepositSettings(shop);
-
-    final canUsePolicySettings = ShopPlanService.canUsePolicySettings(shop);
-
-    return StreamBuilder<DaycareSettingsModel>(
-      stream: DaycareSettingsService.instance.stream(shopId),
-      builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<DaycareSettingsModel> daycareSnap,
-          ) {
-            final bool daycareOn = DaycareSettingsService.instance
-                .isEnabledForShop(shop: shop, settings: daycareSnap.data);
-            return _DashboardResponsiveBody(
-              children: [
-                _DashboardSection(
-                  title: '今日營運',
-                  children: [
-                    if (_can(ShopPermissionKeys.manageBookings))
-                      _BookingManageTile(
-                        shopId: shopId,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AdminBookingListPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-                    if (_can(ShopPermissionKeys.manageRoomDashboard))
-                      _RoomDashboardTile(
-                        shopId: shopId,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            shopOperationsWorkbenchRoute(shopId),
-                          );
-                        },
-                      ),
-                    if (_can(ShopPermissionKeys.manageChat))
-                      Builder(
-                        builder: (BuildContext context) {
-                          final ShopAdminWorkspaceController? workspace =
-                              ShopAdminWorkspaceScope.maybeOf(context);
-                          Widget tile(int unread) {
-                            return _MenuTile(
-                              title: '店家聊天',
-                              subtitle: unread > 0
-                                  ? '${ShopChatService.badgeLabel(unread)} 則未讀訊息'
-                                  : '與會員即時聯絡',
-                              icon: Icons.chat_bubble_outline,
-                              badgeCount: unread > 99 ? 99 : unread,
-                              onTap: () {
-                                ShopChatEntry.open(
-                                  context,
-                                  shopId: shopId,
-                                  toggleDesktop: false,
-                                );
-                              },
-                            );
-                          }
-
-                          if (workspace == null) {
-                            return tile(0);
-                          }
-                          return ValueListenableBuilder<int>(
-                            valueListenable: workspace.unreadCount,
-                            builder:
-                                (
-                                  BuildContext context,
-                                  int unread,
-                                  Widget? child,
-                                ) {
-                                  return tile(unread);
-                                },
-                          );
-                        },
-                      ),
-                  ],
+    final sections = menuChildren(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide =
+            constraints.maxWidth >= 1180 &&
+            (_DashboardWorkspaceScope.maybeOf(context)?.enabled ?? false);
+        if (!wide) return _DashboardResponsiveBody(children: sections);
+        Widget section(int index, int columns) => _DashboardSection(
+          title: sections[index].title,
+          preferredColumns: columns,
+          compact: true,
+          children: sections[index].children,
+        );
+        Widget column(List<int> indexes) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final index in indexes.where(
+              (i) => sections[i].children.isNotEmpty,
+            ))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: section(index, index == 1 ? 2 : 1),
+              ),
+          ],
+        );
+        final leftVisible =
+            sections[1].children.isNotEmpty || sections[2].children.isNotEmpty;
+        final rightVisible = sections[3].children.isNotEmpty;
+        return _CatHotelWideScope(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1680),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 20,
                 ),
-                _DashboardSection(
-                  title: daycareOn ? '住宿／安親與房型設定' : '住宿與房型設定',
-                  children: [
-                    if (_can(ShopPermissionKeys.manageBookingSettings) ||
-                        _can(ShopPermissionKeys.manageRoomTypes) ||
-                        _can(ShopPermissionKeys.manageRooms))
-                      _MenuTile(
-                        title: '住宿房型與預約',
-                        subtitle: isProfileComplete
-                            ? '設定住宿房型、實體房間與預約開放規則'
-                            : '請先完成基本資料',
-                        icon: Icons.home_work_outlined,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ShopBookingSetupCenterPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-                    if (daycareOn &&
-                        _can(ShopPermissionKeys.manageDaycareSettings))
-                      _MenuTile(
-                        title: '安親設定',
-                        subtitle: isProfileComplete
-                            ? '時間、方案、加購、付款與入口卡片'
-                            : '請先完成基本資料',
-                        icon: Icons.settings_suggest_outlined,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  ShopDaycareSettingsPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-
-                    if (_can(ShopPermissionKeys.manageBookingSettings) ||
-                        _can(ShopPermissionKeys.managePolicy))
-                      _MenuTile(
-                        title: daycareOn ? '入住／安親前準備' : '入住前準備',
-                        subtitle: isProfileComplete
-                            ? (daycareOn
-                                  ? '設定入住／安親前需要攜帶與注意的內容'
-                                  : '設定入住前需要攜帶與注意的內容')
-                            : '請先完成基本資料',
-                        icon: Icons.checklist_outlined,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ShopPreArrivalGuideSettingPage(
-                                shopId: shopId,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                    if (_can(ShopPermissionKeys.manageDevices))
-                      _MenuTile(
-                        title: '設備管理',
-                        subtitle: isProfileComplete
-                            ? '管理攝影機、溫度監控與房間設備'
-                            : '請先完成基本資料',
-                        icon: Icons.sensors,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ShopDevicePage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-                    if (_can(ShopPermissionKeys.manageDevices) ||
-                        ((FirebaseAuth.instance.currentUser?.uid ?? '')
-                                .isNotEmpty &&
-                            (shop['ownerUid'] ?? '').toString() ==
-                                FirebaseAuth.instance.currentUser?.uid))
-                      ShopCameraShareEntry(
-                        shopId: shopId,
-                        enabled: isProfileComplete,
-                        builder:
-                            (
-                              BuildContext context,
-                              ShopCameraShareEntryView view,
-                            ) {
-                              return _MenuTile(
-                                title: '攝影機分享申請',
-                                subtitle: isProfileComplete
-                                    ? view.subtitle
-                                    : '請先完成基本資料',
-                                icon: Icons.video_camera_front_outlined,
-                                enabled: isProfileComplete,
-                                badgeCount: isProfileComplete
-                                    ? view.badgeCount
-                                    : 0,
-                                onTap: () =>
-                                    openShopCameraAccessPage(context, shopId),
-                              );
-                            },
-                      ),
-                  ],
-                ),
-                _DashboardSection(
-                  title: '收費、優惠與加購',
-                  children: [
-                    if (_can(ShopPermissionKeys.manageAddons))
-                      _MenuTile(
-                        title: '住宿加購 / 附加服務',
-                        subtitle: isProfileComplete
-                            ? '設定時間加購、額外服務、價格與開關'
-                            : '請先完成基本資料',
-                        icon: Icons.add_box,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ShopAddonPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-
-                    if (_can(ShopPermissionKeys.managePaymentSettings))
-                      _MenuTile(
-                        title: '收款、優惠與點數',
-                        subtitle: !isProfileComplete
-                            ? '請先完成基本資料'
-                            : (canUseDepositSettings
-                                  ? '設定訂金、付款、優惠券與會員點數制度'
-                                  : '升級方案解鎖'),
-                        icon: Icons.payments,
-                        enabled: isProfileComplete && canUseDepositSettings,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ShopPaymentSettingPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-
-                    if (_can(ShopPermissionKeys.managePointRedemptions))
-                      _MenuTile(
-                        title: '商品領取／核銷',
-                        subtitle: isProfileComplete
-                            ? '搜尋領取碼、查看待領取商品並完成交付'
-                            : '請先完成基本資料',
-                        icon: Icons.inventory_2_outlined,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (BuildContext context) {
-                                return AdminPointRedemptionListPage(
-                                  shopId: shopId,
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-                _DashboardSection(
-                  title: '規則與紀錄',
-                  children: [
-                    _MenuTile(
-                      title: '入住規則與貓咪條件',
-                      subtitle: isProfileComplete
-                          ? '設定入住條款、貓咪入住條件與查看同意紀錄'
-                          : '請先完成基本資料',
-                      icon: Icons.rule,
-                      enabled: isProfileComplete,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ShopPolicyPage(
-                              shopId: shopId,
-                              canEdit:
-                                  _can(ShopPermissionKeys.managePolicy) &&
-                                  canUsePolicySettings,
-                            ),
-                          ),
-                        );
-                      },
+                children: [
+                  const Text(
+                    '貓咪旅店',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _DashboardLayout.ink,
                     ),
-
-                    if (_can(ShopPermissionKeys.manageBookingSettings))
-                      _MenuTile(
-                        title: '自訂表單設定',
-                        subtitle: isProfileComplete
-                            ? '設定新增寵物與送出訂單時要填寫的自訂問題'
-                            : '請先完成基本資料',
-                        icon: Icons.edit_note_outlined,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  ShopCustomFormSettingsPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-
-                    _MenuTile(
-                      title: '每日照護回報設定',
-                      subtitle: isProfileComplete
-                          ? '設定每日回報、照護項目、照片與下載期限'
-                          : '請先完成基本資料',
-                      icon: Icons.pets_outlined,
-                      enabled: isProfileComplete,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                DailyCareSettingPage(shopId: shopId),
-                          ),
-                        );
-                      },
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '日常營運與住宿設定',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _DashboardLayout.muted,
                     ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (sections[0].children.isNotEmpty) ...[
+                    section(0, 3),
+                    const SizedBox(height: 18),
                   ],
-                ),
-              ],
-            );
-          },
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (leftVisible)
+                        Expanded(flex: 65, child: column([1, 2])),
+                      if (leftVisible && rightVisible)
+                        const SizedBox(width: 18),
+                      if (rightVisible) Expanded(flex: 35, child: column([3])),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
+}
+
+// 功能說明：僅調整貓咪旅店寬版入口密度，不改共用 Grid 預設。
+class _CatHotelWideScope extends InheritedWidget {
+  const _CatHotelWideScope({required super.child});
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_CatHotelWideScope>() != null;
+  @override
+  bool updateShouldNotify(_CatHotelWideScope oldWidget) => false;
 }
 
 /// ===== 庫存管理分頁 =====
@@ -2128,7 +2740,11 @@ class _ShopPlanStatusCard extends StatelessWidget {
 
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all(phone ? 11 : (metrics.isDesktop ? 19 : 14)),
+          padding: EdgeInsets.all(
+            _BasicInfoWideScope.of(context)
+                ? 14
+                : (phone ? 11 : (metrics.isDesktop ? 19 : 14)),
+          ),
           decoration: _DashboardLayout.cardDecorationFor(metrics),
           child: phone
               ? Column(
@@ -2438,6 +3054,12 @@ class _MenuTile extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     this.onTap,
+    this.pageBuilder,
+    this.destinationId,
+    this.badgeSource,
+    this.badgeSubtitle,
+    this.badgeFilter,
+    this.tileBuilder,
     this.enabled = true,
     this.badgeCount = 0,
   });
@@ -2446,15 +3068,55 @@ class _MenuTile extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final VoidCallback? onTap;
+  final WidgetBuilder? pageBuilder;
+  final String? destinationId;
+  final Stream<QuerySnapshot> Function()? badgeSource;
+  final String Function(int)? badgeSubtitle;
+  final bool Function(QueryDocumentSnapshot)? badgeFilter;
+  final Widget Function(BuildContext, VoidCallback)? tileBuilder;
+  void open(BuildContext context) {
+    if (!enabled) return;
+    if (pageBuilder != null) {
+      _openBasicInfoPage(context, destinationId!, pageBuilder!);
+    } else {
+      onTap?.call();
+    }
+  }
+
   final bool enabled;
   final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
+    if (tileBuilder != null) return tileBuilder!(context, () => open(context));
+    if (badgeSource != null) {
+      return StreamBuilder<QuerySnapshot>(
+        stream: badgeSource!(),
+        builder: (context, snapshot) {
+          final docs = snapshot.data?.docs ?? [];
+          final count = badgeFilter == null
+              ? docs.length
+              : docs.where(badgeFilter!).length;
+          return _MenuTile(
+            title: title,
+            subtitle: badgeSubtitle!(count),
+            icon: icon,
+            enabled: enabled,
+            badgeCount: count,
+            onTap: onTap,
+            pageBuilder: pageBuilder,
+            destinationId: destinationId,
+          );
+        },
+      );
+    }
+    final canOpen = enabled && (onTap != null || pageBuilder != null);
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final _DashboardMetrics metrics = _DashboardLayout.metrics(
-      MediaQuery.sizeOf(context).width,
-    );
+    final wide =
+        _BasicInfoWideScope.of(context) || _CatHotelWideScope.of(context);
+    final _DashboardMetrics metrics = wide
+        ? _DashboardLayout.tablet
+        : _DashboardLayout.metrics(MediaQuery.sizeOf(context).width);
     return Opacity(
       opacity: enabled ? 1 : 0.6,
       child: Material(
@@ -2462,9 +3124,9 @@ class _MenuTile extends StatelessWidget {
         child: Ink(
           decoration: _DashboardLayout.cardDecorationFor(metrics),
           child: InkWell(
-            onTap: enabled && onTap != null ? onTap : null,
+            onTap: canOpen ? () => open(context) : null,
             borderRadius: BorderRadius.circular(metrics.cardRadius),
-            mouseCursor: enabled && onTap != null
+            mouseCursor: canOpen
                 ? SystemMouseCursors.click
                 : SystemMouseCursors.basic,
             hoverColor: colors.primary.withValues(alpha: 0.04),
@@ -2498,7 +3160,7 @@ class _MenuTile extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            maxLines: 2,
+                            maxLines: wide ? null : 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: metrics.titleSize,
@@ -2510,7 +3172,7 @@ class _MenuTile extends StatelessWidget {
                           SizedBox(height: metrics.titleSubtitleGap),
                           Text(
                             subtitle,
-                            maxLines: 2,
+                            maxLines: wide ? null : 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: metrics.subtitleSize,
@@ -2818,6 +3480,29 @@ class _DashboardLayout {
   }
 }
 
+class _DashboardWorkspaceScope extends InheritedWidget {
+  const _DashboardWorkspaceScope({required this.enabled, required super.child});
+  final bool enabled;
+  static _DashboardWorkspaceScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_DashboardWorkspaceScope>();
+  @override
+  bool updateShouldNotify(_DashboardWorkspaceScope oldWidget) =>
+      enabled != oldWidget.enabled;
+}
+
+class _BasicInfoWideScope extends InheritedWidget {
+  const _BasicInfoWideScope({required this.enabled, required super.child});
+  final bool enabled;
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_BasicInfoWideScope>()
+          ?.enabled ??
+      false;
+  @override
+  bool updateShouldNotify(_BasicInfoWideScope oldWidget) =>
+      enabled != oldWidget.enabled;
+}
+
 class _DashboardResponsiveBody extends StatelessWidget {
   const _DashboardResponsiveBody({required this.children});
 
@@ -2853,7 +3538,14 @@ class _DashboardResponsiveBody extends StatelessWidget {
 }
 
 class _DashboardSection extends StatelessWidget {
-  const _DashboardSection({this.title, required this.children});
+  const _DashboardSection({
+    this.title,
+    required this.children,
+    this.preferredColumns,
+    this.compact = false,
+  });
+  final int? preferredColumns;
+  final bool compact;
 
   final String? title;
   final List<Widget> children;
@@ -2910,16 +3602,28 @@ class _DashboardSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header,
-        _DashboardMenuGrid(children: children),
+        _DashboardMenuGrid(
+          preferredColumns: preferredColumns,
+          singleColumn:
+              _BasicInfoWideScope.of(context) &&
+              (title == '會員系統' || title == '後台管理'),
+          children: children,
+        ),
       ],
     );
     if (metrics.isPhone) return body;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(metrics.sectionPad),
+      padding: EdgeInsets.all(
+        compact || _BasicInfoWideScope.of(context) ? 16 : metrics.sectionPad,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.sectionRadius),
+        borderRadius: BorderRadius.circular(
+          compact || _BasicInfoWideScope.of(context)
+              ? 16
+              : metrics.sectionRadius,
+        ),
         border: Border.all(color: _DashboardLayout.cardBorder),
         boxShadow: metrics.isDesktop
             ? [
@@ -2937,7 +3641,13 @@ class _DashboardSection extends StatelessWidget {
 }
 
 class _DashboardMenuGrid extends StatelessWidget {
-  const _DashboardMenuGrid({required this.children});
+  const _DashboardMenuGrid({
+    required this.children,
+    this.singleColumn = false,
+    this.preferredColumns,
+  });
+  final int? preferredColumns;
+  final bool singleColumn;
 
   final List<Widget> children;
 
@@ -2948,10 +3658,20 @@ class _DashboardMenuGrid extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints constraints) {
         final double pageWidth = MediaQuery.sizeOf(context).width;
         final _DashboardMetrics metrics = _DashboardLayout.metrics(pageWidth);
-        final int cols = _DashboardLayout.columns(
-          pageWidth,
-          availableWidth: constraints.maxWidth,
-        );
+        final int cols = preferredColumns != null
+            ? ((constraints.maxWidth + metrics.itemGap) /
+                      (280 + metrics.itemGap))
+                  .floor()
+                  .clamp(1, preferredColumns!)
+                  .toInt()
+            : singleColumn
+            ? 1
+            : _BasicInfoWideScope.of(context)
+            ? (constraints.maxWidth >= 940 ? 3 : 2)
+            : _DashboardLayout.columns(
+                pageWidth,
+                availableWidth: constraints.maxWidth,
+              );
         final double gap = metrics.itemGap;
         final double width = constraints.maxWidth;
         final double itemWidth = cols == 1

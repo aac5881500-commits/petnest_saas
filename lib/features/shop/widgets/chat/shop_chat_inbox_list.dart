@@ -19,6 +19,7 @@ class ShopChatInboxList extends StatefulWidget {
     this.openedThreadIds = const <String>{},
     this.onFilterChanged,
     this.onQueryChanged,
+    this.scrollController,
   });
 
   final String shopId;
@@ -30,6 +31,7 @@ class ShopChatInboxList extends StatefulWidget {
   final Set<String> openedThreadIds;
   final ValueChanged<String>? onFilterChanged;
   final ValueChanged<String>? onQueryChanged;
+  final ScrollController? scrollController;
 
   @override
   State<ShopChatInboxList> createState() => _ShopChatInboxListState();
@@ -38,16 +40,39 @@ class ShopChatInboxList extends StatefulWidget {
 class _ShopChatInboxListState extends State<ShopChatInboxList> {
   late final TextEditingController _search;
   int _retry = 0;
+  int _streamRetry = -1;
+  late Stream<Map<String, dynamic>?> _shopStream;
+  Stream<List<ShopChatThreadModel>>? _inboxStream, _archivedStream;
+  Stream<List<ShopChatThreadModel>> _threads(String filter) {
+    if (_streamRetry != _retry) {
+      _streamRetry = _retry;
+      _inboxStream = null;
+      _archivedStream = null;
+    }
+    return filter == 'archived'
+        ? (_archivedStream ??= ShopChatService.instance.watchShopArchivedInbox(
+            widget.shopId,
+          ))
+        : (_inboxStream ??= ShopChatService.instance.watchShopInbox(
+            widget.shopId,
+          ));
+  }
 
   @override
   void initState() {
     super.initState();
     _search = TextEditingController(text: widget.query);
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
   }
 
   @override
   void didUpdateWidget(covariant ShopChatInboxList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _shopStream = ShopService.instance.streamShop(widget.shopId);
+      _inboxStream = null;
+      _archivedStream = null;
+    }
     if (oldWidget.query != widget.query && _search.text != widget.query) {
       _search.text = widget.query;
     }
@@ -149,7 +174,7 @@ class _ShopChatInboxListState extends State<ShopChatInboxList> {
   Widget build(BuildContext context) {
     final String filter = widget.filter;
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(widget.shopId),
+      stream: _shopStream,
       builder:
           (
             BuildContext context,
@@ -234,13 +259,7 @@ class _ShopChatInboxListState extends State<ShopChatInboxList> {
                 Expanded(
                   child: StreamBuilder<List<ShopChatThreadModel>>(
                     key: ValueKey<String>('inbox-$filter-$_retry'),
-                    stream: filter == 'archived'
-                        ? ShopChatService.instance.watchShopArchivedInbox(
-                            widget.shopId,
-                          )
-                        : ShopChatService.instance.watchShopInbox(
-                            widget.shopId,
-                          ),
+                    stream: _threads(filter),
                     builder:
                         (
                           BuildContext context,
@@ -281,6 +300,10 @@ class _ShopChatInboxListState extends State<ShopChatInboxList> {
                             );
                           }
                           return ListView.separated(
+                            key: PageStorageKey(
+                              'shop-chat-inbox-${widget.shopId}',
+                            ),
+                            controller: widget.scrollController,
                             itemCount: threads.length,
                             separatorBuilder: (_, _) =>
                                 const Divider(height: 1),
