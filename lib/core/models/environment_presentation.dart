@@ -1,5 +1,7 @@
 // 檔案：lib/core/models/environment_presentation.dart
 // 功能：環境介紹範本、設備與服務草稿序列化；保留未知欄位。
+import 'environment_page_appearance.dart';
+
 class EnvironmentServiceCard {
   EnvironmentServiceCard(Map<String, dynamic> data) : data = Map.of(data);
   final Map<String, dynamic> data;
@@ -55,6 +57,8 @@ class EnvironmentPresentation {
       presets.containsKey(_raw['preset']) ? _raw['preset'] as String : '';
   bool get customized => _raw['customized'] == true;
   bool get groupedFacilities => _raw['groupFacilities'] == true;
+  EnvironmentPageAppearance get appearance =>
+      EnvironmentPageAppearance.fromMap(_raw['appearance']);
   String get equipmentLayout => layouts.containsKey(_raw['equipmentLayout'])
       ? _raw['equipmentLayout'] as String
       : 'legacy';

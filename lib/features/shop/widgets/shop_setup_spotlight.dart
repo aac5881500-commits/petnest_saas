@@ -9,11 +9,19 @@ class ShopSetupSpotlight extends StatefulWidget {
     this.target,
     this.step = 1,
     required this.onPause,
+    this.title,
+    this.description,
+    this.progressLabel,
+    this.pauseLabel = '稍後繼續',
+    this.strictFocus = false,
   });
   final Widget child;
   final GlobalKey? target;
   final int step;
   final VoidCallback onPause;
+  final String? title, description, progressLabel;
+  final String pauseLabel;
+  final bool strictFocus;
   @override
   State<ShopSetupSpotlight> createState() => _ShopSetupSpotlightState();
 }
@@ -23,6 +31,7 @@ class _ShopSetupSpotlightState extends State<ShopSetupSpotlight>
   final _surface = GlobalKey();
   Rect? _hole;
   bool _scheduled = false;
+  final _focusScope = FocusScopeNode();
   @override
   void initState() {
     super.initState();
@@ -31,6 +40,7 @@ class _ShopSetupSpotlightState extends State<ShopSetupSpotlight>
 
   @override
   void dispose() {
+    _focusScope.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -88,6 +98,10 @@ class _ShopSetupSpotlightState extends State<ShopSetupSpotlight>
 
   @override
   Widget build(BuildContext context) {
+    _focusScope.traversalEdgeBehavior =
+        widget.strictFocus && widget.target != null
+        ? TraversalEdgeBehavior.closedLoop
+        : TraversalEdgeBehavior.parentScope;
     _measure();
     const titles = ['房型完成！接著建立實際房間', '選擇建立房間的方式', '填寫房號並確認新增'];
     const descriptions = [
@@ -95,67 +109,77 @@ class _ShopSetupSpotlightState extends State<ShopSetupSpotlight>
       '只建一間可選「新增房間」；要一次建立多間，可選「快速建房」。',
       '輸入實際房號後，點「確認新增」。房間成功建立後，就完成這個小任務。',
     ];
-    return LayoutBuilder(
-      builder: (context, constraints) => Column(
-        children: [
-          if (widget.target != null)
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: constraints.maxHeight * .35,
-              ),
-              child: SingleChildScrollView(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.arrow_downward_rounded),
-                            Expanded(child: Text('開店小任務 ${widget.step}／3')),
-                            TextButton(
-                              onPressed: widget.onPause,
-                              child: const Text('稍後繼續'),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          titles[widget.step - 1],
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(descriptions[widget.step - 1]),
-                        if (_hole == null)
-                          const Text(
-                            '請捲動至操作區；空間不足時可稍後繼續。',
-                            style: TextStyle(fontSize: 12),
+    return FocusScope(
+      node: _focusScope,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          children: [
+            if (widget.target != null)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight * .35,
+                ),
+                child: SingleChildScrollView(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.arrow_downward_rounded),
+                              Expanded(
+                                child: Text(
+                                  widget.progressLabel ??
+                                      '開店小任務 ${widget.step}／3',
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: widget.onPause,
+                                child: Text(widget.pauseLabel),
+                              ),
+                            ],
                           ),
-                      ],
+                          Text(
+                            widget.title ?? titles[widget.step - 1],
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            widget.description ?? descriptions[widget.step - 1],
+                          ),
+                          if (_hole == null)
+                            const Text(
+                              '請捲動至操作區；空間不足時可使用上方出口返回。',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (_) {
-                _measure();
-                return false;
-              },
-              child: Stack(
-                key: _surface,
-                fit: StackFit.expand,
-                children: [
-                  widget.child,
-                  if (widget.target != null && _hole != null)
-                    Positioned.fill(
-                      child: CustomPaint(painter: _Shade(_hole!)),
-                    ),
-                ],
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (_) {
+                  _measure();
+                  return false;
+                },
+                child: Stack(
+                  key: _surface,
+                  fit: StackFit.expand,
+                  children: [
+                    widget.child,
+                    if (widget.target != null && _hole != null)
+                      Positioned.fill(
+                        child: CustomPaint(painter: _Shade(_hole!)),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -20,6 +20,7 @@ class ShopBookingSetupCenterPage extends StatefulWidget {
     super.key,
     required this.shopId,
     this.initialTab = ShopBookingSetupTab.roomTypes,
+    this.guideStayOpening = false,
     this.loadMember,
     this.roomTypesStream,
     this.roomsStream,
@@ -40,6 +41,7 @@ class ShopBookingSetupCenterPage extends StatefulWidget {
   final List<Widget>? appBarActions;
   final String shopId;
   final ShopBookingSetupTab initialTab;
+  final bool guideStayOpening;
 
   @override
   State<ShopBookingSetupCenterPage> createState() =>
@@ -68,6 +70,7 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
 
   final ShopSetupLeaveGuard _roomLeaveGuard = ShopSetupLeaveGuard();
   bool _navigating = false;
+  bool _bookingTutorialLocked = false;
   Map<String, dynamic>? _memberData;
   bool _roleLoaded = false;
   ShopBookingSetupTab _tab = ShopBookingSetupTab.roomTypes;
@@ -144,6 +147,7 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
   }
 
   ShopBookingSetupTab _normalizedInitialTab() {
+    if (widget.guideStayOpening) return ShopBookingSetupTab.booking;
     if (widget.initialTab == ShopBookingSetupTab.rooms) {
       return ShopBookingSetupTab.roomTypes;
     }
@@ -167,6 +171,7 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
       : _roomLeaveGuard.confirmLeave();
 
   Future<void> _selectTab(ShopBookingSetupTab tab) async {
+    if (_tab == ShopBookingSetupTab.booking && _bookingTutorialLocked) return;
     if (_navigating || tab == _tab || !_allowedTabs.contains(tab)) return;
     _navigating = true;
     try {
@@ -244,7 +249,11 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
                       final Widget chip = _SetupTabChip(
                         tab: tab,
                         selected: current == tab,
-                        onTap: () => _selectTab(tab),
+                        onTap:
+                            _tab == ShopBookingSetupTab.booking &&
+                                _bookingTutorialLocked
+                            ? null
+                            : () => _selectTab(tab),
                       );
                       if (equalTabs) {
                         return Expanded(child: chip);
@@ -313,7 +322,15 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
           shopId: widget.shopId,
           embeddedInSetupCenter: true,
           leaveGuard: _bookingLeaveGuard,
+          guideStayOpening: widget.guideStayOpening,
+          isActive: _tab == ShopBookingSetupTab.booking,
+          onTutorialLockChanged: (locked) {
+            if (mounted && locked != _bookingTutorialLocked) {
+              setState(() => _bookingTutorialLocked = locked);
+            }
+          },
           onManageRooms: () => _selectTab(ShopBookingSetupTab.roomTypes),
+          onReturnToOpening: _onBack,
           loadMember: widget.loadMember,
           shopStream: widget.shopStream,
           readinessStream: widget.readinessStream,
@@ -332,7 +349,7 @@ class _SetupTabChip extends StatelessWidget {
 
   final ShopBookingSetupTab tab;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

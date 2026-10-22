@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_section_visibility.dart';
+import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -131,6 +133,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   StoreBrandStyle _brandStyle = const StoreBrandStyle();
   List<String> _homeSectionOrder = HomeSectionOrder.normalize(null);
   HomeRoomSectionSetting _roomSection = const HomeRoomSectionSetting();
+  HomeSectionVisibility _sectionVisibility = HomeSectionVisibility({});
   HomeSharedEntrySectionSetting _sharedEntrySection =
       const HomeSharedEntrySectionSetting();
   HomeDisplayStyleSetting _displayStyle = HomeDisplayStyleSetting.unset;
@@ -372,58 +375,32 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   void _applySharedSection(HomeSharedEntrySectionSetting value) {
     setState(() {
       _sharedEntrySection = value;
-      final String placement = value.isJoined(HomeSharedEntrySources.rooms)
-          ? HomeRoomSimplePlacements.shared
-          : HomeRoomSimplePlacements.independent;
-      if (_roomSection.simple.placement != placement) {
-        _roomSection = _roomSection.copyWith(
-          simple: _roomSection.simple.copyWith(placement: placement),
-        );
-      }
       _appearanceDirty = true;
     });
   }
 
-  Widget _sharedJoin(String sourceId) {
-    return SharedEntryJoinSwitch(
-      joined: _sharedEntryForDraft.isJoined(sourceId),
-      zoneEnabled: _sharedEntrySection.enabled,
-      onChanged: (bool join) {
-        HomeSharedEntryCardSetting? seed;
-        if (join &&
-            sourceId == HomeSharedEntrySources.rooms &&
-            !_sharedEntrySection.cards.containsKey(sourceId)) {
-          final String title = _roomSection.title.trim();
-          seed = HomeSharedEntryCardSetting.fallback(sourceId).copyWith(
-            title: title.isEmpty ? null : title,
-            subtitle: _roomSection.simple.subtitle,
-            showSubtitle: _roomSection.simple.showSubtitle,
-          );
-        }
-        _applySharedSection(
-          join
-              ? _sharedEntrySection.including(sourceId, when: true, seed: seed)
-              : _sharedEntrySection.without(sourceId),
-        );
-      },
-    );
-  }
+  Widget _sectionDisplaySwitch(String sourceId) => SwitchListTile(
+    title: Text('在首頁顯示${HomeSharedEntrySources.label(sourceId)}展示'),
+    subtitle: const Text('只控制首頁的獨立展示，不影響首頁小卡及功能內頁。'),
+    value: _sectionVisibility.shows(sourceId),
+    onChanged: (value) => setState(() {
+      _sectionVisibility = _sectionVisibility.withValue(sourceId, value);
+      _appearanceDirty = true;
+    }),
+  );
 
-  Widget _withSharedJoin(String sourceId, Widget settings) {
+  Widget _withSectionDisplay(String sourceId, Widget settings) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _sharedJoin(sourceId),
+        _sectionDisplaySwitch(sourceId),
         Expanded(child: settings),
       ],
     );
   }
 
   HomeSharedEntrySectionSetting get _sharedEntryForDraft {
-    return _sharedEntrySection.including(
-      HomeSharedEntrySources.rooms,
-      when: roomSimpleUsesSharedZone(_roomSection),
-    );
+    return _sharedEntrySection;
   }
 
   Map<String, dynamic> get _draftModernAppearance {
@@ -443,6 +420,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       'themeColors': _modernTheme.toMap(),
       ..._brandStyle.toMap(),
       'homeSectionOrder': _homeSectionOrder,
+      HomeSectionVisibility.mapKey: _sectionVisibility.toMap(),
       'roomSection': _roomSection.toMap(),
       HomeSharedEntrySectionSetting.mapKey: _sharedEntryForDraft.toMap(),
       if (_displayStyle.saved)
@@ -698,9 +676,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _roomSection = HomeRoomSectionSetting.fromMap(
           modernAppearance['roomSection'],
         );
-        _sharedEntrySection = HomeSharedEntrySectionSetting.fromMap(
-          modernAppearance[HomeSharedEntrySectionSetting.mapKey],
-        );
+        final homePresentation = HomeSectionVisibility.read(modernAppearance);
+        _sharedEntrySection = homePresentation.shared;
+        _sectionVisibility = homePresentation.visibility;
         _displayStyle = HomeDisplayStyleSetting.fromMap(
           modernAppearance[HomeDisplayStyleSetting.mapKey],
         );
@@ -914,6 +892,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
                 ..._brandStyle.toMap(),
                 'homeSectionOrder': _homeSectionOrder,
+                HomeSectionVisibility.mapKey: _sectionVisibility.toMap(),
                 'roomSection': _roomSection.toMap(),
                 HomeSharedEntrySectionSetting.mapKey: _sharedEntryForDraft
                     .toMap(),
@@ -1252,16 +1231,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       onChanged: (HomeRoomSectionSetting value) {
         setState(() {
           _roomSection = value;
-          _sharedEntrySection = _sharedEntrySection.including(
-            HomeSharedEntrySources.rooms,
-            when: roomSimpleUsesSharedZone(value),
-          );
           _appearanceDirty = true;
         });
       },
       onManageRooms: _openRoomManagement,
     );
-    final Widget roomSettings = _withSharedJoin(
+    final Widget roomSettings = _withSectionDisplay(
       HomeSharedEntrySources.rooms,
       settings,
     );
@@ -1313,6 +1288,35 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
+  Future<void> _openEnvironmentManagement() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ShopEnvironmentManagePage(shopId: widget.shopId),
+      ),
+    );
+    if (!mounted) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .get();
+      if (mounted) {
+        setState(
+          () => _loadedShop = {
+            ..._loadedShop,
+            'environmentIntro': doc.data()?['environmentIntro'],
+          },
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('環境資料暫時無法更新，首頁外觀草稿仍保留。')));
+      }
+    }
+  }
+
   Widget _buildEnvironmentPane(bool desktopModern) {
     if (_selectedLayout != 'modern') {
       return ListView(
@@ -1325,6 +1329,23 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     final Widget settings = EnvironmentSectionSettingsPanel(
       setting: _environmentSection,
       theme: _modernTheme,
+      visible: _sectionVisibility.shows(HomeSharedEntrySources.facilities),
+      onVisibleChanged: (value) => setState(() {
+        _sectionVisibility = _sectionVisibility.withValue(
+          HomeSharedEntrySources.facilities,
+          value,
+        );
+        _appearanceDirty = true;
+      }),
+      environmentIntro: _loadedShop['environmentIntro'] is Map
+          ? Map<String, dynamic>.from(_loadedShop['environmentIntro'] as Map)
+          : const {},
+      onManage: _openEnvironmentManagement,
+      displayStyles: _displayStyle,
+      onDisplayStyles: (value) => setState(() {
+        _displayStyle = value;
+        _appearanceDirty = true;
+      }),
       onChanged: (HomeEnvironmentSectionSetting value) {
         setState(() {
           _environmentSection = value;
@@ -1332,10 +1353,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
-    final Widget environmentSettings = _withSharedJoin(
-      HomeSharedEntrySources.facilities,
-      settings,
-    );
+    final Widget environmentSettings = settings;
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1437,7 +1455,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
-    final Widget aboutSettings = _withSharedJoin(
+    final Widget aboutSettings = _withSectionDisplay(
       HomeSharedEntrySources.about,
       settings,
     );
@@ -1519,7 +1537,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
-    final Widget newsSettings = _withSharedJoin(
+    final Widget newsSettings = _withSectionDisplay(
       HomeSharedEntrySources.announcements,
       settings,
     );
@@ -1813,7 +1831,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final Widget settingsBody = sharedSourceId == null
         ? settings
-        : _withSharedJoin(sharedSourceId, settings);
+        : _withSectionDisplay(sharedSourceId, settings);
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),

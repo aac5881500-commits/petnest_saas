@@ -28,6 +28,23 @@ class EnvironmentSectionLayoutPreview extends StatelessWidget {
           child: switch (layout) {
             HomeEnvironmentLayouts.simpleEntry => _simple(),
             HomeEnvironmentLayouts.imageEntry => _image(),
+            HomeEnvironmentLayouts.editorial => Row(
+              children: [
+                Expanded(child: _image()),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _bar(width: 40, height: 8),
+                      const SizedBox(height: 5),
+                      _bar(width: 50, height: 5),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             _ => _scroll(),
           },
         ),

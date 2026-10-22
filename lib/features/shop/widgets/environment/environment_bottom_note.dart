@@ -3,6 +3,8 @@
 // 顯示住宿安排提醒文字
 
 import 'package:flutter/material.dart';
+import 'environment_appearance_surface.dart';
+import 'package:petnest_saas/core/models/environment_page_appearance.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class EnvironmentBottomNote extends StatelessWidget {
@@ -23,11 +25,35 @@ class EnvironmentBottomNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var theme = EnvironmentAppearanceScope.cardTheme(context, this.theme);
+    final scope = EnvironmentAppearanceScope.of(context);
+    final customFill = scope?.appearance.color('cardColor');
+    final fill = customFill ?? theme.primaryColor.withValues(alpha: 0.10);
+    if (scope?.appearance.hasColors == true) {
+      final appearance = scope!.appearance;
+      final background = appearance.resolve(scope.baseTheme).backgroundColor;
+      final surface = Color.alphaBlend(fill, background);
+      theme = theme.copyWith(
+        textColorValue: EnvironmentPageAppearance.readable(
+          appearance.color('textColor') ?? scope.baseTheme.textColor,
+          surface,
+        ).toARGB32(),
+        secondaryTextColorValue: EnvironmentPageAppearance.readable(
+          appearance.color('secondaryTextColor') ??
+              scope.baseTheme.secondaryTextColor,
+          surface,
+        ).toARGB32(),
+        primaryColorValue: EnvironmentPageAppearance.readable(
+          appearance.color('accentColor') ?? scope.baseTheme.primaryColor,
+          surface,
+        ).toARGB32(),
+      );
+    }
     return Container(
       margin: EdgeInsets.symmetric(horizontal: horizontalMargin),
       padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.10),
+        color: fill,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: theme.cardBorderColor),
       ),
@@ -43,7 +69,11 @@ class EnvironmentBottomNote extends StatelessWidget {
                 fontSize: fontSize,
                 height: 1.6,
                 fontWeight: FontWeight.w600,
-                color: theme.textColor.withValues(alpha: 0.72),
+                color: EnvironmentAppearanceScope.secondary(
+                  context,
+                  theme,
+                  0.72,
+                ),
               ),
             ),
           ),

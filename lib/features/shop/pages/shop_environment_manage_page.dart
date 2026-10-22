@@ -4,6 +4,7 @@ import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dar
 
 import 'dart:typed_data';
 import 'dart:convert';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_appearance_editor.dart';
 import 'package:petnest_saas/core/models/environment_presentation.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_services_editor.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -42,6 +43,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         ShopDashboardLeaveAware<ShopEnvironmentManagePage> {
   late final TabController _settingsTabs;
   List<String> _savedFacilities = [];
+  HomeThemeModel _previewTheme = HomeThemeModel.classicDefault;
   EnvironmentPresentation _presentation = EnvironmentPresentation();
   EnvironmentPresentation _savedPresentation = EnvironmentPresentation();
   String _savedFeaturesSnapshot = '', _savedGallerySnapshot = '';
@@ -190,6 +192,16 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
 
     if (!mounted) return;
     final Map<String, dynamic>? data = doc.data();
+    final home = data?['homeAppearance'];
+    if (home is Map) {
+      final modern = home['modern'];
+      _previewTheme = home['layout'] == 'modern'
+          ? HomeThemeModel.fromMap(
+              modern is Map ? modern['themeColors'] : null,
+              fallback: HomeThemeModel.modernDefault,
+            )
+          : HomeThemeModel.fromClassicSettings(rawData: home);
+    }
     final Map<String, dynamic>? environmentIntro =
         data?['environmentIntro'] as Map<String, dynamic>?;
 
@@ -1268,7 +1280,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       };
     });
 
-    await _persistAuxiliarySections(section: 'features');
+    await _persistAuxiliarySections(section: 'features', propagateError: false);
   }
 
   Future<void> _persistAuxiliarySections({
@@ -1486,6 +1498,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           bannerFrame: _bannerFrame,
           style: _style,
           presentation: _presentation,
+          theme: _previewTheme,
           features: environmentFeatures,
           galleryImages: environmentGalleryImages
               .map(_mapImageUrl)
@@ -1599,13 +1612,13 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     Map<String, GlobalKey>? sectionKeys,
   }) {
     return ColoredBox(
-      color: HomeThemeModel.classicDefault.backgroundColor,
+      color: _previewTheme.backgroundColor,
       child: EnvironmentIntroView(
         scrollController: controller,
         style: _style,
         presentation: _presentation,
         sectionKeys: sectionKeys ?? _previewSections,
-        theme: HomeThemeModel.classicDefault,
+        theme: _previewTheme,
         heroTitle: heroTitleController.text,
         heroSubtitle: heroSubtitleController.text,
         heroImageUrl: _heroImageUrl,
@@ -1749,10 +1762,13 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                                     sections.firstWhere(
                                       (section) => section.tab == 0,
                                     ),
+                                    sections
+                                        .where((section) => section.tab == 0)
+                                        .elementAt(1),
                                     _groupLabel('進階調整'),
                                     ...sections
                                         .where((section) => section.tab == 0)
-                                        .skip(1),
+                                        .skip(2),
                                   ] else
                                     ...sections.where(
                                       (section) => section.tab == index,
@@ -1777,6 +1793,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   List<Widget> _buildManagementChildren() => [
     _buildTipCard(),
     _buildTemplateSelector(),
+    _buildAppearanceSection(),
     _groupLabel('進階調整'),
     _buildSectionCard(
       settingsTab: 0,
@@ -1794,27 +1811,6 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
             setState(() {
               _presentation = _presentation.copyWith({'customized': true});
               _style = _style.copyWith(displaySize: value);
-            });
-          },
-        ),
-      ],
-    ),
-    _buildSectionCard(
-      settingsTab: 0,
-      title: '整體字體大小',
-      subtitle: '一次調整標題、卡片與提醒文字',
-      children: [
-        _buildChoiceChips(
-          value: _style.fontSize,
-          options: const <Map<String, String>>[
-            {'value': EnvironmentIntroStyle.fontSmall, 'label': '小'},
-            {'value': EnvironmentIntroStyle.fontStandard, 'label': '標準'},
-            {'value': EnvironmentIntroStyle.fontLarge, 'label': '大'},
-          ],
-          onSelected: (String value) {
-            setState(() {
-              _presentation = _presentation.copyWith({'customized': true});
-              _style = _style.copyWith(fontSize: value);
             });
           },
         ),
@@ -2161,6 +2157,36 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     }
     await _previewKey.currentState!.reveal(_previewSections[section]!);
   }
+
+  Widget _buildAppearanceSection() => _buildSectionCard(
+    settingsTab: 0,
+    title: '整頁外觀',
+    subtitle: '只套用環境介紹；儲存後才更新正式內容。',
+    children: [
+      EnvironmentAppearanceEditor(
+        appearance: _presentation.appearance,
+        theme: _previewTheme,
+        busy: _imageBusy,
+        onChanged: (value) => _setPresentation(
+          _presentation.copyWith({'appearance': value.toMap()}),
+        ),
+        fontSizeControl: _buildChoiceChips(
+          value: _style.fontSize,
+          options: const <Map<String, String>>[
+            {'value': EnvironmentIntroStyle.fontSmall, 'label': '小'},
+            {'value': EnvironmentIntroStyle.fontStandard, 'label': '標準'},
+            {'value': EnvironmentIntroStyle.fontLarge, 'label': '大'},
+          ],
+          onSelected: (String value) {
+            setState(() {
+              _presentation = _presentation.copyWith({'customized': true});
+              _style = _style.copyWith(fontSize: value);
+            });
+          },
+        ),
+      ),
+    ],
+  );
 
   Widget _buildTemplateSelector() => _buildSectionCard(
     settingsTab: 0,

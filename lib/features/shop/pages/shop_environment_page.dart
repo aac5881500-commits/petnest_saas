@@ -10,7 +10,6 @@ import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_intro_view.dart';
-import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 
 const String _environmentHeroImageUrl =
     'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=1200';
@@ -200,10 +199,19 @@ class ShopEnvironmentPage extends StatelessWidget {
                 bannerFrame ??
                 EnvironmentImageFrameSetting.bannerFromMap(environmentIntro);
 
+            final resolvedPresentation =
+                presentation ??
+                EnvironmentPresentation.fromMap(
+                  environmentIntro?['environmentPresentation'],
+                );
+            final pageTheme = resolvedPresentation.appearance.resolve(theme);
             return Scaffold(
-              backgroundColor: theme.backgroundColor,
+              backgroundColor: pageTheme.backgroundColor,
               appBar: AppBar(
-                backgroundColor: theme.backgroundColor,
+                backgroundColor: pageTheme.backgroundColor,
+                foregroundColor: resolvedPresentation.appearance.hasColors
+                    ? pageTheme.primaryColor
+                    : null,
                 elevation: 0,
                 surfaceTintColor: Colors.transparent,
                 centerTitle: true,
@@ -212,34 +220,28 @@ class ShopEnvironmentPage extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: resolvedStyle.pageTitleSize,
-                    color: theme.textColor,
+                    color: pageTheme.textColor,
+                    fontFamily: resolvedPresentation.appearance.fontFamily,
                   ),
                 ),
               ),
-              body: ShopAppBackdrop.behind(
+              body: EnvironmentIntroView(
+                presentation: resolvedPresentation,
+                style: resolvedStyle,
                 theme: theme,
-                child: EnvironmentIntroView(
-                  presentation:
-                      presentation ??
-                      EnvironmentPresentation.fromMap(
-                        environmentIntro?['environmentPresentation'],
-                      ),
-                  style: resolvedStyle,
-                  theme: theme,
-                  heroTitle: displayHeroTitle,
-                  heroSubtitle: displayHeroSubtitle,
-                  heroImageUrl: displayHeroImageUrl,
-                  heroFrame: resolvedHeroFrame,
-                  bannerTitle: displayBannerTitle,
-                  bannerImageUrl: displayBannerImageUrl,
-                  bannerFrame: resolvedBannerFrame,
-                  features: displayFeatures,
-                  galleryImages: displayGalleryImages,
-                  careItems: displayCareItems,
-                  bottomNote: displayBottomNote,
-                  imageBuilder: environmentIntroNetworkImage,
-                  featureIconOf: environmentIntroIcon,
-                ),
+                heroTitle: displayHeroTitle,
+                heroSubtitle: displayHeroSubtitle,
+                heroImageUrl: displayHeroImageUrl,
+                heroFrame: resolvedHeroFrame,
+                bannerTitle: displayBannerTitle,
+                bannerImageUrl: displayBannerImageUrl,
+                bannerFrame: resolvedBannerFrame,
+                features: displayFeatures,
+                galleryImages: displayGalleryImages,
+                careItems: displayCareItems,
+                bottomNote: displayBottomNote,
+                imageBuilder: environmentIntroNetworkImage,
+                featureIconOf: environmentIntroIcon,
               ),
             );
           },

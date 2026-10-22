@@ -176,7 +176,16 @@ class HomeEnvironmentTextPlacements {
 
 class HomeEnvironmentSectionSetting {
   const HomeEnvironmentSectionSetting({
-    this.schemaVersion = 1,
+    this.schemaVersion = 2,
+    this.facilityLimit = 6,
+    this.facilitySelectionCustomized = false,
+    this.homeFacilityKeys = const [],
+    this.showDescription = false,
+    this.cardTitle = '環境介紹',
+    this.cardSubtitle = '查看住宿環境與安心設備',
+    this.imageSource = 'auto',
+    this.selectedImageUrl = '',
+    this.editorialImageLeft = true,
     this.layout = HomeEnvironmentLayouts.facilityScroll,
     this.title = '環境介紹',
     this.subtitle = '查看住宿環境與安心設備',
@@ -188,8 +197,16 @@ class HomeEnvironmentSectionSetting {
     this.simpleIcon = HomeEnvironmentIcons.home,
     this.imageHeight = HomeEnvironmentImageHeights.standard,
     this.imageTextPlacement = HomeEnvironmentTextPlacements.overlay,
+    this.simpleImageSource = 'icon',
+    this.imageAssetId = '',
   });
 
+  final int facilityLimit;
+  final bool facilitySelectionCustomized;
+  final List<String> homeFacilityKeys;
+  final bool showDescription;
+  final String cardTitle, cardSubtitle, imageSource, selectedImageUrl;
+  final bool editorialImageLeft;
   final int schemaVersion;
   final String layout;
   final String title;
@@ -202,6 +219,12 @@ class HomeEnvironmentSectionSetting {
   final String simpleIcon;
   final String imageHeight;
   final String imageTextPlacement;
+  final String simpleImageSource;
+  final String imageAssetId;
+  bool get usesPlatformImage => layout == HomeEnvironmentLayouts.simpleEntry
+      ? simpleImageSource == 'platformCard'
+      : layout != HomeEnvironmentLayouts.facilityScroll &&
+            imageSource == 'platformCard';
 
   /// 設備橫滑沒有設備時不占首頁。簡約入口與照片卡仍會顯示。
   bool showsOnHome({required bool hasFacilities}) {
@@ -212,8 +235,7 @@ class HomeEnvironmentSectionSetting {
   }
 
   String get entryTitle {
-    final String text = title.trim();
-    return text.isEmpty ? '環境介紹' : text;
+    return cardTitle.trim();
   }
 
   String get facilityTitle {
@@ -223,6 +245,15 @@ class HomeEnvironmentSectionSetting {
 
   HomeEnvironmentSectionSetting copyWith({
     int? schemaVersion,
+    int? facilityLimit,
+    bool? facilitySelectionCustomized,
+    List<String>? homeFacilityKeys,
+    bool? showDescription,
+    String? cardTitle,
+    String? cardSubtitle,
+    String? imageSource,
+    String? selectedImageUrl,
+    bool? editorialImageLeft,
     String? layout,
     String? title,
     String? subtitle,
@@ -234,9 +265,21 @@ class HomeEnvironmentSectionSetting {
     String? simpleIcon,
     String? imageHeight,
     String? imageTextPlacement,
+    String? simpleImageSource,
+    String? imageAssetId,
   }) {
     return HomeEnvironmentSectionSetting(
       schemaVersion: schemaVersion ?? this.schemaVersion,
+      facilityLimit: facilityLimit ?? this.facilityLimit,
+      facilitySelectionCustomized:
+          facilitySelectionCustomized ?? this.facilitySelectionCustomized,
+      homeFacilityKeys: homeFacilityKeys ?? this.homeFacilityKeys,
+      showDescription: showDescription ?? this.showDescription,
+      cardTitle: cardTitle ?? this.cardTitle,
+      cardSubtitle: cardSubtitle ?? this.cardSubtitle,
+      imageSource: imageSource ?? this.imageSource,
+      selectedImageUrl: selectedImageUrl ?? this.selectedImageUrl,
+      editorialImageLeft: editorialImageLeft ?? this.editorialImageLeft,
       layout: layout ?? this.layout,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
@@ -248,12 +291,23 @@ class HomeEnvironmentSectionSetting {
       simpleIcon: simpleIcon ?? this.simpleIcon,
       imageHeight: imageHeight ?? this.imageHeight,
       imageTextPlacement: imageTextPlacement ?? this.imageTextPlacement,
+      simpleImageSource: simpleImageSource ?? this.simpleImageSource,
+      imageAssetId: imageAssetId ?? this.imageAssetId,
     );
   }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
-      'schemaVersion': schemaVersion,
+      'schemaVersion': 2,
+      'facilityLimit': facilityLimit,
+      'facilitySelectionCustomized': facilitySelectionCustomized,
+      'homeFacilityKeys': homeFacilityKeys,
+      'showDescription': showDescription,
+      'cardTitle': cardTitle,
+      'cardSubtitle': cardSubtitle,
+      'imageSource': imageSource,
+      'selectedImageUrl': selectedImageUrl,
+      'editorialImageLeft': editorialImageLeft,
       'layout': HomeEnvironmentLayouts.migrate(layout),
       'title': title,
       'subtitle': subtitle,
@@ -267,6 +321,8 @@ class HomeEnvironmentSectionSetting {
       'imageTextPlacement': HomeEnvironmentTextPlacements.migrate(
         imageTextPlacement,
       ),
+      'simpleImageSource': simpleImageSource,
+      'imageAssetId': imageAssetId,
     };
   }
 
@@ -281,9 +337,43 @@ class HomeEnvironmentSectionSetting {
       schemaVersion: map['schemaVersion'] is num
           ? (map['schemaVersion'] as num).toInt()
           : 1,
+      facilityLimit: const [0, 4, 6, 8].contains(map['facilityLimit'])
+          ? (map['facilityLimit'] as num).toInt()
+          : 6,
+      facilitySelectionCustomized: map['facilitySelectionCustomized'] == true,
+      homeFacilityKeys: map['homeFacilityKeys'] is List
+          ? (map['homeFacilityKeys'] as List)
+                .whereType<String>()
+                .toSet()
+                .toList()
+          : const [],
+      showDescription: map['showDescription'] == true,
+      cardTitle: map.containsKey('cardTitle')
+          ? _clip(map['cardTitle'], 40)
+          : (title.isEmpty ? '環境介紹' : title),
+      cardSubtitle: map.containsKey('cardSubtitle')
+          ? _clip(map['cardSubtitle'], 80)
+          : (subtitle.isEmpty ? '查看住宿環境與安心設備' : subtitle),
+      imageSource:
+          const [
+            'auto',
+            'hero',
+            'gallery',
+            'features',
+            'galleryFirst',
+            'platformCard',
+          ].contains(map['imageSource'])
+          ? map['imageSource'] as String
+          : 'auto',
+      selectedImageUrl: (map['selectedImageUrl'] ?? '').toString(),
+      simpleImageSource: map['simpleImageSource'] == 'platformCard'
+          ? 'platformCard'
+          : 'icon',
+      imageAssetId: _assetId(map['imageAssetId']),
+      editorialImageLeft: map['editorialImageLeft'] != false,
       layout: HomeEnvironmentLayouts.migrate(map['layout']),
-      title: title.isEmpty ? '環境介紹' : title,
-      subtitle: subtitle.isEmpty ? '查看住宿環境與安心設備' : subtitle,
+      title: map.containsKey('title') ? title : '環境介紹',
+      subtitle: map.containsKey('subtitle') ? subtitle : '查看住宿環境與安心設備',
       showTitle: map['showTitle'] is bool ? map['showTitle'] as bool : false,
       showSubtitle: map['showSubtitle'] is bool
           ? map['showSubtitle'] as bool
@@ -299,6 +389,62 @@ class HomeEnvironmentSectionSetting {
         map['imageTextPlacement'],
       ),
     );
+  }
+
+  List<Map<String, dynamic>> selectedFacilities(
+    List<Map<String, dynamic>> available,
+  ) {
+    final byKey = {for (final item in available) item['key'].toString(): item};
+    final items = facilitySelectionCustomized
+        ? homeFacilityKeys
+              .where(byKey.containsKey)
+              .map((key) => byKey[key]!)
+              .toList()
+        : available;
+    return facilityLimit == 0 ? items : items.take(facilityLimit).toList();
+  }
+
+  static List<String> availableImageUrls(
+    Object? intro, {
+    String source = 'auto',
+  }) {
+    if (intro is! Map) return [];
+    final urls = <String>[];
+    void add(Object? item) {
+      final url =
+          (item is Map ? item['imageUrl'] ?? item['url'] : item)
+              ?.toString()
+              .trim() ??
+          '';
+      if (url.isNotEmpty && !urls.contains(url)) urls.add(url);
+    }
+
+    if (source == 'auto' || source == 'hero') add(intro['heroImageUrl']);
+    for (final pair in {
+      'gallery': 'galleryImages',
+      'features': 'features',
+    }.entries) {
+      if ((source == 'auto' || source == pair.key) &&
+          intro[pair.value] is List) {
+        for (final item in intro[pair.value] as List) {
+          add(item);
+        }
+      }
+    }
+    return urls;
+  }
+
+  String imageForIntro(Object? intro) {
+    if (imageSource == 'platformCard') return '';
+    if (imageSource == 'galleryFirst') {
+      return intro is Map ? _firstUrl(intro['galleryImages']) : '';
+    }
+    final urls = availableImageUrls(intro, source: imageSource);
+    return urls.contains(selectedImageUrl)
+        ? selectedImageUrl
+        : urls.isNotEmpty
+        ? urls.first
+        : resolveImageUrl(intro);
   }
 
   /// hero → gallery 第一張 → features 第一張。都沒有就回傳空字串。
@@ -338,6 +484,11 @@ class HomeEnvironmentSectionSetting {
     }
     return '';
   }
+}
+
+String _assetId(Object? raw) {
+  final value = (raw ?? '').toString().trim();
+  return value.length > 128 || value.contains('/') ? '' : value;
 }
 
 String _clip(Object? raw, int maxCharacters) {

@@ -12,9 +12,242 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_section_order.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_entry_card.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_environment_section.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/environment_home_image_settings.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'galleryFirst follows the current album order and keeps legacy sources separate',
+    () {
+      final intro = <String, dynamic>{
+        'heroImageUrl': 'https://example.test/hero',
+        'galleryImages': [
+          null,
+          {'imageUrl': ''},
+          'https://example.test/first',
+          {'imageUrl': 'https://example.test/second'},
+        ],
+      };
+      final legacy = HomeEnvironmentSectionSetting.fromMap({
+        'imageSource': 'auto',
+        'selectedImageUrl': 'https://example.test/hero',
+      });
+      expect(legacy.imageForIntro(intro), 'https://example.test/hero');
+      final first = legacy.copyWith(imageSource: 'galleryFirst');
+      expect(first.imageForIntro(intro), 'https://example.test/first');
+      intro['galleryImages'] = [
+        {'imageUrl': 'https://example.test/second'},
+        'https://example.test/first',
+      ];
+      expect(first.imageForIntro(intro), 'https://example.test/second');
+      intro['galleryImages'] = [];
+      expect(first.imageForIntro(intro), isEmpty);
+      final saved = HomeEnvironmentSectionSetting.fromMap(
+        first
+            .copyWith(
+              imageSource: 'platformCard',
+              simpleImageSource: 'platformCard',
+              imageAssetId: 'card-asset',
+            )
+            .toMap(),
+      );
+      expect(saved.imageAssetId, 'card-asset');
+      expect(saved.imageForIntro(intro), isEmpty);
+      expect(
+        saved
+            .copyWith(layout: HomeEnvironmentLayouts.simpleEntry)
+            .usesPlatformImage,
+        isTrue,
+      );
+      expect(
+        saved
+            .copyWith(
+              layout: HomeEnvironmentLayouts.simpleEntry,
+              simpleImageSource: 'icon',
+            )
+            .usesPlatformImage,
+        isFalse,
+      );
+      expect(
+        saved.copyWith(imageSource: 'galleryFirst').imageAssetId,
+        'card-asset',
+      );
+    },
+  );
+
+  testWidgets(
+    'entry background fills each card size and default icon cards stay unchanged',
+    (tester) async {
+      var opened = 0;
+      for (final size in HomeEnvironmentCardSizes.all) {
+        Widget sample({bool image = false}) => _host(
+          width: 320,
+          child: ModernHomeEntryCard(
+            cardKey: const Key('background-entry'),
+            theme: HomeThemeModel.modernDefault,
+            title: '環境介紹',
+            subtitle: '查看環境',
+            showSubtitle: true,
+            cardSize: size,
+            surface: HomeEnvironmentSurfaces.filled,
+            icon: Icons.home_outlined,
+            onTap: () => opened++,
+            backgroundImage: image ? const _SolidImage() : null,
+          ),
+        );
+        await tester.pumpWidget(sample());
+        expect(find.byIcon(Icons.home_outlined), findsOneWidget);
+        expect(find.byType(Image), findsNothing);
+        final originalSize = tester.getSize(
+          find.byKey(const Key('background-entry')),
+        );
+        await tester.pumpWidget(sample(image: true));
+        await tester.pump();
+        final card = tester.getSize(find.byKey(const Key('background-entry')));
+        expect(card, originalSize);
+        expect(tester.getSize(find.byType(Image)), card);
+        if (size == HomeEnvironmentCardSizes.small) {
+          expect(card.height, kModernHomeSmallCardHeight);
+        }
+        if (size == HomeEnvironmentCardSizes.wide) {
+          expect(card.height, kModernHomeWideCardHeight);
+        }
+        if (size == HomeEnvironmentCardSizes.single) {
+          expect(
+            card.height,
+            greaterThanOrEqualTo(kModernHomeSingleCardMinHeight),
+          );
+        }
+        expect(find.byIcon(Icons.home_outlined), findsNothing);
+        await tester.tap(find.byKey(const Key('background-entry')));
+        expect(tester.takeException(), isNull);
+      }
+      expect(opened, 3);
+    },
+  );
+
+  testWidgets(
+    'environment thumbnail is bounded contain and uses album first at narrow and wide widths',
+    (tester) async {
+      for (final width in [300.0, 700.0]) {
+        await tester.pumpWidget(
+          _host(
+            width: width,
+            child: EnvironmentHomeImageSettings(
+              setting: const HomeEnvironmentSectionSetting(
+                layout: HomeEnvironmentLayouts.imageEntry,
+                imageSource: 'galleryFirst',
+              ),
+              environmentIntro: const {
+                'heroImageUrl': 'https://example.test/hero',
+                'galleryImages': ['https://example.test/album'],
+              },
+              onChanged: (_) {},
+              onPickLegacy: () {},
+              onManage: () {},
+            ),
+          ),
+        );
+        final frame = tester.getSize(find.byType(AspectRatio));
+        expect(frame.width, lessThanOrEqualTo(280));
+        expect(frame.width / frame.height, closeTo(4 / 3, .001));
+        final image = tester.widget<Image>(find.byType(Image));
+        expect(image.fit, BoxFit.contain);
+        expect((image.image as NetworkImage).url, 'https://example.test/album');
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('首頁環境共用標題開關涵蓋四種版型，箭頭可直接導頁', (tester) async {
+    var opened = 0;
+    const setting = HomeEnvironmentSectionSetting(
+      title: '上方區塊標題',
+      subtitle: '上方區塊說明',
+      cardTitle: '卡片內標題',
+      cardSubtitle: '卡片內說明',
+      showTitle: true,
+      showDescription: true,
+    );
+    for (final layout in HomeEnvironmentLayouts.all) {
+      Widget sample(HomeEnvironmentSectionSetting value) => _host(
+        width: 360,
+        child: ModernHomeEnvironmentSection(
+          theme: HomeThemeModel.modernDefault,
+          setting: value,
+          environmentIntro: const {},
+          facilityKeys: const ['water'],
+          preview: true,
+          onOpen: () => opened++,
+          imageProvider: const _SolidImage(),
+        ),
+      );
+      await tester.pumpWidget(sample(setting.copyWith(layout: layout)));
+      await tester.pump();
+      expect(find.text('上方區塊標題'), findsOneWidget);
+      expect(find.text('上方區塊說明'), findsOneWidget);
+      await tester.pumpWidget(
+        sample(
+          setting.copyWith(
+            layout: layout,
+            showTitle: false,
+            showDescription: false,
+          ),
+        ),
+      );
+      expect(find.text('上方區塊標題'), findsNothing);
+      expect(find.text('上方區塊說明'), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(
+      _host(
+        width: 320,
+        child: ModernHomeEnvironmentSection(
+          theme: HomeThemeModel.modernDefault,
+          setting: const HomeEnvironmentSectionSetting(),
+          environmentIntro: const {},
+          facilityKeys: const ['water'],
+          preview: false,
+          onOpen: () => opened++,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('home-environment-end')));
+    expect(opened, 1);
+  });
+
+  test('首頁設備選擇以 key 排序限量，不補入未選設備，並保留舊入口 false', () {
+    final available = [
+      for (final key in ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {'key': key},
+    ];
+    const initial = HomeEnvironmentSectionSetting();
+    expect(initial.selectedFacilities(available).length, 6);
+    final draft = initial.copyWith(
+      facilitySelectionCustomized: true,
+      homeFacilityKeys: ['c', 'missing', 'a'],
+      facilityLimit: 4,
+    );
+    final restored = HomeEnvironmentSectionSetting.fromMap(draft.toMap());
+    expect(restored.selectedFacilities(available).map((m) => m['key']), [
+      'c',
+      'a',
+    ]);
+    expect(available.length, 7);
+    expect(
+      HomeEnvironmentSectionSetting.fromMap({
+        'showEndEntryCard': false,
+      }).showEndEntryCard,
+      isFalse,
+    );
+    expect(
+      HomeEnvironmentSectionSetting.fromMap({
+        'title': '舊標題',
+        'subtitle': '舊說明',
+      }).cardTitle,
+      '舊標題',
+    );
+  });
 
   test('舊資料沒有 environmentSection 時預設設備橫滑', () {
     final HomeEnvironmentSectionSetting setting =
@@ -193,7 +426,7 @@ void main() {
     }
   });
 
-  test('設備橫滑沒有設備時住宿服務保留環境介紹', () {
+  test('設備橫滑沒有設備時不占首頁區塊', () {
     const HomeEnvironmentSectionSetting scroll =
         HomeEnvironmentSectionSetting();
     expect(scroll.showsOnHome(hasFacilities: false), isFalse);
@@ -312,11 +545,11 @@ void main() {
     final double end = tester
         .getTopLeft(find.byKey(const Key('home-environment-end')))
         .dx;
-    final double card = tester
-        .getSize(find.byKey(const Key('home-environment-facility-0')))
-        .width;
-    expect(end, lessThan(right));
-    expect(end + card, greaterThan(right));
+    expect(end, greaterThanOrEqualTo(right));
+    expect(
+      tester.getSize(find.byKey(const Key('home-environment-end'))).width,
+      greaterThanOrEqualTo(44),
+    );
     final ScrollableState scrollable = tester.state<ScrollableState>(
       find.byType(Scrollable),
     );
@@ -328,6 +561,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(scrollable.position.pixels, greaterThan(before));
+    expect(
+      tester.getTopLeft(find.byKey(const Key('home-environment-end'))).dx,
+      end,
+    );
     expect(tester.takeException(), isNull);
   });
 }

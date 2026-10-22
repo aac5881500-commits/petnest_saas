@@ -128,16 +128,18 @@ class _EnvironmentServiceSectionState extends State<EnvironmentServiceSection> {
       ),
       for (final category in EnvironmentPresentation.categories.entries)
         if (visible.any((m) => m['category'] == category.key)) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              category.value,
-              style: TextStyle(
-                color: widget.theme.textColor,
-                fontWeight: FontWeight.w600,
+          if (category.value.trim() != title.trim())
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                category.value,
+                style: TextStyle(
+                  color: widget.theme.textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: widget.style.careTitleSize,
+                ),
               ),
             ),
-          ),
           LayoutBuilder(
             builder: (context, constraints) {
               final textScale = MediaQuery.textScalerOf(context).scale(1);

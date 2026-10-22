@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_section_visibility.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_actions.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_bottom_navigation.dart';
@@ -760,24 +761,22 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
         final HomeRoomSectionSetting roomSection =
             HomeRoomSectionSetting.fromMap(modernAppearance['roomSection']);
-        final HomeSharedEntrySectionSetting sharedEntry =
-            HomeSharedEntrySectionSetting.fromMap(
-              modernAppearance[HomeSharedEntrySectionSetting.mapKey],
-            );
-        final Set<String> sharedEntryIds = sharedEntry.enabled
-            ? sharedEntryJoinedIds(
-                section: sharedEntry,
-                rooms: roomSection,
-              ).toSet()
-            : <String>{};
+        final presentation = HomeSectionVisibility.read(modernAppearance);
+        final sharedEntry = presentation.shared;
+        final visibility = presentation.visibility;
         final HomeEnvironmentSectionSetting environmentSection =
             HomeEnvironmentSectionSetting.fromMap(
               modernAppearance['environmentSection'],
             );
         final bool environmentVisible = environmentSection.showsOnHome(
-          hasFacilities: ModernHomeEnvironmentSection.facilitiesFor(
-            facilityKeys,
-          ).isNotEmpty,
+          hasFacilities: environmentSection
+              .selectedFacilities(
+                ModernHomeEnvironmentSection.facilitiesFor(
+                  facilityKeys,
+                  introduction: environmentIntro,
+                ),
+              )
+              .isNotEmpty,
         );
         final HomeAboutSectionSetting aboutSection =
             HomeAboutSectionSetting.fromMap(modernAppearance['aboutSection']);
@@ -870,18 +869,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           sectionOrder,
           showAnnouncements:
               showAnnouncementsOnHome &&
-              !sharedEntryIds.contains(HomeSharedEntrySources.announcements),
+              visibility.shows(HomeSharedEntrySources.announcements),
           showPolicy:
               homeInfoOccupiesSection(policyPhase) &&
-              !sharedEntryIds.contains(HomeSharedEntrySources.policy),
+              visibility.shows(HomeSharedEntrySources.policy),
           showFaq:
               homeInfoOccupiesSection(faqPhase) &&
-              !sharedEntryIds.contains(HomeSharedEntrySources.faq),
+              visibility.shows(HomeSharedEntrySources.faq),
           showReviews:
               homeInfoOccupiesSection(reviewPhase) &&
-              !sharedEntryIds.contains(HomeSharedEntrySources.reviews),
+              visibility.shows(HomeSharedEntrySources.reviews),
           showQuickBooking:
-              !sharedEntryIds.contains(HomeSharedEntrySources.quickBooking) &&
+              visibility.shows(HomeSharedEntrySources.quickBooking) &&
               homeQuickBookingVisible(
                 setting: quickBookingSection,
                 editorPreview: editorPreview,
@@ -893,31 +892,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               storeModuleEnabled && storeHomeSetting.showFeaturedProducts,
           showStoreEntrance:
               storeModuleEnabled && storeHomeSetting.showStoreBanner,
-          showRooms: !sharedEntryHidesSimpleSection(
-            sourceId: HomeSharedEntrySources.rooms,
-            layout: roomSection.layout,
-            simpleLayout: HomeRoomSectionLayouts.simpleEntry,
-            section: sharedEntry,
-            rooms: roomSection,
-          ),
+          showRooms: visibility.shows(HomeSharedEntrySources.rooms),
           showFacilities:
               environmentVisible &&
-              !sharedEntryHidesSimpleSection(
-                sourceId: HomeSharedEntrySources.facilities,
-                layout: environmentSection.layout,
-                simpleLayout: HomeEnvironmentLayouts.simpleEntry,
-                section: sharedEntry,
-                rooms: roomSection,
-              ),
+              visibility.shows(HomeSharedEntrySources.facilities),
           showAbout:
-              aboutVisible &&
-              !sharedEntryHidesSimpleSection(
-                sourceId: HomeSharedEntrySources.about,
-                layout: aboutSection.layout,
-                simpleLayout: HomeAboutLayouts.simpleEntry,
-                section: sharedEntry,
-                rooms: roomSection,
-              ),
+              aboutVisible && visibility.shows(HomeSharedEntrySources.about),
           showSharedEntries: sharedEntry.enabled,
         );
         Widget sectionBody(String sectionId) {
@@ -948,7 +928,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             policyPhase: policyPhase,
             faqPhase: faqPhase,
             reviewPhase: reviewPhase,
-            showEnvironmentService: !environmentVisible,
+            showEnvironmentService: false,
             showAboutService: stayServiceShowsAbout(aboutSection),
             quickBookingSection: quickBookingSection,
             accommodationAvailable: accommodationAvailable,
@@ -1398,23 +1378,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     String id,
     HomeRoomSectionSetting rooms,
   ) {
-    final HomeSharedEntryCardSetting? stored = section.cards[id];
-    if (stored != null) {
-      return stored;
-    }
-    final HomeSharedEntryCardSetting fallback =
-        HomeSharedEntryCardSetting.fallback(id);
-    if (id != HomeSharedEntrySources.rooms) {
-      return fallback;
-    }
-    final String title = rooms.title.trim().isEmpty
-        ? fallback.title
-        : rooms.title.trim();
-    return fallback.copyWith(
-      title: title,
-      subtitle: rooms.simple.subtitle,
-      showSubtitle: rooms.simple.showSubtitle,
-    );
+    return section.cardOf(id);
   }
 
   IconData _sharedEntryIcon(String id) {

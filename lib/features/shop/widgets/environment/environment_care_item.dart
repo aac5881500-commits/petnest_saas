@@ -3,6 +3,7 @@
 // 顯示照護設備：Icon、標題、簡短說明
 
 import 'package:flutter/material.dart';
+import 'environment_appearance_surface.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
@@ -48,7 +49,8 @@ class EnvironmentCareItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (layout != 'legacy') return _modernCard(context);
+    final theme = EnvironmentAppearanceScope.cardTheme(context, this.theme);
+    if (layout != 'legacy') return _modernCard(context, theme);
     return InkWell(
       onTap: () => _showDetails(context),
       child: Container(
@@ -96,7 +98,11 @@ class EnvironmentCareItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: subtitleSize,
                   height: 1.3,
-                  color: theme.textColor.withValues(alpha: 0.68),
+                  color: EnvironmentAppearanceScope.secondary(
+                    context,
+                    theme,
+                    0.68,
+                  ),
                 ),
               ),
             ],
@@ -117,12 +123,23 @@ class EnvironmentCareItem extends StatelessWidget {
   }
 
   void _showDetails(BuildContext context) {
+    final colors = EnvironmentAppearanceScope.cardTheme(context, theme);
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        backgroundColor: colors.cardColor,
+        title: Text(
+          title,
+          style: TextStyle(color: colors.textColor, fontSize: titleSize + 3),
+        ),
         content: SingleChildScrollView(
-          child: Text([if (subtitle.isNotEmpty) subtitle, ?tag].join('\n')),
+          child: Text(
+            [if (subtitle.isNotEmpty) subtitle, ?tag].join('\n'),
+            style: TextStyle(
+              color: colors.secondaryTextColor,
+              fontSize: subtitleSize,
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -134,7 +151,7 @@ class EnvironmentCareItem extends StatelessWidget {
     );
   }
 
-  Widget _modernCard(BuildContext context) {
+  Widget _modernCard(BuildContext context, HomeThemeModel theme) {
     final avatar = Icon(icon, size: iconSize, color: theme.primaryColor);
     final text = Column(
       crossAxisAlignment: layout == 'icon'
@@ -158,7 +175,7 @@ class EnvironmentCareItem extends StatelessWidget {
             style: TextStyle(
               fontSize: subtitleSize,
               height: 1.45,
-              color: theme.textColor,
+              color: EnvironmentAppearanceScope.secondary(context, theme, 1),
             ),
           ),
         ],

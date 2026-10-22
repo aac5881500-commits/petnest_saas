@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -143,44 +145,240 @@ void main() {
       ],
     );
     expect(StayBookingReadiness.requested({}), isFalse);
-    final configs = StreamController<Map<String, dynamic>?>();
-    final readiness = StreamController<StayBookingReadiness>();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ShopBookingSettingsPage(
+    for (final width in [390.0, 1280.0]) {
+      for (final embedded in [true, false]) {
+        await tester.binding.setSurfaceSize(Size(width, 900));
+        var shopListens = 0, roomListens = 0, policyLoads = 0;
+        final configs = StreamController<Map<String, dynamic>?>(
+          onListen: () => shopListens++,
+        );
+        final readiness = StreamController<StayBookingReadiness>(
+          onListen: () => roomListens++,
+        );
+        final daycare = StreamController<DaycareSettingsModel>();
+        final guard = ShopBookingSettingsLeaveGuard();
+        final page = ShopBookingSettingsPage(
           shopId: 'fixture',
-          embeddedInSetupCenter: true,
+          embeddedInSetupCenter: embedded,
+          leaveGuard: guard,
           loadMember: () async => {'role': 'owner'},
           shopStream: configs.stream,
           readinessStream: readiness.stream,
+          loadStayPolicy: () async {
+            policyLoads++;
+            return true;
+          },
+          daycareSettingsStream: daycare.stream,
           actionLogsStream: Stream.value([]),
-        ),
-      ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(home: embedded ? Scaffold(body: page) : page),
+        );
+        configs.add({'bookingEnabled': false, 'maxAdvanceBookingDays': 30});
+        await tester.pumpAndSettle();
+        expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
+        expect(find.text('可用房型與實際房間：資格確認中…'), findsOneWidget);
+        daycare.add(DaycareSettingsModel.fromMap({'enabled': true}));
+        readiness.add(ready);
+        await tester.pumpAndSettle();
+        // Legacy enabled state is visible but cannot be edited in this page.
+        final locked = tester.widgetList<Switch>(find.byType(Switch)).last;
+        expect(locked.value, isTrue);
+        expect(locked.onChanged, isNull);
+        expect(find.text('目前已啟用，本頁暫不提供調整'), findsOneWidget);
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, '儲存預約設定'))
+              .onPressed,
+          isNull,
+        );
+        configs.add({
+          'bookingEnabled': true,
+          'daycareEnabled': true,
+          'maxAdvanceBookingDays': 30,
+        });
+        readiness.addError(StateError('fixture offline'));
+        await tester.pumpAndSettle();
+        expect(find.text('已開放'), findsOneWidget);
+        // Closing is possible even while qualification reads fail.
+        tester.widget<Switch>(find.byType(Switch).first).onChanged!(false);
+        await tester.pumpAndSettle();
+        expect(
+          find.text('已開放'),
+          findsOneWidget,
+        ); // formal state is not the draft
+        expect(find.text('尚未儲存'), findsOneWidget);
+        readiness.add(ready);
+        await tester.pumpAndSettle();
+        final days = find.byType(TextFormField);
+        await tester.ensureVisible(days);
+        await tester.enterText(days, '15');
+        await tester.pumpAndSettle();
+        final calendarState = tester.state(
+          find.byType(BookingCalendar, skipOffstage: false),
+        );
+        await tester.tap(find.text('日期管理').first);
+        await tester.pumpAndSettle();
+        final calendar = tester.widget<BookingCalendar>(
+          find.byType(BookingCalendar),
+        );
+        final now = DateTime.now();
+        calendar.onDayTap(DateTime(now.year, now.month, now.day));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<BookingCalendar>(find.byType(BookingCalendar))
+              .blockedDateKeys
+              .length,
+          1,
+        );
+        await tester.tap(find.text('預約開放').first);
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextFormField>(days).controller!.text, '15');
+        expect(
+          identical(
+            calendarState,
+            tester.state(find.byType(BookingCalendar, skipOffstage: false)),
+          ),
+          isTrue,
+        );
+        // A concurrent explicit false wins over old legacy true, without touching the stay draft.
+        configs.add({
+          'bookingEnabled': true,
+          'daycareEnabled': false,
+          'maxAdvanceBookingDays': 30,
+        });
+        await tester.pumpAndSettle();
+        expect(
+          tester.widgetList<Switch>(find.byType(Switch)).last.value,
+          isFalse,
+        );
+        expect(
+          tester.widgetList<Switch>(find.byType(Switch)).last.onChanged,
+          isNull,
+        );
+        expect(tester.widget<TextFormField>(days).controller!.text, '15');
+        final leaving = guard.confirmLeave();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('繼續編輯'));
+        await tester.pumpAndSettle();
+        expect(await leaving, isFalse);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(FilledButton, '儲存預約設定'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        tester.view.resetViewInsets();
+        expect(shopListens, 1);
+        expect(roomListens, 1);
+        expect(policyLoads, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        unawaited(configs.close());
+        unawaited(readiness.close());
+        unawaited(daycare.close());
+      }
+    }
+    await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets('住宿開放導引：真開關、日期說明與草稿保護', (tester) async {
+    final ready = StayBookingReadiness(
+      [
+        {'id': 't'},
+      ],
+      [
+        {'id': 'r', 'roomTypeId': 't', 'enabled': true},
+      ],
     );
-    configs.add({'bookingEnabled': true, 'daycareEnabled': false});
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
-    expect(tester.widget<Switch>(find.byType(Switch).first).onChanged, isNull);
-    readiness.add(StayBookingReadiness([], []));
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
-    expect(find.text('目前可預約'), findsNothing);
-    expect(find.text('建立第一個房型'), findsOneWidget);
-    // Fixture for the existing explicit room-creation operation's persisted result.
-    configs.add({'bookingEnabled': false, 'daycareEnabled': false});
-    readiness.add(ready);
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
-    configs.add({'bookingEnabled': true, 'daycareEnabled': false});
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch).first).value, isTrue);
-    expect(find.text('目前可預約'), findsOneWidget);
-    configs.add({'daycareEnabled': false});
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
-    await tester.pumpWidget(const SizedBox.shrink());
-    unawaited(configs.close());
-    unawaited(readiness.close());
+    for (final width in [390.0, 1280.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      final rooms = StreamController<StayBookingReadiness>();
+      final guard = ShopBookingSettingsLeaveGuard();
+      var checks = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ShopBookingSettingsPage(
+              shopId: 'fixture',
+              embeddedInSetupCenter: true,
+              guideStayOpening: true,
+              leaveGuard: guard,
+              loadMember: () async => {'role': 'owner'},
+              shopStream: Stream.value({
+                'bookingEnabled': false,
+                'maxAdvanceBookingDays': 30,
+              }),
+              readinessStream: rooms.stream,
+              loadRoomReadiness: () async {
+                if (checks++ == 0) {
+                  throw StateError('fixture qualification failure');
+                }
+                return ready;
+              },
+              loadStayPolicy: () async => true,
+              daycareSettingsStream: Stream.value(
+                DaycareSettingsModel.fromMap({'enabled': false}),
+              ),
+              actionLogsStream: Stream.value([]),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('先開啟住宿預約'), findsNothing);
+      rooms.add(ready);
+      await tester.pumpAndSettle();
+      expect(find.text('先開啟住宿預約'), findsOneWidget);
+      final toggle = find.byType(Switch).first;
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(toggle).value, isFalse);
+      expect(find.text('先開啟住宿預約'), findsOneWidget);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Switch>(find.byType(Switch, skipOffstage: false).first)
+            .value,
+        isTrue,
+      );
+      expect(find.text('先開啟住宿預約'), findsNothing);
+      expect(find.text('住宿開放引導 2／3'), findsOneWidget);
+      expect(find.text('尚未儲存'), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, '儲存預約設定').evaluate().single.widget
+            is FilledButton,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '儲存預約設定'))
+            .onPressed,
+        isNull,
+      );
+      // Save-and-leave cannot open accommodation before the explanation is acknowledged.
+      final leaving = guard.confirmLeave();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('儲存並離開'));
+      await tester.pumpAndSettle();
+      expect(await leaving, isFalse);
+      final confirm = find.widgetWithText(FilledButton, '我了解，開始設定');
+      await tester.ensureVisible(confirm);
+      await tester.pumpAndSettle();
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+      expect(find.text('住宿開放引導 2／3'), findsNothing);
+      expect(find.text('沒有需要關閉的日期，可直接儲存預約設定'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '儲存預約設定'))
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      unawaited(rooms.close());
+    }
+    await tester.binding.setSurfaceSize(null);
   });
 
   testWidgets('同一個 hub 新增草稿在窄寬窄切換保留', (tester) async {

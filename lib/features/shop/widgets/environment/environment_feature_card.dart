@@ -2,6 +2,7 @@
 // 功能說明：環境介紹特色卡：橫向圖卡 / 上圖下文 / 重點文字卡
 
 import 'package:flutter/material.dart';
+import 'environment_appearance_surface.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
@@ -39,6 +40,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = EnvironmentAppearanceScope.cardTheme(context, this.theme);
     return Container(
       margin: EdgeInsets.fromLTRB(
         style.pagePadding,
@@ -64,12 +66,14 @@ class EnvironmentFeatureCard extends StatelessWidget {
             ),
         ],
       ),
-      child: style.isVerticalCard ? _vertical() : _horizontalOrText(),
+      child: style.isVerticalCard
+          ? _vertical(theme, context)
+          : _horizontalOrText(theme, context),
     );
   }
 
-  Widget _horizontalOrText() {
-    final Widget text = _textContent();
+  Widget _horizontalOrText(HomeThemeModel theme, BuildContext context) {
+    final Widget text = _textContent(theme, context);
     if (!_hasImage) {
       return text;
     }
@@ -95,7 +99,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
     );
   }
 
-  Widget _vertical() {
+  Widget _vertical(HomeThemeModel theme, BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -109,7 +113,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
           ),
           SizedBox(height: style.featureTextGap + 4),
         ],
-        _textContent(),
+        _textContent(theme, context),
       ],
     );
   }
@@ -125,7 +129,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
     );
   }
 
-  Widget _textContent() {
+  Widget _textContent(HomeThemeModel theme, BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 2, right: 2),
       child: Column(
@@ -163,7 +167,11 @@ class EnvironmentFeatureCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: style.cardDescriptionSize,
                 height: style.isHorizontalCard ? 1.35 : 1.5,
-                color: theme.textColor.withValues(alpha: 0.72),
+                color: EnvironmentAppearanceScope.secondary(
+                  context,
+                  theme,
+                  0.72,
+                ),
               ),
             ),
           ],

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/models/home_section_visibility.dart';
 import 'package:petnest_saas/core/models/home_room_section_setting.dart';
 import 'package:petnest_saas/core/models/home_shared_entry_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -11,6 +12,60 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/shared_entry_sect
 import 'package:petnest_saas/features/shop/widgets/modern_home/shared_entry_settings_card.dart';
 
 void main() {
+  test(
+    'visibility compatibility retains old hiding and never restores removed cards',
+    () {
+      final legacy = <String, dynamic>{
+        'roomSection': const HomeRoomSectionSetting(
+          layout: HomeRoomSectionLayouts.simpleEntry,
+          simple: HomeRoomSimpleSetting(
+            placement: HomeRoomSimplePlacements.shared,
+          ),
+        ).toMap(),
+        HomeSharedEntrySectionSetting.mapKey:
+            const HomeSharedEntrySectionSetting(enabled: true).toMap(),
+      };
+      final old = HomeSectionVisibility.read(legacy);
+      expect(old.shared.isJoined('rooms'), isTrue);
+      expect(old.visibility.shows('rooms'), isFalse);
+      final changedRoom = HomeSectionVisibility.read({
+        ...legacy,
+        'roomSection': const HomeRoomSectionSetting(title: '新的獨立展示標題').toMap(),
+        HomeSectionVisibility.mapKey: old.visibility.toMap(),
+        HomeSharedEntrySectionSetting.mapKey: old.shared.toMap(),
+      });
+      expect(
+        changedRoom.shared.cardOf('rooms').title,
+        old.shared.cardOf('rooms').title,
+      );
+      final removed = HomeSectionVisibility.read({
+        ...legacy,
+        HomeSectionVisibility.mapKey: old.visibility
+            .withValue('rooms', true)
+            .toMap(),
+        HomeSharedEntrySectionSetting.mapKey: old.shared
+            .without('rooms')
+            .toMap(),
+      });
+      expect(removed.shared.isJoined('rooms'), isFalse);
+      expect(removed.visibility.shows('rooms'), isTrue);
+      for (final smallCard in [false, true]) {
+        for (final display in [false, true]) {
+          final result = HomeSectionVisibility.read({
+            ...legacy,
+            HomeSharedEntrySectionSetting.mapKey: old.shared
+                .copyWith(enabled: smallCard)
+                .toMap(),
+            HomeSectionVisibility.mapKey: old.visibility
+                .withValue('rooms', display)
+                .toMap(),
+          });
+          expect(result.shared.enabled, smallCard);
+          expect(result.visibility.shows('rooms'), display);
+        }
+      }
+    },
+  );
   test('old appearance data stays independent and keeps its columns', () {
     final HomeSharedEntrySectionSetting missing =
         HomeSharedEntrySectionSetting.fromMap(null);
@@ -43,105 +98,100 @@ void main() {
     expect(restored.columns, 4);
   });
 
-  test(
-    'shared zone membership follows the room layout and survives disable',
-    () {
-      const HomeRoomSectionSetting independent = HomeRoomSectionSetting(
-        layout: HomeRoomSectionLayouts.simpleEntry,
-      );
-      expect(
-        sharedEntryJoinedIds(
-          section: const HomeSharedEntrySectionSetting(),
-          rooms: independent,
-        ),
-        isEmpty,
-      );
+  test('shared zone membership stays independent from room placement', () {
+    const HomeRoomSectionSetting independent = HomeRoomSectionSetting(
+      layout: HomeRoomSectionLayouts.simpleEntry,
+    );
+    expect(
+      sharedEntryJoinedIds(
+        section: const HomeSharedEntrySectionSetting(),
+        rooms: independent,
+      ),
+      isEmpty,
+    );
 
-      final HomeRoomSectionSetting joined = independent.copyWith(
-        simple: independent.simple.copyWith(
-          placement: HomeRoomSimplePlacements.shared,
-          imageAssetId: 'asset-room',
-        ),
-      );
-      final HomeSharedEntrySectionSetting saved =
-          const HomeSharedEntrySectionSetting().including(
-            HomeSharedEntrySources.rooms,
-            when: true,
-          );
-      expect(sharedEntryJoinedIds(section: saved, rooms: joined), <String>[
-        HomeSharedEntrySources.rooms,
-      ]);
-      expect(saved.enabled, isFalse);
-      expect(saved.cardOrder, <String>[HomeSharedEntrySources.rooms]);
+    final HomeRoomSectionSetting joined = independent.copyWith(
+      simple: independent.simple.copyWith(
+        placement: HomeRoomSimplePlacements.shared,
+        imageAssetId: 'asset-room',
+      ),
+    );
+    final HomeSharedEntrySectionSetting saved =
+        const HomeSharedEntrySectionSetting().including(
+          HomeSharedEntrySources.rooms,
+          when: true,
+        );
+    expect(sharedEntryJoinedIds(section: saved, rooms: joined), <String>[
+      HomeSharedEntrySources.rooms,
+    ]);
+    expect(saved.enabled, isFalse);
+    expect(saved.cardOrder, <String>[HomeSharedEntrySources.rooms]);
 
-      final HomeRoomSectionSetting otherLayout = joined.copyWith(
-        layout: HomeRoomSectionLayouts.horizontalScroll,
-      );
-      expect(sharedEntryJoinedIds(section: saved, rooms: otherLayout), <String>[
-        HomeSharedEntrySources.rooms,
-      ]);
-      expect(
-        sharedEntryHidesSimpleSection(
-          sourceId: HomeSharedEntrySources.rooms,
-          layout: otherLayout.layout,
-          simpleLayout: HomeRoomSectionLayouts.simpleEntry,
-          section: saved,
-          rooms: otherLayout,
-        ),
-        isFalse,
-      );
-      expect(
-        sharedEntryHidesSimpleSection(
-          sourceId: HomeSharedEntrySources.rooms,
-          layout: joined.layout,
-          simpleLayout: HomeRoomSectionLayouts.simpleEntry,
-          section: saved,
-          rooms: joined,
-        ),
-        isFalse,
-      );
-      expect(
-        sharedEntryHidesSimpleSection(
-          sourceId: HomeSharedEntrySources.rooms,
-          layout: joined.layout,
-          simpleLayout: HomeRoomSectionLayouts.simpleEntry,
-          section: saved.copyWith(enabled: true),
-          rooms: joined,
-        ),
-        isTrue,
-      );
-      expect(otherLayout.simple.imageAssetId, 'asset-room');
-      expect(otherLayout.simple.placement, HomeRoomSimplePlacements.shared);
+    final HomeRoomSectionSetting otherLayout = joined.copyWith(
+      layout: HomeRoomSectionLayouts.horizontalScroll,
+    );
+    expect(sharedEntryJoinedIds(section: saved, rooms: otherLayout), <String>[
+      HomeSharedEntrySources.rooms,
+    ]);
+    expect(
+      sharedEntryHidesSimpleSection(
+        sourceId: HomeSharedEntrySources.rooms,
+        layout: otherLayout.layout,
+        simpleLayout: HomeRoomSectionLayouts.simpleEntry,
+        section: saved,
+        rooms: otherLayout,
+      ),
+      isFalse,
+    );
+    expect(
+      sharedEntryHidesSimpleSection(
+        sourceId: HomeSharedEntrySources.rooms,
+        layout: joined.layout,
+        simpleLayout: HomeRoomSectionLayouts.simpleEntry,
+        section: saved,
+        rooms: joined,
+      ),
+      isFalse,
+    );
+    expect(
+      sharedEntryHidesSimpleSection(
+        sourceId: HomeSharedEntrySources.rooms,
+        layout: joined.layout,
+        simpleLayout: HomeRoomSectionLayouts.simpleEntry,
+        section: saved.copyWith(enabled: true),
+        rooms: joined,
+      ),
+      isFalse,
+    );
+    expect(otherLayout.simple.imageAssetId, 'asset-room');
+    expect(otherLayout.simple.placement, HomeRoomSimplePlacements.shared);
 
-      final HomeSharedEntrySectionSetting enabled = saved.copyWith(
-        enabled: true,
-      );
-      final HomeSharedEntrySectionSetting roundTrip =
-          HomeSharedEntrySectionSetting.fromMap(enabled.toMap());
-      expect(roundTrip.enabled, isTrue);
-      expect(roundTrip.cardOrder, <String>[HomeSharedEntrySources.rooms]);
-      expect(
-        HomeSectionOrder.normalize(null).indexOf('sharedEntries'),
-        HomeSectionOrder.defaultOrder.indexOf('banners') + 1,
-      );
-      expect(
-        HomeSectionOrder.visible(
-          HomeSectionOrder.normalize(null),
-          showAnnouncements: true,
-        ),
-        isNot(contains('sharedEntries')),
-      );
-      expect(
-        HomeSectionOrder.visible(
-          HomeSectionOrder.normalize(null),
-          showAnnouncements: true,
-          showSharedEntries: true,
-          showRooms: false,
-        ),
-        isNot(contains('rooms')),
-      );
-    },
-  );
+    final HomeSharedEntrySectionSetting enabled = saved.copyWith(enabled: true);
+    final HomeSharedEntrySectionSetting roundTrip =
+        HomeSharedEntrySectionSetting.fromMap(enabled.toMap());
+    expect(roundTrip.enabled, isTrue);
+    expect(roundTrip.cardOrder, <String>[HomeSharedEntrySources.rooms]);
+    expect(
+      HomeSectionOrder.normalize(null).indexOf('sharedEntries'),
+      HomeSectionOrder.defaultOrder.indexOf('banners') + 1,
+    );
+    expect(
+      HomeSectionOrder.visible(
+        HomeSectionOrder.normalize(null),
+        showAnnouncements: true,
+      ),
+      isNot(contains('sharedEntries')),
+    );
+    expect(
+      HomeSectionOrder.visible(
+        HomeSectionOrder.normalize(null),
+        showAnnouncements: true,
+        showSharedEntries: true,
+        showRooms: false,
+      ),
+      isNot(contains('rooms')),
+    );
+  });
 
   test('internal card order does not drop cards that are temporarily out', () {
     const List<String> saved = <String>['rooms', 'about'];

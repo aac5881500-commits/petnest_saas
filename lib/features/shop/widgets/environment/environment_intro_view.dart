@@ -2,6 +2,7 @@
 // 功能說明：環境介紹前台 Renderer：預覽與正式頁共用，避免兩套排版。
 
 import 'package:flutter/material.dart';
+import 'environment_appearance_surface.dart';
 import 'package:petnest_saas/core/models/environment_presentation.dart';
 import 'environment_service_section.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
@@ -74,186 +75,202 @@ class EnvironmentIntroView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = presentation ?? EnvironmentPresentation();
-    final modern =
-        p.groupedFacilities ||
-        p.preset.isNotEmpty ||
-        p.equipmentLayout != 'legacy' ||
-        p.serviceLayout != 'legacy' ||
-        p.services.isNotEmpty ||
-        p.hiddenFacilityKeys.isNotEmpty ||
-        p.facilityOrder.isNotEmpty;
-    final sections = <String, List<Widget>>{
-      'hero': [
-        if (_showHero)
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              return EnvironmentHeroSection(
-                imageUrl: heroImageUrl,
-                title: heroTitle,
-                subtitle: heroSubtitle,
-                height:
-                    heroFrame.heightForWidth(constraints.maxWidth) *
-                    style.heroHeightScale,
-                imageFit: heroFrame.boxFit,
-                imageAlignment: heroFrame.alignment,
-                titleSize: style.heroTitleSize,
-                subtitleSize: style.heroSubtitleSize,
-                radius: style.heroRadius,
-                horizontalMargin: style.pagePadding,
-                imageBuilder: imageBuilder,
-              );
-            },
-          ),
-      ],
-      'features': [
-        if (features.isNotEmpty) ...<Widget>[
-          SizedBox(height: style.sectionGap),
-          EnvironmentSectionTitle(
-            icon: Icons.pets,
-            title: '我們的環境特色',
-            theme: theme,
-            fontSize: style.sectionTitleSize,
-            iconSize: style.sectionIconSize,
-            horizontalPadding: style.pagePadding,
-          ),
-          SizedBox(height: style.itemGap),
-          ...features.asMap().entries.map((entry) {
-            final item = entry.value;
-            return EnvironmentFeatureCard(
-              icon: featureIconOf((item['icon'] ?? '').toString()),
-              title: (item['title'] ?? '').toString(),
-              description: (item['description'] ?? '').toString(),
-              imageUrl: (item['imageUrl'] ?? '').toString(),
-              imageBuilder: imageBuilder,
-              theme: theme,
-              style: style,
-              reverse: p.preset == 'warm'
-                  ? entry.key.isOdd
-                  : item['layout'] == 'imageLeft',
-              minimal: p.preset == 'minimal',
-            );
-          }),
-        ],
-      ],
-      'banner': [
-        if (_showBanner) ...<Widget>[
-          SizedBox(height: style.sectionGap),
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              return EnvironmentImageBanner(
-                imageUrl: bannerImageUrl,
-                title: bannerTitle,
-                height:
-                    bannerFrame.heightForWidth(constraints.maxWidth) *
-                    style.bannerHeightScale,
-                imageFit: bannerFrame.boxFit,
-                imageAlignment: bannerFrame.alignment,
-                titleSize: style.bannerTitleSize,
-                radius: style.cardRadius,
-                horizontalMargin: style.pagePadding,
-                imageBuilder: imageBuilder,
-              );
-            },
-          ),
-        ],
-      ],
-      'care': [
-        if (!modern && careItems.isNotEmpty) ...<Widget>[
-          SizedBox(height: style.sectionGap),
-          EnvironmentSectionTitle(
-            icon: Icons.verified_user_rounded,
-            title: '安心照護設備',
-            theme: theme,
-            fontSize: style.sectionTitleSize,
-            iconSize: style.sectionIconSize,
-            horizontalPadding: style.pagePadding,
-          ),
-          SizedBox(height: style.itemGap),
-          EnvironmentLegacyCareGrid(
-            items: careItems,
-            theme: theme,
-            style: style,
-          ),
-        ],
-
-        if (modern &&
-            (careItems.any(
-                  (item) => !p.hiddenFacilityKeys.contains(item['key']),
-                ) ||
-                p.services.any((s) => s.visible))) ...[
-          SizedBox(height: style.sectionGap),
-          EnvironmentServiceSection(
-            presentation: p,
-            items: careItems,
-            theme: theme,
-            style: style,
-            iconOf: featureIconOf,
-            imageBuilder: imageBuilder,
-          ),
-        ],
-      ],
-      'note': [
-        if (bottomNote.trim().isNotEmpty) ...<Widget>[
-          SizedBox(height: style.sectionGap),
-          EnvironmentBottomNote(
-            text: bottomNote,
-            theme: theme,
-            fontSize: style.bottomNoteSize,
-            padding: style.bottomNotePadding,
-            horizontalMargin: style.pagePadding,
-          ),
-        ],
-      ],
-      'gallery': [
-        if (galleryImages.isNotEmpty) ...<Widget>[
-          SizedBox(height: style.sectionGap),
-          EnvironmentSectionTitle(
-            icon: Icons.photo_library_rounded,
-            title: '環境照片',
-            theme: theme,
-            fontSize: style.sectionTitleSize,
-            iconSize: style.sectionIconSize,
-            horizontalPadding: style.pagePadding,
-          ),
-          SizedBox(height: style.itemGap),
-          EnvironmentGalleryGrid(
-            images: galleryImages,
-            imageBuilder: imageBuilder,
-            horizontalPadding: style.pagePadding,
-            spacing: style.gallerySpacing,
-            columnsBuilder: style.galleryColumns,
-          ),
-        ],
-      ],
-    };
-    final order = switch (p.preset) {
-      'care' => ['hero', 'care', 'features', 'banner', 'gallery', 'note'],
-      'photo' => ['hero', 'gallery', 'features', 'banner', 'care', 'note'],
-      'warm' ||
-      'minimal' => ['hero', 'features', 'banner', 'care', 'gallery', 'note'],
-      _ => ['hero', 'features', 'banner', 'care', 'note', 'gallery'],
-    };
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1200),
-        child: SingleChildScrollView(
-          controller: scrollController,
-          padding: EdgeInsets.only(bottom: style.sectionGap + 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final id in order)
-                if (sections[id]!.isNotEmpty)
-                  Column(
-                    key: sectionKeys?[id] ?? ValueKey('environment-$id'),
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: sections[id]!,
-                  ),
+    return EnvironmentAppearanceSurface(
+      appearance: p.appearance,
+      baseTheme: theme,
+      actionTextSize: style.bottomNoteSize,
+      contentBuilder: (context, theme) {
+        final modern =
+            p.groupedFacilities ||
+            p.preset.isNotEmpty ||
+            p.equipmentLayout != 'legacy' ||
+            p.serviceLayout != 'legacy' ||
+            p.services.isNotEmpty ||
+            p.hiddenFacilityKeys.isNotEmpty ||
+            p.facilityOrder.isNotEmpty;
+        final sections = <String, List<Widget>>{
+          'hero': [
+            if (_showHero)
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return EnvironmentHeroSection(
+                    imageUrl: heroImageUrl,
+                    title: heroTitle,
+                    subtitle: heroSubtitle,
+                    height:
+                        heroFrame.heightForWidth(constraints.maxWidth) *
+                        style.heroHeightScale,
+                    imageFit: heroFrame.boxFit,
+                    imageAlignment: heroFrame.alignment,
+                    titleSize: style.heroTitleSize,
+                    subtitleSize: style.heroSubtitleSize,
+                    radius: style.heroRadius,
+                    horizontalMargin: style.pagePadding,
+                    imageBuilder: imageBuilder,
+                    titleColor: p.appearance.color('textColor'),
+                    subtitleColor: p.appearance.color('secondaryTextColor'),
+                  );
+                },
+              ),
+          ],
+          'features': [
+            if (features.isNotEmpty) ...<Widget>[
+              SizedBox(height: style.sectionGap),
+              EnvironmentSectionTitle(
+                icon: Icons.pets,
+                title: '我們的環境特色',
+                theme: theme,
+                fontSize: style.sectionTitleSize,
+                iconSize: style.sectionIconSize,
+                horizontalPadding: style.pagePadding,
+              ),
+              SizedBox(height: style.itemGap),
+              ...features.asMap().entries.map((entry) {
+                final item = entry.value;
+                return EnvironmentFeatureCard(
+                  icon: featureIconOf((item['icon'] ?? '').toString()),
+                  title: (item['title'] ?? '').toString(),
+                  description: (item['description'] ?? '').toString(),
+                  imageUrl: (item['imageUrl'] ?? '').toString(),
+                  imageBuilder: imageBuilder,
+                  theme: theme,
+                  style: style,
+                  reverse: p.preset == 'warm'
+                      ? entry.key.isOdd
+                      : item['layout'] == 'imageLeft',
+                  minimal: p.preset == 'minimal',
+                );
+              }),
             ],
+          ],
+          'banner': [
+            if (_showBanner) ...<Widget>[
+              SizedBox(height: style.sectionGap),
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return EnvironmentImageBanner(
+                    imageUrl: bannerImageUrl,
+                    title: bannerTitle,
+                    height:
+                        bannerFrame.heightForWidth(constraints.maxWidth) *
+                        style.bannerHeightScale,
+                    imageFit: bannerFrame.boxFit,
+                    imageAlignment: bannerFrame.alignment,
+                    titleSize: style.bannerTitleSize,
+                    radius: style.cardRadius,
+                    horizontalMargin: style.pagePadding,
+                    imageBuilder: imageBuilder,
+                    titleColor: p.appearance.color('textColor'),
+                  );
+                },
+              ),
+            ],
+          ],
+          'care': [
+            if (!modern && careItems.isNotEmpty) ...<Widget>[
+              SizedBox(height: style.sectionGap),
+              EnvironmentSectionTitle(
+                icon: Icons.verified_user_rounded,
+                title: '安心照護設備',
+                theme: theme,
+                fontSize: style.sectionTitleSize,
+                iconSize: style.sectionIconSize,
+                horizontalPadding: style.pagePadding,
+              ),
+              SizedBox(height: style.itemGap),
+              EnvironmentLegacyCareGrid(
+                items: careItems,
+                theme: theme,
+                style: style,
+              ),
+            ],
+
+            if (modern &&
+                (careItems.any(
+                      (item) => !p.hiddenFacilityKeys.contains(item['key']),
+                    ) ||
+                    p.services.any((s) => s.visible))) ...[
+              SizedBox(height: style.sectionGap),
+              EnvironmentServiceSection(
+                presentation: p,
+                items: careItems,
+                theme: theme,
+                style: style,
+                iconOf: featureIconOf,
+                imageBuilder: imageBuilder,
+              ),
+            ],
+          ],
+          'note': [
+            if (bottomNote.trim().isNotEmpty) ...<Widget>[
+              SizedBox(height: style.sectionGap),
+              EnvironmentBottomNote(
+                text: bottomNote,
+                theme: theme,
+                fontSize: style.bottomNoteSize,
+                padding: style.bottomNotePadding,
+                horizontalMargin: style.pagePadding,
+              ),
+            ],
+          ],
+          'gallery': [
+            if (galleryImages.isNotEmpty) ...<Widget>[
+              SizedBox(height: style.sectionGap),
+              EnvironmentSectionTitle(
+                icon: Icons.photo_library_rounded,
+                title: '環境照片',
+                theme: theme,
+                fontSize: style.sectionTitleSize,
+                iconSize: style.sectionIconSize,
+                horizontalPadding: style.pagePadding,
+              ),
+              SizedBox(height: style.itemGap),
+              EnvironmentGalleryGrid(
+                images: galleryImages,
+                imageBuilder: imageBuilder,
+                horizontalPadding: style.pagePadding,
+                spacing: style.gallerySpacing,
+                columnsBuilder: style.galleryColumns,
+              ),
+            ],
+          ],
+        };
+        final order = switch (p.preset) {
+          'care' => ['hero', 'care', 'features', 'banner', 'gallery', 'note'],
+          'photo' => ['hero', 'gallery', 'features', 'banner', 'care', 'note'],
+          'warm' || 'minimal' => [
+            'hero',
+            'features',
+            'banner',
+            'care',
+            'gallery',
+            'note',
+          ],
+          _ => ['hero', 'features', 'banner', 'care', 'note', 'gallery'],
+        };
+        return Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: SingleChildScrollView(
+              controller: scrollController,
+              padding: EdgeInsets.only(bottom: style.sectionGap + 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final id in order)
+                    if (sections[id]!.isNotEmpty)
+                      Column(
+                        key: sectionKeys?[id] ?? ValueKey('environment-$id'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: sections[id]!,
+                      ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

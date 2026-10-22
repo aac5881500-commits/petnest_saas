@@ -275,6 +275,7 @@ class _ShopOpeningProgressState extends State<ShopOpeningProgress> {
                       ? ShopBasicInfoPage(shopId: widget.shopId)
                       : ShopBookingSetupCenterPage(
                           shopId: widget.shopId,
+                          guideStayOpening: ready && policyReady == true,
                           initialTab: ready
                               ? ShopBookingSetupTab.booking
                               : ShopBookingSetupTab.roomTypes,

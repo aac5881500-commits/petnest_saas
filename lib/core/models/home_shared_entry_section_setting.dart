@@ -1003,23 +1003,19 @@ bool roomSimpleUsesSharedZone(HomeRoomSectionSetting rooms) {
 
 /// 目前要畫出來的小卡。未知來源留在 [cardOrder]，不在這裡顯示。
 ///
-/// 舊資料若只有房型簡約入口的「加入共用區」，即使順序還沒寫入也會補上。
+/// 小卡只依自己的順序顯示。舊 placement 相容由 HomeSectionVisibility.read 處理。
 List<String> sharedEntryJoinedIds({
   required HomeSharedEntrySectionSetting section,
   required HomeRoomSectionSetting rooms,
 }) {
   final List<String> order = List<String>.from(section.cardOrder);
-  if (roomSimpleUsesSharedZone(rooms) &&
-      !order.contains(HomeSharedEntrySources.rooms)) {
-    order.add(HomeSharedEntrySources.rooms);
-  }
   return <String>[
     for (final String id in order)
       if (HomeSharedEntrySources.canJoin(id)) id,
   ];
 }
 
-/// 只有「簡約入口」會和精緻小卡重複。完整展示區維持原樣。
+/// 保留舊呼叫介面；獨立展示不再因加入小卡而自動隱藏。
 bool sharedEntryHidesSimpleSection({
   required String sourceId,
   required String layout,
@@ -1027,9 +1023,7 @@ bool sharedEntryHidesSimpleSection({
   required HomeSharedEntrySectionSetting section,
   required HomeRoomSectionSetting rooms,
 }) {
-  return section.enabled &&
-      layout == simpleLayout &&
-      sharedEntryJoinedIds(section: section, rooms: rooms).contains(sourceId);
+  return false;
 }
 
 String sharedEntryCardLabel(String sourceId) {

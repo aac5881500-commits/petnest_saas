@@ -1,6 +1,7 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'environment_home_image_resolver.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
@@ -31,30 +32,47 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
   final ImageProvider<Object>? imageProvider;
   final HomeDisplayStyle? displayStyle;
 
-  static List<Map<String, dynamic>> facilitiesFor(List<String> keys) {
-    return environmentFacilityOptions.where((Map<String, dynamic> item) {
-      final String key = (item['key'] ?? '').toString();
-      return key.isNotEmpty && keys.contains(key);
-    }).toList();
+  static List<Map<String, dynamic>> facilitiesFor(
+    List<String> keys, {
+    Map<String, dynamic>? introduction,
+  }) {
+    final raw = introduction?['environmentPresentation'];
+    final order = raw is Map && raw['facilityOrder'] is List
+        ? (raw['facilityOrder'] as List).whereType<String>().toList()
+        : <String>[];
+    final hidden = raw is Map && raw['hiddenFacilityKeys'] is List
+        ? (raw['hiddenFacilityKeys'] as List).whereType<String>().toSet()
+        : <String>{};
+    final options = {
+      for (final item in environmentFacilityOptions)
+        item['key'].toString(): item,
+    };
+    return {...order, ...keys.where((key) => !order.contains(key))}
+        .where(
+          (key) =>
+              keys.contains(key) &&
+              options.containsKey(key) &&
+              !hidden.contains(key),
+        )
+        .map((key) => options[key]!)
+        .toList();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> facilities = facilitiesFor(facilityKeys);
+  Widget _content(BuildContext context, String resolvedImageUrl) {
+    final List<Map<String, dynamic>> facilities = setting.selectedFacilities(
+      facilitiesFor(facilityKeys, introduction: environmentIntro),
+    );
     switch (setting.layout) {
       case HomeEnvironmentLayouts.simpleEntry:
-        return _entry();
+        return _entry(resolvedImageUrl);
       case HomeEnvironmentLayouts.imageEntry:
-        final String imageUrl = HomeEnvironmentSectionSetting.resolveImageUrl(
-          environmentIntro,
-        );
+        final String imageUrl = resolvedImageUrl;
         if (imageUrl.isEmpty && imageProvider == null) {
           return _entry();
         }
         return _imageCard(imageUrl);
       case HomeEnvironmentLayouts.editorial:
-        final String editorialUrl =
-            HomeEnvironmentSectionSetting.resolveImageUrl(environmentIntro);
+        final String editorialUrl = resolvedImageUrl;
         if (editorialUrl.isEmpty && imageProvider == null) {
           return _entry();
         }
@@ -65,6 +83,64 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
         }
         return _facilityScroll(facilities);
     }
+  }
+
+  bool get _showCardTitle =>
+      setting.cardTitle.trim().isNotEmpty &&
+      !(setting.showTitle && setting.title.trim() == setting.cardTitle.trim());
+  bool get _showCardSubtitle =>
+      setting.showSubtitle &&
+      setting.cardSubtitle.trim().isNotEmpty &&
+      !(setting.showDescription &&
+          setting.subtitle.trim() == setting.cardSubtitle.trim());
+  @override
+  Widget build(BuildContext context) => EnvironmentHomeImageResolver(
+    setting: setting,
+    environmentIntro: environmentIntro,
+    builder: (context, image) => _resolved(context, image.url),
+  );
+
+  Widget _resolved(BuildContext context, String imageUrl) {
+    if (setting.layout == HomeEnvironmentLayouts.facilityScroll &&
+        setting
+            .selectedFacilities(
+              facilitiesFor(facilityKeys, introduction: environmentIntro),
+            )
+            .isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (setting.showTitle && setting.title.trim().isNotEmpty) ...[
+          Text(
+            setting.title.trim(),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: displayStyle == null
+                  ? theme.textColor
+                  : Color(displayStyle!.titleColor),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (setting.showDescription && setting.subtitle.trim().isNotEmpty) ...[
+          Text(
+            setting.subtitle.trim(),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: displayStyle == null
+                  ? theme.secondaryTextColor
+                  : Color(displayStyle!.effectiveBodyColor),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        _content(context, imageUrl),
+      ],
+    );
   }
 
   void _open() {
@@ -90,34 +166,37 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
   Widget _editorial(String imageUrl) {
     final Widget photo = ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: _photo(imageUrl, 168, Alignment.center),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: _photo(imageUrl, double.infinity, Alignment.center),
+      ),
     );
     final Widget copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          setting.entryTitle,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: homeDisplayFontSize(
-              displayStyle?.titleSize ?? HomeDisplaySizes.medium,
-              fallback: 18,
+        if (_showCardTitle)
+          Text(
+            setting.entryTitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: homeDisplayFontSize(
+                displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+                fallback: 18,
+              ),
+              height: 1.25,
+              fontWeight: homeDisplayFontWeight(
+                displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+              ),
+              color: displayStyle == null
+                  ? theme.textColor
+                  : Color(displayStyle!.titleColor),
             ),
-            height: 1.25,
-            fontWeight: homeDisplayFontWeight(
-              displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
-            ),
-            color: displayStyle == null
-                ? theme.textColor
-                : Color(displayStyle!.titleColor),
           ),
-        ),
-        if (setting.showSubtitle &&
-            setting.subtitle.trim().isNotEmpty) ...<Widget>[
+        if (_showCardSubtitle) ...<Widget>[
           const SizedBox(height: 6),
           Text(
-            setting.subtitle.trim(),
+            setting.cardSubtitle.trim(),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -151,9 +230,15 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Expanded(flex: 3, child: photo),
-              const SizedBox(width: 12),
-              Expanded(flex: 2, child: copy),
+              if (setting.editorialImageLeft) ...[
+                Expanded(flex: 3, child: photo),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: copy),
+              ] else ...[
+                Expanded(flex: 2, child: copy),
+                const SizedBox(width: 12),
+                Expanded(flex: 3, child: photo),
+              ],
             ],
           );
         },
@@ -161,13 +246,19 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
     );
   }
 
-  Widget _entry() {
+  Widget _entry([String imageUrl = '']) {
     return ModernHomeEntryCard(
       cardKey: const Key('home-environment-entry'),
+      backgroundImage:
+          setting.layout == HomeEnvironmentLayouts.simpleEntry &&
+              setting.usesPlatformImage
+          ? imageProvider ?? (imageUrl.isEmpty ? null : NetworkImage(imageUrl))
+          : null,
       theme: theme,
       title: setting.entryTitle,
-      subtitle: setting.subtitle,
-      showSubtitle: setting.showSubtitle,
+      subtitle: setting.cardSubtitle,
+      showSubtitle: _showCardSubtitle,
+      showTitle: _showCardTitle,
       cardSize: setting.simpleCardSize,
       surface: setting.simpleSurface,
       icon: _icon,
@@ -177,87 +268,74 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
   }
 
   Widget _facilityScroll(List<Map<String, dynamic>> facilities) {
-    final int extra = setting.showEndEntryCard ? 1 : 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        if (setting.showTitle) ...<Widget>[
-          Row(
-            children: <Widget>[
-              Icon(Icons.yard_outlined, size: 16, color: theme.primaryColor),
-              const SizedBox(width: 6),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = (constraints.maxWidth * .28).clamp(78.0, 108.0);
+        final height = 58 + 28 * MediaQuery.textScalerOf(context).scale(1);
+        return SizedBox(
+          height: height,
+          child: Row(
+            children: [
               Expanded(
-                child: Text(
-                  setting.facilityTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.2,
-                    fontWeight: FontWeight.w800,
-                    color: theme.textColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
-        ],
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final double maxWidth = constraints.maxWidth.isFinite
-                ? constraints.maxWidth
-                : 320;
-            final double cardWidth = (maxWidth * 0.28).clamp(78.0, 108.0);
-            final double textScale = MediaQuery.textScalerOf(context).scale(1);
-            final double height = 58 + 28 * textScale;
-            return SizedBox(
-              height: height,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.grab,
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context).copyWith(
-                    dragDevices: const <PointerDeviceKind>{
-                      PointerDeviceKind.touch,
-                      PointerDeviceKind.mouse,
-                      PointerDeviceKind.stylus,
-                      PointerDeviceKind.trackpad,
-                    },
-                  ),
-                  child: ListView.separated(
-                    key: const Key('home-environment-scroll'),
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    primary: false,
-                    itemCount: facilities.length + extra,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (BuildContext context, int index) {
-                      if (index >= facilities.length) {
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.grab,
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      dragDevices: const {
+                        PointerDeviceKind.touch,
+                        PointerDeviceKind.mouse,
+                        PointerDeviceKind.stylus,
+                        PointerDeviceKind.trackpad,
+                      },
+                    ),
+                    child: ListView.separated(
+                      key: const Key('home-environment-scroll'),
+                      scrollDirection: Axis.horizontal,
+                      primary: false,
+                      itemCount: facilities.length,
+                      separatorBuilder: (_, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final item = facilities[index];
                         return _facilityCard(
                           width: cardWidth,
-                          icon: Icons.keyboard_double_arrow_right_rounded,
-                          label: '環境介紹',
-                          cardKey: const Key('home-environment-end'),
+                          icon: item['icon'] is IconData
+                              ? item['icon'] as IconData
+                              : Icons.pets_outlined,
+                          label: (item['title'] ?? '照護設備').toString(),
+                          cardKey: ValueKey(
+                            'home-environment-facility-${item['key']}',
+                          ),
                         );
-                      }
-                      final Map<String, dynamic> facility = facilities[index];
-                      final IconData icon = facility['icon'] is IconData
-                          ? facility['icon'] as IconData
-                          : Icons.pets_outlined;
-                      return _facilityCard(
-                        width: cardWidth,
-                        icon: icon,
-                        label: (facility['title'] ?? '照護設備').toString(),
-                        cardKey: Key('home-environment-facility-$index'),
-                      );
-                    },
+                      },
+                    ),
                   ),
                 ),
               ),
-            );
-          },
-        ),
-      ],
+              if (setting.showEndEntryCard) ...[
+                const SizedBox(width: 8),
+                Semantics(
+                  label: '查看完整環境',
+                  button: true,
+                  child: Tooltip(
+                    message: '查看完整環境',
+                    child: IconButton.filledTonal(
+                      key: const Key('home-environment-end'),
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      onPressed: _open,
+                      icon: const Icon(
+                        Icons.keyboard_double_arrow_right_rounded,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -476,26 +554,27 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(
-          setting.entryTitle,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: homeDisplayFontSize(
-              displayStyle?.titleSize ?? HomeDisplaySizes.medium,
-              fallback: 16,
+        if (_showCardTitle)
+          Text(
+            setting.entryTitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: homeDisplayFontSize(
+                displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+                fallback: 16,
+              ),
+              height: 1.2,
+              fontWeight: homeDisplayFontWeight(
+                displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+              ),
+              color: titleColor,
             ),
-            height: 1.2,
-            fontWeight: homeDisplayFontWeight(
-              displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
-            ),
-            color: titleColor,
           ),
-        ),
-        if (setting.showSubtitle) ...<Widget>[
+        if (_showCardSubtitle) ...<Widget>[
           const SizedBox(height: 2),
           Text(
-            setting.subtitle,
+            setting.cardSubtitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
