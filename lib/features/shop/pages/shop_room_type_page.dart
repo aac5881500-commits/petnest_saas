@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
 // 檔案名稱：lib/features/shop/pages/shop_room_type_page.dart
 // 功能說明：舊房型管理入口，導向房型與房間整合畫面，並保留數字上限 Formatter。
 
@@ -17,9 +18,12 @@ class ShopRoomTypePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShopRoomTypeRoomsHub(
+    return RoomIntroAppearanceHost(
       shopId: shopId,
-      embeddedInSetupCenter: embeddedInSetupCenter,
+      child: ShopRoomTypeRoomsHub(
+        shopId: shopId,
+        embeddedInSetupCenter: embeddedInSetupCenter,
+      ),
     );
   }
 }

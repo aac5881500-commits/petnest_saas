@@ -1,3 +1,6 @@
+import 'home_card_image.dart';
+import 'home_section_settings_group.dart';
+import 'home_section_layout_option_card.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
@@ -15,10 +18,12 @@ class NewsSectionSettingsPanel extends StatefulWidget {
     required this.locked,
     required this.onChanged,
     required this.onOpenFeatures,
+    this.availability,
     this.displayStyles,
     this.onDisplayStyles,
   });
 
+  final String? availability;
   final HomeNewsSectionSetting setting;
   final HomeThemeModel theme;
   final bool locked;
@@ -33,7 +38,6 @@ class NewsSectionSettingsPanel extends StatefulWidget {
 }
 
 class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
-  int _pane = 0;
   late final TextEditingController _titleController;
 
   @override
@@ -81,88 +85,52 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
       );
     }
     final String layout = HomeNewsLayouts.migrate(widget.setting.layout);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-          child: SegmentedButton<int>(
-            showSelectedIcon: false,
-            segments: const <ButtonSegment<int>>[
-              ButtonSegment<int>(
-                value: 0,
-                label: Text('版型'),
-                icon: Icon(Icons.dashboard_customize_outlined),
-              ),
-              ButtonSegment<int>(
-                value: 1,
-                label: Text('顯示細節'),
-                icon: Icon(Icons.tune),
-              ),
-            ],
-            selected: <int>{_pane},
-            onSelectionChanged: (Set<int> value) {
-              setState(() => _pane = value.first);
-            },
-          ),
-        ),
-        Expanded(child: _pane == 0 ? _layouts() : _details(layout)),
-      ],
-    );
-  }
-
-  Widget _layouts() {
     return ListView(
+      key: const PageStorageKey<String>('news-section-settings'),
       primary: false,
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 24),
-      children: <Widget>[
-        for (final String layout in HomeNewsLayouts.all) _choice(layout),
-      ],
-    );
-  }
-
-  Widget _choice(String layout) {
-    final bool selected =
-        HomeNewsLayouts.migrate(widget.setting.layout) == layout;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          key: Key('news-layout-$layout'),
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            if (selected) {
-              return;
-            }
-            _update(widget.setting.copyWith(layout: layout));
-          },
-          child: Ink(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected
-                    ? widget.theme.primaryColor
-                    : const Color(0xFFE6E8EC),
-                width: selected ? 2 : 1,
-              ),
+      children: [
+        HomeSectionSettingsGroup(
+          title: '首頁顯示',
+          children: [
+            const Text('控制首頁消息呈現，不變更公告及活動內容。'),
+            if (widget.availability != null) Text(widget.availability!),
+            TextButton(
+              onPressed: widget.onOpenFeatures,
+              child: const Text('前往消息管理'),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                NewsSectionLayoutPreview(layout: layout, theme: widget.theme),
-                const SizedBox(height: 8),
-                Text(
-                  HomeNewsLayouts.label(layout),
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
+          ],
+        ),
+        HomeSectionSettingsGroup(
+          title: '展示版型',
+          children: [
+            HomeSectionLayoutPicker(
+              theme: widget.theme,
+              selectedId: HomeNewsLayouts.migrate(widget.setting.layout),
+              onSelected: (value) =>
+                  _update(widget.setting.copyWith(layout: value)),
+              choices: [
+                for (final item in HomeNewsLayouts.all)
+                  HomeSectionLayoutChoice(
+                    id: item,
+                    title: HomeNewsLayouts.label(item),
+                    description: switch (item) {
+                      HomeNewsLayouts.multiLine => '展示多則消息與摘要',
+                      HomeNewsLayouts.singleLine => '精簡呈現最新消息、類型與日期',
+                      _ => '半寬入口，連結既有消息頁面',
+                    },
+                    badge: '',
+                    preview: NewsSectionLayoutPreview(
+                      layout: item,
+                      theme: widget.theme,
+                    ),
+                  ),
               ],
             ),
-          ),
+          ],
         ),
-      ),
+        HomeSectionSettingsGroup(title: '目前版型設定', children: [_details(layout)]),
+      ],
     );
   }
 
@@ -170,10 +138,14 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
     final HomeNewsSectionSetting setting = widget.setting;
     final bool single = layout == HomeNewsLayouts.singleLine;
     final bool multi = layout == HomeNewsLayouts.multiLine;
-    return ListView(
-      primary: false,
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 24),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        if (layout == HomeNewsLayouts.compactCard)
+          HomeCardImageSettings(
+            setting: setting.cardImage,
+            onChanged: (value) => _update(setting.copyWith(cardImage: value)),
+          ),
         const Text('內容來源', style: TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         _chips(
@@ -200,7 +172,7 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
           const Text('顯示數量', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           _chips(
-            values: const <String>['2', '3'],
+            values: const <String>['2', '3', '5'],
             labelOf: (String value) => '$value 筆',
             selected:
                 '${HomeNewsSectionSetting.migrateCount(setting.multiLineCount)}',
@@ -226,30 +198,36 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
           _switch('顯示箭頭', setting.showArrow, (bool value) {
             _update(setting.copyWith(showArrow: value));
           }),
-        if (widget.onDisplayStyles != null) _styleEditor(),
-        if (widget.onDisplayStyles == null) ...<Widget>[
-          const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          _chips(
-            values: HomeNewsTextAligns.all,
-            labelOf: HomeNewsTextAligns.label,
-            selected: setting.textAlign,
-            onChanged: (String value) {
-              _update(setting.copyWith(textAlign: value));
-            },
-          ),
-          const SizedBox(height: 12),
-          const Text('卡片外觀', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          _chips(
-            values: HomeNewsSurfaces.all,
-            labelOf: HomeNewsSurfaces.label,
-            selected: setting.surfaceStyle,
-            onChanged: (String value) {
-              _update(setting.copyWith(surfaceStyle: value));
-            },
-          ),
-        ],
+        HomeSectionSettingsGroup(
+          title: '進階外觀',
+          storageId: 'news-section-advanced-appearance',
+          children: [
+            if (widget.onDisplayStyles != null) _styleEditor(),
+            if (widget.onDisplayStyles == null) ...<Widget>[
+              const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              _chips(
+                values: HomeNewsTextAligns.all,
+                labelOf: HomeNewsTextAligns.label,
+                selected: setting.textAlign,
+                onChanged: (String value) {
+                  _update(setting.copyWith(textAlign: value));
+                },
+              ),
+              const SizedBox(height: 12),
+              const Text('卡片外觀', style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              _chips(
+                values: HomeNewsSurfaces.all,
+                labelOf: HomeNewsSurfaces.label,
+                selected: setting.surfaceStyle,
+                onChanged: (String value) {
+                  _update(setting.copyWith(surfaceStyle: value));
+                },
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -269,6 +247,7 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
       baseline: HomeDisplayStyle.classic,
     );
     return HomeDisplaySectionOverride(
+      basicAppearanceOnly: true,
       label: '消息展示',
       shared: display.style,
       mode: mode,

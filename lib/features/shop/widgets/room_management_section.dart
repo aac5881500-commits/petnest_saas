@@ -63,6 +63,7 @@ class _RoomManagementSectionState extends State<RoomManagementSection> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('已啟用 $count 間房間，永久維修或停用房間保持原狀')));
+        if (count > 0) await widget.onRoomCreated?.call();
       }
     } catch (e) {
       if (mounted) {

@@ -1,3 +1,7 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
+import 'dart:async';
+import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 import 'package:petnest_saas/core/legal_pet/shop_profile_lock.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_opening_progress.dart';
@@ -81,6 +85,88 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   late final ShopAdminWorkspaceController _workspace =
       ShopAdminWorkspaceController();
 
+  late ShopFeatureTourController _featureTour;
+  StreamSubscription<User?>? _tourAuthSubscription;
+  bool _tourHandoffInProgress = false;
+  void _initFeatureTour() {
+    _featureTour = ShopFeatureTourController(
+      uid: FirebaseAuth.instance.currentUser?.uid ?? '',
+      shopId: widget.shopId,
+    );
+    _featureTour.load().then((_) {
+      if (mounted) _consumeFeatureTour();
+    });
+    _featureTour.canStart = () async {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final shopId = widget.shopId;
+      try {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .get(const GetOptions(source: Source.server));
+        final data = snapshot.data();
+        final rooms = await StayBookingReadiness.load(shopId);
+        final policy = await ShopPolicyService.instance.hasEffectiveStayPolicy(
+          shopId,
+        );
+        if (!mounted ||
+            widget.shopId != shopId ||
+            FirebaseAuth.instance.currentUser?.uid != uid) {
+          return false;
+        }
+        final ready =
+            data != null &&
+            isPhoneSetupCompleted(data) &&
+            isAddressSetupCompleted(data) &&
+            StayBookingReadiness.requested(data) &&
+            rooms.ready &&
+            policy;
+        if (!ready) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('請先完成基本資料、可用房間、入住條款及正式開放住宿預約，再認識後台。')),
+          );
+        }
+        return ready;
+      } catch (_) {
+        if (mounted && widget.shopId == shopId) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('開店狀態確認失敗，請稍後再試。')));
+        }
+        return false;
+      }
+    };
+  }
+
+  void _consumeFeatureTour() {
+    final request = ShopFeatureTourRequest.pending.value;
+    if (!mounted ||
+        !_featureTour.loaded ||
+        !_roleLoaded ||
+        _featureTour.selectCat == null ||
+        _tourHandoffInProgress ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        request != (_featureTour.uid, widget.shopId)) {
+      return;
+    }
+    _tourHandoffInProgress = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted ||
+            ModalRoute.of(context)?.isCurrent != true ||
+            ShopFeatureTourRequest.pending.value != request) {
+          return;
+        }
+        await _featureTour.start();
+        if (mounted && ShopFeatureTourRequest.pending.value == request) {
+          ShopFeatureTourRequest.pending.value = null;
+        }
+      } finally {
+        _tourHandoffInProgress = false;
+      }
+    });
+  }
+
   final _basicNavigation = ShopDashboardNavigation(
     moduleId: ShopModules.basicInfo,
   );
@@ -109,6 +195,27 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _initFeatureTour();
+    ShopFeatureTourRequest.pending.addListener(_consumeFeatureTour);
+    _tourAuthSubscription = FirebaseAuth.instance.authStateChanges().listen((
+      user,
+    ) {
+      if (mounted && (user?.uid ?? '') != _featureTour.uid) {
+        _featureTour.pause();
+        if (ShopFeatureTourRequest.pending.value?.$1 == _featureTour.uid) {
+          ShopFeatureTourRequest.pending.value = null;
+        }
+        _featureTour.dispose();
+        _initFeatureTour();
+        setState(() {
+          _roleLoaded = false;
+          _currentMemberData = null;
+          _currentUserRole = null;
+          _workspace.canUseChat = false;
+        });
+        _loadRole();
+      }
+    });
     _shopStream = ShopService.instance.streamShop(widget.shopId);
     _daycareStream = DaycareSettingsService.instance.stream(widget.shopId);
     _loadRole();
@@ -146,6 +253,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   void didUpdateWidget(covariant ShopDashboardPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.shopId == widget.shopId) return;
+    if (ShopFeatureTourRequest.pending.value?.$2 == oldWidget.shopId) {
+      ShopFeatureTourRequest.pending.value = null;
+    }
+    _featureTour.dispose();
+    _initFeatureTour();
     _shopStream = ShopService.instance.streamShop(widget.shopId);
     _daycareStream = DaycareSettingsService.instance.stream(widget.shopId);
     _welcomeScheduled = false;
@@ -160,6 +272,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _consumeFeatureTour();
+    if (FirebaseAuth.instance.currentUser?.uid != _featureTour.uid) {
+      _featureTour.pause();
+    }
     _workspace.chat.useSingleWorkspace = ShopChatLayout.useDesktopDock(
       MediaQuery.sizeOf(context).width,
     );
@@ -181,6 +297,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
 
   @override
   void dispose() {
+    ShopFeatureTourRequest.pending.removeListener(_consumeFeatureTour);
+    _tourAuthSubscription?.cancel();
+    _featureTour.dispose();
     _basicNavigation.dispose();
     _catNavigation.dispose();
     _workspace.dispose();
@@ -236,7 +355,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         uid: user.uid,
       );
 
-      if (!mounted || widget.shopId != shopId) return;
+      if (!mounted ||
+          widget.shopId != shopId ||
+          FirebaseAuth.instance.currentUser?.uid != user.uid) {
+        return;
+      }
       setState(() {
         _currentMemberData = memberData;
         _currentUserRole = memberData?['role']?.toString();
@@ -248,7 +371,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         uid: FirebaseAuth.instance.currentUser?.uid ?? 'anon',
       );
     } catch (_) {
-      if (!mounted || widget.shopId != shopId) return;
+      if (!mounted ||
+          widget.shopId != shopId ||
+          FirebaseAuth.instance.currentUser?.uid != user.uid) {
+        return;
+      }
       setState(() {
         _currentUserRole = null;
         _roleLoaded = true;
@@ -893,7 +1020,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                     final activeSections = activeModule == ShopModules.catHotel
                         ? catSections
                         : sections;
-                    Future<void> openEntry(String id) async {
+                    Future<void> openEntry(
+                      String id, {
+                      bool Function()? stillCurrent,
+                    }) async {
                       final basicEntry = sections
                           .expand((section) => section.children)
                           .whereType<_MenuTile>()
@@ -917,8 +1047,14 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                         entry.onTap?.call();
                         return;
                       }
-                      if (targetNavigation != navigation) {
-                        await navigation.switchTo(
+                      final actualNavigation =
+                          visibleModules[tabController.index] ==
+                              ShopModules.catHotel
+                          ? _catNavigation
+                          : _basicNavigation;
+                      if (visibleModules[tabController.index] != module) {
+                        await actualNavigation.switchTo(
+                          stillCurrent: stillCurrent,
                           afterLeave: () => tabController.index = visibleModules
                               .indexOf(module),
                         );
@@ -928,6 +1064,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                         }
                       }
                       await targetNavigation.switchTo(
+                        stillCurrent: stillCurrent,
                         id: id,
                         page: entry.pageBuilder,
                         afterLeave: () => tabController.index = visibleModules
@@ -938,527 +1075,644 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                     Future<void> selectModule(int index) => navigation.switchTo(
                       afterLeave: () => tabController.animateTo(index),
                     );
+                    final featureTour = _featureTour;
+                    featureTour.configure({
+                      for (final entry
+                          in catSections
+                              .expand((s) => s.children)
+                              .whereType<_MenuTile>())
+                        if (entry.destinationId != null)
+                          entry.destinationId!:
+                              entry.enabled &&
+                              (entry.destinationId != 'ShopPolicyPage' ||
+                                  (_can(ShopPermissionKeys.managePolicy) &&
+                                      ShopPlanService.canUsePolicySettings(
+                                        shop,
+                                      ))),
+                    });
+                    featureTour.selectCat = () async {
+                      final session = featureTour.session;
+                      bool current() =>
+                          mounted &&
+                          identical(featureTour, _featureTour) &&
+                          session == featureTour.session &&
+                          FirebaseAuth.instance.currentUser?.uid ==
+                              featureTour.uid;
+                      if (FirebaseAuth.instance.currentUser?.uid !=
+                          featureTour.uid) {
+                        return false;
+                      }
+                      final index = visibleModules.indexOf(
+                        ShopModules.catHotel,
+                      );
+                      if (index < 0) return false;
+                      final actualNavigation =
+                          visibleModules[tabController.index] ==
+                              ShopModules.catHotel
+                          ? _catNavigation
+                          : _basicNavigation;
+                      await actualNavigation.switchTo(
+                        stillCurrent: current,
+                        afterLeave: () => tabController.index = index,
+                      );
+                      if (!current() || tabController.index != index) {
+                        return false;
+                      }
+                      if (actualNavigation != _catNavigation) {
+                        await _catNavigation.switchTo(stillCurrent: current);
+                      } else if (_catNavigation.hasDetail) {
+                        // The first leave check was cancelled or is still busy.
+                        // Do not immediately ask the same guard a second time.
+                        return false;
+                      }
+                      await WidgetsBinding.instance.endOfFrame;
+                      return current() &&
+                          tabController.index == index &&
+                          !_catNavigation.hasDetail;
+                    };
+                    featureTour.returnToMenu = () async {
+                      // The inner menu alone does not prove the visible module.
+                      return await featureTour.selectCat?.call() == true &&
+                          mounted &&
+                          visibleModules[tabController.index] ==
+                              ShopModules.catHotel &&
+                          !_catNavigation.hasDetail;
+                    };
+                    featureTour.isPageVisible = (id) =>
+                        mounted &&
+                        identical(featureTour, _featureTour) &&
+                        FirebaseAuth.instance.currentUser?.uid ==
+                            featureTour.uid &&
+                        visibleModules[tabController.index] ==
+                            ShopModules.catHotel &&
+                        (_catNavigation.selected == id ||
+                            (!featureTour.inPage && !_catNavigation.hasDetail));
+                    featureTour.recoverPage = (id) async {
+                      if (!featureTour.inPage) {
+                        return await featureTour.returnToMenu?.call() == true;
+                      }
+                      if (featureTour.isPageVisible?.call(id) == true &&
+                          !featureTour.hasTargetError) {
+                        return true;
+                      }
+                      final session = featureTour.session;
+                      bool current() =>
+                          mounted &&
+                          identical(featureTour, _featureTour) &&
+                          featureTour.active &&
+                          featureTour.session == session &&
+                          featureTour.current == id;
+                      if (featureTour.hasTargetError) {
+                        await _catNavigation.switchTo(stillCurrent: current);
+                        if (!current() || _catNavigation.hasDetail) {
+                          return false;
+                        }
+                      }
+                      await openEntry(id, stillCurrent: current);
+                      return mounted &&
+                          visibleModules[tabController.index] ==
+                              ShopModules.catHotel &&
+                          _catNavigation.selected == id;
+                    };
+                    _consumeFeatureTour();
                     return ShopDashboardNavigationScope(
                       key: _navigationScopeKey,
                       navigation: navigation,
                       desktop: sideNavigation,
                       openEntry: openEntry,
-                      child: Scaffold(
-                        backgroundColor: _DashboardLayout.pageBg,
-                        appBar: AppBar(
-                          backgroundColor: Colors.white,
-                          foregroundColor: _DashboardLayout.ink,
-                          surfaceTintColor: Colors.transparent,
-                          elevation: 0,
-                          title: Text(
-                            shop['name'] ?? '店家後台',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: metrics.appBarTitleSize,
-                              fontWeight: FontWeight.w700,
-                              color: _DashboardLayout.ink,
-                            ),
-                          ),
-                          actions: <Widget>[
-                            ListenableBuilder(
-                              listenable: _workspace.chat,
-                              builder: (context, _) {
-                                final currentFrontendWidth =
-                                    _frontendAvailableWidth(
-                                      workspaceWidth,
-                                      viewportWidth: pageWidth,
-                                    );
-                                return _buildFrontendAppBarButton(
-                                  canUse: canOpenFrontend,
-                                  isProfileComplete: isComplete,
-                                  canUsePublicPage: canUsePublicPage,
-                                  panelOpen:
-                                      _frontendOpenPref &&
-                                      canOpenFrontend &&
-                                      ShopFrontendPreviewFrame.canShowInlinePreview(
-                                        currentFrontendWidth,
-                                      ),
-                                  showLabel:
-                                      pageWidth >=
-                                      _DashboardLayout.phoneBreakpoint,
-                                  shopCode: shopCode,
-                                  pageWidth: currentFrontendWidth,
-                                );
-                              },
-                            ),
-                            if (_can(ShopPermissionKeys.manageChat))
-                              ShopChatAppBarButton(shopId: widget.shopId),
-                            ShopTaskCenterButton(shopId: widget.shopId),
-                          ],
-                          bottom: sideNavigation
-                              ? null
-                              : TabBar(
-                                  controller: tabController,
-                                  onTap: (index) {
-                                    if (navigation.hasDetail) {
-                                      tabController.index =
-                                          tabController.previousIndex;
-                                      selectModule(index);
-                                    }
-                                  },
-                                  isScrollable: true,
-                                  tabAlignment: TabAlignment.start,
-                                  labelColor: colors.primary,
-                                  unselectedLabelColor: const Color(0xFF4B5563),
-                                  labelStyle: TextStyle(
-                                    fontSize: metrics.tabLabelSelected,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  unselectedLabelStyle: TextStyle(
-                                    fontSize: metrics.tabLabelUnselected,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  labelPadding: EdgeInsets.symmetric(
-                                    horizontal: metrics.tabLabelPadH,
-                                  ),
-                                  indicatorSize: TabBarIndicatorSize.label,
-                                  indicator: UnderlineTabIndicator(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: BorderSide(
-                                      width: metrics.tabIndicatorHeight,
-                                      color: colors.primary,
-                                    ),
-                                  ),
-                                  dividerColor: _DashboardLayout.cardBorder,
-                                  tabs: visibleModules
-                                      .map(
-                                        (module) => Tab(
-                                          height: metrics.tabHeight,
-                                          text: _moduleLabel(module),
-                                          icon: Icon(
-                                            _moduleIcon(module),
-                                            size: metrics.tabIconSize,
-                                          ),
-                                          iconMargin: EdgeInsets.only(
-                                            bottom: metrics.tabIconGap,
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                ),
-                        ),
-                        body: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (sideNavigation)
-                              _DashboardSideNavigation(
-                                modules: visibleModules,
-                                controller: tabController,
-                                labelFor: _moduleLabel,
-                                iconFor: _moduleIcon,
-                                sections: activeSections,
-                                navigation: navigation,
-                                detailModule: navigation.moduleId,
-                                onModuleSelected: selectModule,
-                                onOpen: openEntry,
+                      child: ShopFeatureTourHost(
+                        controller: _featureTour,
+                        child: Scaffold(
+                          backgroundColor: _DashboardLayout.pageBg,
+                          appBar: AppBar(
+                            backgroundColor: Colors.white,
+                            foregroundColor: _DashboardLayout.ink,
+                            surfaceTintColor: Colors.transparent,
+                            elevation: 0,
+                            title: Text(
+                              shop['name'] ?? '店家後台',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: metrics.appBarTitleSize,
+                                fontWeight: FontWeight.w700,
+                                color: _DashboardLayout.ink,
                               ),
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  if (!isComplete && !remindSetup)
-                                    Align(
-                                      alignment: Alignment.topCenter,
-                                      child: ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxWidth:
-                                              _DashboardLayout.maxContentWidth(
-                                                pageWidth,
-                                              ),
+                            ),
+                            actions: <Widget>[
+                              ListenableBuilder(
+                                listenable: _workspace.chat,
+                                builder: (context, _) {
+                                  final currentFrontendWidth =
+                                      _frontendAvailableWidth(
+                                        workspaceWidth,
+                                        viewportWidth: pageWidth,
+                                      );
+                                  return _buildFrontendAppBarButton(
+                                    canUse: canOpenFrontend,
+                                    isProfileComplete: isComplete,
+                                    canUsePublicPage: canUsePublicPage,
+                                    panelOpen:
+                                        _frontendOpenPref &&
+                                        canOpenFrontend &&
+                                        ShopFrontendPreviewFrame.canShowInlinePreview(
+                                          currentFrontendWidth,
                                         ),
-                                        child: Container(
-                                          width: double.infinity,
-                                          margin: EdgeInsets.fromLTRB(
-                                            metrics.pagePadH,
-                                            metrics.pagePadV,
-                                            metrics.pagePadH,
-                                            0,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFFF4E8),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                    showLabel:
+                                        pageWidth >=
+                                        _DashboardLayout.phoneBreakpoint,
+                                    shopCode: shopCode,
+                                    pageWidth: currentFrontendWidth,
+                                  );
+                                },
+                              ),
+                              if (_can(ShopPermissionKeys.manageChat))
+                                ShopChatAppBarButton(shopId: widget.shopId),
+                              ShopTaskCenterButton(shopId: widget.shopId),
+                            ],
+                            bottom: sideNavigation
+                                ? null
+                                : TabBar(
+                                    controller: tabController,
+                                    onTap: (index) {
+                                      if (navigation.hasDetail) {
+                                        tabController.index =
+                                            tabController.previousIndex;
+                                        selectModule(index);
+                                      }
+                                    },
+                                    isScrollable: true,
+                                    tabAlignment: TabAlignment.start,
+                                    labelColor: colors.primary,
+                                    unselectedLabelColor: const Color(
+                                      0xFF4B5563,
+                                    ),
+                                    labelStyle: TextStyle(
+                                      fontSize: metrics.tabLabelSelected,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    unselectedLabelStyle: TextStyle(
+                                      fontSize: metrics.tabLabelUnselected,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    labelPadding: EdgeInsets.symmetric(
+                                      horizontal: metrics.tabLabelPadH,
+                                    ),
+                                    indicatorSize: TabBarIndicatorSize.label,
+                                    indicator: UnderlineTabIndicator(
+                                      borderRadius: BorderRadius.circular(4),
+                                      borderSide: BorderSide(
+                                        width: metrics.tabIndicatorHeight,
+                                        color: colors.primary,
+                                      ),
+                                    ),
+                                    dividerColor: _DashboardLayout.cardBorder,
+                                    tabs: visibleModules
+                                        .map(
+                                          (module) => Tab(
+                                            height: metrics.tabHeight,
+                                            text: _moduleLabel(module),
+                                            icon: Icon(
+                                              _moduleIcon(module),
+                                              size: metrics.tabIconSize,
                                             ),
-                                            border: Border.all(
-                                              color: const Color(0xFFFFD8A8),
+                                            iconMargin: EdgeInsets.only(
+                                              bottom: metrics.tabIconGap,
                                             ),
                                           ),
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Icon(
-                                                Icons.warning_amber_rounded,
-                                                color: Colors.orange.shade700,
-                                                size: 22,
+                                        )
+                                        .toList(),
+                                  ),
+                          ),
+                          body: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (sideNavigation)
+                                _DashboardSideNavigation(
+                                  modules: visibleModules,
+                                  controller: tabController,
+                                  labelFor: _moduleLabel,
+                                  iconFor: _moduleIcon,
+                                  sections: activeSections,
+                                  navigation: navigation,
+                                  detailModule: navigation.moduleId,
+                                  onModuleSelected: selectModule,
+                                  onOpen: openEntry,
+                                ),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    if (!isComplete && !remindSetup)
+                                      Align(
+                                        alignment: Alignment.topCenter,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth:
+                                                _DashboardLayout.maxContentWidth(
+                                                  pageWidth,
+                                                ),
+                                          ),
+                                          child: Container(
+                                            width: double.infinity,
+                                            margin: EdgeInsets.fromLTRB(
+                                              metrics.pagePadH,
+                                              metrics.pagePadV,
+                                              metrics.pagePadH,
+                                              0,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 10,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFFF4E8),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: const Color(0xFFFFD8A8),
                                               ),
-                                              const SizedBox(width: 8),
-                                              const Expanded(
-                                                child: Text(
-                                                  '⚠️ 請先完成店家基本資料，才能使用完整功能',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                    color: _DashboardLayout.ink,
-                                                    height: 1.35,
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  color: Colors.orange.shade700,
+                                                  size: 22,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Expanded(
+                                                  child: Text(
+                                                    '⚠️ 請先完成店家基本資料，才能使用完整功能',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color:
+                                                          _DashboardLayout.ink,
+                                                      height: 1.35,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  Expanded(
-                                    child: LayoutBuilder(
-                                      builder:
-                                          (
-                                            BuildContext context,
-                                            BoxConstraints constraints,
-                                          ) {
-                                            final Widget tabViews = TabBarView(
-                                              controller: tabController,
-                                              physics:
-                                                  sideNavigation ||
-                                                      navigation.hasDetail
-                                                  ? const NeverScrollableScrollPhysics()
-                                                  : null,
-                                              key: _frontendTabBarViewKey,
-                                              children: visibleModules
-                                                  .map(
-                                                    (module) => KeyedSubtree(
-                                                      key: ValueKey(module),
-                                                      child: () {
-                                                        switch (module) {
-                                                          case ShopModules
-                                                              .basicInfo:
-                                                            return ShopDashboardContentNavigator(
-                                                              navigation:
-                                                                  _basicNavigation,
-                                                              child: _BasicInfoTab(
+                                    Expanded(
+                                      child: LayoutBuilder(
+                                        builder:
+                                            (
+                                              BuildContext context,
+                                              BoxConstraints constraints,
+                                            ) {
+                                              final Widget
+                                              tabViews = TabBarView(
+                                                controller: tabController,
+                                                physics:
+                                                    sideNavigation ||
+                                                        navigation.hasDetail
+                                                    ? const NeverScrollableScrollPhysics()
+                                                    : null,
+                                                key: _frontendTabBarViewKey,
+                                                children: visibleModules
+                                                    .map(
+                                                      (module) => KeyedSubtree(
+                                                        key: ValueKey(module),
+                                                        child: () {
+                                                          switch (module) {
+                                                            case ShopModules
+                                                                .basicInfo:
+                                                              return ShopDashboardContentNavigator(
+                                                                navigation:
+                                                                    _basicNavigation,
+                                                                child: _BasicInfoTab(
+                                                                  shopId: widget
+                                                                      .shopId,
+                                                                  shop: shop,
+                                                                  currentUserRole:
+                                                                      _currentUserRole,
+                                                                  memberData:
+                                                                      _currentMemberData,
+                                                                  isProfileComplete:
+                                                                      isComplete,
+                                                                  showSetupReminder:
+                                                                      remindSetup,
+                                                                  onPreviewFrontend: () => _handleFrontendPreview(
+                                                                    shopCode:
+                                                                        shopCode,
+                                                                    pageWidth: _frontendAvailableWidth(
+                                                                      constraints
+                                                                          .maxWidth,
+                                                                      viewportWidth:
+                                                                          pageWidth,
+                                                                    ),
+                                                                    forceOpen:
+                                                                        true,
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            case ShopModules
+                                                                .catHotel:
+                                                              return ShopDashboardContentNavigator(
+                                                                navigation:
+                                                                    _catNavigation,
+                                                                child: catTab,
+                                                              );
+                                                            case ShopModules
+                                                                .dogHotel:
+                                                              return const _ModuleTemplateTab(
+                                                                title: '狗狗旅店',
+                                                                description:
+                                                                    '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
+                                                              );
+                                                            case ShopModules
+                                                                .grooming:
+                                                              return const _ModuleTemplateTab(
+                                                                title: '美容功能',
+                                                                description:
+                                                                    '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
+                                                              );
+                                                            case ShopModules
+                                                                .hospital:
+                                                              return const _ModuleTemplateTab(
+                                                                title: '動物醫院',
+                                                                description:
+                                                                    '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
+                                                              );
+                                                            case ShopModules
+                                                                .store:
+                                                              return ShopStoreHubPage(
                                                                 shopId: widget
                                                                     .shopId,
-                                                                shop: shop,
-                                                                currentUserRole:
-                                                                    _currentUserRole,
                                                                 memberData:
                                                                     _currentMemberData,
+                                                              );
+                                                            case ShopModules
+                                                                .reports:
+                                                              return _ReportsTab(
+                                                                shopId: widget
+                                                                    .shopId,
+                                                                currentUserRole:
+                                                                    _currentUserRole,
+                                                              );
+                                                            case ShopModules
+                                                                .inventory:
+                                                              return _InventoryTab(
+                                                                shopId: widget
+                                                                    .shopId,
                                                                 isProfileComplete:
                                                                     isComplete,
-                                                                showSetupReminder:
-                                                                    remindSetup,
-                                                                onPreviewFrontend: () => _handleFrontendPreview(
-                                                                  shopCode:
-                                                                      shopCode,
-                                                                  pageWidth: _frontendAvailableWidth(
-                                                                    constraints
-                                                                        .maxWidth,
-                                                                    viewportWidth:
-                                                                        pageWidth,
+                                                                memberData:
+                                                                    _currentMemberData,
+                                                              );
+                                                            default:
+                                                              return const Center(
+                                                                child: Text(
+                                                                  '模組尚未定義',
+                                                                ),
+                                                              );
+                                                          }
+                                                        }(),
+                                                      ),
+                                                    )
+                                                    .toList(),
+                                              );
+
+                                              final bool chatAllowed = _can(
+                                                ShopPermissionKeys.manageChat,
+                                              );
+                                              final Widget liveFrontend =
+                                                  ShopFrontendPreviewFrame(
+                                                    key: _frontendPreviewKey,
+                                                    shopId: widget.shopId,
+                                                    shopCode: shopCode,
+                                                    showExpand: true,
+                                                    expanded: _frontendExpanded,
+                                                    scaleToFit:
+                                                        !_frontendExpanded,
+                                                    onToggleExpand:
+                                                        _toggleFrontendExpand,
+                                                    onClose:
+                                                        _closeFrontendPanel,
+                                                  );
+
+                                              return ListenableBuilder(
+                                                listenable: Listenable.merge(
+                                                  <Listenable>[
+                                                    _workspace,
+                                                    _workspace.chat,
+                                                  ],
+                                                ),
+                                                builder:
+                                                    (
+                                                      BuildContext context,
+                                                      Widget? child,
+                                                    ) {
+                                                      final desktopChatOpen =
+                                                          chatAllowed &&
+                                                          ShopChatLayout.shouldShowDesktopDock(
+                                                            pageWidth:
+                                                                pageWidth,
+                                                            inboxOpen:
+                                                                _workspace
+                                                                    .chat
+                                                                    .inboxOpen,
+                                                          );
+                                                      final narrowChat =
+                                                          constraints.maxWidth <
+                                                          940;
+                                                      final focusChat =
+                                                          desktopChatOpen &&
+                                                          (_workspace
+                                                                  .chat
+                                                                  .workspaceExpanded ||
+                                                              narrowChat);
+                                                      final dockWidth =
+                                                          desktopChatOpen
+                                                          ? ShopChatLayout.dockWidthFor(
+                                                              constraints
+                                                                  .maxWidth,
+                                                            )
+                                                          : 0.0;
+                                                      final normalMain =
+                                                          (constraints.maxWidth -
+                                                                  dockWidth)
+                                                              .clamp(
+                                                                0.0,
+                                                                constraints
+                                                                    .maxWidth,
+                                                              )
+                                                              .toDouble();
+                                                      // 集中聊天時保留後台原有實例與合理寬度，不以零寬重新排版表單。
+                                                      final layoutMain =
+                                                          focusChat
+                                                          ? (constraints.maxWidth >
+                                                                    560
+                                                                ? normalMain
+                                                                      .clamp(
+                                                                        560.0,
+                                                                        constraints
+                                                                            .maxWidth,
+                                                                      )
+                                                                      .toDouble()
+                                                                : constraints
+                                                                      .maxWidth)
+                                                          : normalMain;
+                                                      final chatWidth =
+                                                          focusChat
+                                                          ? constraints.maxWidth
+                                                          : dockWidth;
+                                                      final frontendWanted =
+                                                          _frontendPrefsLoaded &&
+                                                          _frontendOpenPref &&
+                                                          canOpenFrontend &&
+                                                          ShopFrontendPreviewFrame.canShowInlinePreview(
+                                                            layoutMain,
+                                                          );
+                                                      final showInline =
+                                                          frontendWanted &&
+                                                          !_frontendExpanded;
+                                                      final showExpanded =
+                                                          frontendWanted &&
+                                                          _frontendExpanded;
+                                                      final frontendWidth =
+                                                          ShopFrontendPreviewFrame.inlineWidthFor(
+                                                            layoutMain,
+                                                          );
+                                                      final management = SizedBox.expand(
+                                                        child: Stack(
+                                                          children: [
+                                                            Row(
+                                                              key: const Key(
+                                                                'shop-dashboard-frontend-inline-split',
+                                                              ),
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .stretch,
+                                                              children: [
+                                                                if (showInline) ...[
+                                                                  SizedBox(
+                                                                    key: ShopDashboardLiveFrontendOverlay
+                                                                        .overlayKey,
+                                                                    width:
+                                                                        frontendWidth,
+                                                                    child: Padding(
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                        vertical:
+                                                                            12,
+                                                                      ),
+                                                                      child:
+                                                                          liveFrontend,
+                                                                    ),
                                                                   ),
-                                                                  forceOpen:
-                                                                      true,
+                                                                  const SizedBox(
+                                                                    width: ShopFrontendPreviewFrame
+                                                                        .inlineColumnGap,
+                                                                  ),
+                                                                ],
+                                                                Expanded(
+                                                                  child: _DashboardWorkspaceScope(
+                                                                    enabled:
+                                                                        !showInline &&
+                                                                        !showExpanded &&
+                                                                        !desktopChatOpen,
+                                                                    child:
+                                                                        tabViews,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            if (showExpanded)
+                                                              Positioned.fill(
+                                                                key: ShopDashboardLiveFrontendOverlay
+                                                                    .overlayKey,
+                                                                child: ColoredBox(
+                                                                  color: const Color(
+                                                                    0x99000000,
+                                                                  ),
+                                                                  child: Center(
+                                                                    child: Padding(
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                        vertical:
+                                                                            12,
+                                                                        horizontal:
+                                                                            24,
+                                                                      ),
+                                                                      child: ConstrainedBox(
+                                                                        constraints: BoxConstraints(
+                                                                          maxWidth:
+                                                                              ShopFrontendPhoneFrame.liveLogicalWidth +
+                                                                              ShopFrontendPreviewFrame.inlineCanvasInset,
+                                                                          maxHeight:
+                                                                              constraints.maxHeight,
+                                                                        ),
+                                                                        child:
+                                                                            liveFrontend,
+                                                                      ),
+                                                                    ),
+                                                                  ),
                                                                 ),
                                                               ),
-                                                            );
-                                                          case ShopModules
-                                                              .catHotel:
-                                                            return ShopDashboardContentNavigator(
-                                                              navigation:
-                                                                  _catNavigation,
-                                                              child: catTab,
-                                                            );
-                                                          case ShopModules
-                                                              .dogHotel:
-                                                            return const _ModuleTemplateTab(
-                                                              title: '狗狗旅店',
-                                                              description:
-                                                                  '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
-                                                            );
-                                                          case ShopModules
-                                                              .grooming:
-                                                            return const _ModuleTemplateTab(
-                                                              title: '美容功能',
-                                                              description:
-                                                                  '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
-                                                            );
-                                                          case ShopModules
-                                                              .hospital:
-                                                            return const _ModuleTemplateTab(
-                                                              title: '動物醫院',
-                                                              description:
-                                                                  '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
-                                                            );
-                                                          case ShopModules
-                                                              .store:
-                                                            return ShopStoreHubPage(
-                                                              shopId:
-                                                                  widget.shopId,
-                                                              memberData:
-                                                                  _currentMemberData,
-                                                            );
-                                                          case ShopModules
-                                                              .reports:
-                                                            return _ReportsTab(
-                                                              shopId:
-                                                                  widget.shopId,
-                                                              currentUserRole:
-                                                                  _currentUserRole,
-                                                            );
-                                                          case ShopModules
-                                                              .inventory:
-                                                            return _InventoryTab(
-                                                              shopId:
-                                                                  widget.shopId,
-                                                              isProfileComplete:
-                                                                  isComplete,
-                                                              memberData:
-                                                                  _currentMemberData,
-                                                            );
-                                                          default:
-                                                            return const Center(
-                                                              child: Text(
-                                                                '模組尚未定義',
-                                                              ),
-                                                            );
-                                                        }
-                                                      }(),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                            );
-
-                                            final bool chatAllowed = _can(
-                                              ShopPermissionKeys.manageChat,
-                                            );
-                                            final Widget liveFrontend =
-                                                ShopFrontendPreviewFrame(
-                                                  key: _frontendPreviewKey,
-                                                  shopId: widget.shopId,
-                                                  shopCode: shopCode,
-                                                  showExpand: true,
-                                                  expanded: _frontendExpanded,
-                                                  scaleToFit:
-                                                      !_frontendExpanded,
-                                                  onToggleExpand:
-                                                      _toggleFrontendExpand,
-                                                  onClose: _closeFrontendPanel,
-                                                );
-
-                                            return ListenableBuilder(
-                                              listenable: Listenable.merge(
-                                                <Listenable>[
-                                                  _workspace,
-                                                  _workspace.chat,
-                                                ],
-                                              ),
-                                              builder: (BuildContext context, Widget? child) {
-                                                final desktopChatOpen =
-                                                    chatAllowed &&
-                                                    ShopChatLayout.shouldShowDesktopDock(
-                                                      pageWidth: pageWidth,
-                                                      inboxOpen: _workspace
-                                                          .chat
-                                                          .inboxOpen,
-                                                    );
-                                                final narrowChat =
-                                                    constraints.maxWidth < 940;
-                                                final focusChat =
-                                                    desktopChatOpen &&
-                                                    (_workspace
-                                                            .chat
-                                                            .workspaceExpanded ||
-                                                        narrowChat);
-                                                final dockWidth =
-                                                    desktopChatOpen
-                                                    ? ShopChatLayout.dockWidthFor(
-                                                        constraints.maxWidth,
-                                                      )
-                                                    : 0.0;
-                                                final normalMain =
-                                                    (constraints.maxWidth -
-                                                            dockWidth)
-                                                        .clamp(
-                                                          0.0,
-                                                          constraints.maxWidth,
-                                                        )
-                                                        .toDouble();
-                                                // 集中聊天時保留後台原有實例與合理寬度，不以零寬重新排版表單。
-                                                final layoutMain = focusChat
-                                                    ? (constraints.maxWidth >
-                                                              560
-                                                          ? normalMain
-                                                                .clamp(
-                                                                  560.0,
-                                                                  constraints
-                                                                      .maxWidth,
-                                                                )
-                                                                .toDouble()
-                                                          : constraints
-                                                                .maxWidth)
-                                                    : normalMain;
-                                                final chatWidth = focusChat
-                                                    ? constraints.maxWidth
-                                                    : dockWidth;
-                                                final frontendWanted =
-                                                    _frontendPrefsLoaded &&
-                                                    _frontendOpenPref &&
-                                                    canOpenFrontend &&
-                                                    ShopFrontendPreviewFrame.canShowInlinePreview(
-                                                      layoutMain,
-                                                    );
-                                                final showInline =
-                                                    frontendWanted &&
-                                                    !_frontendExpanded;
-                                                final showExpanded =
-                                                    frontendWanted &&
-                                                    _frontendExpanded;
-                                                final frontendWidth =
-                                                    ShopFrontendPreviewFrame.inlineWidthFor(
-                                                      layoutMain,
-                                                    );
-                                                final management = SizedBox.expand(
-                                                  child: Stack(
-                                                    children: [
-                                                      Row(
-                                                        key: const Key(
-                                                          'shop-dashboard-frontend-inline-split',
+                                                          ],
                                                         ),
+                                                      );
+                                                      return Row(
                                                         crossAxisAlignment:
                                                             CrossAxisAlignment
                                                                 .stretch,
                                                         children: [
-                                                          if (showInline) ...[
-                                                            SizedBox(
-                                                              key: ShopDashboardLiveFrontendOverlay
-                                                                  .overlayKey,
-                                                              width:
-                                                                  frontendWidth,
-                                                              child: Padding(
-                                                                padding:
-                                                                    const EdgeInsets.symmetric(
-                                                                      vertical:
-                                                                          12,
-                                                                    ),
-                                                                child:
-                                                                    liveFrontend,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              width: ShopFrontendPreviewFrame
-                                                                  .inlineColumnGap,
-                                                            ),
-                                                          ],
-                                                          Expanded(
-                                                            child: _DashboardWorkspaceScope(
-                                                              enabled:
-                                                                  !showInline &&
-                                                                  !showExpanded &&
-                                                                  !desktopChatOpen,
-                                                              child: tabViews,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      if (showExpanded)
-                                                        Positioned.fill(
-                                                          key:
-                                                              ShopDashboardLiveFrontendOverlay
-                                                                  .overlayKey,
-                                                          child: ColoredBox(
-                                                            color: const Color(
-                                                              0x99000000,
-                                                            ),
-                                                            child: Center(
-                                                              child: Padding(
-                                                                padding:
-                                                                    const EdgeInsets.symmetric(
-                                                                      vertical:
-                                                                          12,
-                                                                      horizontal:
-                                                                          24,
-                                                                    ),
-                                                                child: ConstrainedBox(
-                                                                  constraints: BoxConstraints(
-                                                                    maxWidth:
-                                                                        ShopFrontendPhoneFrame
-                                                                            .liveLogicalWidth +
-                                                                        ShopFrontendPreviewFrame
-                                                                            .inlineCanvasInset,
-                                                                    maxHeight:
-                                                                        constraints
-                                                                            .maxHeight,
-                                                                  ),
+                                                          SizedBox(
+                                                            width: focusChat
+                                                                ? 0
+                                                                : normalMain,
+                                                            child: Offstage(
+                                                              offstage:
+                                                                  focusChat,
+                                                              child: TickerMode(
+                                                                enabled:
+                                                                    !focusChat,
+                                                                child: OverflowBox(
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .topLeft,
+                                                                  minWidth:
+                                                                      layoutMain,
+                                                                  maxWidth:
+                                                                      layoutMain,
                                                                   child:
-                                                                      liveFrontend,
+                                                                      management,
                                                                 ),
                                                               ),
                                                             ),
                                                           ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                );
-                                                return Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    SizedBox(
-                                                      width: focusChat
-                                                          ? 0
-                                                          : normalMain,
-                                                      child: Offstage(
-                                                        offstage: focusChat,
-                                                        child: TickerMode(
-                                                          enabled: !focusChat,
-                                                          child: OverflowBox(
-                                                            alignment: Alignment
-                                                                .topLeft,
-                                                            minWidth:
-                                                                layoutMain,
-                                                            maxWidth:
-                                                                layoutMain,
-                                                            child: management,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (desktopChatOpen)
-                                                      SizedBox(
-                                                        width: chatWidth,
-                                                        child:
-                                                            ShopChatDesktopWorkspace(
-                                                              shopId:
-                                                                  widget.shopId,
-                                                              controller:
-                                                                  _workspace
-                                                                      .chat,
-                                                              expanded:
-                                                                  focusChat,
-                                                              forcedExpanded:
-                                                                  narrowChat,
+                                                          if (desktopChatOpen)
+                                                            SizedBox(
+                                                              width: chatWidth,
+                                                              child: ShopChatDesktopWorkspace(
+                                                                shopId: widget
+                                                                    .shopId,
+                                                                controller:
+                                                                    _workspace
+                                                                        .chat,
+                                                                expanded:
+                                                                    focusChat,
+                                                                forcedExpanded:
+                                                                    narrowChat,
+                                                              ),
                                                             ),
-                                                      ),
-                                                  ],
-                                                );
-                                              },
-                                            );
-                                          },
+                                                        ],
+                                                      );
+                                                    },
+                                              );
+                                            },
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -2396,7 +2650,11 @@ class _CatHotelTab extends StatelessWidget {
         final wide =
             constraints.maxWidth >= 1180 &&
             (_DashboardWorkspaceScope.maybeOf(context)?.enabled ?? false);
-        if (!wide) return _DashboardResponsiveBody(children: sections);
+        if (!wide) {
+          return _DashboardResponsiveBody(
+            children: [const ShopFeatureTourEntry(), ...sections],
+          );
+        }
         Widget section(int index, int columns) => _DashboardSection(
           title: sections[index].title,
           preferredColumns: columns,
@@ -2424,6 +2682,10 @@ class _CatHotelTab extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1680),
               child: ListView(
+                cacheExtent:
+                    ShopFeatureTourScope.maybeOf(context)?.active == true
+                    ? double.maxFinite
+                    : null,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 28,
                   vertical: 20,
@@ -2445,6 +2707,7 @@ class _CatHotelTab extends StatelessWidget {
                       color: _DashboardLayout.muted,
                     ),
                   ),
+                  const ShopFeatureTourEntry(),
                   const SizedBox(height: 18),
                   if (sections[0].children.isNotEmpty) ...[
                     section(0, 3),
@@ -3076,6 +3339,14 @@ class _MenuTile extends StatelessWidget {
   final Widget Function(BuildContext, VoidCallback)? tileBuilder;
   void open(BuildContext context) {
     if (!enabled) return;
+    final tour = ShopFeatureTourScope.maybeOf(context);
+    final scope = ShopDashboardNavigationScope.maybeOf(context);
+    if (tour?.active == true &&
+        tour?.current == destinationId &&
+        scope != null) {
+      scope.openEntry(destinationId!);
+      return;
+    }
     if (pageBuilder != null) {
       _openBasicInfoPage(context, destinationId!, pageBuilder!);
     } else {
@@ -3519,6 +3790,9 @@ class _DashboardResponsiveBody extends StatelessWidget {
           maxWidth: _DashboardLayout.maxContentWidth(pageWidth),
         ),
         child: ListView(
+          cacheExtent: ShopFeatureTourScope.maybeOf(context)?.active == true
+              ? double.maxFinite
+              : null,
           padding: EdgeInsets.fromLTRB(
             metrics.pagePadH,
             metrics.pagePadV,
@@ -3607,7 +3881,18 @@ class _DashboardSection extends StatelessWidget {
           singleColumn:
               _BasicInfoWideScope.of(context) &&
               (title == '會員系統' || title == '後台管理'),
-          children: children,
+          children: children
+              .map(
+                (child) =>
+                    child is _MenuTile &&
+                        shopTourTopics.any((t) => t.id == child.destinationId)
+                    ? ShopTourAnchor(
+                        ids: ['entry:${child.destinationId}'],
+                        child: child,
+                      )
+                    : child,
+              )
+              .toList(),
         ),
       ],
     );

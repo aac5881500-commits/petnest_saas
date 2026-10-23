@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_deposit_setting_page.dart
 // 功能說明：設定訂金規則、付款期限與付款方式
 // 💰 店家訂金與收款設定頁
@@ -52,6 +53,7 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage>
 
   final List<Map<String, TextEditingController>> _discountRuleCtrls = [];
 
+  Object? _tourLoadError;
   bool _loading = true;
   bool _saving = false;
 
@@ -80,62 +82,66 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage>
   }
 
   Future<void> _loadData() async {
-    final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
-        .instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .get();
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
+          .instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .get();
 
-    final Map<String, dynamic>? data = doc.data();
+      final Map<String, dynamic>? data = doc.data();
 
-    if (data != null) {
-      _depositEnabled = data['depositEnabled'] ?? false;
-      _depositType = data['depositType'] ?? 'fixed';
-      _depositValue = data['depositValue'] ?? 1000;
-      _depositValueCtrl.text = _depositValue.toString();
-      _depositBase = data['depositBase'] ?? 'room';
+      if (data != null) {
+        _depositEnabled = data['depositEnabled'] ?? false;
+        _depositType = data['depositType'] ?? 'fixed';
+        _depositValue = data['depositValue'] ?? 1000;
+        _depositValueCtrl.text = _depositValue.toString();
+        _depositBase = data['depositBase'] ?? 'room';
 
-      _cash = data['paymentMethods']?['cash'] ?? true;
-      _transfer = data['paymentMethods']?['transfer'] ?? false;
-      _depositExpireHours = data['depositExpireHours'] ?? 12;
+        _cash = data['paymentMethods']?['cash'] ?? true;
+        _transfer = data['paymentMethods']?['transfer'] ?? false;
+        _depositExpireHours = data['depositExpireHours'] ?? 12;
 
-      final Map<String, dynamic> discountSetting =
-          data['discountSetting'] as Map<String, dynamic>? ??
-          <String, dynamic>{};
+        final Map<String, dynamic> discountSetting =
+            data['discountSetting'] as Map<String, dynamic>? ??
+            <String, dynamic>{};
 
-      _discountEnabled = discountSetting['enabled'] ?? false;
-      _discountBase = discountSetting['base'] ?? 'room_pet';
+        _discountEnabled = discountSetting['enabled'] ?? false;
+        _discountBase = discountSetting['base'] ?? 'room_pet';
 
-      final Object? rules = discountSetting['rules'];
+        final Object? rules = discountSetting['rules'];
 
-      if (rules is List && rules.isNotEmpty) {
-        for (final Object? item in rules) {
-          if (item is! Map) {
-            continue;
+        if (rules is List && rules.isNotEmpty) {
+          for (final Object? item in rules) {
+            if (item is! Map) {
+              continue;
+            }
+
+            _discountRuleCtrls.add(<String, TextEditingController>{
+              'minNights': TextEditingController(
+                text: (item['minNights'] ?? '').toString(),
+              ),
+              'discountPercent': TextEditingController(
+                text: (item['discountPercent'] ?? '').toString(),
+              ),
+            });
           }
-
-          _discountRuleCtrls.add(<String, TextEditingController>{
-            'minNights': TextEditingController(
-              text: (item['minNights'] ?? '').toString(),
-            ),
-            'discountPercent': TextEditingController(
-              text: (item['discountPercent'] ?? '').toString(),
-            ),
-          });
+        } else {
+          _addDefaultDiscountRules();
         }
       } else {
         _addDefaultDiscountRules();
       }
-    } else {
-      _addDefaultDiscountRules();
-    }
 
-    if (_discountRuleCtrls.isEmpty) {
-      _addDefaultDiscountRules();
-    }
+      if (_discountRuleCtrls.isEmpty) {
+        _addDefaultDiscountRules();
+      }
 
-    _captureSaved();
-    setState(() => _loading = false);
+      _captureSaved();
+      setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() => _tourLoadError = e);
+    }
   }
 
   void _captureSaved() {
@@ -305,13 +311,18 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      const Widget loadingView = Center(child: CircularProgressIndicator());
+      final Widget loadingView = ShopTourAnchor(
+        ids: const ['ShopPaymentSettingPage.0', 'ShopPaymentSettingPage.1'],
+        ready: false,
+        error: _tourLoadError,
+        child: const Center(child: CircularProgressIndicator()),
+      );
 
       if (widget.embedded) {
         return loadingView;
       }
 
-      return const Scaffold(body: loadingView);
+      return Scaffold(body: loadingView);
     }
 
     final Widget content = StreamBuilder<Map<String, dynamic>?>(
@@ -323,25 +334,28 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage>
           ) {
             final bool daycareOn = DaycareSettingsService.instance
                 .isEnabledForShop(shop: shopSnap.data);
-            return ShopDepositSettingPanel(
-              daycareOn: daycareOn,
-              depositEnabled: _depositEnabled,
-              depositType: _depositType,
-              depositValue: _depositValue,
-              depositBase: _depositBase,
-              depositExpireHours: _depositExpireHours,
-              depositValueController: _depositValueCtrl,
-              dirty: _dirty,
-              saving: _saving,
-              onToggleEnabled: (bool value) =>
-                  setState(() => _depositEnabled = value),
-              onExpireHours: (int value) =>
-                  setState(() => _depositExpireHours = value),
-              onDepositBase: (String value) =>
-                  setState(() => _depositBase = value),
-              onDepositType: _changeDepositType,
-              onDepositValueChanged: _updateDepositValue,
-              onSave: _save,
+            return ShopTourAnchor(
+              ids: const [],
+              child: ShopDepositSettingPanel(
+                daycareOn: daycareOn,
+                depositEnabled: _depositEnabled,
+                depositType: _depositType,
+                depositValue: _depositValue,
+                depositBase: _depositBase,
+                depositExpireHours: _depositExpireHours,
+                depositValueController: _depositValueCtrl,
+                dirty: _dirty,
+                saving: _saving,
+                onToggleEnabled: (bool value) =>
+                    setState(() => _depositEnabled = value),
+                onExpireHours: (int value) =>
+                    setState(() => _depositExpireHours = value),
+                onDepositBase: (String value) =>
+                    setState(() => _depositBase = value),
+                onDepositType: _changeDepositType,
+                onDepositValueChanged: _updateDepositValue,
+                onSave: _save,
+              ),
             );
           },
     );

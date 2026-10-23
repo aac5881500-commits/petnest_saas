@@ -1,3 +1,4 @@
+import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -31,7 +32,17 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
   bool get _daycare => setting.showDaycare && daycareAvailable;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => HomeCardImage(
+    setting: setting.cardImage,
+    enabled: const [
+      HomeQuickBookingLayouts.compactCard,
+      HomeQuickBookingLayouts.heroCta,
+      HomeQuickBookingLayouts.spotlight,
+    ].contains(setting.layout),
+    builder: (context, image) => _content(context, image.url),
+  );
+
+  Widget _content(BuildContext context, String imageUrl) {
     if (!_stay && !_daycare) {
       if (!preview) {
         return const SizedBox.shrink();
@@ -48,10 +59,10 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
       );
     }
     return switch (HomeQuickBookingLayouts.migrate(setting.layout)) {
-      HomeQuickBookingLayouts.compactCard => _compact(),
+      HomeQuickBookingLayouts.compactCard => _compact(imageUrl),
       HomeQuickBookingLayouts.singleLine => _single(),
-      HomeQuickBookingLayouts.spotlight => _spotlight(),
-      HomeQuickBookingLayouts.heroCta => _split(hero: true),
+      HomeQuickBookingLayouts.spotlight => _spotlight(imageUrl),
+      HomeQuickBookingLayouts.heroCta => _split(hero: true, imageUrl: imageUrl),
       _ => _split(),
     };
   }
@@ -100,7 +111,21 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
     );
   }
 
-  Widget _compact() {
+  Widget _compact(String imageUrl) {
+    if (imageUrl.isNotEmpty) {
+      return ModernHomeEntryCard(
+        cardKey: const Key('home-quick-booking-card'),
+        theme: theme,
+        title: setting.entryTitle,
+        subtitle: setting.entrySubtitle,
+        showSubtitle: true,
+        cardSize: 'small',
+        surface: 'filled',
+        icon: Icons.event_available_outlined,
+        backgroundImage: NetworkImage(imageUrl),
+        onTap: _tap(onOpenAutomatic) ?? () {},
+      );
+    }
     return _shell(
       height: kModernHomeSmallCardHeight,
       child: InkWell(
@@ -225,7 +250,7 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
     );
   }
 
-  Widget _spotlight() {
+  Widget _spotlight(String imageUrl) {
     return _shell(
       child: InkWell(
         key: const Key('home-quick-booking-card'),
@@ -235,6 +260,7 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: _crossAlign,
             children: <Widget>[
+              if (imageUrl.isNotEmpty) _visual(imageUrl),
               Text(
                 setting.entryTitle,
                 maxLines: 2,
@@ -291,7 +317,7 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
     );
   }
 
-  Widget _split({bool hero = false}) {
+  Widget _split({bool hero = false, String imageUrl = ''}) {
     final List<_QuickDoor> doors = <_QuickDoor>[
       if (_stay)
         _QuickDoor(
@@ -315,6 +341,7 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: _crossAlign,
           children: <Widget>[
+            if (hero && imageUrl.isNotEmpty) _visual(imageUrl),
             Text(
               setting.entryTitle,
               maxLines: 1,
@@ -366,6 +393,26 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
       ),
     );
   }
+
+  Widget _visual(String url) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: double.infinity,
+        height: 150,
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, error, stack) => ColoredBox(
+            color: theme.cardColor,
+            child: Icon(Icons.image_outlined, color: theme.primaryColor),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _door(_QuickDoor door, {bool hero = false}) {
     return Material(

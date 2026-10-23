@@ -1,3 +1,5 @@
+import 'home_card_image_setting.dart';
+
 const String kHomeQuickBookingClosedMessage = '目前住宿與安親皆未開啟，正式前台不會顯示此區塊';
 
 class HomeQuickBookingLayouts {
@@ -95,6 +97,7 @@ class HomeQuickBookingSectionSetting {
   const HomeQuickBookingSectionSetting({
     this.schemaVersion = 1,
     this.showOnHome = false,
+    this.cardImage = const HomeCardImageSetting(),
     this.layout = HomeQuickBookingLayouts.serviceSplit,
     this.title = '快速預約',
     this.subtitle = '選擇服務，開始安排毛孩行程',
@@ -108,6 +111,7 @@ class HomeQuickBookingSectionSetting {
 
   final int schemaVersion;
   final bool showOnHome;
+  final HomeCardImageSetting cardImage;
   final String layout;
   final String title;
   final String subtitle;
@@ -131,6 +135,7 @@ class HomeQuickBookingSectionSetting {
   HomeQuickBookingSectionSetting copyWith({
     int? schemaVersion,
     bool? showOnHome,
+    HomeCardImageSetting? cardImage,
     String? layout,
     String? title,
     String? subtitle,
@@ -144,6 +149,7 @@ class HomeQuickBookingSectionSetting {
     return HomeQuickBookingSectionSetting(
       schemaVersion: schemaVersion ?? this.schemaVersion,
       showOnHome: showOnHome ?? this.showOnHome,
+      cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
@@ -160,6 +166,7 @@ class HomeQuickBookingSectionSetting {
     return <String, dynamic>{
       'schemaVersion': schemaVersion < 1 ? 1 : schemaVersion,
       'showOnHome': showOnHome,
+      'cardImage': cardImage.toMap(),
       'layout': HomeQuickBookingLayouts.migrate(layout),
       'title': _clip(title, 16),
       'subtitle': _clip(subtitle, 36),
@@ -183,6 +190,7 @@ class HomeQuickBookingSectionSetting {
     return HomeQuickBookingSectionSetting(
       schemaVersion: _version(map['schemaVersion']),
       showOnHome: map['showOnHome'] == true,
+      cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeQuickBookingLayouts.migrate(map['layout']),
       title: title.isEmpty ? '快速預約' : title,
       subtitle: subtitle.isEmpty ? '選擇服務，開始安排毛孩行程' : subtitle,

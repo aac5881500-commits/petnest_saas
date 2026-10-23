@@ -1,3 +1,6 @@
+import 'home_card_image.dart';
+import 'home_section_settings_group.dart';
+import 'home_end_entry_style_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -75,6 +78,7 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
     final bool entryCount =
         layout == HomeFaqLayouts.compact || layout == HomeFaqLayouts.singleLine;
     return ListView(
+      key: const PageStorageKey<String>('faq-section-settings'),
       primary: false,
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
       children: <Widget>[
@@ -122,6 +126,10 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
                   },
                 ),
                 const SizedBox(height: 8),
+                const Text(
+                  '展示版型',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 HomeSectionLayoutPicker(
                   theme: widget.theme,
                   selectedId: layout,
@@ -143,6 +151,16 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                const Text(
+                  '目前版型設定',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (layout == HomeFaqLayouts.compact)
+                  HomeCardImageSettings(
+                    setting: setting.cardImage,
+                    onChanged: (value) =>
+                        _update(setting.copyWith(cardImage: value)),
+                  ),
                 TextField(
                   controller: _title,
                   maxLength: 12,
@@ -200,32 +218,47 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
                       _update(setting.copyWith(showViewAll: value));
                     },
                   ),
-                if (showsQuestions) ...<Widget>[
-                  const Text(
-                    '開頭樣式',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                if (layout == HomeFaqLayouts.horizontalCards &&
+                    setting.showViewAll)
+                  HomeEndEntryStylePicker(
+                    value: setting.endEntryStyle,
+                    color: widget.theme.primaryColor,
+                    label: '查看全部問題',
+                    onChanged: (value) =>
+                        _update(setting.copyWith(endEntryStyle: value)),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
+                if (showsQuestions)
+                  HomeSectionSettingsGroup(
+                    title: '進階外觀',
+                    storageId: 'faq-section-advanced-appearance',
                     children: <Widget>[
-                      for (final String style in HomeFaqLeadingStyles.all)
-                        ChoiceChip(
-                          label: Text(HomeFaqLeadingStyles.label(style)),
-                          selected:
-                              HomeFaqLeadingStyles.migrate(
-                                setting.leadingStyle,
-                              ) ==
-                              style,
-                          onSelected: (_) {
-                            _update(setting.copyWith(leadingStyle: style));
-                          },
-                        ),
+                      const Text(
+                        '開頭樣式',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: <Widget>[
+                          for (final String style in HomeFaqLeadingStyles.all)
+                            ChoiceChip(
+                              label: Text(HomeFaqLeadingStyles.label(style)),
+                              selected:
+                                  HomeFaqLeadingStyles.migrate(
+                                    setting.leadingStyle,
+                                  ) ==
+                                  style,
+                              onSelected: (_) {
+                                _update(setting.copyWith(leadingStyle: style));
+                              },
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
                 HomeDraftSwitch(
                   title: '保留住宿服務快捷入口',
+                  subtitle: '控制我們的服務中的入口，與首頁獨立展示分開設定。',
                   value: setting.keepServiceEntry,
                   onChanged: (bool value) {
                     _update(setting.copyWith(keepServiceEntry: value));

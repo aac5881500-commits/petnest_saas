@@ -326,8 +326,8 @@ void main() {
     );
     Future<void> pump({
       List<Map<String, String>> images = const <Map<String, String>>[],
-    }) {
-      return tester.pumpWidget(
+    }) async {
+      await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: SizedBox(
@@ -345,11 +345,16 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('進階外觀'));
+      if (find.text('文字對齊').evaluate().isEmpty) {
+        await tester.tap(find.text('進階外觀'));
+        await tester.pumpAndSettle();
+      }
     }
 
     await pump();
-    expect(find.text('卡片尺寸'), findsNothing);
-    await tester.tap(find.text('顯示細節'));
+    expect(find.text('卡片尺寸'), findsOneWidget);
     await tester.pump();
     expect(find.text('卡片尺寸'), findsOneWidget);
     expect(find.text('標準橫卡'), findsOneWidget);
@@ -362,11 +367,11 @@ void main() {
     expect(find.text('文字對齊'), findsOneWidget);
     expect(find.text('卡片外觀'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('小卡'));
     await tester.tap(find.text('小卡'));
     await tester.pump();
     setting = setting.copyWith(cardSize: HomeAboutCardSizes.small);
     await pump();
-    await tester.tap(find.text('顯示細節'));
     await tester.pump();
     expect(find.text('顯示箭頭'), findsNothing);
     expect(find.text('顯示按鈕'), findsNothing);
@@ -375,16 +380,15 @@ void main() {
 
     setting = setting.copyWith(cardSize: HomeAboutCardSizes.wide);
     await pump();
-    await tester.tap(find.text('顯示細節'));
     await tester.pump();
     expect(find.text('顯示箭頭'), findsOneWidget);
     expect(find.text('顯示按鈕'), findsOneWidget);
     expect(find.text('按鈕文字'), findsOneWidget);
+    await tester.ensureVisible(find.text('顯示按鈕'));
     await tester.tap(find.text('顯示按鈕'));
     await tester.pump();
     setting = setting.copyWith(showButton: false);
     await pump();
-    await tester.tap(find.text('顯示細節'));
     await tester.pump();
     expect(find.text('按鈕文字'), findsNothing);
 
@@ -393,7 +397,6 @@ void main() {
       layout: HomeAboutLayouts.imageEntry,
     );
     await pump();
-    await tester.tap(find.text('顯示細節'));
     await tester.pump();
     expect(find.text('圖文位置'), findsOneWidget);
     expect(find.text('顯示圖片'), findsOneWidget);
@@ -401,7 +404,7 @@ void main() {
     expect(find.text('顯示箭頭'), findsOneWidget);
     expect(find.text('卡片尺寸'), findsNothing);
     expect(find.text('顯示 Logo'), findsNothing);
-    expect(find.text('目前沒有可用圖片，將使用內建圖示'), findsOneWidget);
+    expect(find.text('尚無可用照片，前台保留乾淨入口。'), findsOneWidget);
     expect(
       tester
           .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '填滿裁切'))
@@ -428,7 +431,6 @@ void main() {
         },
       ],
     );
-    await tester.tap(find.text('顯示細節'));
     await tester.pump();
     expect(find.text('使用店家名稱'), findsOneWidget);
     expect(find.text('使用自訂標題'), findsOneWidget);
@@ -446,6 +448,7 @@ void main() {
           .onSelected,
       isNotNull,
     );
+    await tester.ensureVisible(find.text('使用自訂標題'));
     await tester.tap(find.text('使用自訂標題'));
     await tester.pump();
     setting = setting.copyWith(useShopNameAsTitle: false);
@@ -457,7 +460,6 @@ void main() {
         },
       ],
     );
-    await tester.tap(find.text('顯示細節'));
     await tester.pump();
     expect(find.text('首頁標題'), findsOneWidget);
   });

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/widgets/camera/shop_camera_access_panel.dart
 // 功能說明：店主查看並處理外部品牌分享申請。進行中即時更新，已結束分頁載入。
 
@@ -232,43 +233,58 @@ class _ShopCameraAccessPanelState extends State<ShopCameraAccessPanel> {
             24,
           ),
           children: <Widget>[
-            Text(
-              _activeLoading
-                  ? '進行中的申請讀取中'
-                  : (_activeErrorCode.isNotEmpty
-                        ? '進行中的申請暫時無法計數'
-                        : '待邀請 $pendingCount　待取消分享 $revokeCount'),
-              style: const TextStyle(fontWeight: FontWeight.w800),
+            ShopTourAnchor(
+              ids: const ["ShopCameraAccessPage.3"],
+              ready: !_activeLoading,
+              error: _activeErrorCode.isEmpty ? null : _activeErrorCode,
+              child: Text(
+                _activeLoading
+                    ? '進行中的申請讀取中'
+                    : (_activeErrorCode.isNotEmpty
+                          ? '進行中的申請暫時無法計數'
+                          : '待邀請 $pendingCount　待取消分享 $revokeCount'),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'PetNest 標記處理狀態不會自動變更原廠 App 的觀看權限，邀請與取消仍需在原廠 App 手動完成。',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: Color(0xFF92400E),
+            ShopTourAnchor(
+              ids: ['ShopCameraAccessPage.1', 'ShopCameraAccessPage.2'],
+              ready: !_activeLoading,
+              error: _activeErrorCode.isEmpty ? null : _activeErrorCode,
+              child: Text(
+                'PetNest 標記處理狀態不會自動變更原廠 App 的觀看權限，邀請與取消仍需在原廠 App 手動完成。',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: Color(0xFF92400E),
+                ),
               ),
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                _chip('進行中', _filterOpen),
-                _chip('全部', cameraRequestFilterAll),
-                _chip(
-                  _activeDocs == null ? '待邀請' : '待邀請 $pendingCount',
-                  cameraRequestPending,
-                ),
-                _chip('需補資料', cameraRequestNeedsInfo),
-                _chip('已發送邀請', cameraRequestInvited),
-                _chip('已確認可觀看', cameraRequestConfirmed),
-                _chip(
-                  _activeDocs == null ? '待取消分享' : '待取消分享 $revokeCount',
-                  cameraRequestRevocationPending,
-                ),
-                _chip('已結束', cameraRequestClosed),
-              ],
+            ShopTourAnchor(
+              ids: const ["ShopCameraAccessPage.0"],
+              ready: !_activeLoading,
+              error: _activeErrorCode.isEmpty ? null : _activeErrorCode,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _chip('進行中', _filterOpen),
+                  _chip('全部', cameraRequestFilterAll),
+                  _chip(
+                    _activeDocs == null ? '待邀請' : '待邀請 $pendingCount',
+                    cameraRequestPending,
+                  ),
+                  _chip('需補資料', cameraRequestNeedsInfo),
+                  _chip('已發送邀請', cameraRequestInvited),
+                  _chip('已確認可觀看', cameraRequestConfirmed),
+                  _chip(
+                    _activeDocs == null ? '待取消分享' : '待取消分享 $revokeCount',
+                    cameraRequestRevocationPending,
+                  ),
+                  _chip('已結束', cameraRequestClosed),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             if (_filter == cameraRequestFilterAll) ...<Widget>[

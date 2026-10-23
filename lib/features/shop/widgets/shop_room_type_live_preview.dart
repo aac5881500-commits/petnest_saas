@@ -1,3 +1,5 @@
+import 'room/room_intro_appearance_scope.dart';
+import 'package:petnest_saas/core/models/room_intro_appearance.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_room_type_live_preview.dart
 // 功能說明：後台即時預覽容器，共用前台房型介紹內容，不寫入 Firestore。
 
@@ -114,8 +116,14 @@ class ShopRoomTypeLivePreview extends StatelessWidget {
     required this.draft,
     this.theme = HomeThemeModel.classicDefault,
     this.showFrameChrome = true,
+    this.shopId,
+    this.appearance,
+    this.related,
   });
 
+  final String? shopId;
+  final RoomDetailAppearance? appearance;
+  final Widget? related;
   final ShopRoomTypeDraft draft;
   final HomeThemeModel theme;
   final bool showFrameChrome;
@@ -124,6 +132,18 @@ class ShopRoomTypeLivePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (shopId != null && RoomIntroAppearanceScope.maybeOf(context) == null) {
+      return RoomIntroAppearanceHost(
+        shopId: shopId!,
+        child: Builder(builder: _content),
+      );
+    }
+    return _content(context);
+  }
+
+  Widget _content(BuildContext context) {
+    final scope = RoomIntroAppearanceScope.maybeOf(context);
+    final theme = scope?.theme ?? this.theme;
     final Widget phone = Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -137,6 +157,8 @@ class ShopRoomTypeLivePreview extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: RoomTypeDetailContent(
+              appearance: appearance ?? scope?.appearance.detail,
+              related: related,
               roomType: draft.toPreviewRoomType(),
               theme: theme,
               localImages: draft.pendingImageBytes,

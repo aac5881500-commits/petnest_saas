@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_discount_setting_page.dart
 // 功能說明：優惠設定入口：價格規則、優惠與優惠券、點數兌換概覽與管理工具。
 
@@ -531,133 +532,154 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
   @override
   Widget build(BuildContext context) {
     if (_snapshot.errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                '讀取優惠設定失敗，請稍後再試。',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade800, height: 1.5),
-              ),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: _listen, child: const Text('重試')),
-            ],
+      return ShopTourAnchor(
+        ids: const ['ShopPaymentSettingPage.2', 'ShopPaymentSettingPage.3'],
+        ready: false,
+        error: _snapshot.errorMessage,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  '讀取優惠設定失敗，請稍後再試。',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade800, height: 1.5),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(onPressed: _listen, child: const Text('重試')),
+              ],
+            ),
           ),
         ),
       );
     }
     if (_snapshot.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const ShopTourAnchor(
+        ids: ['ShopPaymentSettingPage.2', 'ShopPaymentSettingPage.3'],
+        ready: false,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool desktop = constraints.maxWidth >= 980;
-        _desktopLayout = desktop;
-        final Widget tools = _ToolsColumn(
-          daycareOn: _daycareOn,
-          shopId: widget.shopId,
-          snapshot: _snapshot,
-          expandedGroups: _expandedGroups,
-          desktop: desktop,
-          onToggleGroup: (String id) {
-            setState(() {
-              if (_expandedGroups.contains(id)) {
-                _expandedGroups.remove(id);
-              } else {
-                _expandedGroups.add(id);
-              }
-            });
-          },
-          onSelectPrice: () => _selectTab(_LeftTab.price),
-          onSelectCampaigns: () => _selectTab(_LeftTab.campaigns),
-          onSelectCoupons: () => _selectTab(_LeftTab.coupons),
-          onCreateSurcharge: () => _openSurcharge(),
-          onCreateCampaign: () => _openCampaign(),
-          onCreateCoupon: () => _openCouponForm(),
-          onOpenCouponCenter: _openCoupons,
-        );
-        final Widget overview = _OverviewColumn(
-          daycareOn: _daycareOn,
-          snapshot: _snapshot,
-          tab: _leftTab,
-          onTab: _selectTab,
-          sectionExpanded: _sectionExpanded,
-          onToggleSection: (String id) {
-            setState(() {
-              if (_sectionExpanded.contains(id)) {
-                _sectionExpanded.remove(id);
-              } else {
-                _sectionExpanded.add(id);
-              }
-            });
-          },
-          busySurchargeId: _busySurchargeId,
-          busyCampaignId: _busyCampaignId,
-          onSurcharge: (SpecialDateSurchargeModel item) {
-            _openSurcharge(item: item);
-          },
-          onToggleSurcharge: _toggleSurcharge,
-          onDeleteSurcharge: _deleteSurcharge,
-          onCampaign: (DiscountCampaignModel item) {
-            _openCampaign(campaign: item);
-          },
-          onToggleCampaign: _toggleCampaign,
-          onDeleteCampaign: _deleteCampaign,
-          onCoupon: (CouponTemplateModel item) {
-            _openCouponForm(template: item);
-          },
-          onCreateSurcharge: () => _openSurcharge(),
-          onCreateCampaign: () => _openCampaign(),
-          onOpenCouponDetails: _openCoupons,
-        );
-        if (desktop) {
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1520),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Expanded(flex: 42, child: overview),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      flex: 58,
-                      child: _workspace == null
-                          ? SingleChildScrollView(child: tools)
-                          : ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: _workspace!,
-                            ),
-                    ),
-                  ],
+    return ShopTourPage(
+      id: 'ShopPaymentSettingPage',
+      shopId: widget.shopId,
+      onPoint: (point) async {
+        if (!mounted || point < 2 || point > 3) return;
+        setState(() {
+          _leftTab = point == 2 ? _LeftTab.price : _LeftTab.campaigns;
+          _expandedGroups.addAll(['price', 'promo']);
+          _sectionExpanded.addAll(['surcharge', 'campaign', 'coupon']);
+        });
+      },
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool desktop = constraints.maxWidth >= 980;
+          _desktopLayout = desktop;
+          final Widget tools = _ToolsColumn(
+            daycareOn: _daycareOn,
+            shopId: widget.shopId,
+            snapshot: _snapshot,
+            expandedGroups: _expandedGroups,
+            desktop: desktop,
+            onToggleGroup: (String id) {
+              setState(() {
+                if (_expandedGroups.contains(id)) {
+                  _expandedGroups.remove(id);
+                } else {
+                  _expandedGroups.add(id);
+                }
+              });
+            },
+            onSelectPrice: () => _selectTab(_LeftTab.price),
+            onSelectCampaigns: () => _selectTab(_LeftTab.campaigns),
+            onSelectCoupons: () => _selectTab(_LeftTab.coupons),
+            onCreateSurcharge: () => _openSurcharge(),
+            onCreateCampaign: () => _openCampaign(),
+            onCreateCoupon: () => _openCouponForm(),
+            onOpenCouponCenter: _openCoupons,
+          );
+          final Widget overview = _OverviewColumn(
+            daycareOn: _daycareOn,
+            snapshot: _snapshot,
+            tab: _leftTab,
+            onTab: _selectTab,
+            sectionExpanded: _sectionExpanded,
+            onToggleSection: (String id) {
+              setState(() {
+                if (_sectionExpanded.contains(id)) {
+                  _sectionExpanded.remove(id);
+                } else {
+                  _sectionExpanded.add(id);
+                }
+              });
+            },
+            busySurchargeId: _busySurchargeId,
+            busyCampaignId: _busyCampaignId,
+            onSurcharge: (SpecialDateSurchargeModel item) {
+              _openSurcharge(item: item);
+            },
+            onToggleSurcharge: _toggleSurcharge,
+            onDeleteSurcharge: _deleteSurcharge,
+            onCampaign: (DiscountCampaignModel item) {
+              _openCampaign(campaign: item);
+            },
+            onToggleCampaign: _toggleCampaign,
+            onDeleteCampaign: _deleteCampaign,
+            onCoupon: (CouponTemplateModel item) {
+              _openCouponForm(template: item);
+            },
+            onCreateSurcharge: () => _openSurcharge(),
+            onCreateCampaign: () => _openCampaign(),
+            onOpenCouponDetails: _openCoupons,
+          );
+          if (desktop) {
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1520),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Expanded(flex: 42, child: overview),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 58,
+                        child: _workspace == null
+                            ? SingleChildScrollView(child: tools)
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: _workspace!,
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            );
+          }
+          if (!desktop && _workspace != null) {
+            return _workspace!;
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+            children: <Widget>[
+              _MobileStats(
+                snapshot: _snapshot,
+                onSurcharge: () => _showMobilePreview(_LeftTab.price),
+                onCampaign: () => _showMobilePreview(_LeftTab.campaigns),
+                onCoupon: () => _showMobilePreview(_LeftTab.coupons),
+              ),
+              const SizedBox(height: 16),
+              tools,
+            ],
           );
-        }
-        if (!desktop && _workspace != null) {
-          return _workspace!;
-        }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          children: <Widget>[
-            _MobileStats(
-              snapshot: _snapshot,
-              onSurcharge: () => _showMobilePreview(_LeftTab.price),
-              onCampaign: () => _showMobilePreview(_LeftTab.campaigns),
-              onCoupon: () => _showMobilePreview(_LeftTab.coupons),
-            ),
-            const SizedBox(height: 16),
-            tools,
-          ],
-        );
-      },
+        },
+      ),
     );
   }
 
@@ -1394,72 +1416,78 @@ class _ToolsColumn extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        _GroupCard(
-          id: 'price',
-          title: '價格規則',
-          description: daycareOn
-              ? '設定連假、節日或指定日期的住宿／安親加價規則。'
-              : '設定連假、節日或指定日期的住宿加價規則。',
-          color: Colors.deepOrange,
-          expanded: desktop || expandedGroups.contains('price'),
-          desktop: desktop,
-          onHeaderTap: () => onToggleGroup('price'),
-          children: <Widget>[
-            _ToolRow(
-              icon: Icons.add_circle_outline,
-              color: Colors.deepOrange,
-              title: '特殊日期加價',
-              description: daycareOn
-                  ? '設定連假、節日或指定日期的住宿／安親加價規則。'
-                  : '設定連假、節日或指定日期的住宿加價規則。',
-              badge: snapshot.enabledSurcharges.isEmpty
-                  ? '尚無設定'
-                  : '${snapshot.enabledSurcharges.length} 個規則啟用中',
-              onTap: onSelectPrice,
-              actionLabel: '新增加價規則',
-              onAction: onCreateSurcharge,
-            ),
-          ],
+        ShopTourAnchor(
+          ids: const ['ShopPaymentSettingPage.2'],
+          child: _GroupCard(
+            id: 'price',
+            title: '價格規則',
+            description: daycareOn
+                ? '設定連假、節日或指定日期的住宿／安親加價規則。'
+                : '設定連假、節日或指定日期的住宿加價規則。',
+            color: Colors.deepOrange,
+            expanded: desktop || expandedGroups.contains('price'),
+            desktop: desktop,
+            onHeaderTap: () => onToggleGroup('price'),
+            children: <Widget>[
+              _ToolRow(
+                icon: Icons.add_circle_outline,
+                color: Colors.deepOrange,
+                title: '特殊日期加價',
+                description: daycareOn
+                    ? '設定連假、節日或指定日期的住宿／安親加價規則。'
+                    : '設定連假、節日或指定日期的住宿加價規則。',
+                badge: snapshot.enabledSurcharges.isEmpty
+                    ? '尚無設定'
+                    : '${snapshot.enabledSurcharges.length} 個規則啟用中',
+                onTap: onSelectPrice,
+                actionLabel: '新增加價規則',
+                onAction: onCreateSurcharge,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
-        _GroupCard(
-          id: 'promo',
-          title: '優惠與優惠券',
-          description: '自動優惠在訂單符合條件時套用；優惠券須先發放給會員後使用。',
-          color: Colors.green,
-          expanded: desktop || expandedGroups.contains('promo'),
-          desktop: desktop,
-          onHeaderTap: () => onToggleGroup('promo'),
-          children: <Widget>[
-            _ToolRow(
-              icon: Icons.local_offer_outlined,
-              color: Colors.green,
-              title: '自動優惠活動',
-              description: daycareOn
-                  ? '訂單符合條件時自動折抵，可指定住宿、安親或兩者。'
-                  : '訂單符合條件時自動折抵，套用在住宿訂單。',
-              badge: snapshot.enabledCampaigns.isEmpty
-                  ? '尚無設定'
-                  : '${snapshot.enabledCampaigns.length} 個活動啟用中',
-              onTap: onSelectCampaigns,
-              actionLabel: '新增優惠活動',
-              onAction: onCreateCampaign,
-            ),
-            _ToolRow(
-              icon: Icons.confirmation_number_outlined,
-              color: Colors.deepPurple,
-              title: '優惠券模板',
-              description: '製作後發放給會員使用，不會自動套用。',
-              badge: snapshot.templates.isEmpty
-                  ? '尚無設定'
-                  : '${snapshot.enabledTemplateCount} 種券模板 · 已發放 ${snapshot.issuedCouponCount} 張',
-              onTap: onSelectCoupons,
-              actionLabel: '開啟優惠券中心',
-              onAction: onOpenCouponCenter,
-              secondaryActionLabel: '製作優惠券',
-              onSecondaryAction: onCreateCoupon,
-            ),
-          ],
+        ShopTourAnchor(
+          ids: const ['ShopPaymentSettingPage.3'],
+          child: _GroupCard(
+            id: 'promo',
+            title: '優惠與優惠券',
+            description: '自動優惠在訂單符合條件時套用；優惠券須先發放給會員後使用。',
+            color: Colors.green,
+            expanded: desktop || expandedGroups.contains('promo'),
+            desktop: desktop,
+            onHeaderTap: () => onToggleGroup('promo'),
+            children: <Widget>[
+              _ToolRow(
+                icon: Icons.local_offer_outlined,
+                color: Colors.green,
+                title: '自動優惠活動',
+                description: daycareOn
+                    ? '訂單符合條件時自動折抵，可指定住宿、安親或兩者。'
+                    : '訂單符合條件時自動折抵，套用在住宿訂單。',
+                badge: snapshot.enabledCampaigns.isEmpty
+                    ? '尚無設定'
+                    : '${snapshot.enabledCampaigns.length} 個活動啟用中',
+                onTap: onSelectCampaigns,
+                actionLabel: '新增優惠活動',
+                onAction: onCreateCampaign,
+              ),
+              _ToolRow(
+                icon: Icons.confirmation_number_outlined,
+                color: Colors.deepPurple,
+                title: '優惠券模板',
+                description: '製作後發放給會員使用，不會自動套用。',
+                badge: snapshot.templates.isEmpty
+                    ? '尚無設定'
+                    : '${snapshot.enabledTemplateCount} 種券模板 · 已發放 ${snapshot.issuedCouponCount} 張',
+                onTap: onSelectCoupons,
+                actionLabel: '開啟優惠券中心',
+                onAction: onOpenCouponCenter,
+                secondaryActionLabel: '製作優惠券',
+                onSecondaryAction: onCreateCoupon,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         PointModuleVisibility(

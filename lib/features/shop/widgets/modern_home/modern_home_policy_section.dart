@@ -1,3 +1,4 @@
+import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -22,27 +23,26 @@ class ModernHomePolicySection extends StatelessWidget {
   final ValueChanged<String> onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => HomeCardImage(
+    setting: setting.cardImage,
+    enabled: setting.layout == HomePolicyLayouts.compact,
+    builder: (context, image) => _content(context, image.url),
+  );
+
+  Widget _content(BuildContext context, String imageUrl) {
     if (phase == HomeInfoSectionPhase.hidden) {
       return const SizedBox.shrink();
     }
     if (phase == HomeInfoSectionPhase.loading) {
       return _skeleton();
     }
-    if (phase == HomeInfoSectionPhase.unavailable ||
-        phase == HomeInfoSectionPhase.empty) {
-      return ModernHomePolicySection(
-        theme: theme,
-        setting: setting,
-        snapshot: const HomePolicySnapshot(
-          version: 1,
-          coverageLabel: '住宿與安親',
-          titles: <String>['示意：入住時間', '示意：接送規定', '示意：疫苗證明'],
-          stayTitles: <String>['示意：入住時間'],
-          daycareTitles: <String>['示意：接送規定'],
-        ),
-        phase: HomeInfoSectionPhase.ready,
-        onOpen: onOpen,
+    if (phase == HomeInfoSectionPhase.unavailable) {
+      return _emptyMessage('入住須知暫時無法載入');
+    }
+    if (phase == HomeInfoSectionPhase.empty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [const Text('預覽示意：尚無已發布條款'), _empty()],
       );
     }
     if (!snapshot.hasContent) {
@@ -52,7 +52,7 @@ class ModernHomePolicySection extends StatelessWidget {
       HomePolicyLayouts.singleLine => _entry(wide: true),
       HomePolicyLayouts.summary => _summary(),
       HomePolicyLayouts.serviceSplit => _split(),
-      _ => _entry(wide: false),
+      _ => _entry(wide: false, imageUrl: imageUrl),
     };
   }
 
@@ -63,8 +63,14 @@ class ModernHomePolicySection extends StatelessWidget {
     return PolicyApplicableService.daycare;
   }
 
-  Widget _entry({required bool wide}) {
+  Widget _emptyMessage(String text) =>
+      Padding(padding: const EdgeInsets.all(12), child: Text(text));
+
+  Widget _entry({required bool wide, String imageUrl = ''}) {
     return ModernHomeEntryCard(
+      backgroundImage: !wide && imageUrl.isNotEmpty
+          ? NetworkImage(imageUrl)
+          : null,
       cardKey: const Key('home-policy-card'),
       theme: theme,
       title: setting.entryTitle,

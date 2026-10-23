@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/admin/pages/admin_point_redemption_list_page.dart
 // 功能說明：櫃台實體商品交付工作台。搜尋領取碼或會員、核對後完成交付。
 
@@ -556,31 +557,35 @@ class _AdminPointRedemptionListPageState
       return const Scaffold(body: Center(child: Text('找不到目前店家資料')));
     }
 
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        backgroundColor: Colors.grey.shade100,
-        appBar: AppBar(title: const Text('實體商品領取')),
-        body: _RedemptionWorkbench(
-          shopId: shopId,
-          queryController: _queryController,
-          pendingScrollController: _pendingScrollController,
-          searching: _isSearching,
-          pickingUp: _isPickingUp,
-          cancelling: _isCancelling,
-          markingExpired: _isMarkingExpired,
-          codeNotice: _codeNotice,
-          applyQuery: _applyQuery,
-          resolveFocus: _resolveFocus,
-          onQueryChanged: _onQueryChanged,
-          onSearch: _lookupCode,
-          onClearQuery: _clearQuery,
-          onSelect: _selectRedemption,
-          onClearFocus: _clearVerification,
-          onPickup: _confirmPickup,
-          onCancel: _cancelRedemption,
-          onMarkExpired: _markAsExpired,
-          onStreamError: _logStreamError,
+    return ShopTourPage(
+      id: 'AdminPointRedemptionListPage',
+      shopId: widget.shopId,
+      child: DefaultTabController(
+        length: 4,
+        child: Scaffold(
+          backgroundColor: Colors.grey.shade100,
+          appBar: AppBar(title: const Text('實體商品領取')),
+          body: _RedemptionWorkbench(
+            shopId: shopId,
+            queryController: _queryController,
+            pendingScrollController: _pendingScrollController,
+            searching: _isSearching,
+            pickingUp: _isPickingUp,
+            cancelling: _isCancelling,
+            markingExpired: _isMarkingExpired,
+            codeNotice: _codeNotice,
+            applyQuery: _applyQuery,
+            resolveFocus: _resolveFocus,
+            onQueryChanged: _onQueryChanged,
+            onSearch: _lookupCode,
+            onClearQuery: _clearQuery,
+            onSelect: _selectRedemption,
+            onClearFocus: _clearVerification,
+            onPickup: _confirmPickup,
+            onCancel: _cancelRedemption,
+            onMarkExpired: _markAsExpired,
+            onStreamError: _logStreamError,
+          ),
         ),
       ),
     );
@@ -645,19 +650,38 @@ class _RedemptionWorkbench extends StatelessWidget {
           ) {
             if (snapshot.hasError) {
               onStreamError(snapshot.error ?? 'unknown');
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    '實體商品紀錄讀取失敗，請重新整理後再試',
-                    textAlign: TextAlign.center,
+              return ShopTourAnchor(
+                ids: const [
+                  'AdminPointRedemptionListPage.0',
+                  'AdminPointRedemptionListPage.1',
+                  'AdminPointRedemptionListPage.2',
+                  'AdminPointRedemptionListPage.3',
+                ],
+                ready: false,
+                error: snapshot.error,
+                child: const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      '實體商品紀錄讀取失敗，請重新整理後再試',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
               );
             }
 
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const ShopTourAnchor(
+                ids: [
+                  'AdminPointRedemptionListPage.0',
+                  'AdminPointRedemptionListPage.1',
+                  'AdminPointRedemptionListPage.2',
+                  'AdminPointRedemptionListPage.3',
+                ],
+                ready: false,
+                child: Center(child: CircularProgressIndicator()),
+              );
             }
 
             final List<PointRedemptionModel> all = snapshot.data!;
@@ -709,29 +733,39 @@ class _RedemptionWorkbench extends StatelessWidget {
                       children: <Widget>[
                         Material(
                           color: Colors.white,
-                          child: TabBar(
-                            isScrollable: !desktop,
-                            tabAlignment: desktop
-                                ? TabAlignment.fill
-                                : TabAlignment.start,
-                            tabs: <Widget>[
-                              Tab(text: '待領取 ${pendingAll.length}'),
-                              Tab(text: '已領取 ${pickedAll.length}'),
-                              Tab(text: '已取消 ${cancelledAll.length}'),
-                              Tab(text: '已過期 ${expiredAll.length}'),
-                            ],
+                          child: ShopTourAnchor(
+                            ids: const ["AdminPointRedemptionListPage.3"],
+                            child: TabBar(
+                              isScrollable: !desktop,
+                              tabAlignment: desktop
+                                  ? TabAlignment.fill
+                                  : TabAlignment.start,
+                              tabs: <Widget>[
+                                Tab(text: '待領取 ${pendingAll.length}'),
+                                Tab(text: '已領取 ${pickedAll.length}'),
+                                Tab(text: '已取消 ${cancelledAll.length}'),
+                                Tab(text: '已過期 ${expiredAll.length}'),
+                              ],
+                            ),
                           ),
                         ),
-                        _PickupWorkbenchHeader(
-                          pendingCount: pendingAll.length,
-                          dueSoonCount: dueSoonCount,
-                          deliveredTodayCount: deliveredTodayCount,
-                          controller: queryController,
-                          searching: searching,
-                          notice: codeNotice,
-                          onChanged: onQueryChanged,
-                          onSearch: onSearch,
-                          onClear: onClearQuery,
+                        ShopTourAnchor(
+                          ids: const [
+                            "AdminPointRedemptionListPage.0",
+                            "AdminPointRedemptionListPage.1",
+                            "AdminPointRedemptionListPage.2",
+                          ],
+                          child: _PickupWorkbenchHeader(
+                            pendingCount: pendingAll.length,
+                            dueSoonCount: dueSoonCount,
+                            deliveredTodayCount: deliveredTodayCount,
+                            controller: queryController,
+                            searching: searching,
+                            notice: codeNotice,
+                            onChanged: onQueryChanged,
+                            onSearch: onSearch,
+                            onClear: onClearQuery,
+                          ),
                         ),
                         Expanded(
                           child: TabBarView(

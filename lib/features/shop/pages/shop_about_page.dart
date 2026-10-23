@@ -6,11 +6,9 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_hero_section.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_message_section.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_philosophy_section.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_shop_info_section.dart';
+import 'package:petnest_saas/core/models/about_page_setting.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
+import '../widgets/about/about_intro_view.dart';
 
 class ShopAboutPage extends StatefulWidget {
   const ShopAboutPage({
@@ -23,6 +21,8 @@ class ShopAboutPage extends StatefulWidget {
     this.previewImageUrl,
     this.previewFrame,
     this.scrollToContact = false,
+    this.shopStream,
+    this.previewSetting,
   });
 
   final String shopId;
@@ -33,6 +33,8 @@ class ShopAboutPage extends StatefulWidget {
   final String? previewImageUrl;
   final AboutCoverFrameSetting? previewFrame;
   final bool scrollToContact;
+  final Stream<Map<String, dynamic>?>? shopStream;
+  final AboutPageSetting? previewSetting;
 
   @override
   State<ShopAboutPage> createState() => _ShopAboutPageState();
@@ -40,23 +42,58 @@ class ShopAboutPage extends StatefulWidget {
 
 class _ShopAboutPageState extends State<ShopAboutPage> {
   final GlobalKey _contactKey = GlobalKey();
+  late Stream<Map<String, dynamic>?> _stream;
+  bool _revealed = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.scrollToContact) {
+    _bind();
+  }
+
+  void _bind() => _stream =
+      widget.shopStream ?? ShopService.instance.streamShop(widget.shopId);
+  @override
+  void didUpdateWidget(covariant ShopAboutPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.shopStream != widget.shopStream) {
+      _bind();
+      _revealed = false;
+    }
+  }
+
+  Widget _content(Map<String, dynamic> shop) {
+    final data = <String, dynamic>{
+      ...shop,
+      if (widget.previewTitle != null) 'aboutTitle': widget.previewTitle,
+      if (widget.previewDescription != null)
+        'aboutDescription': widget.previewDescription,
+      if (widget.previewMessage != null) 'aboutMessage': widget.previewMessage,
+      if (widget.previewImageUrl != null)
+        'aboutImageUrl': widget.previewImageUrl,
+      if (widget.previewFrame != null) ...widget.previewFrame!.toMap(),
+    };
+    if (widget.scrollToContact && !_revealed) {
+      _revealed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final BuildContext? target = _contactKey.currentContext;
-        if (target == null) {
-          return;
+        final target = _contactKey.currentContext;
+        if (mounted && target != null) {
+          Scrollable.ensureVisible(
+            target,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
         }
-        Scrollable.ensureVisible(
-          target,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-        );
       });
     }
+    return AboutIntroView(
+      key: ValueKey(widget.shopId),
+      shop: data,
+      setting: widget.previewSetting ?? AboutPageSetting.fromShop(shop),
+      theme: AboutPageSetting.shopTheme(shop, widget.theme),
+      contactKey: _contactKey,
+    );
   }
 
   @override
@@ -77,37 +114,20 @@ class _ShopAboutPageState extends State<ShopAboutPage> {
           ),
         ),
       ),
-      body: ShopAppBackdrop.behind(
-        theme: widget.theme,
-        child: ListView(
-          children: [
-            AboutHeroSection(
-              shopId: widget.shopId,
-              theme: widget.theme,
-              previewTitle: widget.previewTitle,
-              previewDescription: widget.previewDescription,
-              previewImageUrl: widget.previewImageUrl,
-              previewFrame: widget.previewFrame,
-            ),
-            const SizedBox(height: 28),
-            AboutPhilosophySection(theme: widget.theme),
-            const SizedBox(height: 30),
-            AboutMessageSection(
-              shopId: widget.shopId,
-              theme: widget.theme,
-              previewMessage: widget.previewMessage,
-            ),
-            const SizedBox(height: 30),
-            KeyedSubtree(
-              key: _contactKey,
-              child: AboutShopInfoSection(
-                shopId: widget.shopId,
-                theme: widget.theme,
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
-        ),
+      body: StreamBuilder<Map<String, dynamic>?>(
+        key: ValueKey(widget.shopId),
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text('關於我們暫時無法載入'));
+          if (!snapshot.hasData) {
+            return Center(
+              child: snapshot.connectionState == ConnectionState.waiting
+                  ? const CircularProgressIndicator()
+                  : const Text('找不到店家'),
+            );
+          }
+          return _content(snapshot.data!);
+        },
       ),
     );
   }

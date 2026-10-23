@@ -1,3 +1,5 @@
+import 'home_environment_section_setting.dart';
+import 'home_card_image_setting.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/review_model.dart';
 import 'package:petnest_saas/core/services/shop_policy_history.dart';
@@ -183,6 +185,7 @@ class HomeReviewLayouts {
 class HomePolicySectionSetting {
   const HomePolicySectionSetting({
     this.showOnHome = false,
+    this.cardImage = const HomeCardImageSetting(),
     this.layout = HomePolicyLayouts.compact,
     this.title = '入住須知',
     this.subtitle = '入住前請先閱讀相關規定',
@@ -193,6 +196,7 @@ class HomePolicySectionSetting {
   });
 
   final bool showOnHome;
+  final HomeCardImageSetting cardImage;
   final String layout;
   final String title;
   final String subtitle;
@@ -210,6 +214,7 @@ class HomePolicySectionSetting {
 
   HomePolicySectionSetting copyWith({
     bool? showOnHome,
+    HomeCardImageSetting? cardImage,
     String? layout,
     String? title,
     String? subtitle,
@@ -220,6 +225,7 @@ class HomePolicySectionSetting {
   }) {
     return HomePolicySectionSetting(
       showOnHome: showOnHome ?? this.showOnHome,
+      cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
@@ -233,6 +239,7 @@ class HomePolicySectionSetting {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'showOnHome': showOnHome,
+      'cardImage': cardImage.toMap(),
       'layout': HomePolicyLayouts.migrate(layout),
       'title': _clip(title, 12),
       'subtitle': _clip(subtitle, 30),
@@ -251,6 +258,7 @@ class HomePolicySectionSetting {
     final String title = _clip(map['title'], 12);
     return HomePolicySectionSetting(
       showOnHome: map['showOnHome'] == true,
+      cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomePolicyLayouts.migrate(map['layout']),
       title: title.isEmpty ? '入住須知' : title,
       subtitle: _subtitle(map['subtitle'], '入住前請先閱讀相關規定'),
@@ -276,6 +284,7 @@ class HomePolicySectionSetting {
 class HomeFaqSectionSetting {
   const HomeFaqSectionSetting({
     this.showOnHome = false,
+    this.cardImage = const HomeCardImageSetting(),
     this.layout = HomeFaqLayouts.compact,
     this.title = '常見問題',
     this.subtitle = '查看入住與服務常見疑問',
@@ -284,10 +293,12 @@ class HomeFaqSectionSetting {
     this.showAnswerPreview = false,
     this.showQuestionCount = true,
     this.showViewAll = true,
+    this.endEntryStyle = HomeEnvironmentEndEntryStyles.minimal,
     this.leadingStyle = HomeFaqLeadingStyles.icon,
   });
 
   final bool showOnHome;
+  final HomeCardImageSetting cardImage;
   final String layout;
   final String title;
   final String subtitle;
@@ -296,6 +307,7 @@ class HomeFaqSectionSetting {
   final bool showAnswerPreview;
   final bool showQuestionCount;
   final bool showViewAll;
+  final String endEntryStyle;
   final String leadingStyle;
 
   bool get isHalf => HomeFaqLayouts.migrate(layout) == HomeFaqLayouts.compact;
@@ -306,6 +318,7 @@ class HomeFaqSectionSetting {
 
   HomeFaqSectionSetting copyWith({
     bool? showOnHome,
+    HomeCardImageSetting? cardImage,
     String? layout,
     String? title,
     String? subtitle,
@@ -314,10 +327,12 @@ class HomeFaqSectionSetting {
     bool? showAnswerPreview,
     bool? showQuestionCount,
     bool? showViewAll,
+    String? endEntryStyle,
     String? leadingStyle,
   }) {
     return HomeFaqSectionSetting(
       showOnHome: showOnHome ?? this.showOnHome,
+      cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
@@ -326,6 +341,7 @@ class HomeFaqSectionSetting {
       showAnswerPreview: showAnswerPreview ?? this.showAnswerPreview,
       showQuestionCount: showQuestionCount ?? this.showQuestionCount,
       showViewAll: showViewAll ?? this.showViewAll,
+      endEntryStyle: endEntryStyle ?? this.endEntryStyle,
       leadingStyle: leadingStyle ?? this.leadingStyle,
     );
   }
@@ -333,6 +349,7 @@ class HomeFaqSectionSetting {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'showOnHome': showOnHome,
+      'cardImage': cardImage.toMap(),
       'layout': HomeFaqLayouts.migrate(layout),
       'title': _clip(title, 12),
       'subtitle': _clip(subtitle, 30),
@@ -341,6 +358,7 @@ class HomeFaqSectionSetting {
       'showAnswerPreview': showAnswerPreview,
       'showQuestionCount': showQuestionCount,
       'showViewAll': showViewAll,
+      'endEntryStyle': HomeEnvironmentEndEntryStyles.migrate(endEntryStyle),
       'leadingStyle': HomeFaqLeadingStyles.migrate(leadingStyle),
     };
   }
@@ -353,6 +371,7 @@ class HomeFaqSectionSetting {
     final String title = _clip(map['title'], 12);
     return HomeFaqSectionSetting(
       showOnHome: map['showOnHome'] == true,
+      cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeFaqLayouts.migrate(map['layout']),
       title: title.isEmpty ? '常見問題' : title,
       subtitle: _subtitle(map['subtitle'], '查看入住與服務常見疑問'),
@@ -364,6 +383,9 @@ class HomeFaqSectionSetting {
       showQuestionCount: map['showQuestionCount'] is bool
           ? map['showQuestionCount'] as bool
           : true,
+      endEntryStyle: HomeEnvironmentEndEntryStyles.migrate(
+        map['endEntryStyle'],
+      ),
       showViewAll: map['showViewAll'] is bool
           ? map['showViewAll'] as bool
           : true,
@@ -403,6 +425,7 @@ class HomeFaqLeadingStyles {
 class HomeReviewSectionSetting {
   const HomeReviewSectionSetting({
     this.showOnHome = true,
+    this.cardImage = const HomeCardImageSetting(),
     this.layout = HomeReviewLayouts.carousel,
     this.title = '顧客評價',
     this.subtitle = '看看其他顧客的住宿心得',
@@ -413,9 +436,11 @@ class HomeReviewSectionSetting {
     this.showImages = false,
     this.showReplyBadge = true,
     this.showViewAll = true,
+    this.endEntryStyle = HomeEnvironmentEndEntryStyles.minimal,
   });
 
   final bool showOnHome;
+  final HomeCardImageSetting cardImage;
   final String layout;
   final String title;
   final String subtitle;
@@ -426,6 +451,7 @@ class HomeReviewSectionSetting {
   final bool showImages;
   final bool showReplyBadge;
   final bool showViewAll;
+  final String endEntryStyle;
 
   bool get isHalf =>
       HomeReviewLayouts.migrate(layout) == HomeReviewLayouts.scoreCompact;
@@ -436,6 +462,7 @@ class HomeReviewSectionSetting {
 
   HomeReviewSectionSetting copyWith({
     bool? showOnHome,
+    HomeCardImageSetting? cardImage,
     String? layout,
     String? title,
     String? subtitle,
@@ -446,9 +473,11 @@ class HomeReviewSectionSetting {
     bool? showImages,
     bool? showReplyBadge,
     bool? showViewAll,
+    String? endEntryStyle,
   }) {
     return HomeReviewSectionSetting(
       showOnHome: showOnHome ?? this.showOnHome,
+      cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
@@ -459,12 +488,14 @@ class HomeReviewSectionSetting {
       showImages: showImages ?? this.showImages,
       showReplyBadge: showReplyBadge ?? this.showReplyBadge,
       showViewAll: showViewAll ?? this.showViewAll,
+      endEntryStyle: endEntryStyle ?? this.endEntryStyle,
     );
   }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'showOnHome': showOnHome,
+      'cardImage': cardImage.toMap(),
       'layout': HomeReviewLayouts.migrate(layout),
       'title': _clip(title, 12),
       'subtitle': _clip(subtitle, 30),
@@ -475,6 +506,7 @@ class HomeReviewSectionSetting {
       'showImages': showImages,
       'showReplyBadge': showReplyBadge,
       'showViewAll': showViewAll,
+      'endEntryStyle': HomeEnvironmentEndEntryStyles.migrate(endEntryStyle),
     };
   }
 
@@ -486,6 +518,7 @@ class HomeReviewSectionSetting {
     final String title = _clip(map['title'], 12);
     return HomeReviewSectionSetting(
       showOnHome: map['showOnHome'] is bool ? map['showOnHome'] as bool : true,
+      cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeReviewLayouts.migrate(map['layout']),
       title: title.isEmpty ? '顧客評價' : title,
       subtitle: _subtitle(map['subtitle'], '看看其他顧客的住宿心得'),
@@ -501,6 +534,9 @@ class HomeReviewSectionSetting {
       showReplyBadge: map['showReplyBadge'] is bool
           ? map['showReplyBadge'] as bool
           : true,
+      endEntryStyle: HomeEnvironmentEndEntryStyles.migrate(
+        map['endEntryStyle'],
+      ),
       showViewAll: map['showViewAll'] is bool
           ? map['showViewAll'] as bool
           : true,

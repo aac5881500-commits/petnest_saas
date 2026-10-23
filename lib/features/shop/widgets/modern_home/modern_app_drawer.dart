@@ -90,7 +90,7 @@ class ModernAppDrawer extends StatelessWidget {
                     children: [
                       const SizedBox(height: 16),
 
-                      if (!platformPreview && user != null)
+                      if (!platformPreview && user != null && !previewOnly)
                         DrawerPointBalanceCard(
                           shopId: shopId,
                           primaryColor: _primaryColor,
@@ -135,7 +135,9 @@ class ModernAppDrawer extends StatelessWidget {
                       ],
 
                       ..._configuredMenu(context, user),
-                      if (theme.drawerSetting.showLatestBooking && user != null)
+                      if (theme.drawerSetting.showLatestBooking &&
+                          user != null &&
+                          !previewOnly)
                         _latestBookingCard(context, user.uid),
                       _divider(),
                       ..._systemMenu(context, user),
@@ -308,6 +310,10 @@ class ModernAppDrawer extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
+                        if (previewOnly) {
+                          onPreviewSelect?.call('member');
+                          return;
+                        }
                         Navigator.pop(context);
                         Navigator.push(
                           context,
@@ -397,6 +403,10 @@ class ModernAppDrawer extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         tooltip: '回首頁',
                         onPressed: () {
+                          if (previewOnly) {
+                            onPreviewSelect?.call('home');
+                            return;
+                          }
                           Navigator.pop(context);
 
                           Navigator.pushReplacement(
@@ -500,10 +510,7 @@ class ModernAppDrawer extends StatelessWidget {
             ),
             child: Text(
               '目前沒有最新訂單',
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.secondaryTextColor,
-              ),
+              style: TextStyle(fontSize: 13, color: theme.secondaryTextColor),
             ),
           );
         }

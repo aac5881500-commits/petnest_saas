@@ -1,3 +1,7 @@
+import '../widgets/room/room_intro_facts.dart';
+import '../widgets/room/room_intro_related.dart';
+import 'shop_room_comparison_page.dart';
+import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
 // 檔案名稱：lib/features/shop/pages/room_type_detail_page.dart
 // 功能說明：前台房型詳細頁，內容區塊與後台預覽共用。
 
@@ -6,7 +10,6 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_type_detail_content.dart';
-import 'package:petnest_saas/features/shop/widgets/shop_app_backdrop.dart';
 
 class RoomTypeDetailPage extends StatelessWidget {
   const RoomTypeDetailPage({
@@ -45,35 +48,65 @@ class RoomTypeDetailPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: ShopAppBackdrop.behind(
-        theme: theme,
-        child: RoomTypeDetailContent(
-          roomType: roomType,
-          theme: theme,
-          isIntroMode: isIntroMode,
-          startDate: startDate,
-          endDate: endDate,
-        ),
-      ),
+      body: isIntroMode
+          ? RoomIntroAppearanceHost(
+              shopId: shopId,
+              child: Builder(builder: (context) => _detailBody(context)),
+            )
+          : _detailBody(context),
       bottomNavigationBar: RoomTypeDetailBookBar(
         theme: theme,
         isIntroMode: isIntroMode,
-        onBook: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => ShopBookingPage(
-                shopId: shopId,
-                theme: theme,
-                useModernDrawer: theme != HomeThemeModel.classicDefault,
-              ),
-            ),
-          );
-        },
-        onSelectOptions: () {
-          Navigator.pop(context, roomType);
-        },
+        basePrice: isIntroMode ? RoomIntroFacts(roomType).price : null,
+        onBook: _openBooking(context),
+        onSelectOptions: () => Navigator.pop(context, roomType),
       ),
     );
   }
+
+  Widget _detailBody(BuildContext context) => RoomTypeDetailContent(
+    roomType: roomType,
+    theme: theme,
+    isIntroMode: isIntroMode,
+    related: isIntroMode
+        ? RoomIntroRelated(
+            shopId: shopId,
+            theme: theme,
+            compare: Padding(
+              padding: const EdgeInsets.all(16),
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.compare_arrows),
+                label: const Text('比較房型'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ShopRoomComparisonPage(
+                      shopId: shopId,
+                      theme: theme,
+                      initialId: roomType['id']?.toString(),
+                      startDate: startDate,
+                      endDate: endDate,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : null,
+    startDate: startDate,
+    endDate: endDate,
+  );
+
+  VoidCallback _openBooking(BuildContext context) => () {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ShopBookingPage(
+          shopId: shopId,
+          theme: theme,
+          useModernDrawer: theme != HomeThemeModel.classicDefault,
+        ),
+      ),
+    );
+  };
 }

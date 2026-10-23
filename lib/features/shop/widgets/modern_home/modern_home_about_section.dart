@@ -1,3 +1,4 @@
+import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -45,7 +46,18 @@ class ModernHomeAboutSection extends StatelessWidget {
     if (!setting.showsOnHome) {
       return const SizedBox.shrink();
     }
-    return _body();
+    final simple = setting.layout == HomeAboutLayouts.simpleEntry;
+    return HomeCardImage(
+      setting: setting.cardImage.copyWith(
+        source: simple
+            ? setting.cardImage.source
+            : setting.imageSource == 'platformCard'
+            ? 'platformCard'
+            : 'icon',
+      ),
+      enabled: simple || setting.showImage,
+      builder: (context, image) => _body(image.url),
+    );
   }
 
   void _open() {
@@ -59,7 +71,11 @@ class ModernHomeAboutSection extends StatelessWidget {
     if (!setting.showSubtitle) {
       return '';
     }
+    if (setting.summarySource == 'shop') {
+      return (shop['aboutDescription'] ?? '').toString().trim();
+    }
     final String custom = setting.subtitle.trim();
+    if (setting.summarySource == 'custom') return custom;
     if (custom.isNotEmpty) {
       return custom;
     }
@@ -70,10 +86,11 @@ class ModernHomeAboutSection extends StatelessWidget {
     return about.length <= 48 ? about : about.substring(0, 48);
   }
 
-  String get _photoUrl {
+  String _photoUrl(String libraryUrl) {
     if (!setting.showImage) {
       return '';
     }
+    if (setting.imageSource == 'platformCard') return libraryUrl;
     if (imageProvider != null) {
       return 'preview';
     }
@@ -91,14 +108,14 @@ class ModernHomeAboutSection extends StatelessWidget {
     return NetworkImage(logoUrl.trim());
   }
 
-  Widget _body() {
+  Widget _body(String imageUrl) {
     switch (HomeAboutLayouts.migrate(setting.layout)) {
       case HomeAboutLayouts.imageEntry:
-        return _imageCard();
+        return _imageCard(imageUrl);
       case HomeAboutLayouts.brandIntro:
-        return _brandCard();
+        return _brandCard(imageUrl);
       default:
-        return _simple();
+        return _simple(imageUrl);
     }
   }
 
@@ -159,11 +176,12 @@ class ModernHomeAboutSection extends StatelessWidget {
     return setting.entryTitle;
   }
 
-  Widget _simple() {
+  Widget _simple(String imageUrl) {
     final String size = HomeAboutCardSizes.entryCardSize(setting.cardSize);
     final bool small = size == 'small';
     final bool wide = size == 'wide';
     return ModernHomeEntryCard(
+      displayStyle: displayStyle,
       cardKey: const Key('home-about-card'),
       theme: theme,
       title: setting.entryTitle,
@@ -172,7 +190,8 @@ class ModernHomeAboutSection extends StatelessWidget {
       cardSize: size,
       surface: HomeAboutSurfaces.entrySurface(_surfaceStyle),
       icon: Icons.favorite_border_rounded,
-      mark: _logoMark,
+      backgroundImage: imageUrl.isEmpty ? null : NetworkImage(imageUrl),
+      mark: imageUrl.isEmpty ? _logoMark : null,
       showArrow: small ? false : setting.showArrow,
       textAlign: _textAlign,
       actionLabel: !small && !wide && setting.showButton
@@ -182,8 +201,8 @@ class ModernHomeAboutSection extends StatelessWidget {
     );
   }
 
-  Widget _imageCard() {
-    final String url = _photoUrl;
+  Widget _imageCard(String imageUrl) {
+    final String url = _photoUrl(imageUrl);
     final bool side =
         HomeAboutImagePositions.migrate(setting.imagePosition) !=
         HomeAboutImagePositions.top;
@@ -210,25 +229,14 @@ class ModernHomeAboutSection extends StatelessWidget {
     );
   }
 
-  Widget _brandCard() {
-    final String url = _photoUrl;
+  Widget _brandCard(String imageUrl) {
+    final String url = _photoUrl(imageUrl);
     final String name = _brandTitle;
-    final double scrim = switch (HomeAboutSurfaces.migrate(_surfaceStyle)) {
-      HomeAboutSurfaces.transparent => 0,
-      HomeAboutSurfaces.translucent => 0.45,
-      _ => 0.88,
-    };
     return _shell(
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          if (url.isNotEmpty)
-            Positioned.fill(child: _photo(url, _fit, _alignment)),
-          if (url.isNotEmpty && scrim > 0)
-            Positioned.fill(
-              child: ColoredBox(
-                color: theme.cardColor.withValues(alpha: scrim),
-              ),
-            ),
+          if (url.isNotEmpty) _photoBox(url: url, height: 148, expand: true),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             child: Column(
@@ -255,7 +263,9 @@ class ModernHomeAboutSection extends StatelessWidget {
                     _summary,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    textAlign: _textAlign,
+                    textAlign: displayStyle == null
+                        ? _textAlign
+                        : homeDisplayTextAlign(displayStyle!.bodyAlign),
                     style: _bodyLook(13),
                   ),
                 ],
@@ -291,7 +301,9 @@ class ModernHomeAboutSection extends StatelessWidget {
               _summary,
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
-              textAlign: _textAlign,
+              textAlign: displayStyle == null
+                  ? _textAlign
+                  : homeDisplayTextAlign(displayStyle!.bodyAlign),
               style: _bodyLook(13),
             ),
           ],
@@ -395,11 +407,6 @@ class ModernHomeAboutSection extends StatelessWidget {
   }
 
   BoxFit get _fit {
-    if (displayStyle != null) {
-      return displayStyle!.imageFit == HomeDisplayFits.contain
-          ? BoxFit.contain
-          : BoxFit.cover;
-    }
     return setting.imageFit == HomeAboutImageFits.contain
         ? BoxFit.contain
         : BoxFit.cover;
@@ -461,7 +468,7 @@ class ModernHomeAboutSection extends StatelessWidget {
         image: mark,
         width: size,
         height: size,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
         errorBuilder: (_, _, _) =>
             Icon(Icons.favorite_border_rounded, color: theme.primaryColor),
       ),

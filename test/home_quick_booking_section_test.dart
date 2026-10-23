@@ -311,10 +311,8 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).at(0)).maxLength,
       16,
     );
-    expect(
-      tester.widget<TextField>(find.byType(TextField).at(2)).maxLength,
-      10,
-    );
+    // 服務選擇使用住宿／安親入口，不顯示不會生效的按鈕文案欄位。
+    expect(find.text('按鈕文字'), findsNothing);
     await tester.tap(find.text('顯示住宿預約'));
     await tester.pump();
     final _PanelHostState state = tester.state(find.byType(_PanelHost));

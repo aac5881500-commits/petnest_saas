@@ -1,4 +1,6 @@
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
+import 'package:petnest_saas/core/models/home_display_style.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_bridge.dart';
 // 檔案名稱：lib/features/shop/pages/shop_public_modern_page.dart
 // 功能說明：讀取店家資料，顯示適合手機的緊湊型頂部與 Banner
 // ✨ 店家新版前台首頁 Beta
@@ -102,6 +104,7 @@ class ShopPublicModernPage extends StatefulWidget {
     this.previewImageBytes,
     this.previewSelectedTextId,
     this.previewCtaSelected = false,
+    this.onNewsAvailability,
   });
 
   final String shopId;
@@ -150,6 +153,7 @@ class ShopPublicModernPage extends StatefulWidget {
   final Uint8List? previewImageBytes;
   final String? previewSelectedTextId;
   final bool previewCtaSelected;
+  final ValueChanged<HomeNewsAvailability>? onNewsAvailability;
 
   @override
   State<ShopPublicModernPage> createState() => _ShopPublicModernPageState();
@@ -228,6 +232,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               )
               .toList();
         });
+        _reportNewsAvailability();
       },
       onError: (Object _) {
         if (!mounted) {
@@ -238,6 +243,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           _noticesFailed = true;
           _publishedNotices = const <Map<String, dynamic>>[];
         });
+        _reportNewsAvailability();
       },
     );
     _campaignsSub = _campaignsStream.listen(
@@ -250,6 +256,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           _campaignsFailed = false;
           _publicCampaigns = campaigns;
         });
+        _reportNewsAvailability();
       },
       onError: (Object _) {
         if (!mounted) {
@@ -260,6 +267,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           _campaignsFailed = true;
           _publicCampaigns = const <DiscountCampaignModel>[];
         });
+        _reportNewsAvailability();
       },
     );
     _policySub = FirebaseFirestore.instance
@@ -467,7 +475,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       shellTabs: navigation.usesBottomBar(MediaQuery.sizeOf(context).width),
       navigation: navigation,
       shopState: shopState,
-      canOpenAdmin: _canOpenAdmin,
+      canOpenAdmin: widget.layoutCanvas && !embeddedPreview
+          ? false
+          : _canOpenAdmin,
       onPreviewSelect: (String id) {
         if (!mounted) {
           return;
@@ -481,6 +491,21 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         }
         setState(() => _selectedNavId = FrontendNavigationRegistry.homeId);
       },
+    );
+  }
+
+  void _reportNewsAvailability() {
+    widget.onNewsAvailability?.call(
+      HomeNewsAvailability(
+        notices: _publishedNotices.take(5).length,
+        campaigns: _publicCampaigns.take(5).length,
+        load: HomeNewsLoadState(
+          noticesReady: _noticesReady,
+          campaignsReady: _campaignsReady,
+          noticesFailed: _noticesFailed,
+          campaignsFailed: _campaignsFailed,
+        ),
+      ),
     );
   }
 
@@ -918,6 +943,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             environmentIntro: environmentIntro,
             environmentSection: environmentSection,
             aboutSection: aboutSection,
+            displayStyles: HomeDisplayStyleSetting.fromMap(
+              modernAppearance[HomeDisplayStyleSetting.mapKey],
+            ),
             newsSection: newsSection,
             newsItems: newsItems,
             newsPhase: newsPhase,
@@ -1512,6 +1540,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required Map<String, dynamic> environmentIntro,
     required HomeEnvironmentSectionSetting environmentSection,
     required HomeAboutSectionSetting aboutSection,
+    required HomeDisplayStyleSetting displayStyles,
     required HomeNewsSectionSetting newsSection,
     required List<HomeNewsItem> newsItems,
     required HomeNewsSectionPhase newsPhase,
@@ -1560,6 +1589,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
       case 'about':
         return ModernHomeAboutSection(
+          displayStyle: homeResolvedDisplayStyle(
+            setting: displayStyles,
+            sectionId: HomeDisplaySections.about,
+            legacy: aboutDisplayLegacy(aboutSection),
+            baseline: HomeDisplayStyle.classic,
+          ),
           theme: theme,
           setting: aboutSection,
           shop: shop,
@@ -1584,6 +1619,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
       case 'announcements':
         return ModernHomeNewsSection(
+          displayStyle: homeResolvedDisplayStyle(
+            setting: displayStyles,
+            sectionId: HomeDisplaySections.announcements,
+            legacy: newsDisplayLegacy(newsSection),
+            baseline: HomeDisplayStyle.classic,
+          ),
           theme: theme,
           setting: newsSection,
           items: newsItems,
@@ -1701,6 +1742,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         );
       case 'reviews':
         return ModernReviewSection(
+          displayStyle: homeResolvedDisplayStyle(
+            setting: displayStyles,
+            sectionId: HomeDisplaySections.reviews,
+            legacy: HomeDisplayStyle.classic,
+            baseline: HomeDisplayStyle.classic,
+          ),
           theme: theme,
           setting: informationSections.reviews,
           reviews: reviewItems,
@@ -1773,6 +1820,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             focusSectionToken: widget.focusSectionToken,
             buildSection: buildSection,
           ),
+          if (!useBottomBar && widget.canvasMode.startsWith('navigation'))
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Builder(
+                builder: (context) => FilledButton.tonalIcon(
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu),
+                  label: const Text('查看選單'),
+                ),
+              ),
+            ),
           FloatingContactButton(
             shop: shop,
             shopId: widget.shopId,

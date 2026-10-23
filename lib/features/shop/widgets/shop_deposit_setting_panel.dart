@@ -1,3 +1,4 @@
+import 'shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_deposit_setting_panel.dart
 // 功能說明：收款設定表單版面（訂金規則視覺化），不改計價與儲存欄位。
 
@@ -257,82 +258,88 @@ class ShopDepositSettingPanel extends StatelessWidget {
 
   List<Widget> _settingCards({required bool enabled}) {
     return <Widget>[
-      _SectionCard(
-        title: '付款期限',
-        subtitle: '客戶需在此期限內完成訂金或指定付款。',
-        enabled: enabled,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            _ChoiceWrap(
-              children: <Widget>[
-                _ChoiceTile(
-                  title: '1 分鐘（測試用）',
-                  subtitle: '僅測試',
-                  selected: depositExpireHours == 0,
-                  enabled: enabled,
-                  testOnly: true,
-                  onTap: () => onExpireHours(0),
-                ),
-                _ChoiceTile(
-                  title: '12 小時',
-                  subtitle: '適合當日確認',
-                  selected: depositExpireHours == 12,
-                  enabled: enabled,
-                  onTap: () => onExpireHours(12),
-                ),
-                _ChoiceTile(
-                  title: '1 天',
-                  subtitle: '24 小時內付款',
-                  selected: depositExpireHours == 24,
-                  enabled: enabled,
-                  onTap: () => onExpireHours(24),
-                ),
-                _ChoiceTile(
-                  title: '3 天',
-                  subtitle: '72 小時內付款',
-                  selected: depositExpireHours == 72,
-                  enabled: enabled,
-                  onTap: () => onExpireHours(72),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '逾期未付款時，系統會依既有規則取消或釋放訂單。',
-              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
-            ),
-          ],
+      ShopTourAnchor(
+        ids: const ['ShopPaymentSettingPage.1'],
+        child: _SectionCard(
+          title: '付款期限',
+          subtitle: '客戶需在此期限內完成訂金或指定付款。',
+          enabled: enabled,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _ChoiceWrap(
+                children: <Widget>[
+                  _ChoiceTile(
+                    title: '1 分鐘（測試用）',
+                    subtitle: '僅測試',
+                    selected: depositExpireHours == 0,
+                    enabled: enabled,
+                    testOnly: true,
+                    onTap: () => onExpireHours(0),
+                  ),
+                  _ChoiceTile(
+                    title: '12 小時',
+                    subtitle: '適合當日確認',
+                    selected: depositExpireHours == 12,
+                    enabled: enabled,
+                    onTap: () => onExpireHours(12),
+                  ),
+                  _ChoiceTile(
+                    title: '1 天',
+                    subtitle: '24 小時內付款',
+                    selected: depositExpireHours == 24,
+                    enabled: enabled,
+                    onTap: () => onExpireHours(24),
+                  ),
+                  _ChoiceTile(
+                    title: '3 天',
+                    subtitle: '72 小時內付款',
+                    selected: depositExpireHours == 72,
+                    enabled: enabled,
+                    onTap: () => onExpireHours(72),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '逾期未付款時，系統會依既有規則取消或釋放訂單。',
+                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
         ),
       ),
-      _SectionCard(
-        title: '訂金計算基礎',
-        subtitle: '百分比訂金會依此基礎計算；固定金額不受影響。',
-        enabled: enabled,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            _ChoiceWrap(
-              children: <Widget>[
-                _ChoiceTile(
-                  title: '只算房價',
-                  subtitle: daycareOn ? '只依住宿／安親基本費用計算' : '只依住宿基本費用計算',
-                  selected: depositBase == 'room',
-                  enabled: enabled,
-                  onTap: () => onDepositBase('room'),
-                ),
-                _ChoiceTile(
-                  title: '算總金額',
-                  subtitle: '包含已選加購服務',
-                  selected: depositBase == 'total',
-                  enabled: enabled,
-                  onTap: () => onDepositBase('total'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _InfoHint(text: '訂金會依此計算基礎產生；請確認是否要將加購服務納入訂金。'),
-          ],
+      ShopTourAnchor(
+        ids: const ['ShopPaymentSettingPage.0'],
+        child: _SectionCard(
+          title: '訂金計算基礎',
+          subtitle: '百分比訂金會依此基礎計算；固定金額不受影響。',
+          enabled: enabled,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _ChoiceWrap(
+                children: <Widget>[
+                  _ChoiceTile(
+                    title: '只算房價',
+                    subtitle: daycareOn ? '只依住宿／安親基本費用計算' : '只依住宿基本費用計算',
+                    selected: depositBase == 'room',
+                    enabled: enabled,
+                    onTap: () => onDepositBase('room'),
+                  ),
+                  _ChoiceTile(
+                    title: '算總金額',
+                    subtitle: '包含已選加購服務',
+                    selected: depositBase == 'total',
+                    enabled: enabled,
+                    onTap: () => onDepositBase('total'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _InfoHint(text: '訂金會依此計算基礎產生；請確認是否要將加購服務納入訂金。'),
+            ],
+          ),
         ),
       ),
       _SectionCard(

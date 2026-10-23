@@ -1,3 +1,6 @@
+import 'home_card_image.dart';
+import 'home_section_settings_group.dart';
+import 'home_section_layout_option_card.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -14,10 +17,15 @@ class AboutSectionSettingsPanel extends StatefulWidget {
     required this.theme,
     required this.imageChoices,
     required this.onChanged,
+    this.onManage,
+    this.shop = const {},
+    this.environmentIntro = const {},
     this.displayStyles,
     this.onDisplayStyles,
   });
 
+  final VoidCallback? onManage;
+  final Map<String, dynamic> shop, environmentIntro;
   final HomeAboutSectionSetting setting;
   final HomeThemeModel theme;
   final List<Map<String, String>> imageChoices;
@@ -31,7 +39,6 @@ class AboutSectionSettingsPanel extends StatefulWidget {
 }
 
 class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
-  int _pane = 0;
   late final TextEditingController _titleController;
   late final TextEditingController _subtitleController;
   late final TextEditingController _buttonController;
@@ -72,87 +79,53 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-          child: SegmentedButton<int>(
-            showSelectedIcon: false,
-            segments: const <ButtonSegment<int>>[
-              ButtonSegment<int>(
-                value: 0,
-                label: Text('版型'),
-                icon: Icon(Icons.dashboard_customize_outlined),
-              ),
-              ButtonSegment<int>(
-                value: 1,
-                label: Text('顯示細節'),
-                icon: Icon(Icons.tune),
-              ),
-            ],
-            selected: <int>{_pane},
-            onSelectionChanged: (Set<int> value) {
-              setState(() => _pane = value.first);
-            },
-          ),
-        ),
-        Expanded(child: _pane == 1 ? _details() : _layouts()),
-      ],
-    );
-  }
-
-  Widget _layouts() {
     return ListView(
+      key: const PageStorageKey<String>('about-section-settings'),
       primary: false,
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 24),
-      children: <Widget>[
-        for (final String layout in HomeAboutLayouts.all) _choice(layout),
-      ],
-    );
-  }
-
-  Widget _choice(String layout) {
-    final bool selected = widget.setting.layout == layout;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          key: Key('about-layout-$layout'),
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            if (selected) {
-              return;
-            }
-            _update(widget.setting.copyWith(layout: layout));
-          },
-          child: Ink(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected
-                    ? widget.theme.primaryColor
-                    : const Color(0xFFE6E8EC),
-                width: selected ? 2 : 1,
-              ),
+      children: [
+        HomeSectionSettingsGroup(
+          title: '首頁顯示',
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('啟用關於我們首頁區塊'),
+              subtitle: const Text('只控制獨立展示，不修改我們的服務入口。'),
+              value: widget.setting.enabled,
+              onChanged: (v) => _update(widget.setting.copyWith(enabled: v)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                AboutSectionLayoutPreview(layout: layout, theme: widget.theme),
-                const SizedBox(height: 8),
-                Text(
-                  HomeAboutLayouts.label(layout),
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
+          ],
+        ),
+        HomeSectionSettingsGroup(
+          title: '展示版型',
+          children: [
+            HomeSectionLayoutPicker(
+              theme: widget.theme,
+              selectedId: HomeAboutLayouts.migrate(widget.setting.layout),
+              onSelected: (value) =>
+                  _update(widget.setting.copyWith(layout: value)),
+              choices: [
+                for (final item in HomeAboutLayouts.all)
+                  HomeSectionLayoutChoice(
+                    id: item,
+                    title: HomeAboutLayouts.label(item),
+                    description: switch (item) {
+                      HomeAboutLayouts.imageEntry => '主照片與介紹並排或上下排列',
+                      HomeAboutLayouts.brandIntro => '主照片、Logo 與品牌介紹分開呈現',
+                      _ => '緊湊入口，可套用圖庫卡片背景',
+                    },
+                    badge: '',
+                    preview: AboutSectionLayoutPreview(
+                      layout: item,
+                      theme: widget.theme,
+                    ),
+                  ),
               ],
             ),
-          ),
+          ],
         ),
-      ),
+        HomeSectionSettingsGroup(title: '目前版型設定', children: [_details()]),
+      ],
     );
   }
 
@@ -167,22 +140,14 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
     final bool wideCard = simple && cardSize == HomeAboutCardSizes.standard;
     final bool showArrow = image || wideCard || longCard;
     final bool showButton = image || brand || longCard;
-    final bool showLogo = simple || brand;
+    final bool showLogo = (simple && !setting.cardImage.usesLibrary) || brand;
     final bool showImage = image || brand;
-    final bool hasImage = widget.imageChoices.isNotEmpty;
+    final bool hasImage =
+        setting.imageSource == 'platformCard' || widget.imageChoices.isNotEmpty;
     final bool imageAdjustable = showImage && hasImage && setting.showImage;
-    return ListView(
-      primary: false,
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 24),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('啟用關於我們首頁區塊'),
-          value: setting.enabled,
-          onChanged: (bool value) {
-            _update(setting.copyWith(enabled: value));
-          },
-        ),
         if (brand) ...<Widget>[
           const Text('標題來源', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
@@ -208,21 +173,38 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
               _update(setting.copyWith(title: value.trim()));
             },
           ),
-        TextField(
-          controller: _subtitleController,
-          maxLength: 80,
-          maxLines: 2,
-          decoration: InputDecoration(
-            labelText: brand ? '品牌摘要' : '首頁簡介',
-            border: const OutlineInputBorder(),
-          ),
-          onChanged: (String value) {
-            _update(setting.copyWith(subtitle: value.trim()));
+        _chips(
+          values: const ['legacy', 'shop', 'custom'],
+          labelOf: (v) => switch (v) {
+            'shop' => '沿用店家簡介',
+            'custom' => '自訂短文',
+            _ => '既有短文設定',
           },
+          selected: setting.summarySource,
+          onChanged: (v) => _update(setting.copyWith(summarySource: v)),
         ),
+        const SizedBox(height: 12),
+        if (setting.summarySource != 'shop')
+          TextField(
+            controller: _subtitleController,
+            maxLength: 80,
+            maxLines: 2,
+            decoration: InputDecoration(
+              labelText: brand ? '品牌摘要' : '首頁簡介',
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (String value) {
+              _update(setting.copyWith(subtitle: value.trim()));
+            },
+          ),
         _switch('顯示副標題', setting.showSubtitle, (bool value) {
           _update(setting.copyWith(showSubtitle: value));
         }),
+        if (simple)
+          HomeCardImageSettings(
+            setting: setting.cardImage,
+            onChanged: (value) => _update(setting.copyWith(cardImage: value)),
+          ),
         if (simple) ...<Widget>[
           const Text('卡片尺寸', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
@@ -273,30 +255,36 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
               _update(setting.copyWith(buttonText: value.trim()));
             },
           ),
-        if (widget.onDisplayStyles != null) _styleEditor(),
-        if (widget.onDisplayStyles == null) ...<Widget>[
-          const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          _chips(
-            values: HomeAboutTextAligns.all,
-            labelOf: HomeAboutTextAligns.label,
-            selected: setting.textAlign,
-            onChanged: (String value) {
-              _update(setting.copyWith(textAlign: value));
-            },
-          ),
-          const SizedBox(height: 12),
-          const Text('卡片外觀', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          _chips(
-            values: HomeAboutSurfaces.all,
-            labelOf: HomeAboutSurfaces.label,
-            selected: setting.surfaceStyle,
-            onChanged: (String value) {
-              _update(setting.copyWith(surfaceStyle: value));
-            },
-          ),
-        ],
+        HomeSectionSettingsGroup(
+          title: '進階外觀',
+          storageId: 'about-section-advanced-appearance',
+          children: [
+            if (widget.onDisplayStyles != null) _styleEditor(),
+            if (widget.onDisplayStyles == null) ...<Widget>[
+              const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              _chips(
+                values: HomeAboutTextAligns.all,
+                labelOf: HomeAboutTextAligns.label,
+                selected: setting.textAlign,
+                onChanged: (String value) {
+                  _update(setting.copyWith(textAlign: value));
+                },
+              ),
+              const SizedBox(height: 12),
+              const Text('卡片外觀', style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              _chips(
+                values: HomeAboutSurfaces.all,
+                labelOf: HomeAboutSurfaces.label,
+                selected: setting.surfaceStyle,
+                onChanged: (String value) {
+                  _update(setting.copyWith(surfaceStyle: value));
+                },
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -306,44 +294,64 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
       _switch('顯示圖片', widget.setting.showImage, (bool value) {
         _update(widget.setting.copyWith(showImage: value));
       }),
-      if (widget.imageChoices.isEmpty)
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            '目前沒有可用圖片，將使用內建圖示',
-            style: TextStyle(fontSize: 12, height: 1.35),
-          ),
-        )
-      else ...<Widget>[
-        const Text('圖片來源', style: TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        const Text(
-          '只套用店裡已有的圖片網址，不會另外上傳一份。',
-          style: TextStyle(fontSize: 12, height: 1.35),
-        ),
-        const SizedBox(height: 8),
+      if (widget.setting.showImage) ...[
         _chips(
-          values: <String>[
-            '',
-            ...widget.imageChoices.map(
-              (Map<String, String> item) => item['url']!,
-            ),
+          values: [
+            if (widget.setting.imageSource == 'legacy') 'legacy',
+            'aboutCover',
+            'galleryFirst',
+            'platformCard',
           ],
-          labelOf: (String value) {
-            if (value.isEmpty) {
-              return '自動';
-            }
-            for (final Map<String, String> item in widget.imageChoices) {
-              if (item['url'] == value) {
-                return item['label'] ?? '圖片';
-              }
-            }
-            return '已指定';
+          labelOf: (v) => switch (v) {
+            'aboutCover' => '關於我們封面',
+            'galleryFirst' => '環境相簿第一張',
+            'platformCard' => '圖庫卡片圖片',
+            _ => '既有選圖設定',
           },
-          selected: widget.setting.imageUrl,
-          onChanged: (String value) {
-            _update(widget.setting.copyWith(imageUrl: value));
+          selected: widget.setting.imageSource,
+          onChanged: (v) => _update(widget.setting.copyWith(imageSource: v)),
+        ),
+        if (widget.setting.imageSource == 'legacy' &&
+            widget.imageChoices.isNotEmpty)
+          _chips(
+            values: [
+              '',
+              ...widget.imageChoices.map((item) => item['url']!).toSet(),
+            ],
+            labelOf: (url) => url.isEmpty
+                ? '既有自動選圖'
+                : widget.imageChoices.firstWhere(
+                        (item) => item['url'] == url,
+                      )['label'] ??
+                      '既有照片',
+            selected: widget.setting.imageUrl,
+            onChanged: (url) => _update(widget.setting.copyWith(imageUrl: url)),
+          ),
+        HomeCardImageSettings(
+          setting: widget.setting.cardImage.copyWith(
+            source: widget.setting.imageSource == 'platformCard'
+                ? 'platformCard'
+                : 'icon',
+          ),
+          showSource: false,
+          sourceLabel: switch (widget.setting.imageSource) {
+            'aboutCover' => '關於我們封面',
+            'galleryFirst' => '環境相簿第一張',
+            _ => '既有選圖設定',
           },
+          fallbackUrl: HomeAboutSectionSetting.resolveImageUrl(
+            setting: widget.setting,
+            shop: widget.shop,
+            environmentIntro: widget.environmentIntro,
+          ),
+          onManage: widget.onManage,
+          onChanged: (value) => _update(
+            widget.setting.copyWith(
+              cardImage: value.copyWith(
+                source: widget.setting.cardImage.source,
+              ),
+            ),
+          ),
         ),
       ],
       const SizedBox(height: 8),
@@ -404,6 +412,7 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
       baseline: HomeDisplayStyle.classic,
     );
     return HomeDisplaySectionOverride(
+      basicAppearanceOnly: true,
       label: '關於我們',
       shared: display.style,
       mode: mode,

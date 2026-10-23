@@ -1,3 +1,5 @@
+import 'home_card_image.dart';
+import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -21,12 +23,24 @@ class ModernHomeFaqSection extends StatelessWidget {
   final VoidCallback onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => HomeCardImage(
+    setting: setting.cardImage,
+    enabled: setting.layout == HomeFaqLayouts.compact,
+    builder: (context, image) => _content(context, image.url),
+  );
+
+  Widget _content(BuildContext context, String imageUrl) {
     if (phase == HomeInfoSectionPhase.hidden) {
       return const SizedBox.shrink();
     }
     if (phase == HomeInfoSectionPhase.loading) {
       return _skeleton();
+    }
+    if (phase == HomeInfoSectionPhase.unavailable) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: Text('常見問題暫時無法載入'),
+      );
     }
     final bool empty =
         phase == HomeInfoSectionPhase.unavailable ||
@@ -44,7 +58,7 @@ class ModernHomeFaqSection extends StatelessWidget {
       ),
       HomeFaqLayouts.horizontalCards => _horizontal(source, empty),
       HomeFaqLayouts.twoColumnCards => _columns(source, empty),
-      _ => _entry(source, wide: false, empty: empty),
+      _ => _entry(source, wide: false, empty: empty, imageUrl: imageUrl),
     };
   }
 
@@ -53,13 +67,13 @@ class ModernHomeFaqSection extends StatelessWidget {
       HomeFaqItem(
         id: 'sample-1',
         question: '示意問題：入住前需要準備什麼？',
-        answer: kHomeFaqEmptyMessage,
+        answer: '預覽示意：尚未發布常見問題',
         sortOrder: 1,
       ),
       HomeFaqItem(
         id: 'sample-2',
         question: '示意問題：可以臨時取消嗎？',
-        answer: kHomeFaqEmptyMessage,
+        answer: '預覽示意：尚未發布常見問題',
         sortOrder: 2,
       ),
     ];
@@ -69,6 +83,7 @@ class ModernHomeFaqSection extends StatelessWidget {
     List<HomeFaqItem> source, {
     required bool wide,
     required bool empty,
+    String imageUrl = '',
   }) {
     final String subtitle = empty
         ? kHomeFaqEmptyMessage
@@ -76,6 +91,9 @@ class ModernHomeFaqSection extends StatelessWidget {
         ? '共 ${source.length} 個常見問題'
         : setting.entrySubtitle;
     return ModernHomeEntryCard(
+      backgroundImage: !wide && imageUrl.isNotEmpty
+          ? NetworkImage(imageUrl)
+          : null,
       cardKey: const Key('home-faq-card'),
       theme: theme,
       title: setting.entryTitle,
@@ -108,7 +126,7 @@ class ModernHomeFaqSection extends StatelessWidget {
         ),
         if (empty)
           Text(
-            kHomeFaqEmptyMessage,
+            '預覽示意：尚未發布常見問題',
             style: TextStyle(fontSize: 12, color: theme.secondaryTextColor),
           ),
         const SizedBox(height: 8),
@@ -121,7 +139,17 @@ class ModernHomeFaqSection extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (BuildContext context, int index) {
               if (index >= visible.length) {
-                return _allCard(width: 96);
+                return Center(
+                  widthFactor: 1,
+                  child: EnvironmentEndEntry(
+                    key: const Key('home-faq-see-all'),
+                    style: setting.endEntryStyle,
+                    color: theme.primaryColor,
+                    label: '查看全部問題',
+                    semanticLabel: '查看全部問題',
+                    onPressed: onOpen,
+                  ),
+                );
               }
               return _questionCard(visible[index], index, width: 168);
             },
@@ -151,14 +179,14 @@ class ModernHomeFaqSection extends StatelessWidget {
         ),
         if (empty)
           Text(
-            kHomeFaqEmptyMessage,
+            '預覽示意：尚未發布常見問題',
             style: TextStyle(fontSize: 12, color: theme.secondaryTextColor),
           ),
         const SizedBox(height: 8),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             const double gap = 8;
-            final bool stacked = constraints.maxWidth < 180;
+            final bool stacked = constraints.maxWidth < 340;
             final double cardWidth = stacked
                 ? constraints.maxWidth
                 : (constraints.maxWidth - gap) / 2;
@@ -190,6 +218,7 @@ class ModernHomeFaqSection extends StatelessWidget {
 
   Widget _questionCard(HomeFaqItem item, int index, {double? width}) {
     return SizedBox(
+      height: setting.showAnswerPreview ? 108 : 84,
       width: width,
       child: Material(
         color: theme.cardColor,
@@ -261,35 +290,6 @@ class ModernHomeFaqSection extends StatelessWidget {
       Icons.help_outline_rounded,
       size: 18,
       color: theme.primaryColor,
-    );
-  }
-
-  Widget _allCard({required double width}) {
-    return SizedBox(
-      width: width,
-      child: Material(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          key: const Key('home-faq-see-all'),
-          borderRadius: BorderRadius.circular(14),
-          onTap: onOpen,
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: theme.cardBorderColor),
-            ),
-            child: Text(
-              '查看全部',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: theme.textColor,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -370,7 +370,7 @@ class _FaqPreviewState extends State<_FaqPreview> {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    kHomeFaqEmptyMessage,
+                    '預覽示意：尚未發布常見問題',
                     style: TextStyle(
                       fontSize: 12,
                       color: widget.theme.secondaryTextColor,

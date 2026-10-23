@@ -1,3 +1,4 @@
+import 'environment_end_entry.dart';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -274,65 +275,53 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
         final height = 58 + 28 * MediaQuery.textScalerOf(context).scale(1);
         return SizedBox(
           height: height,
-          child: Row(
-            children: [
-              Expanded(
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.grab,
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context).copyWith(
-                      dragDevices: const {
-                        PointerDeviceKind.touch,
-                        PointerDeviceKind.mouse,
-                        PointerDeviceKind.stylus,
-                        PointerDeviceKind.trackpad,
-                      },
-                    ),
-                    child: ListView.separated(
-                      key: const Key('home-environment-scroll'),
-                      scrollDirection: Axis.horizontal,
-                      primary: false,
-                      itemCount: facilities.length,
-                      separatorBuilder: (_, index) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        final item = facilities[index];
-                        return _facilityCard(
-                          width: cardWidth,
-                          icon: item['icon'] is IconData
-                              ? item['icon'] as IconData
-                              : Icons.pets_outlined,
-                          label: (item['title'] ?? '照護設備').toString(),
-                          cardKey: ValueKey(
-                            'home-environment-facility-${item['key']}',
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.grab,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: const {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.stylus,
+                  PointerDeviceKind.trackpad,
+                },
               ),
-              if (setting.showEndEntryCard) ...[
-                const SizedBox(width: 8),
-                Semantics(
-                  label: '查看完整環境',
-                  button: true,
-                  child: Tooltip(
-                    message: '查看完整環境',
-                    child: IconButton.filledTonal(
-                      key: const Key('home-environment-end'),
-                      constraints: const BoxConstraints(
-                        minWidth: 48,
-                        minHeight: 48,
-                      ),
-                      onPressed: _open,
-                      icon: const Icon(
-                        Icons.keyboard_double_arrow_right_rounded,
-                      ),
-                    ),
-                  ),
+              child: ListView.separated(
+                key: const Key('home-environment-scroll'),
+                scrollDirection: Axis.horizontal,
+                primary: false,
+                padding: EdgeInsets.only(
+                  right: setting.showEndEntryCard ? 8 : 0,
                 ),
-              ],
-            ],
+                itemCount:
+                    facilities.length + (setting.showEndEntryCard ? 1 : 0),
+                separatorBuilder: (_, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  if (index == facilities.length) {
+                    return Center(
+                      widthFactor: 1,
+                      child: EnvironmentEndEntry(
+                        key: const Key('home-environment-end'),
+                        style: setting.endEntryStyle,
+                        color: theme.primaryColor,
+                        onPressed: _open,
+                      ),
+                    );
+                  }
+                  final item = facilities[index];
+                  return _facilityCard(
+                    width: cardWidth,
+                    icon: item['icon'] is IconData
+                        ? item['icon'] as IconData
+                        : Icons.pets_outlined,
+                    label: (item['title'] ?? '照護設備').toString(),
+                    cardKey: ValueKey(
+                      'home-environment-facility-${item['key']}',
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         );
       },

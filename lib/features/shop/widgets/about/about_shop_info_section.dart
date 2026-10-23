@@ -14,13 +14,21 @@ class AboutShopInfoSection extends StatelessWidget {
     super.key,
     required this.shopId,
     required this.theme,
+    this.shopData,
+    this.previewOnly = false,
+    this.frameless = false,
+    this.actionColor,
   });
 
+  final Map<String, dynamic>? shopData;
+  final bool previewOnly;
+  final bool frameless;
+  final Color? actionColor;
   final String shopId;
   final HomeThemeModel theme;
 
   Future<void> _openUrl(String url) async {
-    if (url.isEmpty) return;
+    if (previewOnly || url.isEmpty) return;
 
     final uri = Uri.parse(url);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -29,7 +37,7 @@ class AboutShopInfoSection extends StatelessWidget {
   Future<void> _openMap(String address) async {
     final cleanAddress = address.trim();
 
-    if (cleanAddress.isEmpty) return;
+    if (previewOnly || cleanAddress.isEmpty) return;
 
     final uri = Uri.parse(
       'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(cleanAddress)}',
@@ -40,6 +48,7 @@ class AboutShopInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (shopData != null) return _content(shopData!);
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(shopId),
       builder: (context, snapshot) {
@@ -58,122 +67,130 @@ class AboutShopInfoSection extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final externalLinksEnabled = shop['externalLinksEnabled'] != false;
+        return _content(shop);
+      },
+    );
+  }
 
-        final businessHours = (shop['businessHours'] ?? '').toString();
+  Widget _content(Map<String, dynamic> shop) {
+    final actionTheme = actionColor == null
+        ? theme
+        : theme.copyWith(primaryColorValue: actionColor!.toARGB32());
+    final externalLinksEnabled = shop['externalLinksEnabled'] != false;
 
-        final phone = (shop['phone'] ?? '').toString();
+    final businessHours = (shop['businessHours'] ?? '').toString();
 
-        final city = (shop['city'] ?? '').toString();
+    final phone = (shop['phone'] ?? '').toString();
 
-        final district = (shop['district'] ?? '').toString();
+    final city = (shop['city'] ?? '').toString();
 
-        final addressDetail = (shop['address'] ?? '').toString();
+    final district = (shop['district'] ?? '').toString();
 
-        final fullAddress = '$city$district$addressDetail';
+    final addressDetail = (shop['address'] ?? '').toString();
 
-        final licenseNumber = (shop['licenseNumber'] ?? '').toString();
+    final fullAddress = '$city$district$addressDetail';
 
-        final igUrl = (shop['igUrl'] ?? '').toString();
+    final licenseNumber = (shop['licenseNumber'] ?? '').toString();
 
-        final lineUrl = (shop['lineUrl'] ?? '').toString();
+    final igUrl = (shop['igUrl'] ?? '').toString();
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: theme.cardBorderColor),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+    final lineUrl = (shop['lineUrl'] ?? '').toString();
+
+    return Padding(
+      padding: frameless
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 22),
+      child: Container(
+        width: double.infinity,
+        padding: frameless ? EdgeInsets.zero : const EdgeInsets.all(22),
+        decoration: frameless
+            ? null
+            : BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: theme.cardBorderColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AboutSectionTitle(
+              icon: Icons.storefront,
+              title: '店家資訊',
+              theme: theme,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+
+            const SizedBox(height: 18),
+
+            _InfoRow(
+              icon: Icons.access_time,
+              text: '營業時間：${businessHours.isEmpty ? '尚未設定' : businessHours}',
+              theme: theme,
+            ),
+
+            _InfoRow(
+              icon: Icons.phone,
+              text: '電話：${phone.isEmpty ? '尚未設定' : phone}',
+              theme: theme,
+            ),
+
+            _InfoRow(
+              icon: Icons.location_on_outlined,
+              text: '地址：${fullAddress.isEmpty ? '尚未設定' : fullAddress}',
+              theme: theme,
+            ),
+
+            if (licenseNumber.isNotEmpty)
+              _InfoRow(
+                icon: Icons.verified_outlined,
+                text: '特寵業字號：$licenseNumber',
+                theme: theme,
+              ),
+
+            const SizedBox(height: 22),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                AboutSectionTitle(
-                  icon: Icons.storefront,
-                  title: '店家資訊',
-                  theme: theme,
-                ),
-
-                const SizedBox(height: 18),
-
-                _InfoRow(
-                  icon: Icons.access_time,
-                  text:
-                      '營業時間：${businessHours.isEmpty ? '尚未設定' : businessHours}',
-                  theme: theme,
-                ),
-
-                _InfoRow(
-                  icon: Icons.phone,
-                  text: '電話：${phone.isEmpty ? '尚未設定' : phone}',
-                  theme: theme,
-                ),
-
-                _InfoRow(
-                  icon: Icons.location_on_outlined,
-                  text: '地址：${fullAddress.isEmpty ? '尚未設定' : fullAddress}',
-                  theme: theme,
-                ),
-
-                if (licenseNumber.isNotEmpty)
-                  _InfoRow(
-                    icon: Icons.verified_outlined,
-                    text: '特寵業字號：$licenseNumber',
-                    theme: theme,
+                if (externalLinksEnabled)
+                  _SocialButton(
+                    icon: Icons.camera_alt_outlined,
+                    label: 'Instagram',
+                    isActive: igUrl.isNotEmpty,
+                    onTap: igUrl.isNotEmpty ? () => _openUrl(igUrl) : null,
+                    theme: actionTheme,
                   ),
 
-                const SizedBox(height: 22),
+                if (externalLinksEnabled)
+                  _SocialButton(
+                    icon: Icons.chat_bubble_outline,
+                    label: 'LINE',
+                    isActive: lineUrl.isNotEmpty,
+                    onTap: lineUrl.isNotEmpty ? () => _openUrl(lineUrl) : null,
+                    theme: actionTheme,
+                  ),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    if (externalLinksEnabled)
-                      _SocialButton(
-                        icon: Icons.camera_alt_outlined,
-                        label: 'Instagram',
-                        isActive: igUrl.isNotEmpty,
-                        onTap: igUrl.isNotEmpty ? () => _openUrl(igUrl) : null,
-                        theme: theme,
-                      ),
-
-                    if (externalLinksEnabled)
-                      _SocialButton(
-                        icon: Icons.chat_bubble_outline,
-                        label: 'LINE',
-                        isActive: lineUrl.isNotEmpty,
-                        onTap: lineUrl.isNotEmpty
-                            ? () => _openUrl(lineUrl)
-                            : null,
-                        theme: theme,
-                      ),
-
-                    if (externalLinksEnabled)
-                      _SocialButton(
-                        icon: Icons.map_outlined,
-                        label: '地圖',
-                        isActive: fullAddress.isNotEmpty,
-                        onTap: fullAddress.isNotEmpty
-                            ? () => _openMap(fullAddress)
-                            : null,
-                        theme: theme,
-                      ),
-                  ],
-                ),
+                if (externalLinksEnabled)
+                  _SocialButton(
+                    icon: Icons.map_outlined,
+                    label: '地圖',
+                    isActive: fullAddress.isNotEmpty,
+                    onTap: fullAddress.isNotEmpty
+                        ? () => _openMap(fullAddress)
+                        : null,
+                    theme: actionTheme,
+                  ),
               ],
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

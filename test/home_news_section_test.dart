@@ -649,7 +649,12 @@ Future<void> _openDetails(
 ) async {
   await tester.pumpWidget(_PanelHost(initial: setting));
   await tester.pump();
-  await tester.tap(find.text('顯示細節'));
+  await tester.ensureVisible(find.text('目前版型設定'));
+  await tester.pump();
+  await tester.drag(
+    find.byKey(const PageStorageKey<String>('news-section-settings')),
+    const Offset(0, -360),
+  );
   await tester.pump();
 }
 

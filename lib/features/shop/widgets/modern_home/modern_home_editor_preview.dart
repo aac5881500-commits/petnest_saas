@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/home_news_section_setting.dart';
 // 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_editor_preview.dart
 // 功能說明：新版 Beta 外觀設定的手機預覽。內容就是正式新版首頁。
 
@@ -38,6 +39,7 @@ class ModernHomeEditorPreview extends StatelessWidget {
     this.previewImageBytes,
     this.previewSelectedTextId,
     this.previewCtaSelected = false,
+    this.onNewsAvailability,
   });
 
   final String shopId;
@@ -71,6 +73,7 @@ class ModernHomeEditorPreview extends StatelessWidget {
   final Uint8List? previewImageBytes;
   final String? previewSelectedTextId;
   final bool previewCtaSelected;
+  final ValueChanged<HomeNewsAvailability>? onNewsAvailability;
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +105,7 @@ class ModernHomeEditorPreview extends StatelessWidget {
             : 'modern-home-preview-$shopId',
       ),
       shopId: shopId,
+      onNewsAvailability: onNewsAvailability,
       isPreview: true,
       draftModernAppearance: draftModernAppearance,
       draftLogoUrl: draftLogoUrl,

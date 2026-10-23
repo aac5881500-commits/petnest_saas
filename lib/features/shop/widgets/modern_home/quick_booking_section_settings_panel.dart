@@ -1,3 +1,5 @@
+import 'home_card_image.dart';
+import 'home_section_settings_group.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -78,6 +80,7 @@ class _QuickBookingSectionSettingsPanelState
     final HomeQuickBookingSectionSetting setting = widget.setting;
     final String layout = HomeQuickBookingLayouts.migrate(setting.layout);
     return ListView(
+      key: const PageStorageKey<String>('quick-booking-section-settings'),
       primary: false,
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
       children: <Widget>[
@@ -91,6 +94,7 @@ class _QuickBookingSectionSettingsPanelState
           },
         ),
         const SizedBox(height: 8),
+        const Text('展示版型', style: TextStyle(fontWeight: FontWeight.bold)),
         HomeSectionLayoutPicker(
           theme: widget.theme,
           selectedId: layout,
@@ -109,6 +113,14 @@ class _QuickBookingSectionSettingsPanelState
           ],
         ),
         const SizedBox(height: 16),
+        const Text('目前版型設定', style: TextStyle(fontWeight: FontWeight.bold)),
+        if (layout == HomeQuickBookingLayouts.compactCard ||
+            layout == HomeQuickBookingLayouts.heroCta ||
+            layout == HomeQuickBookingLayouts.spotlight)
+          HomeCardImageSettings(
+            setting: setting.cardImage,
+            onChanged: (value) => _update(setting.copyWith(cardImage: value)),
+          ),
         TextField(
           controller: _title,
           maxLength: 16,
@@ -131,18 +143,21 @@ class _QuickBookingSectionSettingsPanelState
             _update(setting.copyWith(subtitle: value.trim()));
           },
         ),
-        TextField(
-          controller: _button,
-          maxLength: 10,
-          decoration: const InputDecoration(
-            labelText: '按鈕文字',
-            border: OutlineInputBorder(),
+        if (layout == HomeQuickBookingLayouts.singleLine ||
+            layout == HomeQuickBookingLayouts.spotlight)
+          TextField(
+            controller: _button,
+            maxLength: 10,
+            decoration: const InputDecoration(
+              labelText: '按鈕文字',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (String value) {
+              _update(setting.copyWith(buttonText: value.trim()));
+            },
           ),
-          onChanged: (String value) {
-            _update(setting.copyWith(buttonText: value.trim()));
-          },
-        ),
-        if (layout == HomeQuickBookingLayouts.serviceSplit) ...<Widget>[
+        if (layout == HomeQuickBookingLayouts.serviceSplit ||
+            layout == HomeQuickBookingLayouts.heroCta) ...<Widget>[
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('顯示住宿預約'),
@@ -177,46 +192,57 @@ class _QuickBookingSectionSettingsPanelState
           ),
         ],
         const SizedBox(height: 8),
-        const Text('卡片背景', style: TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: <Widget>[
-            for (final String surface in HomeQuickBookingSurfaces.all)
-              ChoiceChip(
-                label: Text(HomeQuickBookingSurfaces.label(surface)),
-                selected:
-                    HomeQuickBookingSurfaces.migrate(setting.surfaceStyle) ==
-                    surface,
-                onSelected: (_) {
-                  _update(setting.copyWith(surfaceStyle: surface));
+        HomeSectionSettingsGroup(
+          title: '進階外觀',
+          storageId: 'quick-booking-section-advanced-appearance',
+          children: [
+            const Text('卡片背景', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: <Widget>[
+                for (final String surface in HomeQuickBookingSurfaces.all)
+                  ChoiceChip(
+                    label: Text(HomeQuickBookingSurfaces.label(surface)),
+                    selected:
+                        HomeQuickBookingSurfaces.migrate(
+                          setting.surfaceStyle,
+                        ) ==
+                        surface,
+                    onSelected: (_) {
+                      _update(setting.copyWith(surfaceStyle: surface));
+                    },
+                  ),
+              ],
+            ),
+            if (layout != HomeQuickBookingLayouts.spotlight &&
+                (layout != HomeQuickBookingLayouts.compactCard ||
+                    !setting.cardImage.usesLibrary))
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('顯示圖示'),
+                value: setting.showIcon,
+                onChanged: (bool value) {
+                  _update(setting.copyWith(showIcon: value));
                 },
               ),
-          ],
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('顯示圖示'),
-          value: setting.showIcon,
-          onChanged: (bool value) {
-            _update(setting.copyWith(showIcon: value));
-          },
-        ),
-        const Text('文字排列', style: TextStyle(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: <Widget>[
-            for (final String align in HomeQuickBookingTextAligns.all)
-              ChoiceChip(
-                label: Text(HomeQuickBookingTextAligns.label(align)),
-                selected:
-                    HomeQuickBookingTextAligns.migrate(setting.textAlign) ==
-                    align,
-                onSelected: (_) {
-                  _update(setting.copyWith(textAlign: align));
-                },
-              ),
+            const Text('文字排列', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: <Widget>[
+                for (final String align in HomeQuickBookingTextAligns.all)
+                  ChoiceChip(
+                    label: Text(HomeQuickBookingTextAligns.label(align)),
+                    selected:
+                        HomeQuickBookingTextAligns.migrate(setting.textAlign) ==
+                        align,
+                    onSelected: (_) {
+                      _update(setting.copyWith(textAlign: align));
+                    },
+                  ),
+              ],
+            ),
           ],
         ),
       ],
@@ -250,6 +276,25 @@ class _LayoutSketch extends StatelessWidget {
               _bar(width: 18, height: 18),
               const SizedBox(width: 8),
               _bar(width: 72),
+            ],
+          ),
+          HomeQuickBookingLayouts.spotlight => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _bar(width: double.infinity, height: 16),
+              const SizedBox(height: 5),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _bar(width: 48, height: 14),
+              ),
+            ],
+          ),
+          HomeQuickBookingLayouts.heroCta => Row(
+            children: [
+              Expanded(child: _bar(width: 48, height: 36)),
+              const SizedBox(width: 6),
+              Expanded(child: _bar(width: 48, height: 36)),
             ],
           ),
           _ => Row(

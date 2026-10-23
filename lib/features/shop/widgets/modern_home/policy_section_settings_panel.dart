@@ -1,3 +1,5 @@
+import 'home_card_image.dart';
+import 'home_section_settings_group.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -11,8 +13,10 @@ class PolicySectionSettingsPanel extends StatefulWidget {
     required this.setting,
     required this.theme,
     required this.onChanged,
+    this.onManage,
   });
 
+  final VoidCallback? onManage;
   final HomeInformationSectionsSetting setting;
   final HomeThemeModel theme;
   final ValueChanged<HomeInformationSectionsSetting> onChanged;
@@ -64,9 +68,19 @@ class _PolicySectionSettingsPanelState
     final String layout = HomePolicyLayouts.migrate(setting.layout);
     final bool summary = layout == HomePolicyLayouts.summary;
     return ListView(
+      key: const PageStorageKey<String>('policy-section-settings'),
       primary: false,
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
       children: <Widget>[
+        const Text('此處只調整首頁呈現，條款內容請至原管理頁維護。'),
+        if (widget.onManage != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: widget.onManage,
+              child: const Text('管理入住須知'),
+            ),
+          ),
         HomeDraftSwitch(
           title: '首頁顯示',
           subtitle: '只控制首頁區塊，不會停用預約流程條款',
@@ -76,6 +90,7 @@ class _PolicySectionSettingsPanelState
           },
         ),
         const SizedBox(height: 8),
+        const Text('展示版型', style: TextStyle(fontWeight: FontWeight.bold)),
         HomeSectionLayoutPicker(
           theme: widget.theme,
           selectedId: layout,
@@ -97,6 +112,12 @@ class _PolicySectionSettingsPanelState
           ],
         ),
         const SizedBox(height: 16),
+        const Text('目前版型設定', style: TextStyle(fontWeight: FontWeight.bold)),
+        if (layout == HomePolicyLayouts.compact)
+          HomeCardImageSettings(
+            setting: setting.cardImage,
+            onChanged: (value) => _update(setting.copyWith(cardImage: value)),
+          ),
         TextField(
           controller: _title,
           maxLength: 12,
@@ -130,23 +151,30 @@ class _PolicySectionSettingsPanelState
               _update(setting.copyWith(summaryItemCount: value));
             },
           ),
-          HomeDraftSwitch(
-            title: '顯示條款版本',
-            value: setting.showVersion,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showVersion: value));
-            },
-          ),
-          HomeDraftSwitch(
-            title: '顯示適用服務',
-            value: setting.showCoverage,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showCoverage: value));
-            },
+          HomeSectionSettingsGroup(
+            title: '進階外觀',
+            storageId: 'policy-section-advanced-appearance',
+            children: [
+              HomeDraftSwitch(
+                title: '顯示條款版本',
+                value: setting.showVersion,
+                onChanged: (bool value) {
+                  _update(setting.copyWith(showVersion: value));
+                },
+              ),
+              HomeDraftSwitch(
+                title: '顯示適用服務',
+                value: setting.showCoverage,
+                onChanged: (bool value) {
+                  _update(setting.copyWith(showCoverage: value));
+                },
+              ),
+            ],
           ),
         ],
         HomeDraftSwitch(
           title: '保留住宿服務快捷入口',
+          subtitle: '控制我們的服務中的入口，與首頁獨立展示分開設定。',
           value: setting.keepServiceEntry,
           onChanged: (bool value) {
             _update(setting.copyWith(keepServiceEntry: value));

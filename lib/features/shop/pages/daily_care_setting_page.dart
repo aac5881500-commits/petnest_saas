@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/daily_care_setting_page.dart
 // 功能說明：讓店主設定是否啟用每日照護紀錄、每天填寫次數
 // 🐾 每日照護紀錄設定頁
@@ -67,6 +68,7 @@ class DailyCareSettingPage extends StatefulWidget {
 
 class _DailyCareSettingPageState extends State<DailyCareSettingPage>
     with ShopDashboardLeaveAware<DailyCareSettingPage> {
+  Object? _tourLoadError;
   @override
   bool get dashboardHasUnsavedChanges => !_loading && _sectionDirty(_tabIndex);
   @override
@@ -346,6 +348,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
       _applyLoaded(setting);
     } catch (e) {
       if (!mounted) return;
+      _tourLoadError = e;
 
       setState(() {
         _loading = false;
@@ -1200,102 +1203,142 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
   @override
   Widget build(BuildContext context) {
     final bool wide = MediaQuery.sizeOf(context).width >= 900;
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) async {
-        if (didPop) {
-          return;
-        }
-        final bool leave = await _onLeaveEditor();
-        if (leave && context.mounted) {
-          Navigator.of(context).pop();
+    return ShopTourPage(
+      id: 'DailyCareSettingPage',
+      shopId: widget.shopId,
+      ready: !_loading,
+      error: _tourLoadError,
+      onPoint: (point) async {
+        // Read-only tour navigation changes the visible panel only. Keep every
+        // draft intact; leaving the actual page still uses _onLeaveEditor.
+        if (mounted && !_saving) {
+          setState(
+            () => _tabIndex = shopTourPanel('DailyCareSettingPage', point),
+          );
         }
       },
-      child: PlatformMediaLibraryScope(
-        child: Scaffold(
-          backgroundColor: const Color(0xFFF7F7F7),
-          appBar: AppBar(
-            title: const Text('每日照護紀錄設定'),
-            actions: widget.showTaskCenterButton
-                ? <Widget>[ShopTaskCenterButton(shopId: widget.shopId)]
-                : const <Widget>[],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Row(
-                children: <Widget>[
-                  _tabButton(0, '回報規則'),
-                  _tabButton(1, '照護內容'),
-                  _tabButton(2, '外觀設定'),
-                ],
-              ),
-            ),
-          ),
-          body: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) async {
+          if (didPop) {
+            return;
+          }
+          final bool leave = await _onLeaveEditor();
+          if (leave && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: PlatformMediaLibraryScope(
+          child: Scaffold(
+            backgroundColor: const Color(0xFFF7F7F7),
+            appBar: AppBar(
+              title: const Text('每日照護紀錄設定'),
+              actions: widget.showTaskCenterButton
+                  ? <Widget>[ShopTaskCenterButton(shopId: widget.shopId)]
+                  : const <Widget>[],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Row(
                   children: <Widget>[
                     Expanded(
-                      child: IndexedStack(
-                        index: _tabIndex,
-                        children: <Widget>[
-                          _buildReportRulesTab(),
-                          _buildContentTab(wide),
-                          _buildAppearanceTab(wide),
-                        ],
+                      child: ShopTourAnchor(
+                        ids: const [],
+                        ready: !_loading,
+                        error: _tourLoadError,
+                        child: _tabButton(0, '回報規則'),
                       ),
                     ),
-                    SafeArea(
-                      child: LayoutBuilder(
-                        builder:
-                            (BuildContext context, BoxConstraints constraints) {
-                              final double barWidth =
-                                  constraints.maxWidth > 1280
-                                  ? 1280
-                                  : constraints.maxWidth;
-                              final double buttonWidth = barWidth > 32
-                                  ? barWidth - 32
-                                  : barWidth;
-                              return Align(
-                                alignment: Alignment.center,
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    8,
-                                    16,
-                                    12,
-                                  ),
-                                  child: SizedBox(
-                                    width: buttonWidth,
-                                    height: 50,
-                                    child: FilledButton.icon(
-                                      onPressed: _saving
-                                          ? null
-                                          : () => _save(
-                                              section: _sectionForTab(
-                                                _tabIndex,
-                                              ),
-                                            ),
-                                      icon: _saving
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(Icons.save_outlined),
-                                      label: Text(
-                                        _saving ? '儲存中...' : '確認儲存此分頁',
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                    Expanded(
+                      child: ShopTourAnchor(
+                        ids: const [],
+                        ready: !_loading,
+                        error: _tourLoadError,
+                        child: _tabButton(1, '照護內容'),
+                      ),
+                    ),
+                    Expanded(
+                      child: ShopTourAnchor(
+                        ids: const [],
+                        ready: !_loading,
+                        error: _tourLoadError,
+                        child: _tabButton(2, '外觀設定'),
                       ),
                     ),
                   ],
                 ),
+              ),
+            ),
+            body: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: IndexedStack(
+                          index: _tabIndex,
+                          children: <Widget>[
+                            _buildReportRulesTab(),
+                            _buildContentTab(wide),
+                            _buildAppearanceTab(wide),
+                          ],
+                        ),
+                      ),
+                      SafeArea(
+                        child: LayoutBuilder(
+                          builder:
+                              (
+                                BuildContext context,
+                                BoxConstraints constraints,
+                              ) {
+                                final double barWidth =
+                                    constraints.maxWidth > 1280
+                                    ? 1280
+                                    : constraints.maxWidth;
+                                final double buttonWidth = barWidth > 32
+                                    ? barWidth - 32
+                                    : barWidth;
+                                return Align(
+                                  alignment: Alignment.center,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      8,
+                                      16,
+                                      12,
+                                    ),
+                                    child: SizedBox(
+                                      width: buttonWidth,
+                                      height: 50,
+                                      child: FilledButton.icon(
+                                        onPressed: _saving
+                                            ? null
+                                            : () => _save(
+                                                section: _sectionForTab(
+                                                  _tabIndex,
+                                                ),
+                                              ),
+                                        icon: _saving
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.save_outlined),
+                                        label: Text(
+                                          _saving ? '儲存中...' : '確認儲存此分頁',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
@@ -1303,26 +1346,24 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
 
   Widget _tabButton(int index, String label) {
     final bool selected = _tabIndex == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () => _requestTab(index),
-        child: Container(
-          height: 48,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selected ? const Color(0xFF3D6F9F) : Colors.transparent,
-                width: 3,
-              ),
+    return InkWell(
+      onTap: () => _requestTab(index),
+      child: Container(
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? const Color(0xFF3D6F9F) : Colors.transparent,
+              width: 3,
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              color: selected ? const Color(0xFF3D6F9F) : Colors.black54,
-            ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected ? const Color(0xFF3D6F9F) : Colors.black54,
           ),
         ),
       ),
@@ -1345,7 +1386,13 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
                     : 1280;
                 final double contentWidth = viewport > 1280 ? 1280 : viewport;
                 final bool twoColumn = showDaycare && viewport >= 1000;
-                final Widget stay = _buildStayRuleCard();
+                final Widget stay = ShopTourAnchor(
+                  ids: const [
+                    'DailyCareSettingPage.0',
+                    'DailyCareSettingPage.1',
+                  ],
+                  child: _buildStayRuleCard(),
+                );
                 final Widget daycare = showDaycare
                     ? _buildDaycareRuleCard()
                     : const SizedBox.shrink();
@@ -1382,7 +1429,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
                       children: <Widget>[
                         rules,
                         const SizedBox(height: 16),
-                        _buildPhotoRuleCard(),
+                        ShopTourAnchor(
+                          ids: const ['DailyCareSettingPage.3'],
+                          child: _buildPhotoRuleCard(),
+                        ),
                       ],
                     ),
                   ),
@@ -1431,7 +1481,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
           style: TextStyle(height: 1.4),
         ),
         const SizedBox(height: 16),
-        _buildFieldsCard(),
+        ShopTourAnchor(
+          ids: const ['DailyCareSettingPage.2'],
+          child: _buildFieldsCard(),
+        ),
         if (!wide) ...<Widget>[
           const SizedBox(height: 16),
           FilledButton.tonal(
@@ -1448,7 +1501,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage>
     final Widget settings = ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        _logoAndTypeCard(),
+        ShopTourAnchor(
+          ids: const ['DailyCareSettingPage.4'],
+          child: _logoAndTypeCard(),
+        ),
         const SizedBox(height: 16),
         _headerDisplayCard(),
         const SizedBox(height: 16),

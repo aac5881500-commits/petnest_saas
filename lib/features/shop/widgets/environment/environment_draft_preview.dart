@@ -4,8 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 class EnvironmentDraftPreview extends StatefulWidget {
-  const EnvironmentDraftPreview({super.key, required this.contentBuilder});
+  const EnvironmentDraftPreview({
+    super.key,
+    required this.contentBuilder,
+    this.notice = '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。',
+  });
   final Widget Function(ScrollController controller) contentBuilder;
+  final String notice;
 
   @override
   State<EnvironmentDraftPreview> createState() =>
@@ -58,10 +63,7 @@ class EnvironmentDraftPreviewState extends State<EnvironmentDraftPreview> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。',
-                  style: TextStyle(fontSize: 12),
-                ),
+                Text(widget.notice, style: const TextStyle(fontSize: 12)),
                 const SizedBox(height: 8),
                 SegmentedButton<bool>(
                   segments: const [

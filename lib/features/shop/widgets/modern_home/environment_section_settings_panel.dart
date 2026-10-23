@@ -1,3 +1,4 @@
+import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
 import 'environment_home_image_settings.dart';
 import 'modern_home_environment_section.dart';
@@ -194,7 +195,7 @@ class _EnvironmentSectionSettingsPanelState
                         layout: layout,
                         description: switch (layout) {
                           HomeEnvironmentLayouts.facilityScroll =>
-                            '展示已選設備，右側固定入口可查看完整環境。',
+                            '展示已選設備，列表末端入口可查看完整環境。',
                           HomeEnvironmentLayouts.simpleEntry =>
                             '獨立入口卡，與首頁小卡分開設定。',
                           HomeEnvironmentLayouts.imageEntry => '使用現有環境照片作為入口。',
@@ -243,11 +244,46 @@ class _EnvironmentSectionSettingsPanelState
             ],
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('顯示右側環境入口'),
-              subtitle: const Text('固定雙箭頭會進入完整環境介紹，不是捲動按鈕。'),
+              title: const Text('顯示末端環境入口'),
+              subtitle: const Text('入口放在設備列表最後，點擊可查看完整環境介紹。'),
               value: setting.showEndEntryCard,
               onChanged: (v) => _update(setting.copyWith(showEndEntryCard: v)),
             ),
+
+            if (setting.showEndEntryCard) ...[
+              _label('入口樣式'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final style in HomeEnvironmentEndEntryStyles.all)
+                    ChoiceChip(
+                      selected:
+                          HomeEnvironmentEndEntryStyles.migrate(
+                            setting.endEntryStyle,
+                          ) ==
+                          style,
+                      onSelected: (_) =>
+                          _update(setting.copyWith(endEntryStyle: style)),
+                      label: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ExcludeSemantics(
+                            child: IgnorePointer(
+                              child: EnvironmentEndEntry(
+                                style: style,
+                                color: widget.theme.primaryColor,
+                                onPressed: () {},
+                              ),
+                            ),
+                          ),
+                          Text(HomeEnvironmentEndEntryStyles.label(style)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ] else ...[
             _text(
               _cardTitleController,

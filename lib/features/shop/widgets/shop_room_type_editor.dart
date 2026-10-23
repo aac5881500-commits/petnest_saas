@@ -713,7 +713,10 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
         ),
         body: ShopRoomTypeWorkspace(
           editor: _formColumn(colors, scroll: true),
-          preview: ShopRoomTypeLivePreview(draft: _draft()),
+          preview: ShopRoomTypeLivePreview(
+            draft: _draft(),
+            shopId: widget.shopId,
+          ),
           editLabel: '編輯',
           previewLabel: '預覽',
           showPreview: _showPreviewPane,

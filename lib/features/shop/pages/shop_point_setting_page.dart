@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_point_setting_page.dart
 // 功能說明：點數制度、安親發點與折抵設定；發點固定訂單完成後才入點。
 
@@ -351,10 +352,27 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage>
       builder:
           (BuildContext context, AsyncSnapshot<PointSettingModel> snapshot) {
             if (snapshot.hasError) {
-              return Center(child: Text('讀取點數設定失敗：${snapshot.error}'));
+              return ShopTourAnchor(
+                ids: const [
+                  'ShopPaymentSettingPage.4',
+                  'ShopPaymentSettingPage.5',
+                  'ShopPaymentSettingPage.6',
+                ],
+                error: snapshot.error,
+                ready: false,
+                child: Center(child: Text('讀取點數設定失敗：${snapshot.error}')),
+              );
             }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const ShopTourAnchor(
+                ids: [
+                  'ShopPaymentSettingPage.4',
+                  'ShopPaymentSettingPage.5',
+                  'ShopPaymentSettingPage.6',
+                ],
+                ready: false,
+                child: Center(child: CircularProgressIndicator()),
+              );
             }
             _applySetting(snapshot.data!);
             final bool desktop =
@@ -381,7 +399,10 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[
-                                _header(desktop),
+                                ShopTourAnchor(
+                                  ids: const [],
+                                  child: _header(desktop),
+                                ),
                                 const SizedBox(height: 16),
                                 _summaryGrid(desktop),
                                 const SizedBox(height: 16),
@@ -393,8 +414,18 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage>
                                       Expanded(
                                         child: Column(
                                           children: <Widget>[
-                                            _basicCard(),
-                                            _stayCard(),
+                                            ShopTourAnchor(
+                                              ids: const [
+                                                'ShopPaymentSettingPage.6',
+                                              ],
+                                              child: _basicCard(),
+                                            ),
+                                            ShopTourAnchor(
+                                              ids: const [
+                                                'ShopPaymentSettingPage.4',
+                                              ],
+                                              child: _stayCard(),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -403,17 +434,31 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage>
                                         child: Column(
                                           children: <Widget>[
                                             _daycareCard(),
-                                            _spendCard(),
+                                            ShopTourAnchor(
+                                              ids: const [
+                                                'ShopPaymentSettingPage.5',
+                                              ],
+                                              child: _spendCard(),
+                                            ),
                                           ],
                                         ),
                                       ),
                                     ],
                                   )
                                 else ...<Widget>[
-                                  _basicCard(),
-                                  _stayCard(),
+                                  ShopTourAnchor(
+                                    ids: const ['ShopPaymentSettingPage.6'],
+                                    child: _basicCard(),
+                                  ),
+                                  ShopTourAnchor(
+                                    ids: const ['ShopPaymentSettingPage.4'],
+                                    child: _stayCard(),
+                                  ),
                                   _daycareCard(),
-                                  _spendCard(),
+                                  ShopTourAnchor(
+                                    ids: const ['ShopPaymentSettingPage.5'],
+                                    child: _spendCard(),
+                                  ),
                                 ],
                               ],
                             ),

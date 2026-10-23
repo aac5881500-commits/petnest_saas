@@ -1,3 +1,4 @@
+import 'home_card_image_setting.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 
 /// 新版首頁關於我們區塊。內容仍來自既有 about 欄位，這裡只決定怎麼顯示。
@@ -182,6 +183,7 @@ class HomeAboutSectionSetting {
   const HomeAboutSectionSetting({
     this.schemaVersion = 1,
     this.enabled = false,
+    this.cardImage = const HomeCardImageSetting(),
     this.layout = HomeAboutLayouts.simpleEntry,
     this.cardSize = HomeAboutCardSizes.standard,
     this.title = '關於我們',
@@ -190,6 +192,8 @@ class HomeAboutSectionSetting {
     this.showSubtitle = true,
     this.showImage = true,
     this.imageUrl = '',
+    this.imageSource = 'legacy',
+    this.summarySource = 'legacy',
     this.imageFit = HomeAboutImageFits.cover,
     this.imagePosition = HomeAboutImagePositions.left,
     this.imageAlign = HomeAboutImageAligns.center,
@@ -203,6 +207,7 @@ class HomeAboutSectionSetting {
 
   final int schemaVersion;
   final bool enabled;
+  final HomeCardImageSetting cardImage;
   final String layout;
   final String cardSize;
   final String title;
@@ -211,6 +216,7 @@ class HomeAboutSectionSetting {
   final bool showSubtitle;
   final bool showImage;
   final String imageUrl;
+  final String imageSource, summarySource;
   final String imageFit;
   final String imagePosition;
   final String imageAlign;
@@ -242,6 +248,7 @@ class HomeAboutSectionSetting {
   HomeAboutSectionSetting copyWith({
     int? schemaVersion,
     bool? enabled,
+    HomeCardImageSetting? cardImage,
     String? layout,
     String? cardSize,
     String? title,
@@ -250,6 +257,8 @@ class HomeAboutSectionSetting {
     bool? showSubtitle,
     bool? showImage,
     String? imageUrl,
+    String? imageSource,
+    String? summarySource,
     String? imageFit,
     String? imagePosition,
     String? imageAlign,
@@ -263,6 +272,7 @@ class HomeAboutSectionSetting {
     return HomeAboutSectionSetting(
       schemaVersion: schemaVersion ?? this.schemaVersion,
       enabled: enabled ?? this.enabled,
+      cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       cardSize: cardSize ?? this.cardSize,
       title: title ?? this.title,
@@ -271,6 +281,8 @@ class HomeAboutSectionSetting {
       showSubtitle: showSubtitle ?? this.showSubtitle,
       showImage: showImage ?? this.showImage,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageSource: imageSource ?? this.imageSource,
+      summarySource: summarySource ?? this.summarySource,
       imageFit: imageFit ?? this.imageFit,
       imagePosition: imagePosition ?? this.imagePosition,
       imageAlign: imageAlign ?? this.imageAlign,
@@ -287,6 +299,7 @@ class HomeAboutSectionSetting {
     return <String, dynamic>{
       'schemaVersion': schemaVersion,
       'enabled': enabled,
+      'cardImage': cardImage.toMap(),
       'layout': HomeAboutLayouts.migrate(layout),
       'cardSize': HomeAboutCardSizes.migrate(cardSize),
       'title': title,
@@ -295,6 +308,8 @@ class HomeAboutSectionSetting {
       'showSubtitle': showSubtitle,
       'showImage': showImage,
       'imageUrl': imageUrl.trim(),
+      'imageSource': migrateImageSource(imageSource),
+      'summarySource': migrateSummarySource(summarySource),
       'imageFit': HomeAboutImageFits.migrate(imageFit),
       'imagePosition': HomeAboutImagePositions.migrate(imagePosition),
       'imageAlign': HomeAboutImageAligns.migrate(imageAlign),
@@ -320,18 +335,21 @@ class HomeAboutSectionSetting {
           ? (map['schemaVersion'] as num).toInt()
           : 1,
       enabled: map['enabled'] == true,
+      cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeAboutLayouts.migrate(map['layout']),
       cardSize: HomeAboutCardSizes.migrate(map['cardSize']),
       title: title.isEmpty ? '關於我們' : title,
       useShopNameAsTitle: map['useShopNameAsTitle'] is bool
           ? map['useShopNameAsTitle'] as bool
           : true,
-      subtitle: subtitle.isEmpty ? '認識我們的照顧理念' : subtitle,
+      subtitle: map.containsKey('subtitle') ? subtitle : '認識我們的照顧理念',
       showSubtitle: map['showSubtitle'] is bool
           ? map['showSubtitle'] as bool
           : true,
       showImage: map['showImage'] is bool ? map['showImage'] as bool : true,
       imageUrl: (map['imageUrl'] ?? '').toString().trim(),
+      imageSource: migrateImageSource(map['imageSource']),
+      summarySource: migrateSummarySource(map['summarySource']),
       imageFit: HomeAboutImageFits.migrate(map['imageFit']),
       imagePosition: HomeAboutImagePositions.migrate(map['imagePosition']),
       imageAlign: HomeAboutImageAligns.migrate(map['imageAlign']),
@@ -344,12 +362,35 @@ class HomeAboutSectionSetting {
     );
   }
 
+  static String migrateImageSource(Object? raw) =>
+      const [
+        'legacy',
+        'aboutCover',
+        'galleryFirst',
+        'platformCard',
+      ].contains(raw)
+      ? raw as String
+      : 'legacy';
+  static String migrateSummarySource(Object? raw) =>
+      const ['legacy', 'shop', 'custom'].contains(raw)
+      ? raw as String
+      : 'legacy';
+
   /// 指定圖 → 關於我們封面 → Logo → 環境照片。都沒有就回傳空字串。
   static String resolveImageUrl({
     required HomeAboutSectionSetting setting,
     required Map<String, dynamic> shop,
     required Map<String, dynamic> environmentIntro,
   }) {
+    if (setting.imageSource == 'aboutCover') {
+      return (shop['aboutImageUrl'] ?? '').toString().trim();
+    }
+    if (setting.imageSource == 'galleryFirst') {
+      return const HomeEnvironmentSectionSetting(
+        imageSource: 'galleryFirst',
+      ).imageForIntro(environmentIntro);
+    }
+    if (setting.imageSource == 'platformCard') return '';
     final String chosen = setting.imageUrl.trim();
     if (chosen.isNotEmpty) {
       return chosen;

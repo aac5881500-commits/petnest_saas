@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_device_page.dart
 // 功能說明：以房間為主的攝影機設定表。同房多筆設備只顯示一筆主設定。
 
@@ -23,182 +24,246 @@ class ShopDevicePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('攝影機設定'),
-          actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
-          bottom: const TabBar(
-            tabs: <Widget>[
-              Tab(text: '房間設備'),
-              Tab(text: '分享申請'),
+    return ShopTourPage(
+      id: 'ShopDevicePage',
+      shopId: shopId,
+      child: DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('攝影機設定'),
+            actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
+            bottom: const TabBar(
+              tabs: <Widget>[
+                Tab(text: '房間設備'),
+                Tab(text: '分享申請'),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            children: <Widget>[
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: ShopRoomService.instance.roomsRef(shopId).snapshots(),
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
+                      roomsSnap,
+                    ) {
+                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: ShopRoomService.instance
+                            .roomTypesRef(shopId)
+                            .snapshots(),
+                        builder:
+                            (
+                              BuildContext context,
+                              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
+                              typesSnap,
+                            ) {
+                              return StreamBuilder<
+                                QuerySnapshot<Map<String, dynamic>>
+                              >(
+                                stream: ShopDeviceService.instance.watchDevices(
+                                  shopId,
+                                ),
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      AsyncSnapshot<
+                                        QuerySnapshot<Map<String, dynamic>>
+                                      >
+                                      devicesSnap,
+                                    ) {
+                                      return StreamBuilder<
+                                        DocumentSnapshot<Map<String, dynamic>>
+                                      >(
+                                        stream: FirebaseFirestore.instance
+                                            .collection('shops')
+                                            .doc(shopId)
+                                            .snapshots(),
+                                        builder:
+                                            (
+                                              BuildContext context,
+                                              AsyncSnapshot<
+                                                DocumentSnapshot<
+                                                  Map<String, dynamic>
+                                                >
+                                              >
+                                              shopSnap,
+                                            ) {
+                                              final Object? failure =
+                                                  roomsSnap.error ??
+                                                  typesSnap.error ??
+                                                  devicesSnap.error ??
+                                                  shopSnap.error;
+                                              if (failure != null) {
+                                                debugPrint(failure.toString());
+                                                return ShopTourAnchor(
+                                                  ids: const [
+                                                    'ShopDevicePage.0',
+                                                    'ShopDevicePage.1',
+                                                    'ShopDevicePage.2',
+                                                    'ShopDevicePage.3',
+                                                  ],
+                                                  ready: false,
+                                                  error: failure,
+                                                  child: const _CameraMessage(
+                                                    icon: Icons
+                                                        .cloud_off_outlined,
+                                                    title:
+                                                        '攝影機資料讀取失敗，請重新整理後再試。',
+                                                  ),
+                                                );
+                                              }
+                                              if (!roomsSnap.hasData ||
+                                                  !typesSnap.hasData ||
+                                                  !devicesSnap.hasData ||
+                                                  !shopSnap.hasData) {
+                                                return const ShopTourAnchor(
+                                                  ids: [
+                                                    'ShopDevicePage.0',
+                                                    'ShopDevicePage.1',
+                                                    'ShopDevicePage.2',
+                                                    'ShopDevicePage.3',
+                                                  ],
+                                                  ready: false,
+                                                  child: Center(
+                                                    child:
+                                                        CircularProgressIndicator(),
+                                                  ),
+                                                );
+                                              }
+                                              final bool showCameraSection =
+                                                  shopSnap.data
+                                                      ?.data()?['showCameraSection'] !=
+                                                  false;
+                                              final List<_RoomCameraLine>
+                                              lines = _roomCameraLines(
+                                                rooms: roomsSnap.data!.docs,
+                                                roomTypes: typesSnap.data!.docs,
+                                                devices: devicesSnap.data!.docs,
+                                              );
+                                              return LayoutBuilder(
+                                                builder:
+                                                    (
+                                                      BuildContext context,
+                                                      BoxConstraints
+                                                      constraints,
+                                                    ) {
+                                                      final bool desktop =
+                                                          constraints
+                                                              .maxWidth >=
+                                                          900;
+                                                      final double pad = desktop
+                                                          ? 24
+                                                          : 16;
+                                                      return ListView(
+                                                        padding:
+                                                            EdgeInsets.fromLTRB(
+                                                              pad,
+                                                              16,
+                                                              pad,
+                                                              24,
+                                                            ),
+                                                        children: <Widget>[
+                                                          ShopTourAnchor(
+                                                            ids: const [
+                                                              "ShopDevicePage.0",
+                                                            ],
+                                                            child: _ServiceBar(
+                                                              showCameraSection:
+                                                                  showCameraSection,
+                                                              lines: lines,
+                                                              onChanged: (bool value) {
+                                                                _updateShowCameraSection(
+                                                                  context,
+                                                                  shopId:
+                                                                      shopId,
+                                                                  value: value,
+                                                                  liveCount: lines
+                                                                      .where(
+                                                                        (
+                                                                          _RoomCameraLine
+                                                                          line,
+                                                                        ) =>
+                                                                            line.status ==
+                                                                            _CameraRowStatus.live,
+                                                                      )
+                                                                      .length,
+                                                                );
+                                                              },
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+                                                          const ShopTourAnchor(
+                                                            ids: [
+                                                              'ShopDevicePage.3',
+                                                            ],
+                                                            child:
+                                                                _CompatibilityStrip(),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 12,
+                                                          ),
+                                                          if (lines.isEmpty)
+                                                            ShopTourAnchor(
+                                                              ids: const [
+                                                                'ShopDevicePage.1',
+                                                                'ShopDevicePage.2',
+                                                              ],
+                                                              child: const _CameraMessage(
+                                                                icon: Icons
+                                                                    .videocam_off_outlined,
+                                                                title: '尚未建立房間',
+                                                                message:
+                                                                    '新增房間後，這裡會出現對應的攝影機設定。',
+                                                              ),
+                                                            )
+                                                          else if (desktop)
+                                                            ShopTourAnchor(
+                                                              ids: const [
+                                                                'ShopDevicePage.1',
+                                                                'ShopDevicePage.2',
+                                                              ],
+                                                              child:
+                                                                  _CameraTable(
+                                                                    shopId:
+                                                                        shopId,
+                                                                    lines:
+                                                                        lines,
+                                                                  ),
+                                                            )
+                                                          else
+                                                            ShopTourAnchor(
+                                                              ids: const [
+                                                                'ShopDevicePage.1',
+                                                                'ShopDevicePage.2',
+                                                              ],
+                                                              child:
+                                                                  _CameraPhoneList(
+                                                                    shopId:
+                                                                        shopId,
+                                                                    lines:
+                                                                        lines,
+                                                                  ),
+                                                            ),
+                                                        ],
+                                                      );
+                                                    },
+                                              );
+                                            },
+                                      );
+                                    },
+                              );
+                            },
+                      );
+                    },
+              ),
+              ShopCameraAccessPanel(shopId: shopId),
             ],
           ),
-        ),
-        body: TabBarView(
-          children: <Widget>[
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: ShopRoomService.instance.roomsRef(shopId).snapshots(),
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                    roomsSnap,
-                  ) {
-                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: ShopRoomService.instance
-                          .roomTypesRef(shopId)
-                          .snapshots(),
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                            typesSnap,
-                          ) {
-                            return StreamBuilder<
-                              QuerySnapshot<Map<String, dynamic>>
-                            >(
-                              stream: ShopDeviceService.instance.watchDevices(
-                                shopId,
-                              ),
-                              builder:
-                                  (
-                                    BuildContext context,
-                                    AsyncSnapshot<
-                                      QuerySnapshot<Map<String, dynamic>>
-                                    >
-                                    devicesSnap,
-                                  ) {
-                                    return StreamBuilder<
-                                      DocumentSnapshot<Map<String, dynamic>>
-                                    >(
-                                      stream: FirebaseFirestore.instance
-                                          .collection('shops')
-                                          .doc(shopId)
-                                          .snapshots(),
-                                      builder:
-                                          (
-                                            BuildContext context,
-                                            AsyncSnapshot<
-                                              DocumentSnapshot<
-                                                Map<String, dynamic>
-                                              >
-                                            >
-                                            shopSnap,
-                                          ) {
-                                            final Object? failure =
-                                                roomsSnap.error ??
-                                                typesSnap.error ??
-                                                devicesSnap.error;
-                                            if (failure != null) {
-                                              debugPrint(failure.toString());
-                                              return const _CameraMessage(
-                                                icon: Icons.cloud_off_outlined,
-                                                title: '攝影機資料讀取失敗，請重新整理後再試。',
-                                              );
-                                            }
-                                            if (!roomsSnap.hasData ||
-                                                !typesSnap.hasData ||
-                                                !devicesSnap.hasData) {
-                                              return const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
-                                              );
-                                            }
-                                            final bool showCameraSection =
-                                                shopSnap.data
-                                                    ?.data()?['showCameraSection'] !=
-                                                false;
-                                            final List<_RoomCameraLine>
-                                            lines = _roomCameraLines(
-                                              rooms: roomsSnap.data!.docs,
-                                              roomTypes: typesSnap.data!.docs,
-                                              devices: devicesSnap.data!.docs,
-                                            );
-                                            return LayoutBuilder(
-                                              builder:
-                                                  (
-                                                    BuildContext context,
-                                                    BoxConstraints constraints,
-                                                  ) {
-                                                    final bool desktop =
-                                                        constraints.maxWidth >=
-                                                        900;
-                                                    final double pad = desktop
-                                                        ? 24
-                                                        : 16;
-                                                    return ListView(
-                                                      padding:
-                                                          EdgeInsets.fromLTRB(
-                                                            pad,
-                                                            16,
-                                                            pad,
-                                                            24,
-                                                          ),
-                                                      children: <Widget>[
-                                                        _ServiceBar(
-                                                          showCameraSection:
-                                                              showCameraSection,
-                                                          lines: lines,
-                                                          onChanged: (bool value) {
-                                                            _updateShowCameraSection(
-                                                              context,
-                                                              shopId: shopId,
-                                                              value: value,
-                                                              liveCount: lines
-                                                                  .where(
-                                                                    (
-                                                                      _RoomCameraLine
-                                                                      line,
-                                                                    ) =>
-                                                                        line.status ==
-                                                                        _CameraRowStatus
-                                                                            .live,
-                                                                  )
-                                                                  .length,
-                                                            );
-                                                          },
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                        const _CompatibilityStrip(),
-                                                        const SizedBox(
-                                                          height: 12,
-                                                        ),
-                                                        if (lines.isEmpty)
-                                                          const _CameraMessage(
-                                                            icon: Icons
-                                                                .videocam_off_outlined,
-                                                            title: '尚未建立房間',
-                                                            message:
-                                                                '新增房間後，這裡會出現對應的攝影機設定。',
-                                                          )
-                                                        else if (desktop)
-                                                          _CameraTable(
-                                                            shopId: shopId,
-                                                            lines: lines,
-                                                          )
-                                                        else
-                                                          _CameraPhoneList(
-                                                            shopId: shopId,
-                                                            lines: lines,
-                                                          ),
-                                                      ],
-                                                    );
-                                                  },
-                                            );
-                                          },
-                                    );
-                                  },
-                            );
-                          },
-                    );
-                  },
-            ),
-            ShopCameraAccessPanel(shopId: shopId),
-          ],
         ),
       ),
     );

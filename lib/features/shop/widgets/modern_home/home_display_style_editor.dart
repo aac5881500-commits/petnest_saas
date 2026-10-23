@@ -168,8 +168,10 @@ class HomeDisplayTextForm extends StatelessWidget {
     super.key,
     required this.style,
     required this.onChanged,
+    this.showImageLayout = true,
   });
 
+  final bool showImageLayout;
   final HomeDisplayStyle style;
   final ValueChanged<HomeDisplayStyle> onChanged;
 
@@ -179,22 +181,24 @@ class HomeDisplayTextForm extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        const Text(
-          '文字位置',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplayTextPositions.above, '圖片上方'),
-            (HomeDisplayTextPositions.overlay, '圖片中央'),
-            (HomeDisplayTextPositions.below, '圖片下方'),
-          ],
-          selected: style.textPosition,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(textPosition: value)),
-        ),
-        const SizedBox(height: 10),
+        if (showImageLayout) ...[
+          const Text(
+            '文字位置',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplayTextPositions.above, '圖片上方'),
+              (HomeDisplayTextPositions.overlay, '圖片中央'),
+              (HomeDisplayTextPositions.below, '圖片下方'),
+            ],
+            selected: style.textPosition,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(textPosition: value)),
+          ),
+          const SizedBox(height: 10),
+        ],
         const Text(
           '標題',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
@@ -302,21 +306,23 @@ class HomeDisplayTextForm extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 10),
-        const Text(
-          '圖片與文字間距',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplaySpacings.compact, '緊湊'),
-            (HomeDisplaySpacings.normal, '一般'),
-            (HomeDisplaySpacings.relaxed, '寬鬆'),
-          ],
-          selected: style.spacing,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(spacing: value)),
-        ),
+        if (showImageLayout) ...[
+          const Text(
+            '圖片與文字間距',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplaySpacings.compact, '緊湊'),
+              (HomeDisplaySpacings.normal, '一般'),
+              (HomeDisplaySpacings.relaxed, '寬鬆'),
+            ],
+            selected: style.spacing,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(spacing: value)),
+          ),
+        ],
       ],
     );
   }
@@ -327,8 +333,10 @@ class HomeDisplayCardForm extends StatelessWidget {
     super.key,
     required this.style,
     required this.onChanged,
+    this.backgroundOnly = false,
   });
 
+  final bool backgroundOnly;
   final HomeDisplayStyle style;
   final ValueChanged<HomeDisplayStyle> onChanged;
 
@@ -347,92 +355,94 @@ class HomeDisplayCardForm extends StatelessWidget {
           onChanged: (String value) =>
               onChanged(style.copyWith(cardBackground: value)),
         ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplayRadii.small, '圓角小'),
-            (HomeDisplayRadii.medium, '圓角中'),
-            (HomeDisplayRadii.large, '圓角大'),
-          ],
-          selected: style.cardRadius,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(cardRadius: value)),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            ('border', '顯示邊框'),
-            ('none', '無邊框'),
-          ],
-          selected: style.cardBorder ? 'border' : 'none',
-          onChanged: (String value) {
-            onChanged(style.copyWith(cardBorder: value == 'border'));
-          },
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplayShadows.none, '無陰影'),
-            (HomeDisplayShadows.soft, '淡陰影'),
-          ],
-          selected: style.cardShadow,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(cardShadow: value)),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            ('square', '圖片正方形'),
-            ('portrait', '圖片直式'),
-            ('landscape', '圖片橫式'),
-          ],
-          selected: style.imageAspect,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(imageAspect: value)),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplayFits.cover, '裁切填滿'),
-            (HomeDisplayFits.contain, '完整顯示'),
-          ],
-          selected: style.imageFit,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(imageFit: value)),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplayMasks.none, '遮罩無'),
-            (HomeDisplayMasks.light, '遮罩淡'),
-            (HomeDisplayMasks.strong, '遮罩深'),
-          ],
-          selected: style.imageMask,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(imageMask: value)),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplaySpacings.compact, '內距緊湊'),
-            (HomeDisplaySpacings.normal, '內距一般'),
-            (HomeDisplaySpacings.relaxed, '內距寬鬆'),
-          ],
-          selected: style.cardPadding,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(cardPadding: value)),
-        ),
-        const SizedBox(height: 6),
-        _chips(
-          options: const <(String, String)>[
-            (HomeDisplaySpacings.compact, '卡片間距緊湊'),
-            (HomeDisplaySpacings.normal, '卡片間距一般'),
-            (HomeDisplaySpacings.relaxed, '卡片間距寬鬆'),
-          ],
-          selected: style.cardGap,
-          onChanged: (String value) =>
-              onChanged(style.copyWith(cardGap: value)),
-        ),
+        if (!backgroundOnly) ...[
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplayRadii.small, '圓角小'),
+              (HomeDisplayRadii.medium, '圓角中'),
+              (HomeDisplayRadii.large, '圓角大'),
+            ],
+            selected: style.cardRadius,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(cardRadius: value)),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              ('border', '顯示邊框'),
+              ('none', '無邊框'),
+            ],
+            selected: style.cardBorder ? 'border' : 'none',
+            onChanged: (String value) {
+              onChanged(style.copyWith(cardBorder: value == 'border'));
+            },
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplayShadows.none, '無陰影'),
+              (HomeDisplayShadows.soft, '淡陰影'),
+            ],
+            selected: style.cardShadow,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(cardShadow: value)),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              ('square', '圖片正方形'),
+              ('portrait', '圖片直式'),
+              ('landscape', '圖片橫式'),
+            ],
+            selected: style.imageAspect,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(imageAspect: value)),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplayFits.cover, '裁切填滿'),
+              (HomeDisplayFits.contain, '完整顯示'),
+            ],
+            selected: style.imageFit,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(imageFit: value)),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplayMasks.none, '遮罩無'),
+              (HomeDisplayMasks.light, '遮罩淡'),
+              (HomeDisplayMasks.strong, '遮罩深'),
+            ],
+            selected: style.imageMask,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(imageMask: value)),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplaySpacings.compact, '內距緊湊'),
+              (HomeDisplaySpacings.normal, '內距一般'),
+              (HomeDisplaySpacings.relaxed, '內距寬鬆'),
+            ],
+            selected: style.cardPadding,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(cardPadding: value)),
+          ),
+          const SizedBox(height: 6),
+          _chips(
+            options: const <(String, String)>[
+              (HomeDisplaySpacings.compact, '卡片間距緊湊'),
+              (HomeDisplaySpacings.normal, '卡片間距一般'),
+              (HomeDisplaySpacings.relaxed, '卡片間距寬鬆'),
+            ],
+            selected: style.cardGap,
+            onChanged: (String value) =>
+                onChanged(style.copyWith(cardGap: value)),
+          ),
+        ],
       ],
     );
   }
@@ -448,8 +458,10 @@ class HomeDisplaySectionOverride extends StatelessWidget {
     required this.onInherit,
     required this.onCustom,
     required this.onEdit,
+    this.basicAppearanceOnly = false,
   });
 
+  final bool basicAppearanceOnly;
   final String label;
   final String mode;
   final HomeDisplayStyle effective;
@@ -484,9 +496,17 @@ class HomeDisplaySectionOverride extends StatelessWidget {
         ),
         if (custom) ...<Widget>[
           const Divider(height: 20),
-          HomeDisplayTextForm(style: effective, onChanged: onEdit),
+          HomeDisplayTextForm(
+            style: effective,
+            onChanged: onEdit,
+            showImageLayout: !basicAppearanceOnly,
+          ),
           const SizedBox(height: 8),
-          HomeDisplayCardForm(style: effective, onChanged: onEdit),
+          HomeDisplayCardForm(
+            style: effective,
+            onChanged: onEdit,
+            backgroundOnly: basicAppearanceOnly,
+          ),
         ],
       ],
     );

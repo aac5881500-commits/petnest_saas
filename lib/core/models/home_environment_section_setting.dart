@@ -33,6 +33,23 @@ class HomeEnvironmentLayouts {
   }
 }
 
+/// 設備橫滑末端入口樣式，舊資料與未知值沿用極簡雙箭頭。
+class HomeEnvironmentEndEntryStyles {
+  static const minimal = 'minimal';
+  static const circle = 'circle';
+  static const square = 'square';
+  static const text = 'text';
+  static const all = [minimal, circle, square, text];
+  static String migrate(Object? raw) =>
+      all.contains(raw) ? raw as String : minimal;
+  static String label(String value) => switch (migrate(value)) {
+    circle => '圓形按鈕',
+    square => '圓角方形',
+    text => '文字按鈕',
+    _ => '極簡雙箭頭',
+  };
+}
+
 class HomeEnvironmentCardSizes {
   static const String small = 'small';
   static const String single = 'single';
@@ -192,6 +209,7 @@ class HomeEnvironmentSectionSetting {
     this.showTitle = false,
     this.showSubtitle = true,
     this.showEndEntryCard = true,
+    this.endEntryStyle = HomeEnvironmentEndEntryStyles.minimal,
     this.simpleCardSize = HomeEnvironmentCardSizes.wide,
     this.simpleSurface = HomeEnvironmentSurfaces.filled,
     this.simpleIcon = HomeEnvironmentIcons.home,
@@ -214,6 +232,7 @@ class HomeEnvironmentSectionSetting {
   final bool showTitle;
   final bool showSubtitle;
   final bool showEndEntryCard;
+  final String endEntryStyle;
   final String simpleCardSize;
   final String simpleSurface;
   final String simpleIcon;
@@ -260,6 +279,7 @@ class HomeEnvironmentSectionSetting {
     bool? showTitle,
     bool? showSubtitle,
     bool? showEndEntryCard,
+    String? endEntryStyle,
     String? simpleCardSize,
     String? simpleSurface,
     String? simpleIcon,
@@ -286,6 +306,7 @@ class HomeEnvironmentSectionSetting {
       showTitle: showTitle ?? this.showTitle,
       showSubtitle: showSubtitle ?? this.showSubtitle,
       showEndEntryCard: showEndEntryCard ?? this.showEndEntryCard,
+      endEntryStyle: endEntryStyle ?? this.endEntryStyle,
       simpleCardSize: simpleCardSize ?? this.simpleCardSize,
       simpleSurface: simpleSurface ?? this.simpleSurface,
       simpleIcon: simpleIcon ?? this.simpleIcon,
@@ -314,6 +335,7 @@ class HomeEnvironmentSectionSetting {
       'showTitle': showTitle,
       'showSubtitle': showSubtitle,
       'showEndEntryCard': showEndEntryCard,
+      'endEntryStyle': HomeEnvironmentEndEntryStyles.migrate(endEntryStyle),
       'simpleCardSize': HomeEnvironmentCardSizes.migrate(simpleCardSize),
       'simpleSurface': HomeEnvironmentSurfaces.migrate(simpleSurface),
       'simpleIcon': HomeEnvironmentIcons.migrate(simpleIcon),
@@ -381,6 +403,9 @@ class HomeEnvironmentSectionSetting {
       showEndEntryCard: map['showEndEntryCard'] is bool
           ? map['showEndEntryCard'] as bool
           : true,
+      endEntryStyle: HomeEnvironmentEndEntryStyles.migrate(
+        map['endEntryStyle'],
+      ),
       simpleCardSize: HomeEnvironmentCardSizes.migrate(map['simpleCardSize']),
       simpleSurface: HomeEnvironmentSurfaces.migrate(map['simpleSurface']),
       simpleIcon: HomeEnvironmentIcons.migrate(map['simpleIcon']),

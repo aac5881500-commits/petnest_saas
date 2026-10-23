@@ -18,6 +18,7 @@ class AboutCoverImageBox extends StatelessWidget {
     this.onDelete,
     this.overlayTitle = '',
     this.overlaySubtitle = '',
+    this.showHeightSetting = true,
   });
 
   final String imageUrl;
@@ -29,6 +30,7 @@ class AboutCoverImageBox extends StatelessWidget {
   final VoidCallback? onDelete;
   final String overlayTitle;
   final String overlaySubtitle;
+  final bool showHeightSetting;
 
   bool get _hasShopImage => imageUrl.trim().isNotEmpty;
 
@@ -120,54 +122,56 @@ class AboutCoverImageBox extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: 10),
-        const Text(
-          '封面顯示大小',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _chip(
-              label: '精簡',
-              selected:
-                  frame.heightPreset == AboutCoverFrameSetting.heightCompact,
-              onSelected: () {
-                onFrameChanged(
-                  frame.copyWith(
-                    heightPreset: AboutCoverFrameSetting.heightCompact,
-                  ),
-                );
-              },
-            ),
-            _chip(
-              label: '標準',
-              selected:
-                  frame.heightPreset == AboutCoverFrameSetting.heightStandard,
-              onSelected: () {
-                onFrameChanged(
-                  frame.copyWith(
-                    heightPreset: AboutCoverFrameSetting.heightStandard,
-                  ),
-                );
-              },
-            ),
-            _chip(
-              label: '大型',
-              selected:
-                  frame.heightPreset == AboutCoverFrameSetting.heightLarge,
-              onSelected: () {
-                onFrameChanged(
-                  frame.copyWith(
-                    heightPreset: AboutCoverFrameSetting.heightLarge,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+        if (showHeightSetting) ...[
+          const SizedBox(height: 10),
+          const Text(
+            '封面顯示大小',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _chip(
+                label: '精簡',
+                selected:
+                    frame.heightPreset == AboutCoverFrameSetting.heightCompact,
+                onSelected: () {
+                  onFrameChanged(
+                    frame.copyWith(
+                      heightPreset: AboutCoverFrameSetting.heightCompact,
+                    ),
+                  );
+                },
+              ),
+              _chip(
+                label: '標準',
+                selected:
+                    frame.heightPreset == AboutCoverFrameSetting.heightStandard,
+                onSelected: () {
+                  onFrameChanged(
+                    frame.copyWith(
+                      heightPreset: AboutCoverFrameSetting.heightStandard,
+                    ),
+                  );
+                },
+              ),
+              _chip(
+                label: '大型',
+                selected:
+                    frame.heightPreset == AboutCoverFrameSetting.heightLarge,
+                onSelected: () {
+                  onFrameChanged(
+                    frame.copyWith(
+                      heightPreset: AboutCoverFrameSetting.heightLarge,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 10),
         const Text(
           '圖片顯示方式',

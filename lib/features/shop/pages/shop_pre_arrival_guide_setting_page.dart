@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_pre_arrival_guide_setting_page.dart
 // 功能說明：店家後台：入住前準備圖文設定（住宿／安親），不是條款。
 
@@ -38,6 +39,7 @@ class _ShopPreArrivalGuideSettingPageState
   PreArrivalGuideModel? _daycare;
   PreArrivalGuideModel? _savedAccommodation;
   PreArrivalGuideModel? _savedDaycare;
+  Object? _tourError;
   bool _loading = true;
   bool _saving = false;
   final Set<String> _sessionUploads = <String>{};
@@ -92,26 +94,30 @@ class _ShopPreArrivalGuideSettingPageState
   }
 
   Future<void> _load() async {
-    final PreArrivalGuideModel acc = await PreArrivalGuideService.instance
-        .getGuide(
-          shopId: widget.shopId,
-          serviceType: PreArrivalGuideServiceType.accommodation,
-        );
-    final PreArrivalGuideModel day = await PreArrivalGuideService.instance
-        .getGuide(
-          shopId: widget.shopId,
-          serviceType: PreArrivalGuideServiceType.daycare,
-        );
-    if (!mounted) {
-      return;
+    try {
+      final PreArrivalGuideModel acc = await PreArrivalGuideService.instance
+          .getGuide(
+            shopId: widget.shopId,
+            serviceType: PreArrivalGuideServiceType.accommodation,
+          );
+      final PreArrivalGuideModel day = await PreArrivalGuideService.instance
+          .getGuide(
+            shopId: widget.shopId,
+            serviceType: PreArrivalGuideServiceType.daycare,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _accommodation = acc;
+        _daycare = day;
+        _savedAccommodation = acc;
+        _savedDaycare = day;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _tourError = e);
     }
-    setState(() {
-      _accommodation = acc;
-      _daycare = day;
-      _savedAccommodation = acc;
-      _savedDaycare = day;
-      _loading = false;
-    });
   }
 
   Future<bool> _confirmLeave() async {
@@ -181,68 +187,80 @@ class _ShopPreArrivalGuideSettingPageState
 
   @override
   Widget build(BuildContext context) {
-    return ShopFrontendThemeScope(
+    return ShopTourPage(
+      id: 'ShopPreArrivalGuideSettingPage',
       shopId: widget.shopId,
-      builder: (BuildContext context) {
-        return StreamBuilder<Map<String, dynamic>?>(
-          stream: ShopService.instance.streamShop(widget.shopId),
-          builder:
-              (
-                BuildContext context,
-                AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-              ) {
-                final bool daycareOn = DaycareEnabled.isOn(shop: shopSnap.data);
-                return PopScope(
-                  canPop: !_dirty,
-                  onPopInvokedWithResult: (bool didPop, Object? result) async {
-                    if (didPop) {
-                      return;
-                    }
-                    final bool leave = await _confirmLeave();
-                    if (!context.mounted) {
-                      return;
-                    }
-                    if (leave) {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: Scaffold(
-                    backgroundColor: BookingDetailUi.of(context).background,
-                    appBar: AppBar(
-                      title: Text(daycareOn ? '入住／安親前準備' : '入住前準備'),
+      ready: !_loading,
+      error: _tourError,
+      onPoint: (_) async {
+        _tabs.index = 0;
+      },
+      child: ShopFrontendThemeScope(
+        shopId: widget.shopId,
+        builder: (BuildContext context) {
+          return StreamBuilder<Map<String, dynamic>?>(
+            stream: ShopService.instance.streamShop(widget.shopId),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                ) {
+                  final bool daycareOn = DaycareEnabled.isOn(
+                    shop: shopSnap.data,
+                  );
+                  return PopScope(
+                    canPop: !_dirty,
+                    onPopInvokedWithResult:
+                        (bool didPop, Object? result) async {
+                          if (didPop) {
+                            return;
+                          }
+                          final bool leave = await _confirmLeave();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          if (leave) {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                    child: Scaffold(
                       backgroundColor: BookingDetailUi.of(context).background,
-                      bottom: daycareOn
-                          ? TabBar(
+                      appBar: AppBar(
+                        title: Text(daycareOn ? '入住／安親前準備' : '入住前準備'),
+                        backgroundColor: BookingDetailUi.of(context).background,
+                        bottom: daycareOn
+                            ? TabBar(
+                                controller: _tabs,
+                                tabs: const <Widget>[
+                                  Tab(text: '住宿'),
+                                  Tab(text: '安親'),
+                                ],
+                              )
+                            : null,
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: _saving ? null : _save,
+                            child: Text(_saving ? '儲存中' : '儲存'),
+                          ),
+                        ],
+                      ),
+                      body: _loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : daycareOn
+                          ? TabBarView(
                               controller: _tabs,
-                              tabs: const <Widget>[
-                                Tab(text: '住宿'),
-                                Tab(text: '安親'),
+                              children: <Widget>[
+                                _editor(isDaycare: false),
+                                _editor(isDaycare: true),
                               ],
                             )
-                          : null,
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: _saving ? null : _save,
-                          child: Text(_saving ? '儲存中' : '儲存'),
-                        ),
-                      ],
+                          : _editor(isDaycare: false),
                     ),
-                    body: _loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : daycareOn
-                        ? TabBarView(
-                            controller: _tabs,
-                            children: <Widget>[
-                              _editor(isDaycare: false),
-                              _editor(isDaycare: true),
-                            ],
-                          )
-                        : _editor(isDaycare: false),
-                  ),
-                );
-              },
-        );
-      },
+                  );
+                },
+          );
+        },
+      ),
     );
   }
 
@@ -252,18 +270,23 @@ class _ShopPreArrivalGuideSettingPageState
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        SwitchListTile(
-          title: Text(isDaycare ? '啟用安親前準備' : '啟用入住前準備'),
-          value: guide.enabled,
-          onChanged: (bool value) {
-            setState(() {
-              if (isDaycare) {
-                _daycare = guide.copyWith(enabled: value);
-              } else {
-                _accommodation = guide.copyWith(enabled: value);
-              }
-            });
-          },
+        ShopTourAnchor(
+          ids: isDaycare
+              ? const []
+              : const ['ShopPreArrivalGuideSettingPage.0'],
+          child: SwitchListTile(
+            title: Text(isDaycare ? '啟用安親前準備' : '啟用入住前準備'),
+            value: guide.enabled,
+            onChanged: (bool value) {
+              setState(() {
+                if (isDaycare) {
+                  _daycare = guide.copyWith(enabled: value);
+                } else {
+                  _accommodation = guide.copyWith(enabled: value);
+                }
+              });
+            },
+          ),
         ),
         if (isDaycare)
           SwitchListTile(
@@ -295,24 +318,29 @@ class _ShopPreArrivalGuideSettingPageState
         ),
         const SizedBox(height: 12),
         if (!inherit) ...<Widget>[
-          Wrap(
-            spacing: 8,
-            children: <Widget>[
-              OutlinedButton(
-                onPressed: () =>
-                    _addBlock(isDaycare, PreArrivalGuideBlockType.heading),
-                child: const Text('新增標題'),
-              ),
-              OutlinedButton(
-                onPressed: () =>
-                    _addBlock(isDaycare, PreArrivalGuideBlockType.text),
-                child: const Text('新增文字'),
-              ),
-              OutlinedButton(
-                onPressed: () => _addImage(isDaycare),
-                child: const Text('上傳圖片'),
-              ),
-            ],
+          ShopTourAnchor(
+            ids: isDaycare
+                ? const []
+                : const ['ShopPreArrivalGuideSettingPage.1'],
+            child: Wrap(
+              spacing: 8,
+              children: <Widget>[
+                OutlinedButton(
+                  onPressed: () =>
+                      _addBlock(isDaycare, PreArrivalGuideBlockType.heading),
+                  child: const Text('新增標題'),
+                ),
+                OutlinedButton(
+                  onPressed: () =>
+                      _addBlock(isDaycare, PreArrivalGuideBlockType.text),
+                  child: const Text('新增文字'),
+                ),
+                OutlinedButton(
+                  onPressed: () => _addImage(isDaycare),
+                  child: const Text('上傳圖片'),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           for (int i = 0; i < guide.blocks.length; i++)
@@ -323,19 +351,24 @@ class _ShopPreArrivalGuideSettingPageState
             ),
         ],
         const SizedBox(height: 16),
-        OutlinedButton(
-          onPressed: () {
-            final PreArrivalGuideModel preview = inherit
-                ? _accommodation!
-                : guide;
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => PreArrivalGuidePage(guide: preview),
-              ),
-            );
-          },
-          child: const Text('客戶畫面預覽'),
+        ShopTourAnchor(
+          ids: isDaycare
+              ? const []
+              : const ['ShopPreArrivalGuideSettingPage.2'],
+          child: OutlinedButton(
+            onPressed: () {
+              final PreArrivalGuideModel preview = inherit
+                  ? _accommodation!
+                  : guide;
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => PreArrivalGuidePage(guide: preview),
+                ),
+              );
+            },
+            child: const Text('客戶畫面預覽'),
+          ),
         ),
       ],
     );

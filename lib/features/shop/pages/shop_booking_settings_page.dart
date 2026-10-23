@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_setup_spotlight.dart';
 import 'package:petnest_saas/core/constants/shop_booking_settings_features.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
@@ -1815,24 +1816,34 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     }
     _showingOpened = true;
     try {
-      final back = await showDialog<bool>(
+      final back = await showDialog<String>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('住宿預約已開放'),
           content: const Text('顧客現在可以依開放日期與房間供應情況提出住宿預約。'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
+              onPressed: () => Navigator.pop(dialogContext, 'stay'),
               child: const Text('留在此頁'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: () => Navigator.pop(dialogContext, 'back'),
               child: const Text('返回開店導覽'),
             ),
+            if (widget.guideStayOpening &&
+                _openingStep == _StayOpeningStep.complete)
+              FilledButton.tonal(
+                onPressed: () => Navigator.pop(dialogContext, 'tour'),
+                child: const Text('繼續認識後台'),
+              ),
           ],
         ),
       );
-      if (back == true && mounted) {
+      if (back == 'tour' && mounted) {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) ShopFeatureTourRequest.start(uid, widget.shopId);
+      }
+      if ((back == 'back' || back == 'tour') && mounted) {
         if (widget.onReturnToOpening != null) {
           await widget.onReturnToOpening!();
         } else {

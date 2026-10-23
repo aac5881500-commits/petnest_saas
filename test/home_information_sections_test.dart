@@ -1,3 +1,8 @@
+import 'package:petnest_saas/core/models/home_card_image_setting.dart';
+import 'package:petnest_saas/core/models/home_about_section_setting.dart';
+import 'package:petnest_saas/core/models/home_news_section_setting.dart';
+import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/environment_end_entry.dart';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,6 +29,187 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_review_sec
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('入口圖庫與末端樣式保存、舊資料及未知值相容', () {
+    const image = HomeCardImageSetting(
+      source: 'platformCard',
+      assetId: 'card-123',
+    );
+    final maps = [
+      HomeAboutSectionSetting.fromMap(
+        const HomeAboutSectionSetting(
+          cardImage: image,
+          imageSource: 'galleryFirst',
+          summarySource: 'shop',
+        ).toMap(),
+      ).toMap(),
+      HomeNewsSectionSetting.fromMap(
+        const HomeNewsSectionSetting(
+          cardImage: image,
+          multiLineCount: 5,
+        ).toMap(),
+      ).toMap(),
+      HomeQuickBookingSectionSetting.fromMap(
+        const HomeQuickBookingSectionSetting(cardImage: image).toMap(),
+      ).toMap(),
+      HomePolicySectionSetting.fromMap(
+        const HomePolicySectionSetting(cardImage: image).toMap(),
+      ).toMap(),
+      HomeFaqSectionSetting.fromMap(
+        const HomeFaqSectionSetting(
+          cardImage: image,
+          endEntryStyle: 'circle',
+        ).toMap(),
+      ).toMap(),
+      HomeReviewSectionSetting.fromMap(
+        const HomeReviewSectionSetting(
+          cardImage: image,
+          endEntryStyle: 'text',
+        ).toMap(),
+      ).toMap(),
+    ];
+    for (final map in maps) {
+      expect(map['cardImage'], image.toMap());
+    }
+    expect(maps[0]['imageSource'], 'galleryFirst');
+    expect(maps[0]['summarySource'], 'shop');
+    expect(maps[1]['multiLineCount'], 5);
+    expect(maps[4]['endEntryStyle'], 'circle');
+    expect(maps[5]['endEntryStyle'], 'text');
+    expect(HomeAboutSectionSetting.fromMap({}).imageSource, 'legacy');
+    expect(HomeAboutSectionSetting.fromMap({}).summarySource, 'legacy');
+    expect(
+      HomeCardImageSetting.fromMap({
+        'source': 'bad',
+        'assetId': '../bad',
+      }).toMap(),
+      const HomeCardImageSetting().toMap(),
+    );
+    expect(
+      HomeFaqSectionSetting.fromMap({'endEntryStyle': 900}).endEntryStyle,
+      'minimal',
+    );
+    expect(HomeReviewSectionSetting.fromMap({}).endEntryStyle, 'minimal');
+    expect(
+      const HomeFaqSectionSetting(cardImage: image)
+          .copyWith(layout: HomeFaqLayouts.preview)
+          .copyWith(layout: HomeFaqLayouts.compact)
+          .cardImage
+          .assetId,
+      image.assetId,
+    );
+  });
+
+  test('關於我們明確圖片來源不回填 Logo，環境相簿排序即時生效', () {
+    String photo(List<Object> gallery) =>
+        HomeAboutSectionSetting.resolveImageUrl(
+          setting: const HomeAboutSectionSetting(
+            imageSource: 'galleryFirst',
+            imageUrl: 'old',
+          ),
+          shop: const {'logoUrl': 'logo', 'aboutImageUrl': 'cover'},
+          environmentIntro: {'heroImageUrl': 'hero', 'galleryImages': gallery},
+        );
+    expect(
+      photo([
+        '',
+        {'imageUrl': 'first'},
+        'second',
+      ]),
+      'first',
+    );
+    expect(
+      photo([
+        'second',
+        {'imageUrl': 'first'},
+      ]),
+      'second',
+    );
+    expect(photo([]), '');
+    expect(
+      HomeAboutSectionSetting.resolveImageUrl(
+        setting: const HomeAboutSectionSetting(imageSource: 'aboutCover'),
+        shop: const {'logoUrl': 'logo'},
+        environmentIntro: const {},
+      ),
+      '',
+    );
+  });
+
+  testWidgets('FAQ 與評價四種末端入口位於同一列表，可滑入並保留捲動位置', (tester) async {
+    int opens = 0;
+    for (final reviews in [false, true]) {
+      for (final style in HomeEnvironmentEndEntryStyles.all) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 360,
+                  child: reviews
+                      ? ModernReviewSection(
+                          theme: HomeThemeModel.modernDefault,
+                          setting: HomeReviewSectionSetting(
+                            endEntryStyle: style,
+                          ),
+                          reviews: [
+                            for (int i = 0; i < 5; i++) _review(id: 'r$i'),
+                          ],
+                          phase: HomeInfoSectionPhase.ready,
+                          onOpen: () => opens++,
+                        )
+                      : ModernHomeFaqSection(
+                          theme: HomeThemeModel.modernDefault,
+                          setting: HomeFaqSectionSetting(
+                            layout: HomeFaqLayouts.horizontalCards,
+                            previewCount: 5,
+                            endEntryStyle: style,
+                          ),
+                          items: [
+                            for (int i = 0; i < 5; i++)
+                              HomeFaqItem(
+                                id: 'q$i',
+                                question: '問題$i',
+                                answer: '答案',
+                                sortOrder: i,
+                              ),
+                          ],
+                          phase: HomeInfoSectionPhase.ready,
+                          onOpen: () => opens++,
+                        ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final list = find.byType(ListView);
+        final scrollable = find.descendant(
+          of: list,
+          matching: find.byType(Scrollable),
+        );
+        final state = tester.state<ScrollableState>(scrollable);
+        // 換樣式不重設列表位置。
+        if (style != HomeEnvironmentEndEntryStyles.minimal) {
+          expect(state.position.pixels, greaterThan(0));
+        }
+        state.position.jumpTo(state.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+        final end = find.byType(EnvironmentEndEntry);
+        expect(end, findsOneWidget);
+        expect(
+          find.ancestor(of: end, matching: find.byType(ListView)),
+          findsOneWidget,
+        );
+        expect(tester.getBottomRight(end).dx, lessThanOrEqualTo(360));
+        await tester.tap(end);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
+    }
+    expect(opens, 8);
+  });
 
   const HomeRoomSectionSetting rooms = HomeRoomSectionSetting(
     layout: HomeRoomSectionLayouts.simpleEntry,
@@ -515,16 +701,15 @@ void main() {
     );
     await tester.pump();
     expect(tester.takeException(), isNull);
-    expect(find.text('示意：入住時間'), findsOneWidget);
-    expect(find.text('示意評價：環境乾淨，照顧很細心。'), findsOneWidget);
+    expect(find.text('預覽示意：尚無已發布條款'), findsOneWidget);
+    expect(find.text('示意：入住時間'), findsNothing);
+    expect(find.text('預覽示意：尚未有公開評價'), findsOneWidget);
+    expect(find.text('示意評價：環境乾淨，照顧很細心。'), findsNothing);
     expect(
       tester.getSize(find.byKey(const Key('home-policy-card')).first).height,
       closeTo(kModernHomeSmallCardHeight, 0.5),
     );
-    expect(
-      tester.getSize(find.text('示意評價：環境乾淨，照顧很細心。')).height,
-      greaterThan(12),
-    );
+    expect(tester.getSize(find.text('預覽示意：尚未有公開評價')).height, greaterThan(12));
   });
 
   testWidgets('FAQ lock and the hidden-entry reminder are visible', (

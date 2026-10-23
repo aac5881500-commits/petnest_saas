@@ -1,3 +1,4 @@
+import 'home_card_image_setting.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
 
@@ -117,6 +118,7 @@ const String kHomeNewsLockedMessage = '請先到前台功能開啟『最新公�
 class HomeNewsSectionSetting {
   const HomeNewsSectionSetting({
     this.schemaVersion = 1,
+    this.cardImage = const HomeCardImageSetting(),
     this.layout = HomeNewsLayouts.singleLine,
     this.source = HomeNewsSources.both,
     this.title = '最新消息',
@@ -131,6 +133,7 @@ class HomeNewsSectionSetting {
   });
 
   final int schemaVersion;
+  final HomeCardImageSetting cardImage;
   final String layout;
   final String source;
   final String title;
@@ -155,6 +158,7 @@ class HomeNewsSectionSetting {
 
   HomeNewsSectionSetting copyWith({
     int? schemaVersion,
+    HomeCardImageSetting? cardImage,
     String? layout,
     String? source,
     String? title,
@@ -169,6 +173,7 @@ class HomeNewsSectionSetting {
   }) {
     return HomeNewsSectionSetting(
       schemaVersion: schemaVersion ?? this.schemaVersion,
+      cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       source: source ?? this.source,
       title: title ?? this.title,
@@ -186,6 +191,7 @@ class HomeNewsSectionSetting {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'schemaVersion': schemaVersion,
+      'cardImage': cardImage.toMap(),
       'layout': HomeNewsLayouts.migrate(layout),
       'source': HomeNewsSources.migrate(source),
       'title': _clip(title, 24),
@@ -210,6 +216,7 @@ class HomeNewsSectionSetting {
       schemaVersion: map['schemaVersion'] is num
           ? (map['schemaVersion'] as num).toInt()
           : 1,
+      cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeNewsLayouts.migrate(map['layout']),
       source: HomeNewsSources.migrate(map['source']),
       title: title.isEmpty ? '最新消息' : title,
@@ -232,7 +239,7 @@ class HomeNewsSectionSetting {
 
   static int migrateCount(Object? raw) {
     final int? value = raw is num ? raw.toInt() : int.tryParse('$raw');
-    return value == 2 ? 2 : 3;
+    return const [2, 3, 5].contains(value) ? value! : 3;
   }
 }
 
@@ -316,6 +323,33 @@ List<HomeNewsItem> mergeHomeNews({
 }
 
 enum HomeNewsSectionPhase { hidden, loading, unavailable, empty, ready }
+
+/// 重用首頁既有載入結果，設定區不另查歷史消息來計數。
+class HomeNewsAvailability {
+  const HomeNewsAvailability({
+    required this.notices,
+    required this.campaigns,
+    required this.load,
+  });
+  final int notices, campaigns;
+  final HomeNewsLoadState load;
+  String message(String source) {
+    final needNotices = source != HomeNewsSources.campaigns;
+    final needCampaigns = source != HomeNewsSources.notices;
+    if ((needNotices && !load.noticesReady) ||
+        (needCampaigns && !load.campaignsReady)) {
+      return '正在載入可展示消息…';
+    }
+    if ((needNotices && load.noticesFailed) ||
+        (needCampaigns && load.campaignsFailed)) {
+      return '部分消息載入失敗或無讀取權限，請稍後再試。';
+    }
+    final count = (needNotices ? notices : 0) + (needCampaigns ? campaigns : 0);
+    return count == 0
+        ? kHomeNewsEmptyMessage
+        : '目前符合來源條件：${count >= 5 ? '至少 5' : count} 則（首頁最多展示 5 則）';
+  }
+}
 
 class HomeNewsLoadState {
   const HomeNewsLoadState({

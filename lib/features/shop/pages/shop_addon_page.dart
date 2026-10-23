@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_addon_page.dart
 // 功能說明：加購服務管理頁（完整版）
 // 👉 已升級：
@@ -27,8 +29,16 @@ class ShopAddonPage extends StatefulWidget {
 }
 
 class _ShopAddonPageState extends State<ShopAddonPage>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        ShopDashboardLeaveAware<ShopAddonPage> {
+  @override
+  bool get dashboardHasUnsavedChanges => _hasUnsavedChanges;
+  @override
+  bool get dashboardIsBusy => false;
   late final TabController _tabController;
+  bool _tourLoading = true;
+  Object? _tourError;
   bool enabled = false;
   int _serviceIdCounter = 0;
 
@@ -117,84 +127,94 @@ class _ShopAddonPageState extends State<ShopAddonPage>
 
   /// 🔥 讀取
   Future<void> _loadData() async {
-    final doc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .collection('addons')
-        .doc('main')
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .collection('addons')
+          .doc('main')
+          .get();
 
-    final data = doc.data();
+      final data = doc.data();
 
-    if (data != null) {
-      setState(() {
-        enabled = data['enabled'] ?? false;
+      if (data != null) {
+        setState(() {
+          enabled = data['enabled'] ?? false;
 
-        timeOptions = List<Map<String, dynamic>>.from(
-          data['timeOptions'] ?? _defaultTimeOptions(),
-        );
+          timeOptions = List<Map<String, dynamic>>.from(
+            data['timeOptions'] ?? _defaultTimeOptions(),
+          );
 
-        valueServices = _normalizeServices(
-          data['valueServices'],
-          idPrefix: 'value',
-        );
+          valueServices = _normalizeServices(
+            data['valueServices'],
+            idPrefix: 'value',
+          );
 
-        customServices = _normalizeServices(
-          data['customServices'],
-          idPrefix: 'custom',
-        );
-        dailyTimedServices =
-            _normalizeServices(
-              data['dailyTimedServices'],
-              idPrefix: 'daily_timed',
-            ).map((Map<String, dynamic> service) {
-              final List<dynamic> rawTimeSlots = List<dynamic>.from(
-                service['timeSlots'] ?? <dynamic>[],
-              );
+          customServices = _normalizeServices(
+            data['customServices'],
+            idPrefix: 'custom',
+          );
+          dailyTimedServices =
+              _normalizeServices(
+                data['dailyTimedServices'],
+                idPrefix: 'daily_timed',
+              ).map((Map<String, dynamic> service) {
+                final List<dynamic> rawTimeSlots = List<dynamic>.from(
+                  service['timeSlots'] ?? <dynamic>[],
+                );
 
-              final List<Map<String, dynamic>> normalizedTimeSlots =
-                  rawTimeSlots.asMap().entries.map((
-                    MapEntry<int, dynamic> entry,
-                  ) {
-                    final dynamic rawSlot = entry.value;
+                final List<Map<String, dynamic>> normalizedTimeSlots =
+                    rawTimeSlots.asMap().entries.map((
+                      MapEntry<int, dynamic> entry,
+                    ) {
+                      final dynamic rawSlot = entry.value;
 
-                    if (rawSlot is Map) {
-                      final Map<String, dynamic> slot =
-                          Map<String, dynamic>.from(rawSlot);
+                      if (rawSlot is Map) {
+                        final Map<String, dynamic> slot =
+                            Map<String, dynamic>.from(rawSlot);
 
-                      final String existingSlotId = (slot['id'] ?? '')
-                          .toString()
-                          .trim();
+                        final String existingSlotId = (slot['id'] ?? '')
+                            .toString()
+                            .trim();
+
+                        return <String, dynamic>{
+                          'id': existingSlotId.isNotEmpty
+                              ? existingSlotId
+                              : _createServiceId('time_slot'),
+                          'label': (slot['label'] ?? '').toString(),
+                        };
+                      }
 
                       return <String, dynamic>{
-                        'id': existingSlotId.isNotEmpty
-                            ? existingSlotId
-                            : _createServiceId('time_slot'),
-                        'label': (slot['label'] ?? '').toString(),
+                        'id': _createServiceId('time_slot'),
+                        'label': rawSlot.toString(),
                       };
-                    }
+                    }).toList();
 
-                    return <String, dynamic>{
-                      'id': _createServiceId('time_slot'),
-                      'label': rawSlot.toString(),
-                    };
-                  }).toList();
-
-              return <String, dynamic>{
-                ...service,
-                'allowMultiplePetsPerSlot':
-                    service['allowMultiplePetsPerSlot'] ?? true,
-                'timeSlots': normalizedTimeSlots,
-              };
-            }).toList();
-        _selectInitialItem();
-      });
-    } else {
-      /// 🔥 沒資料 → 自動給預設
-      setState(() {
-        timeOptions = _defaultTimeOptions();
-        _selectInitialItem();
-      });
+                return <String, dynamic>{
+                  ...service,
+                  'allowMultiplePetsPerSlot':
+                      service['allowMultiplePetsPerSlot'] ?? true,
+                  'timeSlots': normalizedTimeSlots,
+                };
+              }).toList();
+          _selectInitialItem();
+        });
+      } else {
+        /// 🔥 沒資料 → 自動給預設
+        setState(() {
+          timeOptions = _defaultTimeOptions();
+          _selectInitialItem();
+        });
+      }
+      if (mounted) setState(() => _tourLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _tourError = e;
+          _tourLoading = false;
+        });
+      }
     }
   }
 
@@ -654,11 +674,11 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       case _AddonKind.time:
         return '顧客每次預約只能選擇一個入住／退房時間方案。';
       case _AddonKind.value:
-        return '此服務每筆訂單只計費一次，不因寵物數量重複收費。';
+        return '整筆預約每項收一次，不乘寵物數或住宿晚數。範例：接送 NT\$300，兩隻住三晚仍為 NT\$300；不同項目分別計費。';
       case _AddonKind.custom:
-        return '顧客可依服務規則選擇適用寵物；實際收費依既有前台規則計算。';
+        return '每隻勾選寵物各收一次，不乘住宿天數。範例：每隻 NT\$100，選兩隻共 NT\$200。每天重複提供請用每日分時段。';
       case _AddonKind.daily:
-        return '依每隻寵物、每個入住日期與每個選擇時段分別計費。';
+        return '按實際勾選的寵物、服務日期及時段計費，不含退房日。範例：每次 NT\$50 × 兩隻 × 兩天 × 每天兩時段＝NT\$400。';
     }
   }
 
@@ -701,38 +721,82 @@ class _ShopAddonPageState extends State<ShopAddonPage>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool desktop = constraints.maxWidth >= _desktopMin;
-        return Scaffold(
-          backgroundColor: const Color(0xFFF6F8FB),
-          appBar: AppBar(
-            title: const Text('加購服務設定'),
-            actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-            bottom: desktop
-                ? null
-                : TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-                    labelStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    unselectedLabelStyle: const TextStyle(fontSize: 13),
-                    tabs: const <Widget>[
-                      Tab(text: '時間加購'),
-                      Tab(text: '加值服務'),
-                      Tab(text: '客製服務'),
-                      Tab(text: '每日分時段'),
-                      Tab(text: '庫存設定'),
-                    ],
-                  ),
-          ),
-          body: desktop ? _desktopBody() : _mobileBody(),
-        );
+    return ShopTourPage(
+      id: 'ShopAddonPage',
+      shopId: widget.shopId,
+      ready: !_tourLoading,
+      error: _tourError,
+      onPoint: (point) async {
+        if (!mounted) return;
+        setState(() {
+          _tabController.index = shopTourPanel('ShopAddonPage', point);
+          _showInventory = point == 4;
+          _selectedKey = null;
+          _focusKind = _AddonKind.values[point.clamp(0, 3)];
+        });
       },
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool desktop = constraints.maxWidth >= _desktopMin;
+          return dashboardGuard(
+            Scaffold(
+              backgroundColor: const Color(0xFFF6F8FB),
+              appBar: AppBar(
+                title: const Text('加購服務設定'),
+                actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+                bottom: desktop
+                    ? null
+                    : TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        labelPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                        ),
+                        labelStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        unselectedLabelStyle: const TextStyle(fontSize: 13),
+                        tabs: <Widget>[
+                          ShopTourAnchor(
+                            ids: ['ShopAddonPage.0'],
+                            ready: !_tourLoading,
+                            error: _tourError,
+                            child: Tab(text: '時間加購'),
+                          ),
+                          ShopTourAnchor(
+                            ids: ['ShopAddonPage.1'],
+                            ready: !_tourLoading,
+                            error: _tourError,
+                            child: Tab(text: '加值服務'),
+                          ),
+                          ShopTourAnchor(
+                            ids: const ['ShopAddonPage.2'],
+                            ready: !_tourLoading,
+                            error: _tourError,
+                            child: const Tab(text: '客製服務'),
+                          ),
+                          ShopTourAnchor(
+                            ids: const ['ShopAddonPage.3'],
+                            ready: !_tourLoading,
+                            error: _tourError,
+                            child: const Tab(text: '每日分時段'),
+                          ),
+                          ShopTourAnchor(
+                            ids: ['ShopAddonPage.4'],
+                            ready: !_tourLoading,
+                            error: _tourError,
+                            child: Tab(text: '庫存設定'),
+                          ),
+                        ],
+                      ),
+              ),
+              body: desktop ? _desktopBody() : _mobileBody(),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -799,16 +863,41 @@ class _ShopAddonPageState extends State<ShopAddonPage>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               children: <Widget>[
-                _kindSection(_AddonKind.time, showSwitch: true),
-                _kindSection(_AddonKind.value),
-                _kindSection(_AddonKind.custom),
-                _kindSection(_AddonKind.daily),
+                ShopTourAnchor(
+                  ids: const ["ShopAddonPage.0"],
+                  ready: !_tourLoading,
+                  error: _tourError,
+                  child: _kindSection(_AddonKind.time, showSwitch: true),
+                ),
+                ShopTourAnchor(
+                  ids: const ["ShopAddonPage.1"],
+                  ready: !_tourLoading,
+                  error: _tourError,
+                  child: _kindSection(_AddonKind.value),
+                ),
+                ShopTourAnchor(
+                  ids: const ['ShopAddonPage.2'],
+                  ready: !_tourLoading,
+                  error: _tourError,
+                  child: _kindSection(_AddonKind.custom),
+                ),
+                ShopTourAnchor(
+                  ids: const ['ShopAddonPage.3'],
+                  ready: !_tourLoading,
+                  error: _tourError,
+                  child: _kindSection(_AddonKind.daily),
+                ),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: _inventoryNavTile(primary),
+            child: ShopTourAnchor(
+              ids: const ["ShopAddonPage.4"],
+              ready: !_tourLoading,
+              error: _tourError,
+              child: _inventoryNavTile(primary),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
@@ -1349,8 +1438,8 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         : entry.kind == _AddonKind.time
         ? '顧客只能單選一個時間方案'
         : entry.kind == _AddonKind.value
-        ? '單次計費・不論幾隻寵物只收一次'
-        : '依服務規則選擇適用寵物';
+        ? '整筆預約每項收一次，不乘寵物數或晚數'
+        : '每隻勾選寵物收一次，不乘住宿天數';
     final Widget third = entry.kind == _AddonKind.daily
         ? Text(
             '已設定 $slots 個每日時段',

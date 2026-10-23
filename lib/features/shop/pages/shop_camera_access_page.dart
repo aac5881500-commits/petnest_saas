@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_camera_access_page.dart
 // 功能說明：店家攝影機分享申請頁。營運入口、設備分頁與待辦都開啟這一頁。
 
@@ -20,12 +21,16 @@ class ShopCameraAccessPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('攝影機分享申請')),
-      body: ShopCameraAccessPanel(
-        shopId: shopId,
-        focusRequestId: focusRequestId,
-        initialFilter: initialFilter,
+    return ShopTourPage(
+      id: 'ShopCameraAccessPage',
+      shopId: shopId,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('攝影機分享申請')),
+        body: ShopCameraAccessPanel(
+          shopId: shopId,
+          focusRequestId: focusRequestId,
+          initialFilter: initialFilter,
+        ),
       ),
     );
   }

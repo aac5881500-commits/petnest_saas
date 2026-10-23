@@ -23,7 +23,7 @@ class NewsSectionLayoutPreview extends StatelessWidget {
           border: Border.all(color: theme.cardBorderColor),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(4),
           child: switch (HomeNewsLayouts.migrate(layout)) {
             HomeNewsLayouts.compactCard => _compact(),
             HomeNewsLayouts.multiLine => _multi(),
@@ -54,7 +54,7 @@ class NewsSectionLayoutPreview extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             _bar(width: 18, height: 18),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _bar(width: 64),
             const SizedBox(height: 4),
             _bar(width: 48, height: 6),
@@ -75,7 +75,7 @@ class NewsSectionLayoutPreview extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               _bar(width: 72),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               _bar(width: 120, height: 6),
             ],
           ),
@@ -90,11 +90,11 @@ class NewsSectionLayoutPreview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _bar(width: 64),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         _bar(width: double.infinity, height: 8),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         _bar(width: double.infinity, height: 8),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         _bar(width: 160, height: 8),
       ],
     );

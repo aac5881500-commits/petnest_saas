@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_custom_form_settings_page.dart
 // 功能說明：店家自訂表單設定入口：送出訂單與手動訂單表單。
 
@@ -16,38 +17,42 @@ class ShopCustomFormSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          '自訂表單設定',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+    return ShopTourPage(
+      id: 'ShopCustomFormSettingsPage',
+      shopId: shopId,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            '自訂表單設定',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
         ),
-        actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: <Widget>[
-          Text(
-            '兩種表單分開儲存，用途不同，資料不會混在一起。送出訂單表單由會員預約時填寫；手動訂單表單只給店員填，客戶端永遠看不到。題目可設為訂單資訊或寵物資訊，寵物資訊答案只存在該筆訂單，不會寫回會員共用寵物資料。',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: colors.onSurface.withValues(alpha: 0.72),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: <Widget>[
+            Text(
+              '兩種表單分開儲存，用途不同，資料不會混在一起。送出訂單表單由會員預約時填寫；手動訂單表單只給店員填，客戶端永遠看不到。題目可設為訂單資訊或寵物資訊，寵物資訊答案只存在該筆訂單，不會寫回會員共用寵物資料。',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: colors.onSurface.withValues(alpha: 0.72),
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          _FormTypeLiveCard(
-            shopId: shopId,
-            formType: CustomFormType.bookingSubmit,
-            icon: Icons.receipt_long_outlined,
-          ),
-          const SizedBox(height: 12),
-          _FormTypeLiveCard(
-            shopId: shopId,
-            formType: CustomFormType.adminCreate,
-            icon: Icons.edit_note_outlined,
-          ),
-        ],
+            const SizedBox(height: 14),
+            _FormTypeLiveCard(
+              shopId: shopId,
+              formType: CustomFormType.bookingSubmit,
+              icon: Icons.receipt_long_outlined,
+            ),
+            const SizedBox(height: 12),
+            _FormTypeLiveCard(
+              shopId: shopId,
+              formType: CustomFormType.adminCreate,
+              icon: Icons.edit_note_outlined,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -75,20 +80,31 @@ class _FormTypeLiveCard extends StatelessWidget {
         final CustomFormModel form =
             snapshot.data ??
             CustomFormModel.empty(shopId: shopId, formType: formType);
-        return _FormTypeCard(
-          form: form,
-          icon: icon,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => ShopCustomFormEditorPage(
-                  shopId: shopId,
-                  formType: formType,
+        return ShopTourAnchor(
+          ids: formType == CustomFormType.bookingSubmit
+              ? const [
+                  'ShopCustomFormSettingsPage.0',
+                  'ShopCustomFormSettingsPage.2',
+                  'ShopCustomFormSettingsPage.3',
+                ]
+              : const ['ShopCustomFormSettingsPage.1'],
+          ready: snapshot.hasData,
+          error: snapshot.error,
+          child: _FormTypeCard(
+            form: form,
+            icon: icon,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => ShopCustomFormEditorPage(
+                    shopId: shopId,
+                    formType: formType,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

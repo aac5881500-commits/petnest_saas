@@ -1,3 +1,5 @@
+import 'home_card_image.dart';
+import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
@@ -24,76 +26,52 @@ class ModernReviewSection extends StatelessWidget {
   final VoidCallback onOpen;
   final HomeDisplayStyle? displayStyle;
 
+  TextStyle _look(TextStyle original) {
+    final style = displayStyle;
+    if (style == null || original.color == theme.primaryColor) return original;
+    final title =
+        (original.fontSize ?? 14) >= 14 &&
+        (original.fontWeight?.value ?? 400) >= 600;
+    return original.copyWith(
+      fontSize: (original.fontSize ?? 0) >= 24
+          ? original.fontSize
+          : homeDisplayFontSize(
+              title ? style.titleSize : style.bodySize,
+              fallback: original.fontSize ?? 13,
+            ),
+      fontWeight: homeDisplayFontWeight(
+        title ? style.titleWeight : style.bodyWeight,
+      ),
+      color: Color(title ? style.titleColor : style.effectiveBodyColor),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => HomeCardImage(
+    setting: setting.cardImage,
+    enabled: setting.layout == HomeReviewLayouts.scoreCompact,
+    builder: (context, image) => DefaultTextStyle.merge(
+      textAlign: displayStyle == null
+          ? TextAlign.start
+          : homeDisplayTextAlign(displayStyle!.bodyAlign),
+      child: _content(context, image.url),
+    ),
+  );
+
+  Widget _content(BuildContext context, String imageUrl) {
     if (phase == HomeInfoSectionPhase.hidden) {
       return const SizedBox.shrink();
     }
     if (phase == HomeInfoSectionPhase.loading) {
       return _skeleton();
     }
-    if (phase == HomeInfoSectionPhase.unavailable ||
-        phase == HomeInfoSectionPhase.empty) {
-      return ModernReviewSection(
-        theme: theme,
-        setting: setting,
-        reviews: const <ReviewModel>[
-          ReviewModel(
-            reviewId: 'sample-1',
-            shopId: '',
-            bookingId: '',
-            userId: '',
-            customerName: '示意顧客',
-            petNames: <String>[],
-            roomTypeName: '',
-            startDate: null,
-            endDate: null,
-            nights: 1,
-            rating: 5,
-            environmentRating: 5,
-            serviceRating: 5,
-            priceRating: 5,
-            content: '示意評價：環境乾淨，照顧很細心。',
-            imageUrls: <String>[],
-            reply: '謝謝您的回饋',
-            replyAt: null,
-            replyBy: '',
-            status: 'visible',
-            createdAt: null,
-            updatedAt: null,
-          ),
-          ReviewModel(
-            reviewId: 'sample-2',
-            shopId: '',
-            bookingId: '',
-            userId: '',
-            customerName: '示意顧客',
-            petNames: <String>[],
-            roomTypeName: '',
-            startDate: null,
-            endDate: null,
-            nights: 2,
-            rating: 4,
-            environmentRating: 4,
-            serviceRating: 4,
-            priceRating: 4,
-            content: '示意評價：接送時間很準。',
-            imageUrls: <String>[],
-            reply: '',
-            replyAt: null,
-            replyBy: '',
-            status: 'visible',
-            createdAt: null,
-            updatedAt: null,
-          ),
-        ],
-        phase: HomeInfoSectionPhase.ready,
-        onOpen: onOpen,
-      );
+    if (phase == HomeInfoSectionPhase.unavailable) return _message('評價暫時無法載入');
+    if (phase == HomeInfoSectionPhase.empty) {
+      return _message('預覽示意：尚未有公開評價', imageUrl: imageUrl);
     }
     final bool empty = reviews.isEmpty;
     return switch (HomeReviewLayouts.migrate(setting.layout)) {
-      HomeReviewLayouts.scoreCompact => _score(empty),
+      HomeReviewLayouts.scoreCompact => _score(empty, imageUrl),
       HomeReviewLayouts.featured => _featured(empty),
       HomeReviewLayouts.scoreOverview => _overview(empty),
       HomeReviewLayouts.scoreAndLatest => _scoreAndLatest(empty),
@@ -101,7 +79,7 @@ class ModernReviewSection extends StatelessWidget {
     };
   }
 
-  Widget _score(bool empty) {
+  Widget _score(bool empty, String imageUrl) {
     final String score = empty
         ? '—'
         : homeReviewAverage(reviews).toStringAsFixed(1);
@@ -109,13 +87,15 @@ class ModernReviewSection extends StatelessWidget {
         ? kHomeReviewEmptyMessage
         : '$score 分　${reviews.length} 則評價';
     return ModernHomeEntryCard(
+      displayStyle: displayStyle,
+      backgroundImage: imageUrl.isEmpty ? null : NetworkImage(imageUrl),
       cardKey: const Key('home-review-card'),
       theme: theme,
       title: setting.entryTitle,
       subtitle: subtitle,
       showSubtitle: true,
       cardSize: 'small',
-      surface: 'filled',
+      surface: displayStyle?.cardBackground ?? 'filled',
       icon: Icons.star_rounded,
       onTap: onOpen,
     );
@@ -138,20 +118,25 @@ class ModernReviewSection extends StatelessWidget {
             children: <Widget>[
               Text(
                 setting.entryTitle,
+                textAlign: displayStyle == null
+                    ? TextAlign.start
+                    : homeDisplayTextAlign(displayStyle!.titleAlign),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: homeDisplayFontSize(
-                    displayStyle?.titleSize ?? HomeDisplaySizes.medium,
-                    fallback: 15,
+                style: _look(
+                  TextStyle(
+                    fontSize: homeDisplayFontSize(
+                      displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+                      fallback: 15,
+                    ),
+                    height: 1.2,
+                    fontWeight: homeDisplayFontWeight(
+                      displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+                    ),
+                    color: displayStyle == null
+                        ? theme.textColor
+                        : Color(displayStyle!.titleColor),
                   ),
-                  height: 1.2,
-                  fontWeight: homeDisplayFontWeight(
-                    displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
-                  ),
-                  color: displayStyle == null
-                      ? theme.textColor
-                      : Color(displayStyle!.titleColor),
                 ),
               ),
               const SizedBox(height: 8),
@@ -163,18 +148,20 @@ class ModernReviewSection extends StatelessWidget {
                     : review.content.trim(),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: homeDisplayFontSize(
-                    displayStyle?.bodySize ?? HomeDisplaySizes.small,
-                    fallback: 13,
+                style: _look(
+                  TextStyle(
+                    fontSize: homeDisplayFontSize(
+                      displayStyle?.bodySize ?? HomeDisplaySizes.small,
+                      fallback: 13,
+                    ),
+                    height: 1.35,
+                    fontWeight: homeDisplayFontWeight(
+                      displayStyle?.bodyWeight ?? HomeDisplayWeights.medium,
+                    ),
+                    color: displayStyle == null
+                        ? theme.textColor
+                        : Color(displayStyle!.effectiveBodyColor),
                   ),
-                  height: 1.35,
-                  fontWeight: homeDisplayFontWeight(
-                    displayStyle?.bodyWeight ?? HomeDisplayWeights.medium,
-                  ),
-                  color: displayStyle == null
-                      ? theme.textColor
-                      : Color(displayStyle!.effectiveBodyColor),
                 ),
               ),
               if (setting.showImages && review.imageUrls.isNotEmpty)
@@ -189,10 +176,12 @@ class ModernReviewSection extends StatelessWidget {
                   if (setting.showReplyBadge && review.hasReply)
                     Text(
                       '店家已回覆',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: theme.primaryColor,
+                      style: _look(
+                        TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: theme.primaryColor,
+                        ),
                       ),
                     ),
                 ],
@@ -231,7 +220,7 @@ class ModernReviewSection extends StatelessWidget {
               final Widget bars = empty
                   ? Text(
                       kHomeReviewEmptyMessage,
-                      style: TextStyle(color: theme.secondaryTextColor),
+                      style: _look(TextStyle(color: theme.secondaryTextColor)),
                     )
                   : _bars();
               if (constraints.maxWidth < 280) {
@@ -271,7 +260,7 @@ class ModernReviewSection extends StatelessWidget {
               final Widget latest = empty
                   ? Text(
                       kHomeReviewEmptyMessage,
-                      style: TextStyle(color: theme.secondaryTextColor),
+                      style: _look(TextStyle(color: theme.secondaryTextColor)),
                     )
                   : _latestCopy(reviews.first);
               if (constraints.maxWidth < 280) {
@@ -301,11 +290,13 @@ class ModernReviewSection extends StatelessWidget {
       children: <Widget>[
         Text(
           count == 0 ? '—' : average.toStringAsFixed(1),
-          style: TextStyle(
-            fontSize: 28,
-            height: 1,
-            fontWeight: FontWeight.w900,
-            color: theme.textColor,
+          style: _look(
+            TextStyle(
+              fontSize: 28,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              color: theme.textColor,
+            ),
           ),
         ),
         const SizedBox(height: 4),
@@ -313,7 +304,9 @@ class ModernReviewSection extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '$count 則評價',
-          style: TextStyle(fontSize: 12, color: theme.secondaryTextColor),
+          style: _look(
+            TextStyle(fontSize: 12, color: theme.secondaryTextColor),
+          ),
         ),
       ],
     );
@@ -331,9 +324,8 @@ class ModernReviewSection extends StatelessWidget {
                   width: 16,
                   child: Text(
                     '$star',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.secondaryTextColor,
+                    style: _look(
+                      TextStyle(fontSize: 11, color: theme.secondaryTextColor),
                     ),
                   ),
                 ),
@@ -370,7 +362,9 @@ class ModernReviewSection extends StatelessWidget {
           review.content.trim().isEmpty ? '顧客留下了星級評價' : review.content.trim(),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 13, height: 1.35, color: theme.textColor),
+          style: _look(
+            TextStyle(fontSize: 13, height: 1.35, color: theme.textColor),
+          ),
         ),
         const SizedBox(height: 6),
         _meta(review),
@@ -417,27 +411,28 @@ class ModernReviewSection extends StatelessWidget {
       children: <Widget>[
         Text(
           setting.entryTitle,
+          textAlign: displayStyle == null
+              ? TextAlign.start
+              : homeDisplayTextAlign(displayStyle!.titleAlign),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 16,
-            height: 1.2,
-            fontWeight: FontWeight.w800,
-            color: theme.textColor,
+          style: _look(
+            TextStyle(
+              fontSize: 16,
+              height: 1.2,
+              fontWeight: FontWeight.w800,
+              color: theme.textColor,
+            ),
           ),
         ),
         const SizedBox(height: 7),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            const double allWidth = 78;
             const double gap = 8;
             final double available = constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : 320;
-            final double room = (available - allWidth - gap).clamp(
-              120.0,
-              280.0,
-            );
+            final double room = (available * .7).clamp(120.0, 280.0);
             final double cardWidth = preview.length == 1
                 ? room
                 : (205.0 > room ? room : 205.0);
@@ -452,7 +447,17 @@ class ModernReviewSection extends StatelessWidget {
                 separatorBuilder: (_, _) => const SizedBox(width: gap),
                 itemBuilder: (BuildContext context, int index) {
                   if (index == preview.length) {
-                    return _allCard();
+                    return Center(
+                      widthFactor: 1,
+                      child: EnvironmentEndEntry(
+                        key: const Key('home-review-see-all'),
+                        style: setting.endEntryStyle,
+                        color: theme.primaryColor,
+                        label: '全部評價',
+                        semanticLabel: '全部評價',
+                        onPressed: onOpen,
+                      ),
+                    );
                   }
                   return _reviewCard(preview[index], width: cardWidth);
                 },
@@ -485,10 +490,8 @@ class ModernReviewSection extends StatelessWidget {
                 content,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.25,
-                  color: theme.textColor,
+                style: _look(
+                  TextStyle(fontSize: 12, height: 1.25, color: theme.textColor),
                 ),
               ),
               const Spacer(),
@@ -496,38 +499,12 @@ class ModernReviewSection extends StatelessWidget {
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: theme.secondaryTextColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _allCard() {
-    return SizedBox(
-      width: 78,
-      child: _shell(
-        child: InkWell(
-          key: const Key('home-review-see-all'),
-          borderRadius: BorderRadius.circular(14),
-          onTap: onOpen,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(Icons.chevron_right_rounded, color: theme.primaryColor),
-              const SizedBox(height: 4),
-              Text(
-                '全部評價',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: theme.textColor,
+                style: _look(
+                  TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: theme.secondaryTextColor,
+                  ),
                 ),
               ),
             ],
@@ -554,7 +531,7 @@ class ModernReviewSection extends StatelessWidget {
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyle(fontSize: 12, color: theme.secondaryTextColor),
+      style: _look(TextStyle(fontSize: 12, color: theme.secondaryTextColor)),
     );
   }
 
@@ -572,12 +549,12 @@ class ModernReviewSection extends StatelessWidget {
     );
   }
 
-  Widget _message(String message) {
+  Widget _message(String message, {String imageUrl = ''}) {
     final bool wide =
         HomeReviewLayouts.migrate(setting.layout) !=
         HomeReviewLayouts.scoreCompact;
     if (!wide && setting.layout == HomeReviewLayouts.scoreCompact) {
-      return _score(true);
+      return _score(true, imageUrl);
     }
     return _shell(
       child: SizedBox(
@@ -596,17 +573,24 @@ class ModernReviewSection extends StatelessWidget {
             children: <Widget>[
               Text(
                 setting.entryTitle,
+                textAlign: displayStyle == null
+                    ? TextAlign.start
+                    : homeDisplayTextAlign(displayStyle!.titleAlign),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: theme.textColor,
+                style: _look(
+                  TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: theme.textColor,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 message,
-                style: TextStyle(color: theme.secondaryTextColor, height: 1.35),
+                style: _look(
+                  TextStyle(color: theme.secondaryTextColor, height: 1.35),
+                ),
               ),
             ],
           ),
@@ -636,7 +620,11 @@ class ModernReviewSection extends StatelessWidget {
 
   Widget _shell({required Widget child}) {
     return Material(
-      color: theme.cardColor,
+      color: displayStyle?.cardBackground == HomeDisplayBackgrounds.transparent
+          ? Colors.transparent
+          : displayStyle?.cardBackground == HomeDisplayBackgrounds.outlined
+          ? Colors.transparent
+          : theme.cardColor,
       borderRadius: BorderRadius.circular(14),
       child: DecoratedBox(
         decoration: BoxDecoration(

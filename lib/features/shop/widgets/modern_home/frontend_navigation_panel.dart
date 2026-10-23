@@ -1,3 +1,4 @@
+import 'home_section_settings_group.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 
@@ -7,8 +8,10 @@ class FrontendNavigationPanel extends StatelessWidget {
     required this.config,
     required this.shopState,
     required this.onChanged,
+    this.drawerAppearance,
   });
 
+  final Widget? drawerAppearance;
   final FrontendNavigationConfig config;
   final FrontendNavShopState shopState;
   final ValueChanged<FrontendNavigationConfig> onChanged;
@@ -18,46 +21,68 @@ class FrontendNavigationPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: _StyleCard(
-                title: '側邊選單',
-                description: '使用左上角選單按鈕展開完整功能。',
-                selected: !config.isBottom,
-                icon: Icons.menu_rounded,
-                onTap: () => onChanged(
-                  config.copyWith(style: FrontendNavigationConfig.styleDrawer),
+        HomeSectionSettingsGroup(
+          title: '導覽方式',
+          children: [
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _StyleCard(
+                    title: '側邊選單',
+                    description: '使用左上角選單按鈕展開完整功能。',
+                    selected: !config.isBottom,
+                    icon: Icons.menu_rounded,
+                    onTap: () => onChanged(
+                      config.copyWith(
+                        style: FrontendNavigationConfig.styleDrawer,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StyleCard(
-                title: '底部選單',
-                description: '常用功能固定顯示於手機底部，首頁固定置中。',
-                selected: config.isBottom,
-                icon: Icons.dock_rounded,
-                onTap: () => onChanged(
-                  config.copyWith(style: FrontendNavigationConfig.styleBottom),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StyleCard(
+                    title: '底部選單',
+                    description: '常用功能固定顯示於手機底部，首頁固定置中。',
+                    selected: config.isBottom,
+                    icon: Icons.dock_rounded,
+                    onTap: () => onChanged(
+                      config.copyWith(
+                        style: FrontendNavigationConfig.styleBottom,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 18),
-        if (config.isBottom)
-          _BottomSlotEditor(
-            config: config,
-            shopState: shopState,
-            onChanged: onChanged,
-          )
-        else
-          _DrawerOrderEditor(
-            config: config,
-            shopState: shopState,
-            onChanged: onChanged,
-          ),
+        HomeSectionSettingsGroup(
+          title: '項目與排序',
+          children: [
+            if (config.isBottom)
+              _BottomSlotEditor(
+                config: config,
+                shopState: shopState,
+                onChanged: onChanged,
+              )
+            else
+              _DrawerOrderEditor(
+                config: config,
+                shopState: shopState,
+                onChanged: onChanged,
+              ),
+          ],
+        ),
+        HomeSectionSettingsGroup(
+          title: '外觀細節',
+          children: [
+            if (config.isBottom)
+              _BottomAppearanceEditor(config: config, onChanged: onChanged),
+            ?drawerAppearance,
+          ],
+        ),
       ],
     );
   }
@@ -91,7 +116,9 @@ class _StyleCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+              color: selected
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFFE2E8F0),
               width: selected ? 1.6 : 1,
             ),
           ),
@@ -101,20 +128,32 @@ class _StyleCard extends StatelessWidget {
               Icon(
                 icon,
                 size: 22,
-                color: selected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                color: selected
+                    ? const Color(0xFF2563EB)
+                    : const Color(0xFF64748B),
               ),
               const SizedBox(height: 8),
               Text(
                 title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 description,
-                style: const TextStyle(fontSize: 12, height: 1.35, color: Color(0xFF64748B)),
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Color(0xFF64748B),
+                ),
               ),
               const SizedBox(height: 8),
-              _StyleSketch(bottom: icon == Icons.dock_rounded, selected: selected),
+              _StyleSketch(
+                bottom: icon == Icons.dock_rounded,
+                selected: selected,
+              ),
             ],
           ),
         ),
@@ -131,13 +170,17 @@ class _StyleSketch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color mark = selected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8);
+    final Color mark = selected
+        ? const Color(0xFF2563EB)
+        : const Color(0xFF94A3B8);
     if (!bottom) {
       return Row(
         children: <Widget>[
           Container(width: 10, height: 22, color: mark),
           const SizedBox(width: 4),
-          Expanded(child: Container(height: 22, color: const Color(0xFFE2E8F0))),
+          Expanded(
+            child: Container(height: 22, color: const Color(0xFFE2E8F0)),
+          ),
         ],
       );
     }
@@ -219,7 +262,10 @@ class _DrawerOrderEditor extends StatelessWidget {
               title: Text(item.label),
               subtitle: reason == null
                   ? null
-                  : Text(reason, style: const TextStyle(color: Color(0xFFB45309))),
+                  : Text(
+                      reason,
+                      style: const TextStyle(color: Color(0xFFB45309)),
+                    ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -326,64 +372,6 @@ class _BottomSlotEditor extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
-          '底欄外型',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        _ChoiceRow(
-          options: const <_Choice>[
-            _Choice(
-              value: FrontendNavigationConfig.appearanceAttached,
-              title: '原版貼底',
-              subtitle: '貼齊底部',
-            ),
-            _Choice(
-              value: FrontendNavigationConfig.appearanceFloatingPill,
-              title: '懸浮膠囊',
-              subtitle: '左右留白',
-            ),
-            _Choice(
-              value: FrontendNavigationConfig.appearanceFloatingMinimal,
-              title: '極簡懸浮',
-              subtitle: '較矮、少裝飾',
-            ),
-          ],
-          selected: config.bottomAppearance,
-          onSelected: (String value) {
-            onChanged(config.copyWith(bottomAppearance: value));
-          },
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          '透明程度',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        _ChoiceRow(
-          options: const <_Choice>[
-            _Choice(
-              value: FrontendNavigationConfig.surfaceOpaque,
-              title: '不透明',
-              subtitle: '實心底',
-            ),
-            _Choice(
-              value: FrontendNavigationConfig.surfaceTranslucent,
-              title: '半透明',
-              subtitle: '可看到後方',
-            ),
-            _Choice(
-              value: FrontendNavigationConfig.surfaceTransparent,
-              title: '全透明',
-              subtitle: '保留圖示',
-            ),
-          ],
-          selected: config.bottomSurface,
-          onSelected: (String value) {
-            onChanged(config.copyWith(bottomSurface: value));
-          },
-        ),
       ],
     );
   }
@@ -411,7 +399,8 @@ class _BottomSlotEditor extends StatelessWidget {
                     leading: Icon(item.icon),
                     title: Text(item.label),
                     subtitle: _subtitle(item, used),
-                    enabled: shopState.isEnabled(item) && !used.contains(item.id),
+                    enabled:
+                        shopState.isEnabled(item) && !used.contains(item.id),
                     onTap: () => Navigator.pop(sheetContext, item.id),
                   ),
             ],
@@ -465,13 +454,86 @@ class _BottomSlotEditor extends StatelessWidget {
 
   Widget? _subtitle(FrontendNavigationItem item, Set<String> used) {
     if (!shopState.isEnabled(item)) {
-      return const Text('尚未啟用');
+      return Text(shopState.disabledReason(item) ?? '尚未啟用');
     }
     if (used.contains(item.id)) {
       return const Text('已使用');
     }
     return null;
   }
+}
+
+class _BottomAppearanceEditor extends StatelessWidget {
+  const _BottomAppearanceEditor({
+    required this.config,
+    required this.onChanged,
+  });
+  final FrontendNavigationConfig config;
+  final ValueChanged<FrontendNavigationConfig> onChanged;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 16),
+      const Text(
+        '底欄外型',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 8),
+      _ChoiceRow(
+        options: const <_Choice>[
+          _Choice(
+            value: FrontendNavigationConfig.appearanceAttached,
+            title: '原版貼底',
+            subtitle: '貼齊底部',
+          ),
+          _Choice(
+            value: FrontendNavigationConfig.appearanceFloatingPill,
+            title: '懸浮膠囊',
+            subtitle: '左右留白',
+          ),
+          _Choice(
+            value: FrontendNavigationConfig.appearanceFloatingMinimal,
+            title: '極簡懸浮',
+            subtitle: '較矮、少裝飾',
+          ),
+        ],
+        selected: config.bottomAppearance,
+        onSelected: (String value) {
+          onChanged(config.copyWith(bottomAppearance: value));
+        },
+      ),
+      const SizedBox(height: 14),
+      const Text(
+        '透明程度',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 8),
+      _ChoiceRow(
+        options: const <_Choice>[
+          _Choice(
+            value: FrontendNavigationConfig.surfaceOpaque,
+            title: '不透明',
+            subtitle: '實心底',
+          ),
+          _Choice(
+            value: FrontendNavigationConfig.surfaceTranslucent,
+            title: '半透明',
+            subtitle: '可看到後方',
+          ),
+          _Choice(
+            value: FrontendNavigationConfig.surfaceTransparent,
+            title: '全透明',
+            subtitle: '保留圖示',
+          ),
+        ],
+        selected: config.bottomSurface,
+        onSelected: (String value) {
+          onChanged(config.copyWith(bottomSurface: value));
+        },
+      ),
+    ],
+  );
 }
 
 class _DraggableSlot extends StatelessWidget {
@@ -509,14 +571,15 @@ class _DraggableSlot extends StatelessWidget {
       onAcceptWithDetails: (DragTargetDetails<int> details) {
         onAccept(details.data);
       },
-      builder: (BuildContext context, List<int?> candidate, List<dynamic> rejected) {
-        return Draggable<int>(
-          data: index,
-          feedback: SizedBox(width: 72, child: Material(child: card)),
-          childWhenDragging: Opacity(opacity: 0.35, child: card),
-          child: card,
-        );
-      },
+      builder:
+          (BuildContext context, List<int?> candidate, List<dynamic> rejected) {
+            return Draggable<int>(
+              data: index,
+              feedback: SizedBox(width: 72, child: Material(child: card)),
+              childWhenDragging: Opacity(opacity: 0.35, child: card),
+              child: card,
+            );
+          },
     );
   }
 }
@@ -557,14 +620,19 @@ class _SlotCard extends StatelessWidget {
               Icon(
                 item?.icon ?? Icons.add,
                 size: locked ? 22 : 18,
-                color: locked ? const Color(0xFF2563EB) : const Color(0xFF334155),
+                color: locked
+                    ? const Color(0xFF2563EB)
+                    : const Color(0xFF334155),
               ),
               const SizedBox(height: 4),
               Text(
                 item?.shortLabel ?? '未選',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               Text(
                 label,
@@ -655,7 +723,9 @@ class _MiniPreviewCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+              color: selected
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFFE2E8F0),
               width: selected ? 1.6 : 1,
             ),
           ),
@@ -681,7 +751,10 @@ class _MiniPreviewCard extends StatelessWidget {
                 choice.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               Text(
                 choice.subtitle,
@@ -696,4 +769,3 @@ class _MiniPreviewCard extends StatelessWidget {
     );
   }
 }
-

@@ -1,3 +1,6 @@
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/room_intro_appearance.dart';
+import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
 // 檔案名稱：test/shop_room_type_editor_layout_test.dart
 // 功能說明：房型編輯器桌機左右分欄、窄螢幕單欄切換預覽
 
@@ -12,6 +15,11 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => RoomIntroAppearanceScope(
+          appearance: const RoomIntroAppearance(),
+          theme: HomeThemeModel.classicDefault,
+          child: child!,
+        ),
         home: SizedBox(
           width: width,
           height: 900,
@@ -32,7 +40,7 @@ void main() {
       await tester.pump();
       expect(find.text('顧客看到的房型介紹'), findsOneWidget);
       expect(find.text('豪華套房'), findsWidgets);
-      expect(find.text('尚未填寫介紹'), findsOneWidget);
+      expect(find.text('尚未填寫介紹'), findsNothing);
       expect(find.text('尚未填寫每晚價格'), findsOneWidget);
       await tester.tap(find.text('編輯'));
       await tester.pump();
@@ -61,7 +69,12 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1366, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
+        builder: (context, child) => RoomIntroAppearanceScope(
+          appearance: const RoomIntroAppearance(),
+          theme: HomeThemeModel.classicDefault,
+          child: child!,
+        ),
         home: SizedBox(
           width: 1366,
           height: 900,

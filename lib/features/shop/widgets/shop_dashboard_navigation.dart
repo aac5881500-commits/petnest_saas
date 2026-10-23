@@ -96,11 +96,16 @@ class ShopDashboardNavigation extends NavigatorObserver with ChangeNotifier {
     String? id,
     WidgetBuilder? page,
     VoidCallback? afterLeave,
+    bool Function()? stillCurrent,
   }) async {
     if (_switching || (id != null && selected == id)) return;
     _switching = true;
     try {
-      if (!await _confirmLeaveDetails() || _disposed) return;
+      if (!await _confirmLeaveDetails() ||
+          _disposed ||
+          stillCurrent?.call() == false) {
+        return;
+      }
       afterLeave?.call();
       if (page != null) {
         // The basic-info module may have been offscreen. Let its Navigator
@@ -108,7 +113,11 @@ class ShopDashboardNavigation extends NavigatorObserver with ChangeNotifier {
         if (navigatorKey.currentState == null) {
           await WidgetsBinding.instance.endOfFrame;
         }
-        if (_disposed || navigatorKey.currentState == null) return;
+        if (_disposed ||
+            navigatorKey.currentState == null ||
+            stillCurrent?.call() == false) {
+          return;
+        }
         // Keep the old page covered until its replacement is visible; never
         // pop to the overview and wait a frame between same-level pages.
         final root = _routes.first;

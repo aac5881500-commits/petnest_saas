@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
@@ -24,8 +25,10 @@ class ModernHomeEntryCard extends StatelessWidget {
     this.mark,
     this.textAlign = TextAlign.start,
     this.backgroundImage,
+    this.displayStyle,
   });
 
+  final HomeDisplayStyle? displayStyle;
   final Key cardKey;
   final HomeThemeModel theme;
   final String title;
@@ -104,6 +107,9 @@ class ModernHomeEntryCard extends StatelessWidget {
   }
 
   Widget _imageShell() {
+    final darkText =
+        displayStyle != null &&
+        Color(displayStyle!.titleColor).computeLuminance() < .4;
     final fixed = _size != 'single';
     final wide = _size == 'wide';
     Widget titleText() => Text(
@@ -112,9 +118,15 @@ class ModernHomeEntryCard extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       textAlign: textAlign,
       style: TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w800,
-        fontSize: _size == 'small'
+        color: displayStyle == null
+            ? Colors.white
+            : Color(displayStyle!.titleColor),
+        fontWeight: displayStyle == null
+            ? FontWeight.w800
+            : homeDisplayFontWeight(displayStyle!.titleWeight),
+        fontSize: displayStyle != null
+            ? homeDisplayFontSize(displayStyle!.titleSize, fallback: 14)
+            : _size == 'small'
             ? 12
             : wide
             ? 14
@@ -130,10 +142,19 @@ class ModernHomeEntryCard extends StatelessWidget {
           ? 3
           : 2,
       overflow: TextOverflow.ellipsis,
-      textAlign: textAlign,
+      textAlign: displayStyle == null
+          ? textAlign
+          : homeDisplayTextAlign(displayStyle!.bodyAlign),
       style: TextStyle(
-        color: Colors.white.withValues(alpha: .95),
-        fontSize: _size == 'small' ? 11 : 12,
+        color: displayStyle == null
+            ? Colors.white.withValues(alpha: .95)
+            : Color(displayStyle!.effectiveBodyColor),
+        fontWeight: displayStyle == null
+            ? null
+            : homeDisplayFontWeight(displayStyle!.bodyWeight),
+        fontSize: displayStyle == null
+            ? (_size == 'small' ? 11 : 12)
+            : homeDisplayFontSize(displayStyle!.bodySize, fallback: 12),
         height: _size == 'single' ? 1.2 : 1.15,
       ),
     );
@@ -202,13 +223,15 @@ class ModernHomeEntryCard extends StatelessWidget {
                     ColoredBox(color: theme.cardColor),
               ),
             ),
-            const Positioned.fill(
+            Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0x66000000), Color(0xcc000000)],
+                    colors: darkText
+                        ? const [Color(0xBBFFFFFF), Color(0xEEFFFFFF)]
+                        : const [Color(0x66000000), Color(0xcc000000)],
                   ),
                 ),
               ),
@@ -336,10 +359,16 @@ class ModernHomeEntryCard extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       textAlign: textAlign,
       style: TextStyle(
-        fontSize: fontSize,
+        fontSize: displayStyle == null
+            ? fontSize
+            : homeDisplayFontSize(displayStyle!.titleSize, fallback: fontSize),
         height: height,
-        fontWeight: FontWeight.w800,
-        color: theme.textColor,
+        fontWeight: displayStyle == null
+            ? FontWeight.w800
+            : homeDisplayFontWeight(displayStyle!.titleWeight),
+        color: displayStyle == null
+            ? theme.textColor
+            : Color(displayStyle!.titleColor),
       ),
     );
   }
@@ -356,11 +385,20 @@ class ModernHomeEntryCard extends StatelessWidget {
       subtitle,
       maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
-      textAlign: textAlign,
+      textAlign: displayStyle == null
+          ? textAlign
+          : homeDisplayTextAlign(displayStyle!.bodyAlign),
       style: TextStyle(
-        fontSize: fontSize,
+        fontSize: displayStyle == null
+            ? fontSize
+            : homeDisplayFontSize(displayStyle!.bodySize, fallback: fontSize),
         height: height,
-        color: theme.secondaryTextColor,
+        fontWeight: displayStyle == null
+            ? null
+            : homeDisplayFontWeight(displayStyle!.bodyWeight),
+        color: displayStyle == null
+            ? theme.secondaryTextColor
+            : Color(displayStyle!.effectiveBodyColor),
       ),
     );
   }

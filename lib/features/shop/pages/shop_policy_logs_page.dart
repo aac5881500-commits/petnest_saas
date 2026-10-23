@@ -1,3 +1,4 @@
+import '../widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_policy_logs_page.dart
 // 功能說明：條款同意紀錄（住宿／安親分頁，批次解析會員，不顯示 UID）
 
@@ -318,7 +319,12 @@ class _ShopPolicyLogsPageState extends State<ShopPolicyLogsPage>
           ) {
             final bool daycareOn = DaycareEnabled.isOn(shop: shopSnap.data);
             if (widget.embedded) {
-              return _logsBody(daycareOn: daycareOn, tabsInBody: daycareOn);
+              return ShopTourAnchor(
+                ids: const ['ShopPolicyPage.3'],
+                ready: !_loading,
+                error: _loadError,
+                child: _logsBody(daycareOn: daycareOn, tabsInBody: daycareOn),
+              );
             }
             return Scaffold(
               appBar: AppBar(

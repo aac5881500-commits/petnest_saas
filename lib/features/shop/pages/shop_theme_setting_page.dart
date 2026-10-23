@@ -1,3 +1,11 @@
+import 'shop_about_manage_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
+import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/core/services/shop_permission_service.dart';
+import 'shop_policy_page.dart';
+import 'package:petnest_saas/core/legal_pet/shop_profile_lock.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_theme_setting_page.dart
 // 功能說明：設定首頁版型、主題顏色、卡片與圖示樣式
@@ -516,6 +524,53 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           ? null
           : _storeEntryLayout,
     );
+  }
+
+  HomeNewsAvailability? _newsAvailability;
+  String get _newsAvailabilityText =>
+      _newsAvailability?.message(_newsSection.source) ?? '正在載入可展示消息…';
+
+  Future<void> _openAppearanceContent(
+    String permission,
+    WidgetBuilder page, {
+    bool policy = false,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final member = await ShopService.instance.getUserMemberInShop(
+        shopId: widget.shopId,
+        uid: user.uid,
+      );
+      final shop =
+          (await FirebaseFirestore.instance
+                  .collection('shops')
+                  .doc(widget.shopId)
+                  .get())
+              .data();
+      if (!mounted) return;
+      if (shop == null ||
+          !isPhoneSetupCompleted(shop) ||
+          !isAddressSetupCompleted(shop) ||
+          !ShopPermissionService.canEditShopData(shop) ||
+          !ShopMemberPermissionService.instance.hasPermission(
+            member,
+            permission,
+          ) ||
+          (policy && !ShopPlanService.canUsePolicySettings(shop))) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('目前權限或方案無法開啟此內容管理。')));
+        return;
+      }
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder: page));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('暫時無法確認內容管理權限，請稍後再試。')));
+      }
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -1443,7 +1498,18 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         : <String, dynamic>{};
     final Widget settings = AboutSectionSettingsPanel(
       setting: _aboutSection,
+      displayStyles: _displayStyle,
+      onDisplayStyles: (value) => setState(() {
+        _displayStyle = value;
+        _appearanceDirty = true;
+      }),
       theme: _modernTheme,
+      shop: _loadedShop,
+      environmentIntro: intro,
+      onManage: () => _openAppearanceContent(
+        ShopPermissionKeys.manageFrontendContent,
+        (_) => ShopAboutManagePage(shopId: widget.shopId),
+      ),
       imageChoices: HomeAboutSectionSetting.imageChoices(
         shop: _loadedShop,
         environmentIntro: intro,
@@ -1521,6 +1587,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final Widget settings = NewsSectionSettingsPanel(
       setting: _newsSection,
+      displayStyles: _displayStyle,
+      onDisplayStyles: (value) => setState(() {
+        _displayStyle = value;
+        _appearanceDirty = true;
+      }),
+      availability: _newsAvailabilityText,
       theme: _modernTheme,
       locked: _loadedShop['showAnnouncementSection'] == false,
       onOpenFeatures: () {
@@ -1748,6 +1820,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       sharedSourceId: HomeSharedEntrySources.policy,
       settings: PolicySectionSettingsPanel(
         setting: _informationSections,
+        onManage: () => _openAppearanceContent(
+          ShopPermissionKeys.managePolicy,
+          (_) => ShopPolicyPage(shopId: widget.shopId),
+          policy: true,
+        ),
         theme: _modernTheme,
         onChanged: (HomeInformationSectionsSetting value) {
           setState(() {
@@ -1800,6 +1877,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       sharedSourceId: HomeSharedEntrySources.reviews,
       settings: ReviewSectionSettingsPanel(
         setting: _informationSections,
+        displayStyles: _displayStyle,
+        onDisplayStyles: (value) => setState(() {
+          _displayStyle = value;
+          _appearanceDirty = true;
+        }),
         theme: _modernTheme,
         onChanged: (HomeInformationSectionsSetting value) {
           setState(() {
@@ -1944,7 +2026,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
               width: 452,
               child: _homeCanvasPreview(
                 showCaption: true,
-                canvasMode: 'desktop',
+                canvasMode: 'navigationDesktop',
+                embeddedAdminPreview: false,
               ),
             ),
             const SizedBox(width: 16),
@@ -1991,7 +2074,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                   child: _homeCanvasPreview(
                     showCaption: false,
-                    canvasMode: 'mobile',
+                    canvasMode: 'navigationMobile',
+                    embeddedAdminPreview: false,
                   ),
                 )
               : _navigationSettingsScroll(),
@@ -2016,9 +2100,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  _buildModernDrawerSettings(),
-                  const SizedBox(height: 16),
                   FrontendNavigationPanel(
+                    drawerAppearance: _buildModernDrawerSettings(),
                     config: _navigationConfig,
                     shopState: _navShopState,
                     onChanged: (FrontendNavigationConfig value) {
@@ -2130,6 +2213,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }) {
     return ModernHomeEditorPreview(
       shopId: widget.shopId,
+      onNewsAvailability: (value) {
+        if (!mounted) return;
+        final before = _newsAvailabilityText;
+        _newsAvailability = value;
+        if (before != _newsAvailabilityText) setState(() {});
+      },
       draftModernAppearance: _previewModernAppearance,
       draftLogoUrl: _modernLogoUrl,
       draftFloatingContact: _draftFloatingContact,

@@ -1,3 +1,4 @@
+import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_news_section_setting.dart';
@@ -37,8 +38,32 @@ class ModernHomeNewsSection extends StatelessWidget {
     );
   }
 
+  TextStyle _look(TextStyle original) {
+    final style = displayStyle;
+    if (style == null || original.color == theme.primaryColor) return original;
+    final title =
+        (original.fontSize ?? 14) >= 14 &&
+        (original.fontWeight?.value ?? 400) >= 600;
+    return original.copyWith(
+      fontSize: homeDisplayFontSize(
+        title ? style.titleSize : style.bodySize,
+        fallback: original.fontSize ?? 13,
+      ),
+      fontWeight: homeDisplayFontWeight(
+        title ? style.titleWeight : style.bodyWeight,
+      ),
+      color: Color(title ? style.titleColor : style.effectiveBodyColor),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => HomeCardImage(
+    setting: setting.cardImage,
+    enabled: setting.layout == HomeNewsLayouts.compactCard,
+    builder: (context, image) => _content(context, image.url),
+  );
+
+  Widget _content(BuildContext context, String imageUrl) {
     if (phase == HomeNewsSectionPhase.hidden) {
       return const SizedBox.shrink();
     }
@@ -49,10 +74,10 @@ class ModernHomeNewsSection extends StatelessWidget {
       return _messageCard(kHomeNewsErrorMessage);
     }
     if (phase == HomeNewsSectionPhase.empty || items.isEmpty) {
-      return _messageCard(kHomeNewsEmptyMessage);
+      return _messageCard(kHomeNewsEmptyMessage, imageUrl: imageUrl);
     }
     return switch (HomeNewsLayouts.migrate(setting.layout)) {
-      HomeNewsLayouts.compactCard => _compact(items.first),
+      HomeNewsLayouts.compactCard => _compact(items.first, imageUrl),
       HomeNewsLayouts.multiLine => _multi(),
       _ => _single(items.first),
     };
@@ -77,8 +102,10 @@ class ModernHomeNewsSection extends StatelessWidget {
         : ShopAnnouncementSection.notices;
   }
 
-  Widget _compact(HomeNewsItem item) {
+  Widget _compact(HomeNewsItem item, String imageUrl) {
     return ModernHomeEntryCard(
+      displayStyle: displayStyle,
+      backgroundImage: imageUrl.isEmpty ? null : NetworkImage(imageUrl),
       cardKey: const Key('home-news-card'),
       theme: theme,
       title: setting.entryTitle,
@@ -94,18 +121,26 @@ class ModernHomeNewsSection extends StatelessWidget {
   }
 
   Widget _single(HomeNewsItem item) {
-    return ModernHomeEntryCard(
-      cardKey: const Key('home-news-card'),
-      theme: theme,
-      title: setting.entryTitle,
-      subtitle: item.title,
-      showSubtitle: true,
-      cardSize: 'wide',
-      surface: _surface,
-      icon: homeNewsIcon(item.iconType),
-      showArrow: setting.showArrow,
-      textAlign: _textAlign,
-      onTap: () => _open(_sectionFor(item)),
+    return _shell(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: kModernHomeWideCardHeight),
+        child: InkWell(
+          key: const Key('home-news-card'),
+          onTap: () => _open(_sectionFor(item)),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(homeNewsIcon(item.iconType), color: theme.primaryColor),
+                const SizedBox(width: 10),
+                Expanded(child: _rowCopy(item)),
+                if (setting.showArrow)
+                  Icon(Icons.chevron_right, color: theme.primaryColor),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -126,25 +161,26 @@ class ModernHomeNewsSection extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: _textAlign,
-              style: TextStyle(
-                fontSize: homeDisplayFontSize(
-                  displayStyle?.titleSize ?? HomeDisplaySizes.medium,
-                  fallback: 15,
+              style: _look(
+                TextStyle(
+                  fontSize: homeDisplayFontSize(
+                    displayStyle?.titleSize ?? HomeDisplaySizes.medium,
+                    fallback: 15,
+                  ),
+                  height: 1.2,
+                  fontWeight: homeDisplayFontWeight(
+                    displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
+                  ),
+                  color: displayStyle == null
+                      ? theme.textColor
+                      : Color(displayStyle!.titleColor),
                 ),
-                height: 1.2,
-                fontWeight: homeDisplayFontWeight(
-                  displayStyle?.titleWeight ?? HomeDisplayWeights.bold,
-                ),
-                color: displayStyle == null
-                    ? theme.textColor
-                    : Color(displayStyle!.titleColor),
               ),
             ),
             const SizedBox(height: 8),
             for (final HomeNewsItem item in visible)
-              SizedBox(
-                height: rowHeight,
-                width: double.infinity,
+              ConstrainedBox(
+                constraints: BoxConstraints(minHeight: rowHeight),
                 child: InkWell(
                   key: Key('home-news-item-${item.id}'),
                   onTap: () => _open(_sectionFor(item)),
@@ -180,20 +216,24 @@ class ModernHomeNewsSection extends StatelessWidget {
 
   Widget _rowCopy(HomeNewsItem item) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: _crossAlign,
       children: <Widget>[
-        if (setting.showTypeBadge)
+        if (setting.layout == HomeNewsLayouts.singleLine ||
+            setting.showTypeBadge)
           Text(
             homeNewsBadge(item.iconType),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: _textAlign,
-            style: TextStyle(
-              fontSize: 11,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-              color: theme.primaryColor,
+            style: _look(
+              TextStyle(
+                fontSize: 11,
+                height: 1.1,
+                fontWeight: FontWeight.w800,
+                color: theme.primaryColor,
+              ),
             ),
           ),
         Text(
@@ -201,35 +241,47 @@ class ModernHomeNewsSection extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: _textAlign,
-          style: TextStyle(
-            fontSize: 14,
-            height: 1.2,
-            fontWeight: FontWeight.w800,
-            color: theme.textColor,
+          style: _look(
+            TextStyle(
+              fontSize: 14,
+              height: 1.2,
+              fontWeight: FontWeight.w800,
+              color: theme.textColor,
+            ),
           ),
         ),
-        if (setting.showSummary && item.summary.isNotEmpty)
+        if (setting.layout == HomeNewsLayouts.multiLine &&
+            setting.showSummary &&
+            item.summary.isNotEmpty)
           Text(
             item.summary,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            textAlign: _textAlign,
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.2,
-              color: theme.secondaryTextColor,
+            textAlign: displayStyle == null
+                ? _textAlign
+                : homeDisplayTextAlign(displayStyle!.bodyAlign),
+            style: _look(
+              TextStyle(
+                fontSize: 12,
+                height: 1.2,
+                color: theme.secondaryTextColor,
+              ),
             ),
           ),
-        if (setting.showDate)
+        if (setting.layout == HomeNewsLayouts.singleLine || setting.showDate)
           Text(
             _date(item.publishedAt),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            textAlign: _textAlign,
-            style: TextStyle(
-              fontSize: 11,
-              height: 1.1,
-              color: theme.secondaryTextColor,
+            textAlign: displayStyle == null
+                ? _textAlign
+                : homeDisplayTextAlign(displayStyle!.bodyAlign),
+            style: _look(
+              TextStyle(
+                fontSize: 11,
+                height: 1.1,
+                color: theme.secondaryTextColor,
+              ),
             ),
           ),
       ],
@@ -250,7 +302,7 @@ class ModernHomeNewsSection extends StatelessWidget {
     return height;
   }
 
-  Widget _messageCard(String message) {
+  Widget _messageCard(String message, {String imageUrl = ''}) {
     final String layout = HomeNewsLayouts.migrate(setting.layout);
     if (layout == HomeNewsLayouts.multiLine) {
       return _shell(
@@ -260,12 +312,19 @@ class ModernHomeNewsSection extends StatelessWidget {
             message,
             key: const Key('home-news-card'),
             textAlign: _textAlign,
-            style: TextStyle(color: theme.secondaryTextColor, height: 1.35),
+            style: _look(
+              TextStyle(color: theme.secondaryTextColor, height: 1.35),
+            ),
           ),
         ),
       );
     }
     return ModernHomeEntryCard(
+      displayStyle: displayStyle,
+      backgroundImage:
+          layout == HomeNewsLayouts.compactCard && imageUrl.isNotEmpty
+          ? NetworkImage(imageUrl)
+          : null,
       cardKey: const Key('home-news-card'),
       theme: theme,
       title: setting.entryTitle,
@@ -300,7 +359,11 @@ class ModernHomeNewsSection extends StatelessWidget {
   }
 
   Widget _shell({required Widget child}) {
-    final String surface = HomeNewsSurfaces.migrate(setting.surfaceStyle);
+    final String surface = HomeNewsSurfaces.migrate(
+      displayStyle == null
+          ? setting.surfaceStyle
+          : newsSurfaceForDisplay(displayStyle!.cardBackground),
+    );
     final Color fill = switch (surface) {
       HomeNewsSurfaces.transparent => Colors.transparent,
       HomeNewsSurfaces.translucent => theme.cardColor.withValues(alpha: 0.55),
