@@ -1029,8 +1029,14 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           return;
         }
         await _loadMember();
+        if (!mounted) {
+          return;
+        }
         await _loadCoupons();
       }
+    }
+    if (!mounted) {
+      return;
     }
     if (_isBlacklisted) {
       ScaffoldMessenger.of(
@@ -1070,9 +1076,15 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     final Map<String, dynamic>? liveShop = await ShopService.instance.getShop(
       widget.shopId,
     );
+    if (!mounted) {
+      return;
+    }
     final DaycareSettingsModel liveSettings = await DaycareSettingsService
         .instance
         .get(widget.shopId);
+    if (!mounted) {
+      return;
+    }
     if (!DaycareSettingsService.instance.isEnabledForShop(
       shop: liveShop,
       settings: liveSettings,
@@ -1087,6 +1099,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     }
     if (liveSettings.isRoomBased) {
       await _refreshRoomOptions();
+      if (!mounted) {
+        return;
+      }
       final bool roomOk = _roomOptions.any(
         (DaycareRoomTypeOption e) =>
             e.selectable && e.roomTypeId == _selectedRoomTypeId,
@@ -1169,6 +1184,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       startAt: _startAt!,
       endAt: _endAt!,
     );
+    if (!mounted) {
+      return;
+    }
     if (conflict) {
       if (!mounted) {
         return;
@@ -2033,8 +2051,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         ),
         const SizedBox(height: 8),
         if (plans.isEmpty) const Text('目前沒有可預約的安親方案'),
-        if (_availabilityUnknown)
-          const Text('暫時無法取得剩餘名額'),
+        if (_availabilityUnknown) const Text('暫時無法取得剩餘名額'),
         if (!_availabilityUnknown &&
             widget.settings.showRemainingSlots &&
             _remaining != null &&
@@ -2043,7 +2060,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           Text(_remaining == 0 ? '當日名額已滿' : '當日剩餘 $_remaining 名'),
         ...plans.map((DaycarePlanModel plan) {
           final bool selected = _plan?.id == plan.id;
-          final bool quotaOpen = !_availabilityUnknown &&
+          final bool quotaOpen =
+              !_availabilityUnknown &&
               (_remaining == null ||
                   _remaining! < 0 ||
                   _remaining! >= _selectedPetIds.length);
@@ -2056,8 +2074,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             blockedReason: !plan.enabled
                 ? '方案未啟用'
                 : (_availabilityUnknown
-                    ? '暫時無法取得剩餘名額'
-                    : (quotaOpen ? null : '當日名額已滿')),
+                      ? '暫時無法取得剩餘名額'
+                      : (quotaOpen ? null : '當日名額已滿')),
             onTap: () => setState(() {
               _plan = plan;
               _selectedDailyCareAddonId = null;
@@ -2083,8 +2101,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           ),
         ),
         const SizedBox(height: 8),
-        if (_availabilityUnknown)
-          const Text('暫時無法取得剩餘名額'),
+        if (_availabilityUnknown) const Text('暫時無法取得剩餘名額'),
         if (!_availabilityUnknown &&
             widget.settings.showRemainingSlots &&
             _remaining != null &&
@@ -2235,26 +2252,27 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         onClear: () => setState(() => _selectedCoupon = null),
         onPick: _pickCoupon,
       ),
-      BookingPointsRedeemSection(
-        shopId: widget.shopId,
-        userId: FirebaseAuth.instance.currentUser?.uid ?? '',
-        channel: 'daycare',
-        payableAfterCoupon: quote.totalAmount + quote.pointAmount,
-        requestedPoints: _requestedPoints,
-        onRequestedPointsChanged: (int value) {
-          if (_requestedPoints != value) {
-            setState(() => _requestedPoints = value);
-          }
-        },
-        onPreview: (int ntd, int used) {
-          if (_pointDiscountNtd != ntd || _requestedPoints != used) {
-            setState(() {
-              _pointDiscountNtd = ntd;
-              _requestedPoints = used;
-            });
-          }
-        },
-      ),
+      if (!widget.skipRemoteLoads)
+        BookingPointsRedeemSection(
+          shopId: widget.shopId,
+          userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+          channel: 'daycare',
+          payableAfterCoupon: quote.totalAmount + quote.pointAmount,
+          requestedPoints: _requestedPoints,
+          onRequestedPointsChanged: (int value) {
+            if (_requestedPoints != value) {
+              setState(() => _requestedPoints = value);
+            }
+          },
+          onPreview: (int ntd, int used) {
+            if (_pointDiscountNtd != ntd || _requestedPoints != used) {
+              setState(() {
+                _pointDiscountNtd = ntd;
+                _requestedPoints = used;
+              });
+            }
+          },
+        ),
       const SizedBox(height: 12),
       DaycareBookingSummaryCard(
         theme: theme,

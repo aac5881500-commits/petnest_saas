@@ -918,6 +918,9 @@ exports.createStoreOrder =
 exports.updateStoreOrderStatus =
   require("./store/update_store_order_status").updateStoreOrderStatus;
 
+exports.reconcileStoreOrderPoints =
+  require("./store/reconcile_store_order_points").reconcileStoreOrderPoints;
+
 /**
  * 🛒 庫存主檔異動後同步商城商品公開庫存
  */

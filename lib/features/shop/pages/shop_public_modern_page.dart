@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_display_style_bridge.dart';
@@ -793,24 +794,33 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             HomeEnvironmentSectionSetting.fromMap(
               modernAppearance['environmentSection'],
             );
-        final bool environmentVisible = environmentSection.showsOnHome(
-          hasFacilities: environmentSection
-              .selectedFacilities(
-                ModernHomeEnvironmentSection.facilitiesFor(
-                  facilityKeys,
-                  introduction: environmentIntro,
-                ),
-              )
-              .isNotEmpty,
-        );
+        final bool environmentVisible =
+            ShopIntroContent.environment(shop) &&
+            environmentSection.showsOnHome(
+              hasFacilities: environmentSection
+                  .selectedFacilities(
+                    ModernHomeEnvironmentSection.facilitiesFor(
+                      facilityKeys,
+                      introduction: environmentIntro,
+                    ),
+                  )
+                  .isNotEmpty,
+            );
         final HomeAboutSectionSetting aboutSection =
             HomeAboutSectionSetting.fromMap(modernAppearance['aboutSection']);
-        final bool aboutVisible = aboutSection.showsOnHome;
+        final bool aboutVisible =
+            aboutSection.showsOnHome && ShopIntroContent.about(shop);
         final HomeNewsSectionSetting newsSection =
             HomeNewsSectionSetting.fromMap(modernAppearance['newsSection']);
         final List<HomeNewsItem> newsItems = mergeHomeNews(
           source: newsSection.source,
-          notices: HomeNewsItem.noticesFromMaps(_publishedNotices),
+          notices: HomeNewsItem.noticesFromMaps(
+            _publishedNotices.where(
+              (item) =>
+                  ShopIntroContent.entries([item], faq: false) ==
+                  ShopIntroContentStatus.configured,
+            ),
+          ),
           campaigns: _publicCampaigns.map(HomeNewsItem.campaign).toList(),
         );
         final HomeNewsSectionPhase newsPhase = resolveHomeNewsPhase(
@@ -834,7 +844,13 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final HomePolicySnapshot policySnapshot = readHomePolicySnapshot(
           _policyDoc,
         );
-        final List<HomeFaqItem> faqItems = homeFaqsFromMaps(_publishedFaqs);
+        final List<HomeFaqItem> faqItems = homeFaqsFromMaps(
+          _publishedFaqs.where(
+            (item) =>
+                ShopIntroContent.entries([item], faq: true) ==
+                ShopIntroContentStatus.configured,
+          ),
+        );
         final List<ReviewModel> reviewItems = sortPublicReviews(_publicReviews);
         final HomeInfoSectionPhase policyPhase = resolveHomeInfoPhase(
           showOnHome: informationSections.policy.showOnHome,
@@ -867,6 +883,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final bool daycareAvailable = DaycareSettingsService.instance
             .isEnabledForShop(shop: shop, settings: _daycareSettings);
         final bool showAnnouncementsOnHome =
+            newsItems.isNotEmpty &&
             showAnnouncements &&
             !(newsPhase == HomeNewsSectionPhase.empty &&
                 !newsSection.showEmptyPlaceholder);
@@ -899,6 +916,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               homeInfoOccupiesSection(policyPhase) &&
               visibility.shows(HomeSharedEntrySources.policy),
           showFaq:
+              faqItems.isNotEmpty &&
               homeInfoOccupiesSection(faqPhase) &&
               visibility.shows(HomeSharedEntrySources.faq),
           showReviews:

@@ -21,18 +21,21 @@ void main() {
     await pumpDashboard(tester, const Size(1440, 2400));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('前往'), findsNWidgets(13));
+    expect(find.text('前往'), findsNWidgets(16));
     expect(find.text('管理店家、收費、平台帳號與營運案件'), findsOneWidget);
     expect(find.text('店家狀態、申請與客服案件'), findsOneWidget);
-    expect(find.text('平台操作紀錄'), findsOneWidget);
+    expect(find.text('業者資料庫'), findsOneWidget);
+    expect(find.text('業務管理'), findsOneWidget);
+    expect(find.text('訂閱收款'), findsOneWidget);
+    expect(find.text('業務業績與分潤'), findsOneWidget);
     expect(find.text('外觀圖庫'), findsOneWidget);
     expect(find.text('評價管理'), findsOneWidget);
     expect(find.text('平台條款管理'), findsOneWidget);
 
+    final directory = tester.getTopLeft(find.text('業者資料庫'));
     final request = tester.getTopLeft(find.text('店家申請中心'));
-    final contact = tester.getTopLeft(find.text('聯絡平台案件'));
-    expect((request.dy - contact.dy).abs(), lessThan(2));
-    expect(contact.dx, greaterThan(request.dx + 80));
+    expect((directory.dy - request.dy).abs(), lessThan(2));
+    expect(request.dx, greaterThan(directory.dx + 80));
 
     final header = tester.getTopLeft(find.text('管理店家、收費、平台帳號與營運案件'));
     expect(header.dx, greaterThan(28));
@@ -55,11 +58,11 @@ void main() {
     for (final width in [900.0, 1024.0, 1199.0]) {
       await pumpDashboard(tester, Size(width, 2400));
       expect(tester.takeException(), isNull);
-      expect(find.text('前往'), findsNWidgets(13));
+      expect(find.text('前往'), findsNWidgets(16));
 
+      final directory = tester.getTopLeft(find.text('業者資料庫'));
       final request = tester.getTopLeft(find.text('店家申請中心'));
-      final contact = tester.getTopLeft(find.text('聯絡平台案件'));
-      expect(contact.dy, greaterThan(request.dy + 80));
+      expect(request.dy, greaterThan(directory.dy + 80));
     }
   });
 
@@ -67,9 +70,9 @@ void main() {
     await pumpDashboard(tester, const Size(1200, 2400));
     expect(tester.takeException(), isNull);
 
+    final directory = tester.getTopLeft(find.text('業者資料庫'));
     final request = tester.getTopLeft(find.text('店家申請中心'));
-    final contact = tester.getTopLeft(find.text('聯絡平台案件'));
-    expect((request.dy - contact.dy).abs(), lessThan(2));
+    expect((directory.dy - request.dy).abs(), lessThan(2));
   });
 
   testWidgets('mobile 390 and 768 use a single column without 前往', (
@@ -81,7 +84,7 @@ void main() {
       expect(find.text('前往'), findsNothing);
       expect(find.text('管理店家、收費、平台帳號與營運案件'), findsNothing);
       expect(find.text('店家狀態、申請與客服案件'), findsNothing);
-      expect(find.byIcon(Icons.chevron_right), findsNWidgets(13));
+      expect(find.byIcon(Icons.chevron_right), findsNWidgets(16));
 
       final request = tester.getTopLeft(find.text('店家申請中心'));
       final contact = tester.getTopLeft(find.text('聯絡平台案件'));
@@ -147,18 +150,21 @@ void main() {
     ]);
     expect(all.expand((section) => section.entries), [
       '店家管理',
+      '業者資料庫',
       '店家申請中心',
       '聯絡平台案件',
       '綠界金流審核中心',
       '方案 / 付款管理',
       '激活碼管理',
+      '業務管理',
+      '訂閱收款',
+      '業務業績與分潤',
       '平台會員管理',
       '帳號刪除申請',
       '平台人員與權限',
       '外觀圖庫',
       '評價管理',
       '平台條款管理',
-      '平台操作紀錄',
     ]);
   });
 }

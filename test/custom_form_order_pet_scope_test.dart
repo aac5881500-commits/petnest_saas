@@ -362,18 +362,44 @@ void main() {
 
     expect(find.text('選擇寵物填寫'), findsOneWidget);
     expect(find.text('日常備註'), findsOneWidget);
-    expect(find.text('藥物名稱 *'), findsOneWidget);
-    expect(find.text('喵喵的照護資訊'), findsOneWidget);
-    expect(find.text('毛毛的照護資訊'), findsNothing);
+    // 初次先選尚未填寫的第一隻寵物，選填題也讓飼主有機會填寫。
+    expect(find.text('藥物名稱 *'), findsNothing);
+    expect(find.text('毛毛的照護資訊'), findsOneWidget);
+    expect(find.text('喵喵的照護資訊'), findsNothing);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '日常備註'),
+      '喜歡安靜角落',
+    );
+    expect(answers['a']?['q_care'], '喜歡安靜角落');
 
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('毛毛・已完成').last);
+    await tester.tap(find.text('喵喵').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('喵喵的照護資訊'), findsOneWidget);
+    expect(find.text('毛毛的照護資訊'), findsNothing);
+    expect(find.text('日常備註'), findsOneWidget);
+    expect(find.text('藥物名稱 *'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '藥物名稱 *'),
+      '依飼主提供的藥袋',
+    );
+    expect(answers['b']?['q_med'], '依飼主提供的藥袋');
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('毛毛・已填寫').last);
     await tester.pumpAndSettle();
 
     expect(find.text('毛毛的照護資訊'), findsOneWidget);
     expect(find.text('日常備註'), findsOneWidget);
     expect(find.text('藥物名稱 *'), findsNothing);
     expect(find.text('喵喵的照護資訊'), findsNothing);
+    expect(find.text('喜歡安靜角落'), findsOneWidget);
+    expect(answers['a']?['q_med'], isNull);
+    expect(answers['b']?['q_med'], '依飼主提供的藥袋');
+    expect(tester.takeException(), isNull);
   });
 }

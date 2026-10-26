@@ -3,10 +3,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/room_intro_appearance.dart';
+import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_room_type_live_preview.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_room_type_rooms_hub.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   final List<Map<String, dynamic>> types = <Map<String, dynamic>>[
     <String, dynamic>{
       'id': 'rt1',
@@ -48,12 +54,19 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => RoomIntroAppearanceScope(
+          appearance: const RoomIntroAppearance(),
+          theme: HomeThemeModel.classicDefault,
+          child: child!,
+        ),
         home: SizedBox(
           width: width,
           height: 900,
           child: ShopRoomTypeRoomsHub(
             key: UniqueKey(),
             shopId: 'shop-test',
+            guideUserId: 'fixture-user',
+            loadTutorialEligibility: () async => false,
             embeddedInSetupCenter: true,
             roomTypesStream: Stream<List<Map<String, dynamic>>>.value(types),
             roomsStream: Stream<List<Map<String, dynamic>>>.value(rooms),

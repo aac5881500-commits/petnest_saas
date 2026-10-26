@@ -130,8 +130,20 @@ class PetSnapshot {
     if (medical.isNotEmpty) {
       return medical;
     }
-    return _displayText(pet['vaccine']);
+    final String legacy = _displayText(pet['vaccine']);
+    return _vaccinationOnlyValues.contains(legacy) ? '' : legacy;
   }
+
+  // 舊 vaccine 欄位曾同時保存疫苗與醫療資訊。僅排除明確、完整相符的
+  // 疫苗狀態；例如「定期施打，另有心臟病」仍保留為醫療資訊，避免漏提醒。
+  static const Set<String> _vaccinationOnlyValues = <String>{
+    '定期',
+    '定期施打',
+    '已施打',
+    '未施打',
+    '已接種',
+    '未接種',
+  };
 
   static bool hasRecordedDisease(Map<String, dynamic> pet) {
     final String medical = medicalStatusText(pet);
@@ -184,6 +196,10 @@ class PetSnapshot {
     }
 
     add('過敏', pet['allergy']);
+    final String legacyVaccine = _displayText(pet['vaccine']);
+    if (_vaccinationOnlyValues.contains(legacyVaccine)) {
+      add('疫苗', legacyVaccine);
+    }
     add('疾病／醫療', medicalStatusText(pet));
     add('藥物', pet['medication']);
     add('緊張或攻擊行為', pet['emergencyBehavior']);

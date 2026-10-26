@@ -50,7 +50,7 @@ class ShopRoomService {
     }).toList();
   }
 
-  Future<void> createRoomType({
+  Future<String> createRoomType({
     required String shopId,
     required String name,
     required int capacity,
@@ -81,6 +81,7 @@ class ShopRoomService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    return doc.id;
   }
 
   Future<void> updateRoomType({
@@ -652,11 +653,10 @@ class ShopRoomService {
     final DateTime checkIn = DailyCareDateHelper.calendarDateInTaipei(
       startDate,
     );
-    final DateTime checkOut = DailyCareDateHelper.calendarDateInTaipei(
-      endDate,
-    );
-    final Map<String, dynamic> availability =
-        await StayBookingFunctionService.instance.getAvailability(
+    final DateTime checkOut = DailyCareDateHelper.calendarDateInTaipei(endDate);
+    final Map<String, dynamic> availability = await StayBookingFunctionService
+        .instance
+        .getAvailability(
           shopId: shopId,
           startDate: formatDateKey(checkIn),
           endDate: formatDateKey(checkOut),

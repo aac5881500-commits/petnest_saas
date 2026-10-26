@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
+import 'package:petnest_saas/core/services/shop_intro_guide_progress.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -306,13 +308,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('選填收合偏好依使用者與店家分開，重建後仍保留', (tester) async {
+  testWidgets('舊略過偏好遷移為店家一次性結束，重新登入不再出現', (tester) async {
     SharedPreferences.setMockInitialValues({'openingOptional:u:s': true});
     Future<void> pump(String user, String shop) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: ShopOpeningProgress(
+              loadIntroStatus: (_) async => {
+                for (final id in ShopIntroContent.keys)
+                  id: ShopIntroContentStatus.empty,
+              },
               loadStayPolicy: () async => true,
               shopId: shop,
               userId: user,
@@ -332,21 +338,21 @@ void main() {
     await pump('u', 's');
     expect(find.text('環境介紹'), findsNothing);
     await pump('other', 's');
-    expect(find.text('環境介紹'), findsOneWidget);
+    expect(find.text('環境介紹'), findsNothing);
     await pump('u', 'otherShop');
     expect(find.text('環境介紹'), findsOneWidget);
     await pump('u', 's');
     expect(find.text('環境介紹'), findsNothing);
-    await tester.tap(find.text('豐富你的店家介紹（展開）'));
-    await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox.shrink());
     await pump('u', 's');
-    expect(find.text('環境介紹'), findsOneWidget);
+    expect(find.text('豐富你的店家介紹'), findsNothing);
+    expect((await ShopIntroGuideProgress.load('s', 'u')).ended, isTrue);
   });
 
   testWidgets('開店卡監聽切換、讀取錯誤、收合偏好與各寬度無溢出', (tester) async {
     SharedPreferences.setMockInitialValues({});
     for (final width in [320.0, 390.0, 430.0, 768.0, 1280.0, 1440.0]) {
+      SharedPreferences.setMockInitialValues({});
       await tester.binding.setSurfaceSize(Size(width, 900));
       final controller = StreamController<StayBookingReadiness>();
       Future<void> pump({
@@ -360,6 +366,10 @@ void main() {
             home: Scaffold(
               body: SingleChildScrollView(
                 child: ShopOpeningProgress(
+                  loadIntroStatus: (_) async => {
+                    for (final id in ShopIntroContent.keys)
+                      id: ShopIntroContentStatus.empty,
+                  },
                   loadStayPolicy: () async => true,
                   key: ValueKey('$width:$user:$shop'),
                   shopId: shop,
@@ -425,16 +435,14 @@ void main() {
           isNotNull,
         );
       }
-      await tester.tap(find.text('稍後再設定'));
+      final dismiss = find.widgetWithText(TextButton, '稍後再說').first;
+      await tester.ensureVisible(dismiss);
+      await tester.tap(dismiss);
       await tester.pumpAndSettle();
       expect(find.text('環境介紹'), findsNothing);
-      expect(
-        (await SharedPreferences.getInstance()).getBool('openingOptional:u:s'),
-        isTrue,
-      );
-      await tester.tap(find.text('豐富你的店家介紹（展開）'));
-      await tester.pumpAndSettle();
-      expect(find.text('環境介紹'), findsOneWidget);
+      expect((await ShopIntroGuideProgress.load('s', 'u')).dismissed, isTrue);
+      await pump(booking: true, paid: true);
+      expect(find.text('豐富你的店家介紹'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       unawaited(controller.close());

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_about_page.dart
 // 功能說明：顯示店家品牌介紹、理念、店家訊息與聯絡資訊
 // 🐾 前台關於我們頁
@@ -125,6 +126,13 @@ class _ShopAboutPageState extends State<ShopAboutPage> {
                   ? const CircularProgressIndicator()
                   : const Text('找不到店家'),
             );
+          }
+          final preview =
+              widget.previewTitle != null ||
+              widget.previewDescription != null ||
+              widget.previewSetting != null;
+          if (!preview && !ShopIntroContent.about(snapshot.data!)) {
+            return const SizedBox.shrink();
           }
           return _content(snapshot.data!);
         },

@@ -1,5 +1,10 @@
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/room_intro_appearance.dart';
+import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
+import 'package:petnest_saas/features/shop/widgets/room_management_section.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_setup_spotlight.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -24,6 +29,21 @@ class _Routes extends NavigatorObserver {
     pushes++;
   }
 }
+
+Widget _fixtureApp({
+  required Widget home,
+  List<NavigatorObserver> navigatorObservers = const [],
+}) => MaterialApp(
+  navigatorObservers: navigatorObservers,
+  // Layout/lifecycle tests use a known appearance snapshot, as production
+  // supplies through RoomIntroAppearanceHost. Do not open a Firebase listener.
+  builder: (context, child) => RoomIntroAppearanceScope(
+    appearance: const RoomIntroAppearance(),
+    theme: HomeThemeModel.classicDefault,
+    child: child!,
+  ),
+  home: home,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +80,7 @@ void main() {
         'totalRooms': 10,
       };
       await tester.pumpWidget(
-        MaterialApp(
+        _fixtureApp(
           home: Scaffold(
             body: ShopRoomTypeRoomsHub(
               shopId: shop,
@@ -93,28 +113,27 @@ void main() {
       }
       await tester.tap(find.text('建立房型'));
       await tester.pumpAndSettle();
-      expect(find.text('房型建立成功！下一步請點這裡，建立實際房間。'), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_downward_rounded), findsOneWidget);
-      expect(tester.getBottomRight(find.text('展開／收合房間')).dy, lessThan(900));
-      await tester.tap(find.text('展開／收合房間'));
+      expect(find.text('房型建立成功！'), findsOneWidget);
+      expect(find.text('建立此房型的房間'), findsOneWidget);
+      expect(find.byType(RoomManagementSection), findsNothing);
+      await tester.tap(find.text('建立此房型的房間'));
       await tester.pumpAndSettle();
-      expect(find.text('房型建立成功！下一步請點這裡，建立實際房間。'), findsNothing);
+      final section = tester.widget<RoomManagementSection>(
+        find.byType(RoomManagementSection),
+      );
+      expect(section.roomType['id'], 'new');
       expect(find.text('新增房間'), findsOneWidget);
       expect(tester.getBottomRight(find.text('新增房間')).dy, lessThan(900));
-      await tester.tap(find.text('展開／收合房間'));
-      await tester.pumpAndSettle();
-      expect(find.text('尚未建立實際房間'), findsOneWidget);
-      expect(find.text('建立房間'), findsOneWidget);
       expect(
         (await SharedPreferences.getInstance()).getBool(
-          'roomCreationGuide:u:$shop:new',
+          'firstRoomTutorialPaused:u:$shop',
         ),
-        isTrue,
+        isFalse,
       );
       await tester.pumpWidget(const SizedBox.shrink());
       unawaited(types.close());
       await tester.pumpWidget(
-        MaterialApp(
+        _fixtureApp(
           home: Scaffold(
             body: ShopRoomTypeRoomsHub(
               shopId: shop,
@@ -129,7 +148,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.arrow_downward_rounded), findsNothing);
+      expect(
+        tester
+            .widget<ShopSetupSpotlight>(find.byType(ShopSetupSpotlight))
+            .target,
+        isNull,
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     }
@@ -172,7 +196,7 @@ void main() {
           actionLogsStream: Stream.value([]),
         );
         await tester.pumpWidget(
-          MaterialApp(home: embedded ? Scaffold(body: page) : page),
+          _fixtureApp(home: embedded ? Scaffold(body: page) : page),
         );
         configs.add({'bookingEnabled': false, 'maxAdvanceBookingDays': 30});
         await tester.pumpAndSettle();
@@ -295,7 +319,7 @@ void main() {
       final guard = ShopBookingSettingsLeaveGuard();
       var checks = 0;
       await tester.pumpWidget(
-        MaterialApp(
+        _fixtureApp(
           home: Scaffold(
             body: ShopBookingSettingsPage(
               shopId: 'fixture',
@@ -387,7 +411,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(390, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
+      _fixtureApp(
         home: Scaffold(
           body: ShopRoomTypeRoomsHub(
             shopId: 'test',
@@ -425,7 +449,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(390, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
+      _fixtureApp(
         navigatorObservers: [routes],
         home: Builder(
           builder: (context) => Scaffold(
@@ -531,7 +555,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(390, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
+      _fixtureApp(
         home: ShopRoomTypeEditorPage(
           shopId: 'test',
           existing: const {
@@ -590,7 +614,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     ShopRoomTypeDraft? saved;
     await tester.pumpWidget(
-      MaterialApp(
+      _fixtureApp(
         home: Scaffold(
           body: ShopRoomTypeRoomsHub(
             shopId: 'test',
@@ -635,7 +659,7 @@ void main() {
   testWidgets('非同步權限與照片載入中離開，不在 dispose 後回呼', (tester) async {
     final role = Completer<Map<String, dynamic>?>();
     await tester.pumpWidget(
-      MaterialApp(
+      _fixtureApp(
         home: ShopBookingSetupCenterPage(
           shopId: 'test',
           appBarActions: const [],
@@ -649,7 +673,7 @@ void main() {
     await tester.pumpAndSettle();
     final photo = Completer<Uint8List?>();
     await tester.pumpWidget(
-      MaterialApp(
+      _fixtureApp(
         home: ShopRoomTypeEditorPage(
           shopId: 'test',
           pickCroppedPhoto: () => photo.future,

@@ -734,8 +734,14 @@ class _ShopFeatureTourHostState extends State<ShopFeatureTourHost>
       child: LayoutBuilder(
         builder: (context, bounds) {
           final desktop = bounds.maxWidth >= 1000;
-          final cardHeight = math.min(300.0, bounds.maxHeight * .44);
-          final desktopCardHeight = math.min(360.0, bounds.maxHeight - 16);
+          final cardHeight = math.min(
+            t.inPage ? 300.0 : 250.0,
+            bounds.maxHeight * .44,
+          );
+          final desktopCardHeight = math.min(
+            t.inPage ? 360.0 : 300.0,
+            bounds.maxHeight - 16,
+          );
           final padding = !show
               ? EdgeInsets.zero
               : desktop
@@ -780,6 +786,62 @@ class _ShopFeatureTourHostState extends State<ShopFeatureTourHost>
                           ),
                         ),
                       ),
+                    if (show &&
+                        t.active &&
+                        !t.inPage &&
+                        targetReady &&
+                        t.available[t.current] == true)
+                      Positioned(
+                        left: _rect!.left.clamp(
+                          8.0,
+                          math.max(
+                            8.0,
+                            bounds.maxWidth - (desktop ? 370 : 0) - 172,
+                          ),
+                        ),
+                        top:
+                            (_rect!.top >= 46
+                                    ? _rect!.top - 38
+                                    : _rect!.bottom + 6)
+                                .clamp(
+                                  8.0,
+                                  math.max(
+                                    8.0,
+                                    bounds.maxHeight -
+                                        (desktop ? 48 : cardHeight + 48),
+                                  ),
+                                ),
+                        child: IgnorePointer(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFBE62),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.touch_app_rounded,
+                                  size: 19,
+                                  color: Color(0xFF533400),
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  '點這裡繼續',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF533400),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     if (show)
                       Positioned(
                         right: desktop ? 12 : 8,
@@ -806,6 +868,26 @@ class _ShopFeatureTourHostState extends State<ShopFeatureTourHost>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                if (!t.completed)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: t.busy ? null : t.pause,
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: const Color(
+                                          0xFF64748B,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.pause_outlined,
+                                        size: 16,
+                                      ),
+                                      label: const Text(
+                                        '暫停導覽',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
                                 Expanded(
                                   child: SingleChildScrollView(
                                     child: Column(
@@ -847,7 +929,7 @@ class _ShopFeatureTourHostState extends State<ShopFeatureTourHost>
                                           Text(
                                             t.inPage
                                                 ? t.topic!.points[t.point].$1
-                                                : '請點選亮框中的真實功能入口',
+                                                : '點擊亮框的功能卡片繼續',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -907,6 +989,38 @@ class _ShopFeatureTourHostState extends State<ShopFeatureTourHost>
                                     ),
                                   ),
                                 ),
+                                if (!t.completed &&
+                                    !t.inPage &&
+                                    targetReady &&
+                                    t.available[t.current] == true)
+                                  Container(
+                                    key: const Key('tour-real-entry-hint'),
+                                    margin: const EdgeInsets.only(top: 10),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF3DF),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.touch_app_rounded,
+                                          color: Color(0xFF9A5700),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '請點畫面中的「${t.topic!.name}」',
+                                            style: const TextStyle(
+                                              color: Color(0xFF754300),
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 if (t.completed)
                                   FilledButton(
                                     onPressed: t.pause,
@@ -918,10 +1032,6 @@ class _ShopFeatureTourHostState extends State<ShopFeatureTourHost>
                                     spacing: 8,
                                     runSpacing: 4,
                                     children: [
-                                      TextButton(
-                                        onPressed: t.busy ? null : t.pause,
-                                        child: const Text('暫停導覽'),
-                                      ),
                                       if (!targetReady ||
                                           t.preparationError != null)
                                         TextButton(

@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/theme/petnest_app_theme.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/room_intro_appearance.dart';
+import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_opening_progress.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_room_type_editor.dart';
@@ -32,6 +35,11 @@ void main() {
         final theme = PetNestAppTheme.build();
         await tester.pumpWidget(
           MaterialApp(
+            builder: (context, child) => RoomIntroAppearanceScope(
+              appearance: const RoomIntroAppearance(),
+              theme: HomeThemeModel.classicDefault,
+              child: child!,
+            ),
             theme: theme.copyWith(
               textTheme: theme.textTheme.apply(fontFamily: 'NotoSansTC'),
               appBarTheme: theme.appBarTheme.copyWith(
@@ -76,6 +84,7 @@ void main() {
                           readinessStream: Stream.value(
                             StayBookingReadiness([], []),
                           ),
+                          loadStayPolicy: () async => false,
                         ),
                       ),
                     ),

@@ -89,7 +89,7 @@ void main() {
   test('有聊天 dock 時，扣掉欄寬後不足就停止 inline', () {
     const double pageWidth = 1600;
     final double dock = ShopChatLayout.dockWidthFor(pageWidth);
-    expect(dock, greaterThan(600));
+    expect(dock, 380);
     final double available = pageWidth - dock;
     expect(ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth), isTrue);
     expect(ShopFrontendPreviewFrame.canShowInlinePreview(available), isFalse);

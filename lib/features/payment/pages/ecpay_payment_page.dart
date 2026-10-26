@@ -15,6 +15,7 @@ import 'package:petnest_saas/core/models/payment_model.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/payment/widgets/ecpay_payment_view.dart';
+import 'package:petnest_saas/features/payment/widgets/ecpay_payment_information.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/my_store_order_detail_page.dart';
 
 class EcpayPaymentPage extends StatefulWidget {
@@ -25,6 +26,7 @@ class EcpayPaymentPage extends StatefulWidget {
     this.bookingId = '',
     this.shopId = '',
     this.storeOrderId = '',
+    this.initialPayment,
   });
 
   /// Cloud Function 回傳的綠界付款表單 HTML
@@ -47,6 +49,8 @@ class EcpayPaymentPage extends StatefulWidget {
   /// 商城訂單 ID。有值時付款完成導向商城訂單詳情。
   final String storeOrderId;
 
+  final PaymentModel? initialPayment;
+
   @override
   State<EcpayPaymentPage> createState() => _EcpayPaymentPageState();
 }
@@ -56,19 +60,70 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
 
   /// 避免 Firestore 連續更新時重複觸發 Navigator。
   bool _leavingPaymentPage = false;
+  PaymentModel? _payment;
+  String? _paymentError;
+  bool _loadingPayment = true;
 
   @override
   void initState() {
     super.initState();
 
+    final initial = widget.initialPayment;
+    if (initial != null && _matchesPayment(initial)) {
+      _payment = initial;
+      _loadingPayment = false;
+    }
+    _listenToPayment();
+  }
+
+  bool _matchesPayment(PaymentModel payment) =>
+      payment.id == widget.paymentId &&
+      payment.matchesSource(
+        shopId: widget.shopId,
+        bookingId: widget.bookingId,
+        storeOrderId: widget.storeOrderId,
+      );
+
+  void _listenToPayment() {
+    _paymentSubscription?.cancel();
     _paymentSubscription = PaymentService.instance
         .streamPayment(widget.paymentId)
         .listen(
-          _handlePaymentChanged,
+          (payment) {
+            if (!mounted) return;
+            if (payment == null || !_matchesPayment(payment)) {
+              setState(() {
+                _loadingPayment = false;
+                _payment = null;
+                _paymentError = payment == null
+                    ? '找不到付款資料，請重新讀取或返回訂單確認。'
+                    : '付款資料與訂單不符，請返回訂單確認。';
+              });
+              return;
+            }
+            setState(() {
+              _payment = payment;
+              _paymentError = null;
+              _loadingPayment = false;
+            });
+            _handlePaymentChanged(payment);
+          },
           onError: (Object error, StackTrace stackTrace) {
-            debugPrint('❌ 監聽付款狀態失敗：$error');
+            if (!mounted) return;
+            setState(() {
+              _loadingPayment = false;
+              _paymentError = '付款資料讀取失敗，請重新讀取或返回訂單確認。';
+            });
           },
         );
+  }
+
+  void _retryPayment() {
+    setState(() {
+      _loadingPayment = true;
+      _paymentError = null;
+    });
+    _listenToPayment();
   }
 
   @override
@@ -246,7 +301,14 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
             onPressed: _handleManualBack,
           ),
         ),
-        body: EcpayPaymentView(paymentHtml: widget.paymentHtml),
+        body: widget.paymentHtml.trim().isNotEmpty
+            ? EcpayPaymentView(paymentHtml: widget.paymentHtml)
+            : EcpayPaymentInformation(
+                payment: _payment,
+                loading: _loadingPayment,
+                error: _paymentError,
+                onRetry: _retryPayment,
+              ),
       ),
     );
   }

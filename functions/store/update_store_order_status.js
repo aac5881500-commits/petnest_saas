@@ -17,6 +17,9 @@ const {
   restoreSpend,
   spendStoreLogId,
 } = require("../points/sync_booking_points");
+const {
+  confirmZeroTotalStoreOrder,
+} = require("./confirm_zero_total_store_order");
 
 /**
  * @param {string} value
@@ -114,7 +117,20 @@ exports.updateStoreOrderStatus = onCall(
           updatedBy: uid,
         };
 
-        if (action === "cancel") {
+        if (action === "confirm_zero_total") {
+          const confirmed = await confirmZeroTotalStoreOrder({
+            firestore,
+            transaction,
+            shopId,
+            orderId,
+            actorUid: uid,
+            canManage,
+            order,
+            now,
+          });
+          if (!confirmed) return;
+          Object.assign(update, confirmed);
+        } else if (action === "cancel") {
           if (!isOwner && !canManage) {
             throw new HttpsError("permission-denied", "沒有權限取消訂單。");
           }

@@ -21,10 +21,13 @@ void main() {
     expect(snap['type'], 'cat');
     expect(snap['breed'], '英國短毛');
     expect(snap['isNeutered'], isFalse);
-    expect(PetSnapshot.fromPet(<String, dynamic>{
-      'id': 'doc-1',
-      'name': '咪',
-    })['petId'], 'doc-1');
+    expect(
+      PetSnapshot.fromPet(<String, dynamic>{
+        'id': 'doc-1',
+        'name': '咪',
+      })['petId'],
+      'doc-1',
+    );
     expect(PetSnapshot.isNeuteredFalse(snap), isTrue);
     expect(
       PetSnapshot.visibleRows(
@@ -71,7 +74,38 @@ void main() {
     });
     expect(PetSnapshot.hasDiseaseAlert(pet), isFalse);
     expect(
-      PetSnapshot.safetyRows(pet).any((MapEntry<String, String> e) => e.key == '餵藥'),
+      PetSnapshot.safetyRows(
+        pet,
+      ).any((MapEntry<String, String> e) => e.key == '餵藥'),
+      isFalse,
+    );
+  });
+
+  test('疫苗狀態保留顯示，舊疾病與混合說明仍觸發提醒', () {
+    final vaccinated = <String, dynamic>{'vaccine': '定期施打'};
+    expect(
+      PetSnapshot.safetyRows(
+        vaccinated,
+      ).any((row) => row.key == '疫苗' && row.value == '定期施打'),
+      isTrue,
+    );
+    for (final medical in ['心臟病', '定期施打，另有心臟病']) {
+      final pet = <String, dynamic>{'vaccine': medical};
+      expect(PetSnapshot.medicalStatusText(pet), medical);
+      expect(PetSnapshot.hasRecordedDisease(pet), isTrue);
+    }
+    expect(
+      PetSnapshot.medicalStatusText(<String, dynamic>{
+        'medicalStatus': '心臟病',
+        'vaccine': '定期施打',
+      }),
+      '心臟病',
+    );
+    expect(
+      PetSnapshot.hasRecordedDisease(<String, dynamic>{
+        'medicalStatus': '無',
+        'vaccine': '心臟病',
+      }),
       isFalse,
     );
   });

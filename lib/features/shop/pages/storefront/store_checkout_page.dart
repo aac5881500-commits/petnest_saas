@@ -2,6 +2,7 @@
 // 功能說明：結帳：店內自取 + 共用綠界付款
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
@@ -13,6 +14,7 @@ import 'package:petnest_saas/core/models/store_promotion_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/core/services/store_cart_service.dart';
+import 'package:petnest_saas/core/services/store_checkout_flow.dart';
 import 'package:petnest_saas/core/services/store_function_service.dart';
 import 'package:petnest_saas/core/services/store_pricing_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
@@ -51,8 +53,10 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
   final TextEditingController _phone = TextEditingController();
   String _paymentMethod = '';
   bool _submitting = false;
+  final StoreCheckoutFlow _checkout = StoreCheckoutFlow();
   int _requestedPoints = 0;
   int _pointDiscountNtd = 0;
+  bool get _inputLocked => _submitting || _checkout.hasUnresolvedCreation;
 
   @override
   void dispose() {
@@ -127,84 +131,116 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
     required int quotedTotal,
     String? blockReason,
   }) async {
-    if (blockReason != null && blockReason.isNotEmpty) {
+    if (_submitting) return;
+    final existingOrder = _checkout.order;
+    if (existingOrder != null) {
+      _openOrder(existingOrder.id);
+      return;
+    }
+    if (!_checkout.hasUnresolvedCreation &&
+        blockReason != null &&
+        blockReason.isNotEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(blockReason)));
       return;
     }
-    if (_paymentMethod.isEmpty) {
+    if (!_checkout.hasUnresolvedCreation &&
+        _paymentMethod.isEmpty &&
+        quotedTotal > 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('目前沒有可用的線上付款方式')));
       return;
     }
-    if (items.isEmpty) {
+    if (!_checkout.hasUnresolvedCreation && items.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('沒有可結帳的商品')));
       return;
     }
 
+    final paymentMethod = _paymentMethod;
+    final submittedItems = items
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final submittedName = _name.text.trim();
+    final submittedPhone = _phone.text.trim();
+    final submittedPoints = _requestedPoints;
     setState(() => _submitting = true);
     try {
-      final Map<String, dynamic> created = await StoreFunctionService.instance
-          .createStoreOrder(
+      final outcome = await _checkout.run(
+        newOrderRequestId: () =>
+            FirebaseFirestore.instance.collection('checkout_requests').doc().id,
+        createOrder: (requestId) async => StoreCheckoutOrder.fromMap(
+          await StoreFunctionService.instance.createStoreOrder(
+            requestId: requestId,
             shopId: widget.shopId,
-            items: items,
+            items: submittedItems,
             fulfillmentType: StoreConstants.fulfillmentPickup,
-            customerName: _name.text.trim(),
-            customerPhone: _phone.text.trim(),
-            requestedPoints: _requestedPoints,
-          );
-
-      final String orderId = (created['orderId'] ?? '').toString();
-      final int totalAmount = created['totalAmount'] is int
-          ? created['totalAmount'] as int
-          : int.tryParse(created['totalAmount']?.toString() ?? '') ?? 0;
-
-      if (totalAmount != quotedTotal && mounted) {
+            customerName: submittedName,
+            customerPhone: submittedPhone,
+            requestedPoints: submittedPoints,
+          ),
+        ),
+        canEditAfterCreationFailure: (error) =>
+            error is FirebaseFunctionsException &&
+            const [
+              'invalid-argument',
+              'permission-denied',
+              'unauthenticated',
+              'not-found',
+              'failed-precondition',
+            ].contains(error.code),
+        clearCart: () async {
+          if (widget.buyNowProductId.isEmpty) {
+            await StoreCartService.instance.clearCart(widget.shopId);
+          }
+        },
+        confirmZeroTotal: (order) =>
+            StoreFunctionService.instance.updateStoreOrderStatus(
+              shopId: widget.shopId,
+              orderId: order.id,
+              action: 'confirm_zero_total',
+            ),
+        newPaymentRequestId: () =>
+            FirebaseFirestore.instance.collection('payments').doc().id,
+        createPayment: (order, requestId) =>
+            PaymentFunctionService.instance.createPayment(
+              request: CreatePaymentRequestModel(
+                shopId: widget.shopId,
+                sourceType: PaymentSourceType.storeOrder,
+                sourceId: order.id,
+                paymentMethod: paymentMethod,
+                amountType: PaymentAmountType.full,
+                paymentPurpose: PaymentPurpose.full,
+                amount: order.totalAmount,
+                requestId: requestId,
+              ),
+            ),
+      );
+      if (!mounted) return;
+      final order = outcome.order;
+      final paymentResult = outcome.payment;
+      if (outcome.paymentError != null ||
+          (!outcome.zeroTotalConfirmed && paymentResult == null)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('訂單已建立，結帳尚未完成。請在訂單頁繼續處理，無須重新下單。')),
+        );
+        _openOrder(order.id, preferredPaymentMethod: paymentMethod);
+        return;
+      }
+      if (outcome.cartError != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('訂單已建立，但購物車未能清空；請勿重複下單。')));
+      } else if (order.totalAmount != quotedTotal) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('商品優惠已更新，金額已重新計算。')));
       }
-
-      if (widget.buyNowProductId.isEmpty) {
-        await StoreCartService.instance.clearCart(widget.shopId);
-      }
-
-      final String requestId = FirebaseFirestore.instance
-          .collection('payments')
-          .doc()
-          .id;
-      final paymentResult = await PaymentFunctionService.instance.createPayment(
-        request: CreatePaymentRequestModel(
-          shopId: widget.shopId,
-          sourceType: PaymentSourceType.storeOrder,
-          sourceId: orderId,
-          paymentMethod: _paymentMethod,
-          amountType: PaymentAmountType.full,
-          paymentPurpose: PaymentPurpose.full,
-          amount: totalAmount,
-          requestId: requestId,
-        ),
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      if (!paymentResult.hasPaymentHtml) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => MyStoreOrderDetailPage(
-              shopId: widget.shopId,
-              orderId: orderId,
-              theme: widget.theme,
-            ),
-          ),
-        );
+      if (outcome.zeroTotalConfirmed || !paymentResult!.hasPaymentHtml) {
+        _openOrder(order.id, preferredPaymentMethod: paymentMethod);
         return;
       }
 
@@ -215,7 +251,7 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
             paymentHtml: paymentResult.paymentHtml,
             paymentId: paymentResult.paymentId,
             shopId: widget.shopId,
-            storeOrderId: orderId,
+            storeOrderId: order.id,
           ),
         ),
       );
@@ -233,363 +269,426 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
     }
   }
 
+  void _openOrder(String orderId, {String? preferredPaymentMethod}) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => MyStoreOrderDetailPage(
+          shopId: widget.shopId,
+          orderId: orderId,
+          preferredPaymentMethod: preferredPaymentMethod ?? _paymentMethod,
+          theme: widget.theme,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StorefrontTheme(
       shopId: widget.shopId,
       shopTheme: widget.theme,
       builder: (BuildContext context, HomeThemeModel theme, _) {
-        return Scaffold(
-          backgroundColor: theme.backgroundColor,
-          appBar: AppBar(
-            backgroundColor: theme.cardColor,
-            foregroundColor: theme.textColor,
-            title: const Text('結帳'),
-          ),
-          body: StreamBuilder<List<StoreProductModel>>(
-            stream: StoreProductService.instance.streamEnabledProducts(
-              widget.shopId,
+        return PopScope(
+          canPop: !_submitting,
+          child: Scaffold(
+            backgroundColor: theme.backgroundColor,
+            appBar: AppBar(
+              backgroundColor: theme.cardColor,
+              foregroundColor: theme.textColor,
+              title: const Text('結帳'),
             ),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<List<StoreProductModel>> productSnapshot,
-                ) {
-                  final Map<String, StoreProductModel> productsById =
-                      <String, StoreProductModel>{
-                        for (final StoreProductModel product
-                            in productSnapshot.data ??
-                                const <StoreProductModel>[])
-                          product.id: product,
-                      };
+            body: StreamBuilder<List<StoreProductModel>>(
+              stream: StoreProductService.instance.streamEnabledProducts(
+                widget.shopId,
+              ),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<StoreProductModel>> productSnapshot,
+                  ) {
+                    final Map<String, StoreProductModel> productsById =
+                        <String, StoreProductModel>{
+                          for (final StoreProductModel product
+                              in productSnapshot.data ??
+                                  const <StoreProductModel>[])
+                            product.id: product,
+                        };
 
-                  return StreamBuilder<List<StoreCartItem>>(
-                    stream: StoreCartService.instance.streamCart(widget.shopId),
-                    builder:
-                        (
-                          BuildContext context,
-                          AsyncSnapshot<List<StoreCartItem>> cartSnapshot,
-                        ) {
-                          final List<StoreCartItem> sourceItems;
-                          if (widget.buyNowProductId.isNotEmpty) {
-                            sourceItems = <StoreCartItem>[
-                              StoreCartItem(
-                                productId: widget.buyNowProductId,
-                                quantity: widget.buyNowQuantity,
-                              ),
-                            ];
-                          } else {
-                            sourceItems =
-                                cartSnapshot.data ?? const <StoreCartItem>[];
-                          }
+                    return StreamBuilder<List<StoreCartItem>>(
+                      stream: StoreCartService.instance.streamCart(
+                        widget.shopId,
+                      ),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<List<StoreCartItem>> cartSnapshot,
+                          ) {
+                            final List<StoreCartItem> sourceItems;
+                            if (widget.buyNowProductId.isNotEmpty) {
+                              sourceItems = <StoreCartItem>[
+                                StoreCartItem(
+                                  productId: widget.buyNowProductId,
+                                  quantity: widget.buyNowQuantity,
+                                ),
+                              ];
+                            } else {
+                              sourceItems =
+                                  cartSnapshot.data ?? const <StoreCartItem>[];
+                            }
 
-                          final List<Map<String, dynamic>> orderItems =
-                              <Map<String, dynamic>>[];
-                          final List<StoreProductModel> allProducts =
-                              productSnapshot.data ??
-                              const <StoreProductModel>[];
-                          final Map<String, int> quantities = <String, int>{};
-                          final Map<String, int> bundleQuantities =
-                              <String, int>{};
-                          for (final StoreCartItem item in sourceItems) {
-                            if (item.isBundle) {
-                              bundleQuantities[item.bundlePromotionId] =
-                                  item.quantity;
+                            final List<Map<String, dynamic>> orderItems =
+                                <Map<String, dynamic>>[];
+                            final List<StoreProductModel> allProducts =
+                                productSnapshot.data ??
+                                const <StoreProductModel>[];
+                            final Map<String, int> quantities = <String, int>{};
+                            final Map<String, int> bundleQuantities =
+                                <String, int>{};
+                            for (final StoreCartItem item in sourceItems) {
+                              if (item.isBundle) {
+                                bundleQuantities[item.bundlePromotionId] =
+                                    item.quantity;
+                                orderItems.add(<String, dynamic>{
+                                  'bundlePromotionId': item.bundlePromotionId,
+                                  'quantity': item.quantity,
+                                });
+                                continue;
+                              }
+                              final StoreProductModel? product =
+                                  productsById[item.productId];
+                              if (product == null) {
+                                continue;
+                              }
+                              quantities[product.id] = item.quantity;
                               orderItems.add(<String, dynamic>{
-                                'bundlePromotionId': item.bundlePromotionId,
+                                'productId': product.id,
                                 'quantity': item.quantity,
                               });
-                              continue;
                             }
-                            final StoreProductModel? product =
-                                productsById[item.productId];
-                            if (product == null) {
-                              continue;
-                            }
-                            quantities[product.id] = item.quantity;
-                            orderItems.add(<String, dynamic>{
-                              'productId': product.id,
-                              'quantity': item.quantity,
-                            });
-                          }
 
-                          return StoreEnabledPromotionsBuilder(
-                            shopId: widget.shopId,
-                            builder: (BuildContext context, promotions) {
-                              final StoreCartQuote quote = StorePricingService
-                                  .instance
-                                  .quoteCart(
-                                    products: allProducts,
-                                    quantities: quantities,
-                                    promotions: promotions,
-                                    bundleQuantities: bundleQuantities,
-                                    previousFinalSubtotal:
-                                        widget.previewFinalSubtotal,
-                                  );
-                              final int subtotal = quote.finalSubtotal;
-                              final bool priceChanged = quote.priceChanged;
+                            return StoreEnabledPromotionsBuilder(
+                              shopId: widget.shopId,
+                              builder: (BuildContext context, promotions) {
+                                final StoreCartQuote quote = StorePricingService
+                                    .instance
+                                    .quoteCart(
+                                      products: allProducts,
+                                      quantities: quantities,
+                                      promotions: promotions,
+                                      bundleQuantities: bundleQuantities,
+                                      previousFinalSubtotal:
+                                          widget.previewFinalSubtotal,
+                                    );
+                                final int subtotal = quote.finalSubtotal;
+                                final bool priceChanged = quote.priceChanged;
 
-                              return StreamBuilder<List<String>>(
-                                stream: PaymentService.instance
-                                    .streamAvailableMethods(
-                                      shopId: widget.shopId,
-                                      amountType: PaymentAmountType.full,
-                                    ),
-                                builder:
-                                    (
-                                      BuildContext context,
-                                      AsyncSnapshot<List<String>>
-                                      methodsSnapshot,
-                                    ) {
-                                      final List<String> methods =
-                                          (methodsSnapshot.data ??
-                                                  const <String>[])
-                                              .where(
-                                                PaymentMethodType
-                                                    .isOnlinePayment,
-                                              )
-                                              .toList();
-                                      final String selectedMethod =
-                                          methods.contains(_paymentMethod)
-                                          ? _paymentMethod
-                                          : (methods.isNotEmpty
-                                                ? methods.first
-                                                : '');
+                                return StreamBuilder<List<String>>(
+                                  stream: PaymentService.instance
+                                      .streamAvailableMethods(
+                                        shopId: widget.shopId,
+                                        amountType: PaymentAmountType.full,
+                                      ),
+                                  builder:
+                                      (
+                                        BuildContext context,
+                                        AsyncSnapshot<List<String>>
+                                        methodsSnapshot,
+                                      ) {
+                                        final List<String> methods =
+                                            (methodsSnapshot.data ??
+                                                    const <String>[])
+                                                .where(
+                                                  PaymentMethodType
+                                                      .isOnlinePayment,
+                                                )
+                                                .toList();
+                                        final String selectedMethod =
+                                            methods.contains(_paymentMethod)
+                                            ? _paymentMethod
+                                            : (methods.isNotEmpty
+                                                  ? methods.first
+                                                  : '');
+                                        final int payable =
+                                            (subtotal - _pointDiscountNtd)
+                                                .clamp(0, subtotal)
+                                                .toInt();
 
-                                      return ListView(
-                                        padding: const EdgeInsets.all(16),
-                                        children: <Widget>[
-                                          const Text(
-                                            '履約方式',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Card(
-                                            child: ListTile(
-                                              leading: const Icon(
-                                                Icons.storefront_outlined,
-                                              ),
-                                              title: const Text('店內自取'),
-                                              subtitle: Text(
-                                                _shopAddress().isEmpty
-                                                    ? '請至店家櫃台取貨'
-                                                    : _shopAddress(),
-                                              ),
-                                            ),
-                                          ),
-                                          StreamBuilder<Map<String, dynamic>>(
-                                            stream: StoreSettingsService
-                                                .instance
-                                                .streamSettings(widget.shopId),
-                                            builder:
-                                                (
-                                                  BuildContext context,
-                                                  AsyncSnapshot<
-                                                    Map<String, dynamic>
-                                                  >
-                                                  settingsSnapshot,
-                                                ) {
-                                                  final String note =
-                                                      (settingsSnapshot
-                                                                  .data?['pickupNote'] ??
-                                                              '')
-                                                          .toString();
-                                                  if (note.trim().isEmpty) {
-                                                    return const SizedBox.shrink();
-                                                  }
-                                                  return Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          top: 8,
-                                                        ),
-                                                    child: Text(note),
-                                                  );
-                                                },
-                                          ),
-                                          const SizedBox(height: 16),
-                                          TextField(
-                                            controller: _name,
-                                            decoration: const InputDecoration(
-                                              labelText: '取貨人姓名',
-                                            ),
-                                          ),
-                                          TextField(
-                                            controller: _phone,
-                                            keyboardType: TextInputType.phone,
-                                            decoration: const InputDecoration(
-                                              labelText: '聯絡電話',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          const Text(
-                                            '付款方式',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          if (methods.isEmpty)
+                                        return ListView(
+                                          padding: const EdgeInsets.all(16),
+                                          children: <Widget>[
                                             const Text(
-                                              '店家尚未開放線上付款（信用卡 / ATM / 超商代碼）',
-                                            )
-                                          else
-                                            ...methods.map((String method) {
-                                              return RadioListTile<String>(
-                                                title: Text(
-                                                  _methodLabel(method),
-                                                ),
-                                                value: method,
-                                                groupValue: selectedMethod,
-                                                onChanged: (String? value) {
-                                                  setState(
-                                                    () => _paymentMethod =
-                                                        value ?? '',
-                                                  );
-                                                },
-                                              );
-                                            }),
-                                          const SizedBox(height: 16),
-                                          if (priceChanged)
-                                            const Padding(
-                                              padding: EdgeInsets.only(
-                                                bottom: 8,
+                                              '履約方式',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
                                               ),
-                                              child: Text('商品優惠已更新，金額已重新計算。'),
                                             ),
-                                          _CheckoutTotalRow(
-                                            label: '商品原價',
-                                            value:
-                                                'NT\$ ${quote.originalSubtotal}',
-                                          ),
-                                          if (quote.itemPromotionDiscount > 0)
-                                            _CheckoutTotalRow(
-                                              label: '商品優惠',
-                                              value:
-                                                  '-NT\$ ${quote.itemPromotionDiscount}',
+                                            const SizedBox(height: 8),
+                                            Card(
+                                              child: ListTile(
+                                                leading: const Icon(
+                                                  Icons.storefront_outlined,
+                                                ),
+                                                title: const Text('店內自取'),
+                                                subtitle: Text(
+                                                  _shopAddress().isEmpty
+                                                      ? '請至店家櫃台取貨'
+                                                      : _shopAddress(),
+                                                ),
+                                              ),
                                             ),
-                                          if (quote.campaignDiscount > 0)
-                                            _CheckoutTotalRow(
-                                              label: '活動優惠',
-                                              value:
-                                                  '-NT\$ ${quote.campaignDiscount}',
-                                            ),
-                                          if (quote.quantityDiscount > 0)
-                                            _CheckoutTotalRow(
-                                              label:
-                                                  quote
-                                                          .quantityPromotion
-                                                          ?.name
-                                                          .isNotEmpty ==
-                                                      true
-                                                  ? quote
-                                                        .quantityPromotion!
-                                                        .name
-                                                  : '滿件優惠',
-                                              value:
-                                                  '-NT\$ ${quote.quantityDiscount}',
-                                            ),
-                                          if (quote.amountDiscount > 0)
-                                            _CheckoutTotalRow(
-                                              label:
-                                                  quote
-                                                          .amountPromotion
-                                                          ?.name
-                                                          .isNotEmpty ==
-                                                      true
-                                                  ? quote.amountPromotion!.name
-                                                  : '滿額優惠',
-                                              value:
-                                                  '-NT\$ ${quote.amountDiscount}',
-                                            ),
-                                          if (quote.bundleDiscount > 0)
-                                            _CheckoutTotalRow(
-                                              label: '套裝優惠',
-                                              value:
-                                                  '-NT\$ ${quote.bundleDiscount}',
-                                            ),
-                                          const Divider(),
-                                          BookingPointsRedeemSection(
-                                            shopId: widget.shopId,
-                                            userId:
-                                                FirebaseAuth
-                                                    .instance
-                                                    .currentUser
-                                                    ?.uid ??
-                                                '',
-                                            channel: 'store',
-                                            payableAfterCoupon: subtotal,
-                                            requestedPoints: _requestedPoints,
-                                            onRequestedPointsChanged:
-                                                (int value) {
-                                                  if (_requestedPoints !=
-                                                      value) {
-                                                    setState(
-                                                      () => _requestedPoints =
-                                                          value,
-                                                    );
-                                                  }
-                                                },
-                                            onPreview: (int ntd, int used) {
-                                              if (_pointDiscountNtd != ntd ||
-                                                  _requestedPoints != used) {
-                                                setState(() {
-                                                  _pointDiscountNtd = ntd;
-                                                  _requestedPoints = used;
-                                                });
-                                              }
-                                            },
-                                          ),
-                                          const SizedBox(height: 8),
-                                          _CheckoutTotalRow(
-                                            label: '應付金額',
-                                            value:
-                                                'NT\$ ${subtotal - _pointDiscountNtd < 0 ? 0 : subtotal - _pointDiscountNtd}',
-                                            emphasize: true,
-                                            color: theme.primaryColor,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          FilledButton(
-                                            onPressed:
-                                                _submitting ||
-                                                    methods.isEmpty ||
-                                                    orderItems.isEmpty
-                                                ? null
-                                                : () {
-                                                    _paymentMethod =
-                                                        selectedMethod;
-                                                    _submit(
-                                                      orderItems,
-                                                      quotedTotal: subtotal,
-                                                      blockReason:
-                                                          _checkoutBlockReason(
-                                                            sourceItems:
-                                                                sourceItems,
-                                                            productsById:
-                                                                productsById,
-                                                            allProducts:
-                                                                allProducts,
-                                                            promotions:
-                                                                promotions,
+                                            StreamBuilder<Map<String, dynamic>>(
+                                              stream: StoreSettingsService
+                                                  .instance
+                                                  .streamSettings(
+                                                    widget.shopId,
+                                                  ),
+                                              builder:
+                                                  (
+                                                    BuildContext context,
+                                                    AsyncSnapshot<
+                                                      Map<String, dynamic>
+                                                    >
+                                                    settingsSnapshot,
+                                                  ) {
+                                                    final String note =
+                                                        (settingsSnapshot
+                                                                    .data?['pickupNote'] ??
+                                                                '')
+                                                            .toString();
+                                                    if (note.trim().isEmpty) {
+                                                      return const SizedBox.shrink();
+                                                    }
+                                                    return Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            top: 8,
                                                           ),
+                                                      child: Text(note),
                                                     );
                                                   },
-                                            child: Text(
-                                              _submitting
-                                                  ? '處理中...'
-                                                  : '建立訂單並付款',
                                             ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                              );
-                            },
-                          );
-                        },
-                  );
-                },
+                                            const SizedBox(height: 16),
+                                            TextField(
+                                              controller: _name,
+                                              enabled: !_inputLocked,
+                                              decoration: const InputDecoration(
+                                                labelText: '取貨人姓名',
+                                              ),
+                                            ),
+                                            TextField(
+                                              controller: _phone,
+                                              enabled: !_inputLocked,
+                                              keyboardType: TextInputType.phone,
+                                              decoration: const InputDecoration(
+                                                labelText: '聯絡電話',
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            const Text(
+                                              '付款方式',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            if (payable == 0)
+                                              const Text(
+                                                '應付金額為 0 元，確認訂單後即可等待店家備貨。',
+                                              )
+                                            else if (methods.isEmpty)
+                                              const Text(
+                                                '店家尚未開放線上付款（信用卡 / ATM / 超商代碼）',
+                                              )
+                                            else
+                                              ...methods.map((String method) {
+                                                return RadioListTile<String>(
+                                                  title: Text(
+                                                    _methodLabel(method),
+                                                  ),
+                                                  value: method,
+                                                  groupValue: selectedMethod,
+                                                  onChanged: _inputLocked
+                                                      ? null
+                                                      : (String? value) {
+                                                          setState(
+                                                            () =>
+                                                                _paymentMethod =
+                                                                    value ?? '',
+                                                          );
+                                                        },
+                                                );
+                                              }),
+                                            const SizedBox(height: 16),
+                                            if (priceChanged)
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                child: Text('商品優惠已更新，金額已重新計算。'),
+                                              ),
+                                            _CheckoutTotalRow(
+                                              label: '商品原價',
+                                              value:
+                                                  'NT\$ ${quote.originalSubtotal}',
+                                            ),
+                                            if (quote.itemPromotionDiscount > 0)
+                                              _CheckoutTotalRow(
+                                                label: '商品優惠',
+                                                value:
+                                                    '-NT\$ ${quote.itemPromotionDiscount}',
+                                              ),
+                                            if (quote.campaignDiscount > 0)
+                                              _CheckoutTotalRow(
+                                                label: '活動優惠',
+                                                value:
+                                                    '-NT\$ ${quote.campaignDiscount}',
+                                              ),
+                                            if (quote.quantityDiscount > 0)
+                                              _CheckoutTotalRow(
+                                                label:
+                                                    quote
+                                                            .quantityPromotion
+                                                            ?.name
+                                                            .isNotEmpty ==
+                                                        true
+                                                    ? quote
+                                                          .quantityPromotion!
+                                                          .name
+                                                    : '滿件優惠',
+                                                value:
+                                                    '-NT\$ ${quote.quantityDiscount}',
+                                              ),
+                                            if (quote.amountDiscount > 0)
+                                              _CheckoutTotalRow(
+                                                label:
+                                                    quote
+                                                            .amountPromotion
+                                                            ?.name
+                                                            .isNotEmpty ==
+                                                        true
+                                                    ? quote
+                                                          .amountPromotion!
+                                                          .name
+                                                    : '滿額優惠',
+                                                value:
+                                                    '-NT\$ ${quote.amountDiscount}',
+                                              ),
+                                            if (quote.bundleDiscount > 0)
+                                              _CheckoutTotalRow(
+                                                label: '套裝優惠',
+                                                value:
+                                                    '-NT\$ ${quote.bundleDiscount}',
+                                              ),
+                                            const Divider(),
+                                            IgnorePointer(
+                                              ignoring: _inputLocked,
+                                              child: BookingPointsRedeemSection(
+                                                shopId: widget.shopId,
+                                                userId:
+                                                    FirebaseAuth
+                                                        .instance
+                                                        .currentUser
+                                                        ?.uid ??
+                                                    '',
+                                                channel: 'store',
+                                                payableAfterCoupon: subtotal,
+                                                requestedPoints:
+                                                    _requestedPoints,
+                                                onRequestedPointsChanged:
+                                                    (int value) {
+                                                      if (_requestedPoints !=
+                                                          value) {
+                                                        setState(
+                                                          () =>
+                                                              _requestedPoints =
+                                                                  value,
+                                                        );
+                                                      }
+                                                    },
+                                                onPreview: (int ntd, int used) {
+                                                  if (_pointDiscountNtd !=
+                                                          ntd ||
+                                                      _requestedPoints !=
+                                                          used) {
+                                                    setState(() {
+                                                      _pointDiscountNtd = ntd;
+                                                      _requestedPoints = used;
+                                                    });
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            _CheckoutTotalRow(
+                                              label: '應付金額',
+                                              value: 'NT\$ $payable',
+                                              emphasize: true,
+                                              color: theme.primaryColor,
+                                            ),
+                                            const SizedBox(height: 16),
+                                            if (_checkout
+                                                    .hasUnresolvedCreation &&
+                                                !_submitting)
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  bottom: 12,
+                                                ),
+                                                child: Text(
+                                                  '上次送出結果尚未確認。重試會沿用相同資料，避免重複下單。',
+                                                ),
+                                              ),
+                                            FilledButton(
+                                              onPressed:
+                                                  _submitting ||
+                                                      (!_checkout
+                                                              .hasUnresolvedCreation &&
+                                                          ((payable > 0 &&
+                                                                  methods
+                                                                      .isEmpty) ||
+                                                              orderItems
+                                                                  .isEmpty))
+                                                  ? null
+                                                  : () {
+                                                      _paymentMethod =
+                                                          selectedMethod;
+                                                      _submit(
+                                                        orderItems,
+                                                        quotedTotal: payable,
+                                                        blockReason:
+                                                            _checkoutBlockReason(
+                                                              sourceItems:
+                                                                  sourceItems,
+                                                              productsById:
+                                                                  productsById,
+                                                              allProducts:
+                                                                  allProducts,
+                                                              promotions:
+                                                                  promotions,
+                                                            ),
+                                                      );
+                                                    },
+                                              child: Text(
+                                                _submitting
+                                                    ? '處理中...'
+                                                    : _checkout
+                                                          .hasUnresolvedCreation
+                                                    ? '重試確認訂單'
+                                                    : payable == 0
+                                                    ? '確認訂單'
+                                                    : '建立訂單並付款',
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                );
+                              },
+                            );
+                          },
+                    );
+                  },
+            ),
           ),
         );
       },

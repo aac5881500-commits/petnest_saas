@@ -129,6 +129,7 @@ class RoomListAppearance {
 class RoomDetailAppearance {
   const RoomDetailAppearance({
     this.layout = 'classic',
+    this.photoLayout = 'bottom',
     this.imageAspect = 'landscape',
     this.imageFit = 'cover',
     this.showThumbnails = true,
@@ -139,7 +140,8 @@ class RoomDetailAppearance {
     this.spacing = 'standard',
     this.look = const RoomIntroLook(),
   });
-  final String layout,
+  final String photoLayout,
+      layout,
       imageAspect,
       imageFit,
       dimensionsStyle,
@@ -150,6 +152,7 @@ class RoomDetailAppearance {
   final bool showThumbnails;
   final RoomIntroLook look;
   RoomDetailAppearance copyWith({
+    String? photoLayout,
     String? layout,
     String? imageAspect,
     String? imageFit,
@@ -161,6 +164,7 @@ class RoomDetailAppearance {
     String? spacing,
     RoomIntroLook? look,
   }) => RoomDetailAppearance(
+    photoLayout: photoLayout ?? this.photoLayout,
     layout: layout ?? this.layout,
     imageAspect: imageAspect ?? this.imageAspect,
     imageFit: imageFit ?? this.imageFit,
@@ -173,6 +177,7 @@ class RoomDetailAppearance {
     look: look ?? this.look,
   );
   Map<String, dynamic> toMap() => {
+    'photoLayout': photoLayout,
     'layout': layout,
     'imageAspect': imageAspect,
     'imageFit': imageFit,
@@ -187,6 +192,14 @@ class RoomDetailAppearance {
   static RoomDetailAppearance fromMap(Object? raw) {
     final m = raw is Map ? raw : const {};
     return RoomDetailAppearance(
+      photoLayout: _choice(m['photoLayout'], [
+        'bottom',
+        'left',
+        'right',
+        'overlay',
+        'collage',
+        'grid',
+      ], 'bottom'),
       look: RoomIntroLook.fromMap(m['look']),
       layout: _choice(m['layout'], [
         'classic',

@@ -156,6 +156,7 @@ class PlatformMediaLibraryService {
     List<String> placements = const <String>[],
     String device = 'any',
     String sourceFileName = '',
+    String subcategory = '',
   }) async {
     _assertImage(bytes, contentType);
     final String normalizedName = name.trim();
@@ -197,6 +198,7 @@ class PlatformMediaLibraryService {
       final String imageUrl = await ref.getDownloadURL();
       final Map<String, dynamic> data = <String, dynamic>{
         'name': normalizedName,
+        'subcategory': subcategory.trim(),
         'category': normalizedCategory,
         'placements': normalizedPlacements,
         if (normalizedCategory == PlatformMediaCategories.shopHouse)
@@ -244,6 +246,7 @@ class PlatformMediaLibraryService {
     List<String>? placements,
     String? device,
     String? sourceFileName,
+    String? subcategory,
   }) async {
     final String key = id.trim();
     if (key.isEmpty) {
@@ -291,6 +294,7 @@ class PlatformMediaLibraryService {
           : normalizePlacements(nextCategory, placements);
       await _col.doc(key).update(<String, dynamic>{
         if (name != null) 'name': name.trim(),
+        if (subcategory != null) 'subcategory': subcategory.trim(),
         'category': ?category?.trim(),
         'placements': ?nextPlacements,
         if (nextCategory == PlatformMediaCategories.shopHouse && device != null)

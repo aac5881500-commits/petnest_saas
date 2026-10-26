@@ -31,21 +31,19 @@ void main() {
     ShopChatEntry.debugFullScreenInboxBuilder = null;
   });
 
-  test('>=1280 才開三格 Dock，總寬約 650、左欄 160、右欄不壓窄', () {
+  test('1100 起使用 380px 聊天側欄，窄視窗使用全頁', () {
     expect(ShopChatLayout.useFullScreenChat(500), isTrue);
     expect(ShopChatLayout.useFullScreenChat(1023), isTrue);
     expect(ShopChatLayout.useFullScreenChat(1024), isTrue);
-    expect(ShopChatLayout.useFullScreenChat(1279), isTrue);
+    expect(ShopChatLayout.useFullScreenChat(1099), isTrue);
+    expect(ShopChatLayout.useFullScreenChat(1100), isFalse);
+    expect(ShopChatLayout.useFullScreenChat(1279), isFalse);
     expect(ShopChatLayout.useFullScreenChat(1280), isFalse);
     expect(ShopChatLayout.inboxColumnWidth, inInclusiveRange(155, 165));
-    expect(ShopChatLayout.dockWidthFor(1400), lessThanOrEqualTo(670));
-    expect(ShopChatLayout.dockWidthFor(1400), greaterThanOrEqualTo(630));
+    expect(ShopChatLayout.dockWidthFor(1400), 380);
+    expect(1400 - ShopChatLayout.dockWidthFor(1400), greaterThanOrEqualTo(720));
     expect(
-      ShopChatLayout.dockWidthFor(1400) - ShopChatLayout.inboxColumnWidth - 1,
-      greaterThanOrEqualTo(445),
-    );
-    expect(
-      ShopChatLayout.shouldShowDesktopDock(pageWidth: 1200, inboxOpen: true),
+      ShopChatLayout.shouldShowDesktopDock(pageWidth: 1099, inboxOpen: true),
       isFalse,
     );
     expect(

@@ -28,9 +28,16 @@ import 'package:petnest_saas/features/shop/widgets/environment/environment_image
 import 'package:petnest_saas/features/shop/widgets/media/fixed_aspect_image_crop_page.dart';
 
 class ShopEnvironmentManagePage extends StatefulWidget {
-  const ShopEnvironmentManagePage({super.key, required this.shopId});
+  const ShopEnvironmentManagePage({
+    super.key,
+    required this.shopId,
+    this.loadShop,
+    this.saveIntro,
+  });
 
   final String shopId;
+  final Future<Map<String, dynamic>?> Function()? loadShop;
+  final Future<void> Function(Map<String, dynamic>)? saveIntro;
 
   @override
   State<ShopEnvironmentManagePage> createState() =>
@@ -69,6 +76,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   ].map((value) => '${value.length}:$value').join();
 
   bool _loading = true;
+  bool _loaded = false;
+  Object? _loadError;
+  int _loadRequest = 0;
+  bool get _canUseDraft => _loaded && !_loading && _loadError == null;
   bool _pickingImage = false;
   bool _uploadingHeroImage = false;
   bool _uploadingBannerImage = false;
@@ -77,32 +88,15 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
 
   List<Map<String, dynamic>> environmentGalleryImages = [];
   List<Map<String, dynamic>> environmentFeatures = [];
-  List<String> selectedFacilityKeys = [
-    'air_cleaner',
-    'camera_24h',
-    'hospital',
-    'water',
-    'sunlight',
-    'disinfect',
-  ];
+  List<String> selectedFacilityKeys = [];
 
-  final TextEditingController heroTitleController = TextEditingController(
-    text: '讓每一隻貓咪\n都能像在家一樣放鬆',
-  );
-  final TextEditingController heroSubtitleController = TextEditingController(
-    text: '安心・舒適・乾淨的貓咪住宿空間',
-  );
-  final TextEditingController bannerTitleController = TextEditingController(
-    text: '用心打造每一個細節\n只為給貓咪更好的住宿體驗',
-  );
-  final TextEditingController bottomNoteController = TextEditingController(
-    text: '每隻貓咪個性不同，實際住宿安排會依照貓咪狀況與店家現場評估調整。',
-  );
+  final TextEditingController heroTitleController = TextEditingController();
+  final TextEditingController heroSubtitleController = TextEditingController();
+  final TextEditingController bannerTitleController = TextEditingController();
+  final TextEditingController bottomNoteController = TextEditingController();
 
-  String _heroImageUrl =
-      'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=1200';
-  String _bannerImageUrl =
-      'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=1000';
+  String _heroImageUrl = '';
+  String _bannerImageUrl = '';
   String _heroImagePath = '';
   String _bannerImagePath = '';
 
@@ -137,6 +131,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       _pickingImage || _uploadingHeroImage || _uploadingBannerImage || _saving;
 
   bool get _hasUnsavedImageChanges {
+    if (!_loaded) return false;
     if (!_loading &&
         (_dataSnapshot(environmentFeatures) != _savedFeaturesSnapshot ||
             _dataSnapshot(_galleryPayload()) != _savedGallerySnapshot ||
@@ -184,84 +179,101 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   }
 
   Future<void> _loadEnvironmentIntro() async {
-    final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
-        .instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .get();
-
-    if (!mounted) return;
-    final Map<String, dynamic>? data = doc.data();
-    final home = data?['homeAppearance'];
-    if (home is Map) {
-      final modern = home['modern'];
-      _previewTheme = home['layout'] == 'modern'
-          ? HomeThemeModel.fromMap(
-              modern is Map ? modern['themeColors'] : null,
-              fallback: HomeThemeModel.modernDefault,
-            )
-          : HomeThemeModel.fromClassicSettings(rawData: home);
-    }
-    final Map<String, dynamic>? environmentIntro =
-        data?['environmentIntro'] as Map<String, dynamic>?;
-
-    _presentation = EnvironmentPresentation.fromMap(
-      environmentIntro?['environmentPresentation'],
-    );
-    _savedPresentation = _presentation;
-    if (environmentIntro != null) {
-      heroTitleController.text =
-          environmentIntro['heroTitle'] ?? heroTitleController.text;
-      heroSubtitleController.text =
-          environmentIntro['heroSubtitle'] ?? heroSubtitleController.text;
-      bannerTitleController.text =
-          environmentIntro['bannerTitle'] ?? bannerTitleController.text;
-      bottomNoteController.text =
-          environmentIntro['bottomNote'] ?? bottomNoteController.text;
-      _heroImageUrl = (environmentIntro['heroImageUrl'] ?? _heroImageUrl)
-          .toString();
-      _bannerImageUrl = (environmentIntro['bannerImageUrl'] ?? _bannerImageUrl)
-          .toString();
-      _heroImagePath = (environmentIntro['heroImageStoragePath'] ?? '')
-          .toString();
-      _bannerImagePath = (environmentIntro['bannerImageStoragePath'] ?? '')
-          .toString();
-      environmentGalleryImages = _parseGalleryItems(
-        environmentIntro['galleryImages'],
-      );
-      environmentFeatures = List<Map<String, dynamic>>.from(
-        environmentIntro['features'] ?? [],
-      );
-      selectedFacilityKeys = List<String>.from(
-        environmentIntro['facilityKeys'] ?? selectedFacilityKeys,
-      );
-      _heroFrame = EnvironmentImageFrameSetting.heroFromMap(environmentIntro);
-      _bannerFrame = EnvironmentImageFrameSetting.bannerFromMap(
-        environmentIntro,
-      );
-      _style = EnvironmentIntroStyle.fromMap(environmentIntro);
-    }
-
-    _savedHeroImageUrl = _heroImageUrl;
-    _savedBannerImageUrl = _bannerImageUrl;
-    _savedHeroImagePath = _heroImagePath;
-    _savedBannerImagePath = _bannerImagePath;
-    _savedHeroFrame = _heroFrame;
-    _savedBannerFrame = _bannerFrame;
-    _savedStyle = _style;
-    _dashboardSavedText = _dashboardText;
-    _savedFacilities = List<String>.from(selectedFacilityKeys);
-    _savedFeaturesSnapshot = _dataSnapshot(environmentFeatures);
-    _savedGallerySnapshot = _dataSnapshot(_galleryPayload());
-    _pendingUploads.clear();
-    _retiredOfficialImages.clear();
-
-    if (!mounted) {
-      return;
-    }
+    final request = ++_loadRequest;
+    final shopId = widget.shopId;
     setState(() {
-      _loading = false;
+      _loading = true;
+      _loadError = null;
     });
+    try {
+      final data = widget.loadShop != null
+          ? await widget.loadShop!()
+          : (await FirebaseFirestore.instance
+                    .collection('shops')
+                    .doc(shopId)
+                    .get())
+                .data();
+      if (!mounted || request != _loadRequest || widget.shopId != shopId) {
+        return;
+      }
+      if (data == null) throw StateError('找不到店家資料');
+      final home = data['homeAppearance'];
+      if (home is Map) {
+        final modern = home['modern'];
+        _previewTheme = home['layout'] == 'modern'
+            ? HomeThemeModel.fromMap(
+                modern is Map ? modern['themeColors'] : null,
+                fallback: HomeThemeModel.modernDefault,
+              )
+            : HomeThemeModel.fromClassicSettings(rawData: home);
+      }
+      final Map<String, dynamic>? environmentIntro =
+          data['environmentIntro'] as Map<String, dynamic>?;
+
+      _presentation = EnvironmentPresentation.fromMap(
+        environmentIntro?['environmentPresentation'],
+      );
+      _savedPresentation = _presentation;
+      if (environmentIntro != null) {
+        heroTitleController.text =
+            environmentIntro['heroTitle'] ?? heroTitleController.text;
+        heroSubtitleController.text =
+            environmentIntro['heroSubtitle'] ?? heroSubtitleController.text;
+        bannerTitleController.text =
+            environmentIntro['bannerTitle'] ?? bannerTitleController.text;
+        bottomNoteController.text =
+            environmentIntro['bottomNote'] ?? bottomNoteController.text;
+        _heroImageUrl = (environmentIntro['heroImageUrl'] ?? _heroImageUrl)
+            .toString();
+        _bannerImageUrl =
+            (environmentIntro['bannerImageUrl'] ?? _bannerImageUrl).toString();
+        _heroImagePath = (environmentIntro['heroImageStoragePath'] ?? '')
+            .toString();
+        _bannerImagePath = (environmentIntro['bannerImageStoragePath'] ?? '')
+            .toString();
+        environmentGalleryImages = _parseGalleryItems(
+          environmentIntro['galleryImages'],
+        );
+        environmentFeatures = List<Map<String, dynamic>>.from(
+          environmentIntro['features'] ?? [],
+        );
+        selectedFacilityKeys = List<String>.from(
+          environmentIntro['facilityKeys'] ?? selectedFacilityKeys,
+        );
+        _heroFrame = EnvironmentImageFrameSetting.heroFromMap(environmentIntro);
+        _bannerFrame = EnvironmentImageFrameSetting.bannerFromMap(
+          environmentIntro,
+        );
+        _style = EnvironmentIntroStyle.fromMap(environmentIntro);
+      }
+
+      _savedHeroImageUrl = _heroImageUrl;
+      _savedBannerImageUrl = _bannerImageUrl;
+      _savedHeroImagePath = _heroImagePath;
+      _savedBannerImagePath = _bannerImagePath;
+      _savedHeroFrame = _heroFrame;
+      _savedBannerFrame = _bannerFrame;
+      _savedStyle = _style;
+      _dashboardSavedText = _dashboardText;
+      _savedFacilities = List<String>.from(selectedFacilityKeys);
+      _savedFeaturesSnapshot = _dataSnapshot(environmentFeatures);
+      _savedGallerySnapshot = _dataSnapshot(_galleryPayload());
+      _pendingUploads.clear();
+      _retiredOfficialImages.clear();
+
+      setState(() {
+        _loaded = true;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _loadRequest || widget.shopId != shopId) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _loadError = error;
+      });
+    }
   }
 
   @override
@@ -1342,25 +1354,68 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     };
   }
 
+  // Preserve Firestore values while detaching nested maps/lists from the draft.
+  Object? _copyDraftValue(Object? value) {
+    if (value is Map) {
+      return <String, dynamic>{
+        for (final entry in value.entries)
+          entry.key as String: _copyDraftValue(entry.value),
+      };
+    }
+    if (value is List) return value.map(_copyDraftValue).toList();
+    return value;
+  }
+
   Future<void> _save() async {
-    if (_saving) {
+    if (!_canUseDraft || _imageBusy) {
       return;
     }
 
+    final shopId = widget.shopId;
+    final payload =
+        _copyDraftValue(_environmentIntroPayload()) as Map<String, dynamic>;
+    final savingText = _dashboardText;
+    final savingHeroUrl = _heroImageUrl;
+    final savingBannerUrl = _bannerImageUrl;
+    final savingHeroPath = _heroImagePath;
+    final savingBannerPath = _bannerImagePath;
+    final savingHeroFrame = _heroFrame;
+    final savingBannerFrame = _bannerFrame;
+    final savingStyle = _style;
+    final savingFeatures = List<Map<String, dynamic>>.from(
+      payload['features'] as List,
+    );
+    final savingGallery = List<Map<String, dynamic>>.from(
+      payload['galleryImages'] as List,
+    );
+    final savingFacilities = List<String>.from(payload['facilityKeys'] as List);
+    final savingPresentation = EnvironmentPresentation.fromMap(
+      payload['environmentPresentation'],
+    );
+    final savingPending = [..._pendingUploads];
+    final savingRetired = [..._retiredOfficialImages];
     setState(() {
       _saving = true;
       _busyMessage = '正在儲存環境介紹…';
     });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(widget.shopId)
-          .set({
-            'environmentIntro': _environmentIntroPayload(),
-          }, SetOptions(merge: true));
+      if (widget.saveIntro != null) {
+        await widget.saveIntro!(payload);
+      } else {
+        await FirebaseFirestore.instance.collection('shops').doc(shopId).set({
+          'environmentIntro': payload,
+        }, SetOptions(merge: true));
+      }
+      if (!mounted || widget.shopId != shopId) return;
 
       final Set<String> usedPaths = <String>{
+        if (savingHeroPath.isNotEmpty) savingHeroPath,
+        if (savingBannerPath.isNotEmpty) savingBannerPath,
+        ...savingPresentation.services.map((s) => s.imagePath),
+        ...savingFeatures.map(_mapImagePath),
+        ...savingGallery.map(_mapImagePath),
+        // Retain anything also referenced by a later draft edit.
         if (_heroImagePath.isNotEmpty) _heroImagePath,
         if (_bannerImagePath.isNotEmpty) _bannerImagePath,
         ..._presentation.services.map((s) => s.imagePath),
@@ -1368,6 +1423,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         ...environmentGalleryImages.map(_mapImagePath),
       };
       final Set<String> usedUrls = <String>{
+        if (savingHeroUrl.isNotEmpty) savingHeroUrl,
+        if (savingBannerUrl.isNotEmpty) savingBannerUrl,
+        ...savingPresentation.services.map((s) => s.imageUrl),
+        ...savingFeatures.map(_mapImageUrl),
+        ...savingGallery.map(_mapImageUrl),
         if (_heroImageUrl.isNotEmpty) _heroImageUrl,
         if (_bannerImageUrl.isNotEmpty) _bannerImageUrl,
         ..._presentation.services.map((s) => s.imageUrl),
@@ -1377,9 +1437,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
 
       bool cleanupFailed = false;
       for (final _TrackedEnvImage retired in [
-        ..._retiredOfficialImages,
-        ..._pendingUploads,
+        ...savingRetired,
+        ...savingPending,
       ]) {
+        if (!mounted || widget.shopId != shopId) return;
         if ((retired.path.isNotEmpty && usedPaths.contains(retired.path)) ||
             (retired.url.isNotEmpty && usedUrls.contains(retired.url))) {
           continue;
@@ -1391,41 +1452,47 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         }
       }
 
-      if (!mounted) {
+      if (!mounted || widget.shopId != shopId) {
         return;
       }
 
       setState(() {
-        _savedHeroImageUrl = _heroImageUrl;
-        _savedBannerImageUrl = _bannerImageUrl;
-        _savedHeroImagePath = _heroImagePath;
-        _savedBannerImagePath = _bannerImagePath;
-        _savedHeroFrame = _heroFrame;
-        _savedBannerFrame = _bannerFrame;
-        _savedStyle = _style;
-        _savedPresentation = _presentation;
-        _savedFeaturesSnapshot = _dataSnapshot(environmentFeatures);
-        _savedGallerySnapshot = _dataSnapshot(_galleryPayload());
-        _dashboardSavedText = _dashboardText;
-        _savedFacilities = List<String>.from(selectedFacilityKeys);
-        _pendingUploads.clear();
-        _retiredOfficialImages.clear();
+        _savedHeroImageUrl = savingHeroUrl;
+        _savedBannerImageUrl = savingBannerUrl;
+        _savedHeroImagePath = savingHeroPath;
+        _savedBannerImagePath = savingBannerPath;
+        _savedHeroFrame = savingHeroFrame;
+        _savedBannerFrame = savingBannerFrame;
+        _savedStyle = savingStyle;
+        _savedPresentation = savingPresentation;
+        _savedFeaturesSnapshot = _dataSnapshot(savingFeatures);
+        _savedGallerySnapshot = _dataSnapshot(savingGallery);
+        _dashboardSavedText = savingText;
+        _savedFacilities = savingFacilities;
+        _pendingUploads.removeWhere(savingPending.contains);
+        _retiredOfficialImages.removeWhere(savingRetired.contains);
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(cleanupFailed ? '設定已儲存，但舊圖片清理失敗，請稍後再試。' : '環境介紹已儲存'),
+          content: Text(
+            cleanupFailed
+                ? '設定已儲存，但舊圖片清理失敗，請稍後再試。'
+                : _hasUnsavedImageChanges
+                ? '這次變更已儲存，另有未儲存內容'
+                : '環境介紹已儲存',
+          ),
         ),
       );
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || widget.shopId != shopId) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('儲存失敗，請稍後再試')));
+      ).showSnackBar(const SnackBar(content: Text('儲存失敗，草稿已保留，請稍後重試')));
     } finally {
-      if (mounted) {
+      if (mounted && widget.shopId == shopId) {
         setState(() {
           _saving = false;
           _busyMessage = null;
@@ -1510,6 +1577,28 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     );
   }
 
+  Widget _buildLoadError() => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 40),
+          const SizedBox(height: 12),
+          const Text('環境介紹讀取失敗', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('請確認網路連線或存取權限，再重新載入。', textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _loadEnvironmentIntro,
+            icon: const Icon(Icons.refresh),
+            label: const Text('重新載入'),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _buildBusyOverlay() {
     final String? message = _busyMessage;
     if (message == null || message.isEmpty) {
@@ -1574,25 +1663,27 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                 elevation: 0,
                 actions: [
                   TextButton(
-                    onPressed: _imageBusy
+                    onPressed: _imageBusy || !_canUseDraft
                         ? null
                         : (desktop ? _openDraftPreview : _openPreview),
                     child: Text(desktop ? '放大預覽' : '預覽'),
                   ),
                   if (desktop)
                     FilledButton(
-                      onPressed: _imageBusy || _loading ? null : _save,
+                      onPressed: _imageBusy || !_canUseDraft ? null : _save,
                       child: Text(_saving ? '儲存中' : '儲存'),
                     )
                   else
                     TextButton(
-                      onPressed: _imageBusy ? null : _save,
+                      onPressed: _imageBusy || !_canUseDraft ? null : _save,
                       child: Text(_saving ? '儲存中' : '儲存'),
                     ),
                 ],
               ),
               body: _loading
                   ? const Center(child: CircularProgressIndicator())
+                  : _loadError != null
+                  ? _buildLoadError()
                   : desktop
                   ? _buildDesktopWorkspace()
                   : ListView(
@@ -1607,6 +1698,63 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     );
   }
 
+  Widget _emptyDraftPreview() => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            Icons.add_photo_alternate_outlined,
+            size: 56,
+            color: _previewTheme.primaryColor,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '環境介紹尚未加入內容',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: _previewTheme.textColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '選擇範本只會調整排版。加入封面文案、環境特色、設備或相簿照片後，就會在這裡即時顯示。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              height: 1.6,
+              color: _previewTheme.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            key: const ValueKey<String>('environment-add-starter-copy'),
+            onPressed: _imageBusy
+                ? null
+                : () {
+                    heroTitleController.text = '歡迎參觀我們的環境';
+                    heroSubtitleController.text = '在這裡介紹店內空間、照護設備與住宿環境，讓家長更安心。';
+                    _settingsTabs.animateTo(1);
+                  },
+            icon: const Icon(Icons.edit_note),
+            label: const Text('加入起始文案'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '加入後可自行修改，按儲存才會發布。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: _previewTheme.secondaryTextColor,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _draftContent(
     ScrollController controller, {
     Map<String, GlobalKey>? sectionKeys,
@@ -1614,6 +1762,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     return ColoredBox(
       color: _previewTheme.backgroundColor,
       child: EnvironmentIntroView(
+        emptyState: _emptyDraftPreview(),
         scrollController: controller,
         style: _style,
         presentation: _presentation,
@@ -2195,48 +2344,61 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         ? '目前沿用原有版面；選擇範本不會變更文案或照片。'
         : '${EnvironmentPresentation.presets[_presentation.preset]}${_presentation.customized ? '・已自訂' : ''}（儲存後生效）',
     children: [
-      Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          for (final preset in EnvironmentPresentation.presets.entries)
-            SizedBox(
-              width: 150,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.all(10),
-                  side: BorderSide(
-                    color: _presentation.preset == preset.key
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey.shade300,
+      LayoutBuilder(
+        builder: (context, constraints) {
+          // Keep two usable cards on common phone widths instead of leaving half
+          // of the section empty. Very narrow containers keep a single column.
+          final available = constraints.maxWidth;
+          final cardWidth =
+              (available >= 250 ? (available - 10) / 2 : available)
+                  .clamp(0.0, 150.0)
+                  .toDouble();
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final preset in EnvironmentPresentation.presets.entries)
+                SizedBox(
+                  width: cardWidth,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.all(10),
+                      side: BorderSide(
+                        color: _presentation.preset == preset.key
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    onPressed: _imageBusy
+                        ? null
+                        : () => setState(() {
+                            _presentation = _presentation.applyPreset(
+                              preset.key,
+                            );
+                            _style = _style.copyWith(
+                              displaySize: preset.key == 'minimal'
+                                  ? 'compact'
+                                  : 'standard',
+                              cardLayout: preset.key == 'photo'
+                                  ? 'vertical'
+                                  : 'horizontal',
+                              cardDensity: preset.key == 'minimal'
+                                  ? 'compact'
+                                  : 'comfortable',
+                            );
+                          }),
+                    child: Column(
+                      children: [
+                        EnvironmentTemplateThumbnail(preset: preset.key),
+                        const SizedBox(height: 6),
+                        Text(preset.value),
+                      ],
+                    ),
                   ),
                 ),
-                onPressed: _imageBusy
-                    ? null
-                    : () => setState(() {
-                        _presentation = _presentation.applyPreset(preset.key);
-                        _style = _style.copyWith(
-                          displaySize: preset.key == 'minimal'
-                              ? 'compact'
-                              : 'standard',
-                          cardLayout: preset.key == 'photo'
-                              ? 'vertical'
-                              : 'horizontal',
-                          cardDensity: preset.key == 'minimal'
-                              ? 'compact'
-                              : 'comfortable',
-                        );
-                      }),
-                child: Column(
-                  children: [
-                    EnvironmentTemplateThumbnail(preset: preset.key),
-                    const SizedBox(height: 6),
-                    Text(preset.value),
-                  ],
-                ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     ],
   );

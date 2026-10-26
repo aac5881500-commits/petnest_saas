@@ -757,7 +757,7 @@ class ShopService {
     return ShopRoomService.instance.getRoomTypes(shopId);
   }
 
-  Future<void> createRoomType({
+  Future<String> createRoomType({
     required String shopId,
     required String name,
     required int capacity,

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_announcement_page.dart
 // 功能說明：客戶端最新公告：店家公告與目前啟用優惠活動雙分頁
 
@@ -152,7 +153,15 @@ class _AnnouncementList extends StatelessWidget {
               );
             }
 
-            final docs = snapshot.data!.docs.toList();
+            final docs = snapshot.data!.docs
+                .where(
+                  (doc) =>
+                      ShopIntroContent.entries([
+                        Map<String, dynamic>.from(doc.data() as Map),
+                      ], faq: false) ==
+                      ShopIntroContentStatus.configured,
+                )
+                .toList();
 
             docs.sort((a, b) {
               final aData = a.data() as Map<String, dynamic>;

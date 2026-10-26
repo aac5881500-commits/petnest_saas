@@ -12,6 +12,20 @@ import 'package:petnest_saas/features/shop/widgets/shop_setup_spotlight.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_settings_page.dart';
 
+class _PublishPolicyResult extends NavigatorObserver {
+  _PublishPolicyResult(this.publish);
+  final VoidCallback publish;
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route.settings.name != 'opening-stay-policy') return;
+    // Simulate only the acknowledged route result; no policy or room writes.
+    scheduleMicrotask(() {
+      publish();
+      navigator!.pop(true);
+    });
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setupFirebaseCoreMocks();
@@ -146,6 +160,7 @@ void main() {
       var actualRooms = <Map<String, dynamic>>[];
       await tester.pumpWidget(
         MaterialApp(
+          navigatorObservers: [_PublishPolicyResult(() => policy = true)],
           home: Scaffold(
             body: ShopRoomTypeRoomsHub(
               shopId: 'fixture',
@@ -278,12 +293,19 @@ void main() {
       await tester.tap(find.text('重新確認'));
       await tester.pumpAndSettle();
       expect(find.text('前往設定入住條款'), findsOneWidget);
-      policy = true; // Changed while the choice was open: must re-check.
-      await tester.tap(find.text('前往設定入住條款'));
-      await tester.pumpAndSettle();
-      expect(find.text('前往預約設定'), findsOneWidget);
-      await tester.tap(find.text('前往預約設定'));
-      await tester.pumpAndSettle();
+      if (width == 390) {
+        policy = true; // Changed while the choice was open: must re-check.
+        await tester.tap(find.text('前往設定入住條款'));
+        await tester.pumpAndSettle();
+        expect(find.text('前往預約設定'), findsOneWidget);
+        await tester.tap(find.text('前往預約設定'));
+        await tester.pumpAndSettle();
+      } else {
+        // Successful publish result goes directly to the existing guided tab.
+        await tester.tap(find.text('前往設定入住條款'));
+        await tester.pumpAndSettle();
+        expect(find.text('確認開店下一步'), findsNothing);
+      }
       await completion;
       expect(bookings, 1);
       expect(tester.takeException(), isNull);

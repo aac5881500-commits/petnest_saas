@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_public_page.dart
 // 功能說明：前台店家家頁（完整版 + Drawer版 + 修正錯誤）
 
@@ -51,6 +53,83 @@ class ShopPublicPage extends StatefulWidget {
 
 class _ShopPublicPageState extends State<ShopPublicPage> {
   int _currentIndex = 0;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _noticesSub, _faqSub;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _introNotices = [];
+  bool _introFaq = false;
+  @override
+  void initState() {
+    super.initState();
+    _bindIntro();
+  }
+
+  @override
+  void didUpdateWidget(covariant ShopPublicPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != widget.shopId) {
+      _introNotices = [];
+      _introFaq = false;
+      _bindIntro();
+    }
+  }
+
+  void _bindIntro() {
+    _noticesSub?.cancel();
+    _faqSub?.cancel();
+    final id = widget.shopId;
+    final shop = FirebaseFirestore.instance.collection('shops').doc(id);
+    _noticesSub = shop
+        .collection('announcements')
+        .where('isPublished', isEqualTo: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (!mounted || widget.shopId != id) return;
+            setState(
+              () => _introNotices = snapshot.docs
+                  .where(
+                    (doc) =>
+                        ShopIntroContent.entries([doc.data()], faq: false) ==
+                        ShopIntroContentStatus.configured,
+                  )
+                  .toList(),
+            );
+          },
+          onError: (Object _) {
+            if (mounted && widget.shopId == id) {
+              setState(() => _introNotices = []);
+            }
+          },
+        );
+    _faqSub = shop
+        .collection('faqs')
+        .where('isPublished', isEqualTo: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (!mounted || widget.shopId != id) return;
+            setState(
+              () => _introFaq =
+                  ShopIntroContent.entries(
+                    snapshot.docs.map((doc) => doc.data()),
+                    faq: true,
+                  ) ==
+                  ShopIntroContentStatus.configured,
+            );
+          },
+          onError: (Object _) {
+            if (mounted && widget.shopId == id) {
+              setState(() => _introFaq = false);
+            }
+          },
+        );
+  }
+
+  @override
+  void dispose() {
+    _noticesSub?.cancel();
+    _faqSub?.cancel();
+    super.dispose();
+  }
 
   bool _showShopInfo = false;
 
@@ -444,7 +523,8 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
 
                           const SizedBox(height: 14),
 
-                          if (shop['showAnnouncementSection'] != false) ...[
+                          if (shop['showAnnouncementSection'] != false &&
+                              _introNotices.isNotEmpty) ...[
                             _buildNoticePreviewCard(
                               theme: classicTheme,
                               onTap: () {
@@ -545,23 +625,24 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                                     );
                                   },
                                 ),
-                              ShopTemplateFeatureCard(
-                                theme: classicTheme,
-                                icon: Icons.favorite,
-                                title: '關於我們',
-                                subtitle: '品牌理念・店家故事',
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ShopAboutPage(
-                                        shopId: widget.shopId,
-                                        theme: classicTheme,
+                              if (ShopIntroContent.about(shop))
+                                ShopTemplateFeatureCard(
+                                  theme: classicTheme,
+                                  icon: Icons.favorite,
+                                  title: '關於我們',
+                                  subtitle: '品牌理念・店家故事',
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ShopAboutPage(
+                                          shopId: widget.shopId,
+                                          theme: classicTheme,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                    );
+                                  },
+                                ),
                               StreamBuilder<
                                 QuerySnapshot<Map<String, dynamic>>
                               >(
@@ -604,7 +685,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                                   );
                                 },
                               ),
-                              if (shop['showFaqSection'] != false)
+                              if (shop['showFaqSection'] != false && _introFaq)
                                 ShopTemplateFeatureCard(
                                   theme: classicTheme,
                                   icon: Icons.help,
@@ -852,24 +933,18 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('shops')
-                    .doc(widget.shopId)
-                    .collection('announcements')
-                    .where('isPublished', isEqualTo: true)
-                    .snapshots(),
-                builder: (context, snapshot) {
+              child: Builder(
+                builder: (context) {
                   String previewText = '目前尚無公告';
                   bool isPinned = false;
                   String typeLabel = '最新公告';
 
-                  if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                    final docs = snapshot.data!.docs.toList();
+                  if (_introNotices.isNotEmpty) {
+                    final docs = _introNotices.toList();
 
                     docs.sort((a, b) {
-                      final aData = a.data() as Map<String, dynamic>;
-                      final bData = b.data() as Map<String, dynamic>;
+                      final aData = a.data();
+                      final bData = b.data();
 
                       final aPinned = aData['isPinned'] == true;
                       final bPinned = bData['isPinned'] == true;
@@ -886,7 +961,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                       return bTime.compareTo(aTime);
                     });
 
-                    final data = docs.first.data() as Map<String, dynamic>;
+                    final data = docs.first.data();
 
                     previewText = data['title']?.toString() ?? '未命名公告';
                     isPinned = data['isPinned'] == true;

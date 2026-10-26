@@ -1,3 +1,4 @@
+import 'room_intro_typography.dart';
 // 功能：局部外觀背景重用既有素材解析與快取，不改店家全站主題。
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -23,6 +24,9 @@ class RoomIntroSurface extends StatelessWidget {
             appBackgroundMode: look.background == 'library' ? 'image' : 'color',
             appBackgroundAssetId: look.backgroundAssetId,
           );
-    return ShopAppBackdrop.behind(theme: local, child: child);
+    return RoomIntroTypography(
+      look: look,
+      child: ShopAppBackdrop.behind(theme: local, child: child),
+    );
   }
 }

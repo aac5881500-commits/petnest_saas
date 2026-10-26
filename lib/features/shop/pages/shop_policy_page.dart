@@ -24,7 +24,15 @@ import 'package:petnest_saas/features/shop/pages/policy_version_history_page.dar
 import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 
 class ShopPolicyPage extends StatefulWidget {
-  const ShopPolicyPage({super.key, required this.shopId, this.canEdit = true});
+  const ShopPolicyPage({
+    super.key,
+    required this.shopId,
+    this.canEdit = true,
+    this.continueOpeningAfterPublish = false,
+  });
+
+  /// Only an explicit opening-guide entry requests a booking handoff.
+  final bool continueOpeningAfterPublish;
 
   final String shopId;
 
@@ -1028,6 +1036,7 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
         (intendedService == PolicyApplicableService.daycare && !_daycareOn)) {
       return;
     }
+    bool publishedStay = false;
     setState(() => _saving = true);
     try {
       _storeDraftAt(tabs.index);
@@ -1062,6 +1071,8 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
       );
       _customChanged.remove(publishingService);
       await _refreshPublishedVersion();
+      publishedStay =
+          publishingService == PolicyApplicableService.accommodation;
     } on PolicyUrlValidationException catch (error) {
       if (mounted) await _showPublishIssues(error.issues);
     } catch (error) {
@@ -1072,6 +1083,45 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+    if (publishedStay && widget.continueOpeningAfterPublish && mounted) {
+      await _continueOpening();
+    }
+  }
+
+  Future<void> _continueOpening() async {
+    final shopId = widget.shopId;
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true || _saving) {
+      return;
+    }
+    setState(() => _saving = true);
+    bool effective = false;
+    try {
+      effective = await ShopPolicyService.instance.hasEffectiveStayPolicy(
+        shopId,
+      );
+    } catch (_) {
+      if (mounted && widget.shopId == shopId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('條款已發布，暫時無法確認資格；請稍後再前往預約設定。')),
+        );
+      }
+    } finally {
+      if (mounted && widget.shopId == shopId) setState(() => _saving = false);
+    }
+    if (!mounted ||
+        widget.shopId != shopId ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    if (!effective) return;
+    // Publishing this service must not silently discard another tab's draft.
+    if (!await dashboardConfirmLeave() ||
+        !mounted ||
+        widget.shopId != shopId ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    Navigator.of(context).pop(true);
   }
 
   Future<void> _saveRefund() async {

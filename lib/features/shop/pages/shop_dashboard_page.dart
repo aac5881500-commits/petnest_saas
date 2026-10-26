@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 import 'dart:async';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
@@ -2041,14 +2042,34 @@ void _openBasicInfoPage(BuildContext context, String id, WidgetBuilder page) {
   if (scope != null && scope.desktop) {
     scope.openEntry(id);
   } else {
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        settings: id == shopOperationsWorkbenchRouteName
-            ? RouteSettings(name: id)
-            : null,
-        builder: page,
-      ),
-    );
+    final destination =
+        const {
+          'ShopEnvironmentManagePage',
+          'ShopAboutManagePage',
+          'ShopAnnouncementManagePage',
+          'ShopFaqManagePage',
+        }.contains(id)
+        ? page(context)
+        : null;
+    final introShopId = switch (destination) {
+      ShopEnvironmentManagePage p => p.shopId,
+      ShopAboutManagePage p => p.shopId,
+      ShopAnnouncementManagePage p => p.shopId,
+      ShopFaqManagePage p => p.shopId,
+      _ => null,
+    };
+    Navigator.of(context, rootNavigator: true)
+        .push(
+          MaterialPageRoute<void>(
+            settings: id == shopOperationsWorkbenchRouteName
+                ? RouteSettings(name: id)
+                : null,
+            builder: destination == null ? page : (_) => destination,
+          ),
+        )
+        .whenComplete(() {
+          if (introShopId != null) ShopIntroContent.notifyReturned(introShopId);
+        });
   }
 }
 
@@ -2387,7 +2408,11 @@ class _BasicInfoTab extends StatelessWidget {
                   ),
                   for (final child in children.where(
                     (child) => child is! _DashboardSection,
-                  )) ...[const SizedBox(height: 18), child],
+                  )) ...[
+                    if (child is! ShopOpeningProgress)
+                      const SizedBox(height: 18),
+                    child,
+                  ],
                   const SizedBox(height: 18),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -3801,7 +3826,8 @@ class _DashboardResponsiveBody extends StatelessWidget {
           ),
           children: [
             for (int i = 0; i < children.length; i++) ...[
-              if (i > 0) SizedBox(height: metrics.sectionGap),
+              if (i > 0 && children[i] is! ShopOpeningProgress)
+                SizedBox(height: metrics.sectionGap),
               children[i],
             ],
           ],

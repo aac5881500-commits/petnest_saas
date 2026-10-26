@@ -1,3 +1,5 @@
+import '../widgets/room/room_intro_typography.dart';
+import 'package:petnest_saas/core/models/room_intro_look.dart';
 import '../widgets/room/room_intro_facts.dart';
 import '../widgets/room/room_intro_related.dart';
 import 'shop_room_comparison_page.dart';
@@ -30,36 +32,48 @@ class RoomTypeDetailPage extends StatelessWidget {
   final bool isIntroMode;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => isIntroMode
+      ? RoomIntroAppearanceHost(
+          shopId: shopId,
+          child: Builder(builder: _page),
+        )
+      : _page(context);
+
+  Widget _page(BuildContext context) {
+    final look = isIntroMode
+        ? RoomIntroAppearanceScope.maybeOf(context)?.appearance.detail.look ??
+              const RoomIntroLook()
+        : const RoomIntroLook();
     final String title = SafeParse.parseString(
       roomType['name'],
       fallback: '房型介紹',
     );
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      appBar: AppBar(
+    return RoomIntroTypography(
+      look: look,
+      child: Scaffold(
         backgroundColor: theme.backgroundColor,
-        foregroundColor: theme.textColor,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          title,
-          style: TextStyle(fontWeight: FontWeight.w800, color: theme.textColor),
+        appBar: AppBar(
+          backgroundColor: theme.backgroundColor,
+          foregroundColor: theme.textColor,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: theme.textColor,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
-      body: isIntroMode
-          ? RoomIntroAppearanceHost(
-              shopId: shopId,
-              child: Builder(builder: (context) => _detailBody(context)),
-            )
-          : _detailBody(context),
-      bottomNavigationBar: RoomTypeDetailBookBar(
-        theme: theme,
-        isIntroMode: isIntroMode,
-        basePrice: isIntroMode ? RoomIntroFacts(roomType).price : null,
-        onBook: _openBooking(context),
-        onSelectOptions: () => Navigator.pop(context, roomType),
+        body: _detailBody(context),
+        bottomNavigationBar: RoomTypeDetailBookBar(
+          theme: theme,
+          isIntroMode: isIntroMode,
+          basePrice: isIntroMode ? RoomIntroFacts(roomType).price : null,
+          onBook: _openBooking(context),
+          onSelectOptions: () => Navigator.pop(context, roomType),
+        ),
       ),
     );
   }

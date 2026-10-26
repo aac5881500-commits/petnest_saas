@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'environment_end_entry.dart';
 import 'dart:ui' show PointerDeviceKind;
 
@@ -102,6 +103,9 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
   );
 
   Widget _resolved(BuildContext context, String imageUrl) {
+    if (!ShopIntroContent.environment({'environmentIntro': environmentIntro})) {
+      return const SizedBox.shrink();
+    }
     if (setting.layout == HomeEnvironmentLayouts.facilityScroll &&
         setting
             .selectedFacilities(

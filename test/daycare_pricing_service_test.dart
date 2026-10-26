@@ -366,7 +366,7 @@ void main() {
   });
 
   group('房間時段名額', () {
-    test('未分房臨托會佔用房型名額，清潔中房間不可用', () {
+    test('未分房臨托會佔用房型名額，當日行事曆清潔中房間不可用', () {
       final DateTime start = DateTime(2026, 9, 1, 9);
       final DateTime end = DateTime(2026, 9, 1, 10);
       final int remaining = DaycareOccupancyService.remainingRoomsFromData(
@@ -383,6 +383,9 @@ void main() {
             'enabled': true,
             'status': 'cleaning',
           },
+        ],
+        calendarEntries: <Map<String, dynamic>>[
+          {'roomId': 'r2', 'date': '2026-09-01', 'status': 'cleaning'},
         ],
         bookings: <Map<String, dynamic>>[
           <String, dynamic>{
@@ -433,8 +436,18 @@ void main() {
             doc: <String, dynamic>{
               'enabled': true,
               'valueServices': <Map<String, dynamic>>[
-                <String, dynamic>{'id': 'a1', 'name': '梳毛', 'price': 100},
-                <String, dynamic>{'id': 'a2', 'name': '剪指甲', 'price': 80},
+                <String, dynamic>{
+                  'id': 'a1',
+                  'name': '梳毛',
+                  'price': 100,
+                  'applicableServices': ['daycare'],
+                },
+                <String, dynamic>{
+                  'id': 'a2',
+                  'name': '剪指甲',
+                  'price': 80,
+                  'applicableServices': ['daycare'],
+                },
               ],
             },
             allowedAddonIds: <String>['a1'],

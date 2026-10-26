@@ -482,7 +482,7 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
           payload: <String, dynamic>{'roomTypeName': name},
         );
       } else {
-        await ShopService.instance.createRoomType(
+        roomTypeId = await ShopService.instance.createRoomType(
           shopId: widget.shopId,
           name: name,
           capacity: capacity,
@@ -498,29 +498,18 @@ class _ShopRoomTypeEditorPageState extends State<ShopRoomTypeEditorPage> {
             'customFeatures': List<Map<String, String>>.from(_customFeatures),
           },
         );
+        // Keep the confirmed document before logging or uploading. Retrying a
+        // later failure must update this room type, even when names are equal.
+        _persistedRoomTypeId = roomTypeId;
         await ActionLogService.instance.logAction(
           shopId: widget.shopId,
           targetType: 'room_type',
-          targetId: name,
+          targetId: roomTypeId,
           action: '新增房型',
           operatorUid: user?.uid ?? '',
           operatorRole: 'owner',
           payload: <String, dynamic>{'roomTypeName': name},
         );
-        final List<Map<String, dynamic>> created = await ShopService.instance
-            .getRoomTypes(widget.shopId);
-        String foundId = '';
-        for (final Map<String, dynamic> item in created.reversed) {
-          if ((item['name'] ?? '').toString() != name) {
-            continue;
-          }
-          foundId = (item['id'] ?? '').toString();
-          final Object? images = item['images'];
-          if (images is! List || images.isEmpty) {
-            break;
-          }
-        }
-        roomTypeId = foundId;
       }
 
       _persistedRoomTypeId = roomTypeId.isEmpty ? null : roomTypeId;

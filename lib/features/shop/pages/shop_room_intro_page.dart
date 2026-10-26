@@ -1,3 +1,4 @@
+import '../widgets/room/room_intro_typography.dart';
 import '../widgets/room/room_intro_surface.dart';
 import 'shop_room_comparison_page.dart';
 // 檔案名稱：lib/features/shop/pages/shop_room_intro_page.dart
@@ -56,52 +57,57 @@ class _ShopRoomIntroPageState extends State<ShopRoomIntroPage> {
     child: Builder(
       builder: (context) {
         final scope = RoomIntroAppearanceScope.maybeOf(context)!;
-        return Scaffold(
-          backgroundColor: widget.theme.backgroundColor,
-          appBar: AppBar(
+        return RoomIntroTypography(
+          look: scope.appearance.list.look,
+          child: Scaffold(
             backgroundColor: widget.theme.backgroundColor,
-            foregroundColor: widget.theme.textColor,
-            title: Text(scope.appearance.list.title),
-            centerTitle: true,
-          ),
-          body: StreamBuilder<List<Map<String, dynamic>>>(
-            key: ValueKey(widget.shopId),
-            stream: _types,
-            builder: (context, snapshot) {
-              if (snapshot.hasError || scope.error != null) {
-                return const Center(child: Text('房型介紹暫時無法載入，請稍後再試。'));
-              }
-              if (!scope.ready ||
-                  snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return RoomIntroSurface(
-                look: scope.appearance.list.look,
-                theme: widget.theme,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: RoomIntroList(
-                    rooms: snapshot.data ?? const [],
-                    setting: scope.appearance.list,
-                    showComparison: scope.appearance.showComparison,
-                    theme: widget.theme,
-                    onOpen: _open,
-                    onCompare: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => ShopRoomComparisonPage(
-                          shopId: widget.shopId,
-                          theme: widget.theme,
-                          startDate: DateTime.now(),
-                          endDate: DateTime.now().add(const Duration(days: 1)),
+            appBar: AppBar(
+              backgroundColor: widget.theme.backgroundColor,
+              foregroundColor: widget.theme.textColor,
+              title: Text(scope.appearance.list.title),
+              centerTitle: true,
+            ),
+            body: StreamBuilder<List<Map<String, dynamic>>>(
+              key: ValueKey(widget.shopId),
+              stream: _types,
+              builder: (context, snapshot) {
+                if (snapshot.hasError || scope.error != null) {
+                  return const Center(child: Text('房型介紹暫時無法載入，請稍後再試。'));
+                }
+                if (!scope.ready ||
+                    snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return RoomIntroSurface(
+                  look: scope.appearance.list.look,
+                  theme: widget.theme,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: RoomIntroList(
+                      rooms: snapshot.data ?? const [],
+                      setting: scope.appearance.list,
+                      showComparison: scope.appearance.showComparison,
+                      theme: widget.theme,
+                      onOpen: _open,
+                      onCompare: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ShopRoomComparisonPage(
+                            shopId: widget.shopId,
+                            theme: widget.theme,
+                            startDate: DateTime.now(),
+                            endDate: DateTime.now().add(
+                              const Duration(days: 1),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         );
       },

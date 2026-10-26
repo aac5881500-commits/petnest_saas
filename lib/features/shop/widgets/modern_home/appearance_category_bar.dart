@@ -227,3 +227,89 @@ class _AppearanceCategoryTile extends StatelessWidget {
     );
   }
 }
+
+/// Always-visible mobile navigation: every appearance category is one tap away.
+class AppearanceCategoryMobileNav extends StatelessWidget {
+  const AppearanceCategoryMobileNav({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double width = (constraints.maxWidth - 12) / 3;
+        return Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: <Widget>[
+            for (final AppearanceCategoryItem item in AppearanceCategories.all)
+              SizedBox(
+                width: width,
+                child: Semantics(
+                  selected: item.id == selected,
+                  button: true,
+                  child: Material(
+                    color: item.id == selected
+                        ? colors.primaryContainer
+                        : colors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                        color: item.id == selected
+                            ? colors.primary
+                            : colors.outlineVariant,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      key: ValueKey<String>(
+                        'appearance-mobile-category-${item.id}',
+                      ),
+                      onTap: () => onSelected(item.id),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              item.icon,
+                              size: 18,
+                              color: item.id == selected
+                                  ? colors.primary
+                                  : colors.onSurfaceVariant,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.shortLabel,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: item.id == selected
+                                    ? colors.onPrimaryContainer
+                                    : colors.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}

@@ -46,7 +46,8 @@ class ModernHomeFaqSection extends StatelessWidget {
         phase == HomeInfoSectionPhase.unavailable ||
         phase == HomeInfoSectionPhase.empty ||
         items.isEmpty;
-    final List<HomeFaqItem> source = empty ? _samples : items;
+    if (items.isEmpty) return const SizedBox.shrink();
+    final List<HomeFaqItem> source = items;
     return switch (HomeFaqLayouts.migrate(setting.layout)) {
       HomeFaqLayouts.singleLine => _entry(source, wide: true, empty: empty),
       HomeFaqLayouts.preview => _FaqPreview(
@@ -60,23 +61,6 @@ class ModernHomeFaqSection extends StatelessWidget {
       HomeFaqLayouts.twoColumnCards => _columns(source, empty),
       _ => _entry(source, wide: false, empty: empty, imageUrl: imageUrl),
     };
-  }
-
-  List<HomeFaqItem> get _samples {
-    return const <HomeFaqItem>[
-      HomeFaqItem(
-        id: 'sample-1',
-        question: '示意問題：入住前需要準備什麼？',
-        answer: '預覽示意：尚未發布常見問題',
-        sortOrder: 1,
-      ),
-      HomeFaqItem(
-        id: 'sample-2',
-        question: '示意問題：可以臨時取消嗎？',
-        answer: '預覽示意：尚未發布常見問題',
-        sortOrder: 2,
-      ),
-    ];
   }
 
   Widget _entry(

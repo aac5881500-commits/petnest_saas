@@ -2396,23 +2396,27 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: SegmentedButton<int>(
-            segments: const <ButtonSegment<int>>[
-              ButtonSegment<int>(
-                value: 0,
-                label: Text('預覽'),
-                icon: Icon(Icons.smartphone_outlined),
-              ),
-              ButtonSegment<int>(
-                value: 1,
-                label: Text('設定'),
-                icon: Icon(Icons.tune),
-              ),
-            ],
-            selected: <int>{_homeCanvasPane},
-            onSelectionChanged: (Set<int> value) {
-              setState(() => _homeCanvasPane = value.first);
-            },
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<int>(
+              style: SegmentedButton.styleFrom(minimumSize: const Size(0, 48)),
+              segments: const <ButtonSegment<int>>[
+                ButtonSegment<int>(
+                  value: 0,
+                  label: Text('預覽'),
+                  icon: Icon(Icons.smartphone_outlined),
+                ),
+                ButtonSegment<int>(
+                  value: 1,
+                  label: Text('編輯外觀'),
+                  icon: Icon(Icons.tune),
+                ),
+              ],
+              selected: <int>{_homeCanvasPane},
+              onSelectionChanged: (Set<int> value) {
+                setState(() => _homeCanvasPane = value.first);
+              },
+            ),
           ),
         ),
         Expanded(
@@ -2465,76 +2469,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   Widget _appearanceCategorySelector() {
-    final AppearanceCategoryItem item = AppearanceCategories.of(
-      _appearanceCategory,
+    return AppearanceCategoryMobileNav(
+      selected: _appearanceCategory,
+      onSelected: _selectAppearanceCategory,
     );
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        key: const ValueKey<String>('appearance-category-selector'),
-        borderRadius: BorderRadius.circular(12),
-        onTap: _openAppearanceCategorySheet,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE6E8EC)),
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(item.icon, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '目前分類：${item.shortLabel}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              const Icon(Icons.expand_more),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openAppearanceCategorySheet() async {
-    final int? next = await showModalBottomSheet<int>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                const Text(
-                  '選擇設定分類',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 12),
-                AppearanceCategoryPicker(
-                  selected: _appearanceCategory,
-                  onSelected: (int value) {
-                    Navigator.of(sheetContext).pop(value);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    if (next == null || !mounted) {
-      return;
-    }
-    _selectAppearanceCategory(next);
   }
 
   void _selectAppearanceCategory(int value) {

@@ -448,16 +448,26 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
       return;
     }
     final shopId = widget.shopId;
+    final savingTitle = _titleController.text;
+    final savingDescription = _descriptionController.text;
+    final savingMessage = _messageController.text;
+    final savingImageUrl = _aboutImageUrl;
+    final savingImagePath = _aboutImagePath;
+    final savingFrame = _frame;
+    final savingSetting = AboutPageSetting.fromMap(
+      jsonDecode(jsonEncode(_setting.toMap())),
+    );
+    final pending = [..._pendingImages];
     setState(() {
       _saving = true;
       _busyMessage = '正在儲存…';
     });
     try {
       final next = <String, dynamic>{
-        'aboutTitle': _titleController.text.trim(),
-        'aboutDescription': _descriptionController.text.trim(),
-        'aboutMessage': _messageController.text.trim(),
-        'aboutImageUrl': _aboutImageUrl,
+        'aboutTitle': savingTitle.trim(),
+        'aboutDescription': savingDescription.trim(),
+        'aboutMessage': savingMessage.trim(),
+        'aboutImageUrl': savingImageUrl,
       };
       final old = <String, dynamic>{
         'aboutTitle': _savedTitle.trim(),
@@ -469,7 +479,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
         for (final e in next.entries)
           if (e.value != old[e.key]) e.key: e.value,
       };
-      updates.addAll(aboutPageUpdates(_savedSetting, _setting));
+      updates.addAll(aboutPageUpdates(_savedSetting, savingSetting));
       if (updates.isNotEmpty) {
         if (widget.saveAbout != null) {
           await widget.saveAbout!(updates);
@@ -482,12 +492,19 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
       }
       if (!mounted || widget.shopId != shopId) return;
       final stored = jsonEncode({
-        'cover': _aboutImageUrl,
-        'setting': _setting.toMap(),
+        'cover': savingImageUrl,
+        'setting': savingSetting.toMap(),
       });
-      final pending = [..._pendingImages];
-      _pendingImages.clear();
-      _captureSaved();
+      _pendingImages.removeWhere(pending.contains);
+      // Only the submitted snapshot was saved. A focused text input may still
+      // receive keyboard input while pointer interaction is blocked.
+      _savedTitle = savingTitle;
+      _savedDescription = savingDescription;
+      _savedMessage = savingMessage;
+      _savedAboutImageUrl = savingImageUrl;
+      _savedAboutImagePath = savingImagePath;
+      _savedFrame = savingFrame;
+      _savedSetting = savingSetting;
       for (final image in pending) {
         if (!stored.contains(jsonEncode(image.url))) {
           await _cleanupTracked(image, reason: 'saved-unused');
@@ -495,9 +512,11 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
       }
       if (!mounted || widget.shopId != shopId) return;
       setState(() {});
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('關於我們已儲存')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_hasUnsavedChanges ? '這次變更已儲存，另有未儲存內容' : '關於我們已儲存'),
+        ),
+      );
     } catch (_) {
       if (mounted && widget.shopId == shopId) {
         _showImageError('儲存失敗，草稿已保留，請確認權限或稍後重試');

@@ -10,6 +10,8 @@ import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/store_order_model.dart';
+import 'package:petnest_saas/core/models/payment_model.dart';
+import 'package:petnest_saas/core/services/store_payment_recovery.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/core/services/store_function_service.dart';
@@ -23,11 +25,13 @@ class MyStoreOrderDetailPage extends StatefulWidget {
     required this.shopId,
     required this.orderId,
     this.theme = HomeThemeModel.modernDefault,
+    this.preferredPaymentMethod = '',
   });
 
   final String shopId;
   final String orderId;
   final HomeThemeModel theme;
+  final String preferredPaymentMethod;
 
   @override
   State<MyStoreOrderDetailPage> createState() => _MyStoreOrderDetailPageState();
@@ -35,10 +39,36 @@ class MyStoreOrderDetailPage extends StatefulWidget {
 
 class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
   bool _touched = false;
+  bool _busy = false;
+  String? _paymentRequestId;
+  late Stream<StoreOrderModel?> _orderStream;
 
   String get shopId => widget.shopId;
   String get orderId => widget.orderId;
   HomeThemeModel get theme => widget.theme;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrder();
+  }
+
+  void _loadOrder() {
+    _orderStream = StoreOrderService.instance.streamOrder(
+      shopId: shopId,
+      orderId: orderId,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant MyStoreOrderDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shopId != shopId || oldWidget.orderId != orderId) {
+      _touched = false;
+      _paymentRequestId = null;
+      _loadOrder();
+    }
+  }
 
   void _touchIfNeeded(StoreOrderModel order) {
     if (_touched) {
@@ -60,20 +90,87 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
   }
 
   Future<void> _pay(BuildContext context, StoreOrderModel order) async {
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
-      final List<String> methods = await PaymentService.instance
-          .resolveAvailableMethods(
-            shopId: shopId,
-            amountType: PaymentAmountType.full,
+      PaymentModel? existingPayment;
+      if (!order.isPaid && order.isPendingPayment && order.totalAmount > 0) {
+        if (order.lastPaymentId.trim().isNotEmpty) {
+          existingPayment = await PaymentService.instance.getPayment(
+            order.lastPaymentId,
           );
-      final List<String> online = methods
-          .where(PaymentMethodType.isOnlinePayment)
-          .toList();
-      if (online.isEmpty) {
-        throw Exception('店家目前沒有可用的線上付款方式');
+          if (existingPayment == null) {
+            throw StateError('找不到原付款資料，請重新載入訂單後再試。');
+          }
+        } else {
+          final payments = await PaymentService.instance.getStoreOrderPayments(
+            shopId: shopId,
+            orderId: order.id,
+            userId: order.userId,
+          );
+          existingPayment = StorePaymentRecovery.selectExisting(
+            payments,
+            order,
+          );
+        }
       }
-
-      final String requestId = FirebaseFirestore.instance
+      var plan = StorePaymentRecovery.resolve(
+        order: order,
+        payment: existingPayment,
+      );
+      if (plan.action == StorePaymentRecoveryAction.chooseMethod) {
+        final methods = await PaymentService.instance.resolveAvailableMethods(
+          shopId: shopId,
+          amountType: PaymentAmountType.full,
+        );
+        plan = StorePaymentRecovery.resolve(
+          order: order,
+          payment: existingPayment,
+          availableMethods: methods,
+          preferredMethod: widget.preferredPaymentMethod,
+        );
+      }
+      if (!context.mounted) return;
+      switch (plan.action) {
+        case StorePaymentRecoveryAction.confirmZeroTotal:
+          await StoreFunctionService.instance.updateStoreOrderStatus(
+            shopId: shopId,
+            orderId: order.id,
+            action: 'confirm_zero_total',
+          );
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('訂單已確認，請等待店家備貨。')));
+          return;
+        case StorePaymentRecoveryAction.alreadyPaid:
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('訂單已完成付款，請稍後確認最新訂單狀態。')));
+          return;
+        case StorePaymentRecoveryAction.showPayment:
+          final payment = plan.payment!;
+          _openPayment(
+            context,
+            order: order,
+            paymentId: payment.id,
+            paymentHtml:
+                payment.hasOfflinePaymentInfo ||
+                    payment.status == PaymentTransactionStatus.processing
+                ? ''
+                : payment.paymentHtml,
+            initialPayment: payment,
+          );
+          return;
+        case StorePaymentRecoveryAction.unavailable:
+          throw StateError(plan.message);
+        case StorePaymentRecoveryAction.chooseMethod:
+          throw StateError('請重新載入可用的付款方式。');
+        case StorePaymentRecoveryAction.createPayment:
+          break;
+      }
+      if (plan.resetRequest) _paymentRequestId = null;
+      final String requestId = _paymentRequestId ??= FirebaseFirestore.instance
           .collection('payments')
           .doc()
           .id;
@@ -82,7 +179,7 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
           shopId: shopId,
           sourceType: PaymentSourceType.storeOrder,
           sourceId: order.id,
-          paymentMethod: online.first,
+          paymentMethod: plan.method,
           amountType: PaymentAmountType.full,
           paymentPurpose: PaymentPurpose.full,
           amount: order.totalAmount,
@@ -94,16 +191,27 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
         return;
       }
 
-      Navigator.push(
+      if (!paymentResult.success) {
+        throw Exception(
+          paymentResult.message.isEmpty
+              ? '付款建立失敗，請稍後重試'
+              : paymentResult.message,
+        );
+      }
+      if (paymentResult.status == PaymentTransactionStatus.paid) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('訂單已完成付款。')));
+        return;
+      }
+      _openPayment(
         context,
-        MaterialPageRoute<void>(
-          builder: (_) => EcpayPaymentPage(
-            paymentHtml: paymentResult.paymentHtml,
-            paymentId: paymentResult.paymentId,
-            shopId: shopId,
-            storeOrderId: order.id,
-          ),
-        ),
+        order: order,
+        paymentId: paymentResult.paymentId,
+        paymentHtml:
+            paymentResult.hasAtmPaymentInfo || paymentResult.hasCvsPaymentInfo
+            ? ''
+            : paymentResult.paymentHtml,
       );
     } catch (error) {
       if (!context.mounted) {
@@ -112,10 +220,35 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
+  void _openPayment(
+    BuildContext context, {
+    required StoreOrderModel order,
+    required String paymentId,
+    required String paymentHtml,
+    PaymentModel? initialPayment,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => EcpayPaymentPage(
+          paymentHtml: paymentHtml,
+          paymentId: paymentId,
+          shopId: shopId,
+          storeOrderId: order.id,
+          initialPayment: initialPayment,
+        ),
+      ),
+    );
+  }
+
   Future<void> _cancel(BuildContext context) async {
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
       await StoreFunctionService.instance.updateStoreOrderStatus(
         shopId: shopId,
@@ -130,6 +263,8 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -147,14 +282,29 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
             title: const Text('商城訂單'),
           ),
           body: StreamBuilder<StoreOrderModel?>(
-            stream: StoreOrderService.instance.streamOrder(
-              shopId: shopId,
-              orderId: orderId,
-            ),
+            stream: _orderStream,
             builder: (BuildContext context, AsyncSnapshot<StoreOrderModel?> snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('訂單讀取失敗，請稍後重試。'),
+                      TextButton(
+                        onPressed: () => setState(_loadOrder),
+                        child: const Text('重新載入'),
+                      ),
+                    ],
+                  ),
+                );
+              }
               final StoreOrderModel? order = snapshot.data;
               if (order == null) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: snapshot.connectionState == ConnectionState.waiting
+                      ? const CircularProgressIndicator()
+                      : const Text('找不到這筆訂單'),
+                );
               }
 
               _touchIfNeeded(order);
@@ -240,11 +390,17 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
                   if (order.status ==
                       StoreConstants.statusPendingPayment) ...<Widget>[
                     FilledButton(
-                      onPressed: () => _pay(context, order),
-                      child: const Text('前往付款'),
+                      onPressed: _busy ? null : () => _pay(context, order),
+                      child: Text(
+                        _busy
+                            ? '處理中...'
+                            : order.totalAmount == 0
+                            ? '確認訂單'
+                            : '前往付款',
+                      ),
                     ),
                     TextButton(
-                      onPressed: () => _cancel(context),
+                      onPressed: _busy ? null : () => _cancel(context),
                       child: const Text('取消訂單'),
                     ),
                   ],

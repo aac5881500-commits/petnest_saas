@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart
 // 功能說明：下一步／入住前事項：入住前準備、條款、付款。
 
@@ -42,12 +43,16 @@ class BookingDetailPreparationSection extends StatelessWidget {
           BookingDetailEntryRow(
             icon: Icons.checklist_outlined,
             title: guide!.displayTitle,
-            subtitle: '查看需要攜帶的物品與注意事項',
+            subtitle: '查看準備清單、勾選已備妥物品',
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) => PreArrivalGuidePage(guide: guide!),
+                  builder: (_) => PreArrivalGuidePage(
+                    guide: guide!,
+                    progressScope:
+                        '${FirebaseAuth.instance.currentUser?.uid ?? ''}/${view.shopId}/${view.docId}',
+                  ),
                 ),
               );
             },

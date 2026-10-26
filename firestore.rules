@@ -2524,14 +2524,22 @@ allow update: if
       }
       // 📢 店家公告
 match /announcements/{announcementId} {
-  allow read: if true;
-  allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+  // Public clients must query published documents. Drafts stay with content managers.
+  allow read: if resource.data.get('isPublished', false) == true
+    || isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_frontend_content');
+  allow create, update, delete: if isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_frontend_content');
 }
 
 // ❓ 常見問題
 match /faqs/{faqId} {
-  allow read: if true;
-  allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+  // Public clients must query published documents. Drafts stay with content managers.
+  allow read: if resource.data.get('isPublished', false) == true
+    || isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_frontend_content');
+  allow create, update, delete: if isShopOwnerUid(shopId)
+    || hasShopPermissionKey(shopId, 'manage_frontend_content');
 }
 
       // 📜 條款版本

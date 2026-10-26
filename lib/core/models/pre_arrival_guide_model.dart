@@ -21,9 +21,13 @@ class PreArrivalGuideBlockType {
   static const String heading = 'heading';
   static const String text = 'text';
   static const String image = 'image';
+  static const String checklist = 'checklist';
 
   static bool isValid(String value) {
-    return value == heading || value == text || value == image;
+    return value == heading ||
+        value == text ||
+        value == image ||
+        value == checklist;
   }
 }
 

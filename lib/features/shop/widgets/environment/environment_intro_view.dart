@@ -37,8 +37,11 @@ class EnvironmentIntroView extends StatelessWidget {
     this.scrollController,
     this.presentation,
     this.sectionKeys,
+    this.emptyState,
   });
 
+  /// Editor-only guidance; customer pages keep their existing empty behavior.
+  final Widget? emptyState;
   final EnvironmentPresentation? presentation;
   final Map<String, GlobalKey>? sectionKeys;
   final EnvironmentIntroStyle style;
@@ -235,6 +238,10 @@ class EnvironmentIntroView extends StatelessWidget {
             ],
           ],
         };
+        if (sections.values.every((widgets) => widgets.isEmpty) &&
+            emptyState != null) {
+          return emptyState!;
+        }
         final order = switch (p.preset) {
           'care' => ['hero', 'care', 'features', 'banner', 'gallery', 'note'],
           'photo' => ['hero', 'gallery', 'features', 'banner', 'care', 'note'],

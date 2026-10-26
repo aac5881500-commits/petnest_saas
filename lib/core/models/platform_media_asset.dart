@@ -22,11 +22,11 @@ abstract final class PlatformMediaCategories {
   static String label(String category) {
     switch (category) {
       case dailyCarePage:
-        return '每日照護頁背景';
+        return '共用頁面背景';
       case dailyCareCard:
-        return '每日照護卡片背景';
+        return '共用卡片背景';
       case dailyCareIcon:
-        return '每日照護小圖示';
+        return '共用小圖示';
       case shopHouse:
         return '店家小屋';
       case appBackground:
@@ -199,6 +199,7 @@ class PlatformMediaAsset {
     this.placements = const <String>[],
     this.device = 'any',
     this.sourceFileName = '',
+    this.subcategory = '',
     this.createdAt,
     this.updatedAt,
     this.createdByUid = '',
@@ -208,6 +209,9 @@ class PlatformMediaAsset {
   /// 舊素材未標記裝置時，兩種版型皆可使用。
   final String device;
   final String sourceFileName;
+
+  /// 管理用子分類，不限制素材在哪些頁面使用。舊資料留空。
+  final String subcategory;
   final String id;
   final String name;
   final String category;
@@ -251,6 +255,7 @@ class PlatformMediaAsset {
           ? map['device'] as String
           : 'any',
       sourceFileName: _readString(map['sourceFileName']),
+      subcategory: _readString(map['subcategory']),
       category: _readString(map['category']),
       placements: _readPlacements(map['placements']),
       imageUrl: imageUrl,
@@ -271,6 +276,7 @@ class PlatformMediaAsset {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'name': name,
+      'subcategory': subcategory,
       if (category == PlatformMediaCategories.shopHouse) 'device': device,
       if (sourceFileName.isNotEmpty) 'sourceFileName': sourceFileName,
       'category': category,
@@ -292,6 +298,7 @@ class PlatformMediaAsset {
     String? id,
     String? device,
     String? sourceFileName,
+    String? subcategory,
     String? name,
     String? category,
     List<String>? placements,
@@ -312,6 +319,7 @@ class PlatformMediaAsset {
       id: id ?? this.id,
       device: device ?? this.device,
       sourceFileName: sourceFileName ?? this.sourceFileName,
+      subcategory: subcategory ?? this.subcategory,
       name: name ?? this.name,
       category: category ?? this.category,
       placements: placements ?? this.placements,

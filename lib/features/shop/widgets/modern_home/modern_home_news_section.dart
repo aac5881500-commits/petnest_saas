@@ -73,6 +73,9 @@ class ModernHomeNewsSection extends StatelessWidget {
     if (phase == HomeNewsSectionPhase.unavailable) {
       return _messageCard(kHomeNewsErrorMessage);
     }
+    if ((phase == HomeNewsSectionPhase.empty || items.isEmpty) && !preview) {
+      return const SizedBox.shrink();
+    }
     if (phase == HomeNewsSectionPhase.empty || items.isEmpty) {
       return _messageCard(kHomeNewsEmptyMessage, imageUrl: imageUrl);
     }

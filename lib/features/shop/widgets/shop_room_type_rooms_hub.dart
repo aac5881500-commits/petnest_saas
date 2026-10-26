@@ -337,6 +337,33 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
       return;
     }
     final revision = _intentRevision;
+    bool continueAfterPublished = false;
+    Future<void> openBooking() async {
+      if (!await _canOpenBookingSettings() || !_intentCurrent(revision)) {
+        return;
+      }
+      if (widget.onOpenGuidedBookingSettings != null) {
+        await widget.onOpenGuidedBookingSettings!();
+      } else if (widget.onOpenBookingSettings != null) {
+        await widget.onOpenBookingSettings!();
+      } else if (!widget.embeddedInSetupCenter &&
+          await _editorLeaveGuard.confirmLeave() &&
+          mounted &&
+          _intentCurrent(revision)) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ShopBookingSettingsPage(
+              shopId: widget.shopId,
+              guideStayOpening: true,
+              onManageRooms: () async {
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+        );
+      }
+    }
+
     setState(() => _nextChoiceVisible = true);
     try {
       while (_intentCurrent(revision)) {
@@ -363,6 +390,13 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
           error = e;
         }
         if (!mounted || !_intentCurrent(revision)) return;
+        if (continueAfterPublished &&
+            policy == true &&
+            canProceed &&
+            error == null) {
+          await openBooking();
+          return;
+        }
         final choice = await showDialog<String>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -410,40 +444,23 @@ class _ShopRoomTypeRoomsHubState extends State<ShopRoomTypeRoomsHub> {
           continue;
         }
         if (latestPolicy) {
-          if (!await _canOpenBookingSettings() || !_intentCurrent(revision)) {
-            return;
-          }
-          if (widget.onOpenGuidedBookingSettings != null) {
-            await widget.onOpenGuidedBookingSettings!();
-          } else if (widget.onOpenBookingSettings != null) {
-            await widget.onOpenBookingSettings!();
-          } else if (!widget.embeddedInSetupCenter &&
-              await _editorLeaveGuard.confirmLeave() &&
-              mounted &&
-              _intentCurrent(revision)) {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ShopBookingSettingsPage(
-                  shopId: widget.shopId,
-                  guideStayOpening: true,
-                  onManageRooms: () async {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ),
-            );
-          }
+          await openBooking();
           return;
         }
         if (!await _canOpenPolicy()) {
           return;
         }
         if (!mounted || !_intentCurrent(revision)) return;
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ShopPolicyPage(shopId: widget.shopId),
+        final published = await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            settings: const RouteSettings(name: 'opening-stay-policy'),
+            builder: (_) => ShopPolicyPage(
+              shopId: widget.shopId,
+              continueOpeningAfterPublish: true,
+            ),
           ),
         );
+        continueAfterPublished = published == true;
         // Returning without publishing keeps the policy step incomplete.
       }
     } catch (e) {

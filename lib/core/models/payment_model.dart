@@ -38,6 +38,7 @@ class PaymentModel {
     this.atmVirtualAccount = '',
     this.convenienceStorePaymentCode = '',
     this.paymentUrl = '',
+    this.paymentHtml = '',
     this.expireAt,
     this.paidAt,
     this.failedAt,
@@ -153,6 +154,9 @@ class PaymentModel {
   ///
   /// 正式串接時只能保存短期有效或可安全公開的付款網址。
   final String paymentUrl;
+
+  /// 伺服器保存的原交易付款表單，恢復付款時沿用。
+  final String paymentHtml;
 
   /// 付款期限
   final DateTime? expireAt;
@@ -311,11 +315,23 @@ class PaymentModel {
       gatewayResultCode: (data['gatewayResultCode'] ?? '').toString(),
       gatewayResultMessage: (data['gatewayResultMessage'] ?? '').toString(),
       atmBankCode: (data['atmBankCode'] ?? '').toString(),
-      atmVirtualAccount: (data['atmVirtualAccount'] ?? '').toString(),
-      convenienceStorePaymentCode: (data['convenienceStorePaymentCode'] ?? '')
-          .toString(),
+      atmVirtualAccount: _firstNonEmpty(
+        data['atmVirtualAccount'],
+        data['atmAccount'],
+      ),
+      convenienceStorePaymentCode: _firstNonEmpty(
+        data['convenienceStorePaymentCode'],
+        data['cvsPaymentCode'],
+      ),
       paymentUrl: (data['paymentUrl'] ?? '').toString(),
-      expireAt: _dateTimeFromValue(data['expireAt']),
+      paymentHtml: (data['paymentHtml'] ?? '').toString(),
+      expireAt:
+          _dateTimeFromValue(data['expireAt']) ??
+          _dateTimeFromValue(
+            data['paymentMethod'] == PaymentMethodType.atm
+                ? data['atmExpireAt']
+                : data['cvsExpireAt'],
+          ),
       paidAt: _dateTimeFromValue(data['paidAt']),
       failedAt: _dateTimeFromValue(data['failedAt']),
       cancelledAt: _dateTimeFromValue(data['cancelledAt']),
@@ -356,6 +372,7 @@ class PaymentModel {
       'atmVirtualAccount': atmVirtualAccount,
       'convenienceStorePaymentCode': convenienceStorePaymentCode,
       'paymentUrl': paymentUrl,
+      'paymentHtml': paymentHtml,
       'expireAt': expireAt == null ? null : Timestamp.fromDate(expireAt!),
       'paidAt': paidAt == null ? null : Timestamp.fromDate(paidAt!),
       'failedAt': failedAt == null ? null : Timestamp.fromDate(failedAt!),
@@ -399,6 +416,7 @@ class PaymentModel {
     String? atmVirtualAccount,
     String? convenienceStorePaymentCode,
     String? paymentUrl,
+    String? paymentHtml,
     DateTime? expireAt,
     bool clearExpireAt = false,
     DateTime? paidAt,
@@ -444,6 +462,7 @@ class PaymentModel {
       convenienceStorePaymentCode:
           convenienceStorePaymentCode ?? this.convenienceStorePaymentCode,
       paymentUrl: paymentUrl ?? this.paymentUrl,
+      paymentHtml: paymentHtml ?? this.paymentHtml,
       expireAt: clearExpireAt ? null : expireAt ?? this.expireAt,
       paidAt: clearPaidAt ? null : paidAt ?? this.paidAt,
       failedAt: clearFailedAt ? null : failedAt ?? this.failedAt,
@@ -455,6 +474,39 @@ class PaymentModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  /// 有付款資料前先核對來源；有值的別名也必須一致。
+  bool matchesSource({
+    String shopId = '',
+    String bookingId = '',
+    String storeOrderId = '',
+  }) {
+    if (shopId.isNotEmpty && this.shopId != shopId) return false;
+    if (storeOrderId.isNotEmpty) {
+      return shopId.isNotEmpty &&
+          sourceType == PaymentSourceType.storeOrder &&
+          this.bookingId.isEmpty &&
+          (sourceId == storeOrderId || this.storeOrderId == storeOrderId) &&
+          (sourceId.isEmpty || sourceId == storeOrderId) &&
+          (this.storeOrderId.isEmpty || this.storeOrderId == storeOrderId);
+    }
+    return bookingId.isNotEmpty &&
+        sourceType != PaymentSourceType.storeOrder &&
+        (this.bookingId == bookingId || sourceId == bookingId) &&
+        (this.bookingId.isEmpty || this.bookingId == bookingId) &&
+        (sourceId.isEmpty || sourceId == bookingId) &&
+        this.storeOrderId.isEmpty;
+  }
+
+  bool get hasOfflinePaymentInfo => paymentMethod == PaymentMethodType.atm
+      ? atmBankCode.trim().isNotEmpty && atmVirtualAccount.trim().isNotEmpty
+      : paymentMethod == PaymentMethodType.convenienceStoreCode &&
+            convenienceStorePaymentCode.trim().isNotEmpty;
+
+  static String _firstNonEmpty(dynamic preferred, dynamic fallback) {
+    final value = (preferred ?? '').toString();
+    return value.trim().isNotEmpty ? value : (fallback ?? '').toString();
   }
 
   static String _resolvePaymentPurpose(Map<String, dynamic> data) {

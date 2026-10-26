@@ -263,6 +263,26 @@ class PaymentService {
     return PaymentModel.fromMap(id: snapshot.id, data: data);
   }
 
+  /// 商城待付款訂單尚未寫入 lastPaymentId 時，找回會員原本的交易。
+  /// 只做等值查詢；排序與來源核對由恢復付款流程處理。
+  Future<List<PaymentModel>> getStoreOrderPayments({
+    required String shopId,
+    required String orderId,
+    required String userId,
+  }) async {
+    if (shopId.trim().isEmpty ||
+        orderId.trim().isEmpty ||
+        userId.trim().isEmpty) {
+      return const <PaymentModel>[];
+    }
+    final snapshot = await _paymentsReference
+        .where('shopId', isEqualTo: shopId.trim())
+        .where('userId', isEqualTo: userId.trim())
+        .where('storeOrderId', isEqualTo: orderId.trim())
+        .get(const GetOptions(source: Source.server));
+    return _paymentListFromSnapshot(snapshot);
+  }
+
   /// 即時監聽指定付款紀錄
   ///
   /// 找不到付款紀錄時回傳 null。

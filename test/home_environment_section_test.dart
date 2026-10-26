@@ -545,10 +545,11 @@ void main() {
     final double end = tester
         .getTopLeft(find.byKey(const Key('home-environment-end')))
         .dx;
-    expect(end, greaterThanOrEqualTo(right));
+    // The entry is the final scroll item, so part of it may already be visible.
+    // Its hit target must remain large enough and become fully reachable.
     expect(
       tester.getSize(find.byKey(const Key('home-environment-end'))).width,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
     final ScrollableState scrollable = tester.state<ScrollableState>(
       find.byType(Scrollable),
@@ -563,9 +564,48 @@ void main() {
     expect(scrollable.position.pixels, greaterThan(before));
     expect(
       tester.getTopLeft(find.byKey(const Key('home-environment-end'))).dx,
-      end,
+      closeTo(end - (scrollable.position.pixels - before), .1),
     );
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final entry = find.byKey(const Key('home-environment-end'));
+    expect(tester.getBottomRight(entry).dx, lessThanOrEqualTo(right));
+    expect(
+      tester.getTopLeft(entry).dx,
+      greaterThanOrEqualTo(scrollBox.localToGlobal(Offset.zero).dx),
+    );
+    expect(entry.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('設備橫滑末端入口可到達，正式頁導航且預覽保持原頁', (tester) async {
+    var opened = 0;
+    for (final preview in [false, true]) {
+      await tester.pumpWidget(
+        _host(
+          width: 320,
+          child: ModernHomeEnvironmentSection(
+            key: ValueKey(preview),
+            theme: HomeThemeModel.modernDefault,
+            setting: const HomeEnvironmentSectionSetting(),
+            environmentIntro: const {},
+            facilityKeys: const ['air_cleaner', 'water', 'sunlight'],
+            preview: preview,
+            onOpen: () => opened++,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+      scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      final entry = find.byKey(const Key('home-environment-end'));
+      expect(entry.hitTestable(), findsOneWidget);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(opened, 1);
+      expect(tester.takeException(), isNull);
+    }
   });
 }
 

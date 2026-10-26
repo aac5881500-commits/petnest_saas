@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
@@ -43,7 +44,7 @@ class ModernHomeAboutSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!setting.showsOnHome) {
+    if (!setting.showsOnHome || !ShopIntroContent.about(shop)) {
       return const SizedBox.shrink();
     }
     final simple = setting.layout == HomeAboutLayouts.simpleEntry;

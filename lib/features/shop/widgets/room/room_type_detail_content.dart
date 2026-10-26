@@ -1,3 +1,5 @@
+import 'room_intro_typography.dart';
+import 'room_detail_photo_gallery.dart';
 import 'room_intro_features.dart';
 import 'room_intro_surface.dart';
 import 'room_detail_browser.dart';
@@ -158,54 +160,57 @@ class _RoomTypeDetailContentState extends State<RoomTypeDetailContent> {
       );
     }
 
-    return Column(
-      children: <Widget>[
-        Material(
-          color: theme.backgroundColor,
-          child: SizedBox(
-            height: 52,
-            child: Row(
-              children: <Widget>[
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  color: theme.textColor,
-                  onPressed: () {},
-                ),
-                Expanded(
-                  child: Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: theme.textColor,
+    return RoomIntroTypography(
+      look: _appearance.look,
+      child: Column(
+        children: <Widget>[
+          Material(
+            color: theme.backgroundColor,
+            child: SizedBox(
+              height: 52,
+              child: Row(
+                children: <Widget>[
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    color: theme.textColor,
+                    onPressed: () {},
+                  ),
+                  Expanded(
+                    child: Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: theme.textColor,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 48),
-              ],
+                  const SizedBox(width: 48),
+                ],
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: RoomIntroSurface(
-            look: _appearance.look,
-            theme: theme,
-            child: _styled(body),
+          Expanded(
+            child: RoomIntroSurface(
+              look: _appearance.look,
+              theme: theme,
+              child: _styled(body),
+            ),
           ),
-        ),
-        RoomTypeDetailBookBar(
-          theme: theme,
-          isIntroMode: widget.isIntroMode,
-          previewOnly: widget.previewOnly,
-          basePrice: widget.isIntroMode
-              ? RoomIntroFacts(widget.roomType).price
-              : null,
-          onBook: widget.onBook,
-          onSelectOptions: widget.onSelectOptions,
-        ),
-      ],
+          RoomTypeDetailBookBar(
+            theme: theme,
+            isIntroMode: widget.isIntroMode,
+            previewOnly: widget.previewOnly,
+            basePrice: widget.isIntroMode
+                ? RoomIntroFacts(widget.roomType).price
+                : null,
+            onBook: widget.onBook,
+            onSelectOptions: widget.onSelectOptions,
+          ),
+        ],
+      ),
     );
   }
 
@@ -235,36 +240,7 @@ class _RoomTypeDetailContentState extends State<RoomTypeDetailContent> {
                   child: const Center(child: Text('尚無圖片')),
                 )
               : GestureDetector(
-                  onTap: () => showDialog<void>(
-                    context: context,
-                    builder: (context) => Dialog(
-                      child: SizedBox(
-                        width: 900,
-                        height: MediaQuery.sizeOf(context).height * .8,
-                        child: Column(
-                          children: [
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: IconButton(
-                                tooltip: '關閉大圖',
-                                onPressed: () => Navigator.pop(context),
-                                icon: const Icon(Icons.close),
-                              ),
-                            ),
-                            Expanded(
-                              child: InteractiveViewer(
-                                child: _imageAt(
-                                  _currentIndex,
-                                  theme,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  onTap: () => _openPhoto(_currentIndex, theme),
                   onHorizontalDragEnd: (details) {
                     if (count > 1 &&
                         (details.primaryVelocity ?? 0).abs() > 80) {
@@ -284,59 +260,48 @@ class _RoomTypeDetailContentState extends State<RoomTypeDetailContent> {
     );
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          main,
-          if (count > 1)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  tooltip: '上一張照片',
-                  onPressed: () => setState(
-                    () => _currentIndex = (_currentIndex - 1 + count) % count,
-                  ),
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Text('${_currentIndex + 1} / $count'),
-                IconButton(
-                  tooltip: '下一張照片',
-                  onPressed: () => setState(
-                    () => _currentIndex = (_currentIndex + 1) % count,
-                  ),
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
-          if (_appearance.showThumbnails && count > 0) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 72,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: count,
-                itemBuilder: (context, index) => GestureDetector(
-                  onTap: () => setState(() => _currentIndex = index),
-                  child: Container(
-                    width: 82,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _currentIndex == index
-                            ? theme.primaryColor
-                            : theme.cardBorderColor,
-                        width: 2,
-                      ),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _imageAt(index, theme, fit: BoxFit.cover),
-                  ),
+      child: RoomDetailPhotoGallery(
+        layout: _appearance.photoLayout,
+        count: count,
+        selected: _currentIndex,
+        showThumbnails: _appearance.showThumbnails,
+        aspectRatio: roomImageRatio(_appearance.imageAspect),
+        radius: _appearance.cornerRadius,
+        accent: theme.primaryColor,
+        main: main,
+        imageBuilder: (index) => _imageAt(index, theme, fit: fit),
+        onSelected: (index) => setState(() => _currentIndex = index),
+        onOpen: (index) => _openPhoto(index, theme),
+      ),
+    );
+  }
+
+  void _openPhoto(int index, HomeThemeModel theme) {
+    setState(() => _currentIndex = index);
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: SizedBox(
+          width: 900,
+          height: MediaQuery.sizeOf(context).height * .8,
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  tooltip: '關閉大圖',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
                 ),
               ),
-            ),
-          ],
-        ],
+              Expanded(
+                child: InteractiveViewer(
+                  child: _imageAt(_currentIndex, theme, fit: BoxFit.contain),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

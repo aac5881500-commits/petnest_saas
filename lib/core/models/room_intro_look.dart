@@ -2,6 +2,7 @@
 class RoomIntroLook {
   const RoomIntroLook({
     this.textSize = 'standard',
+    this.fontFamily = '',
     this.align = 'start',
     this.density = 'standard',
     this.border = true,
@@ -12,7 +13,23 @@ class RoomIntroLook {
     this.backgroundColor = 0xfff5f3ef,
     this.backgroundAssetId = '',
   });
-  final String textSize, align, density, background, backgroundAssetId;
+  static const fonts = <String, String>{
+    '': '跟隨店家主題',
+    'jfOpenHuninn': '粉圓體',
+    'NotoSansTC': '思源黑體 TC',
+    'NotoSerifTC': '思源宋體 TC',
+    'ChironSungHK': '昭源宋體',
+  };
+  String? get appliedFontFamily =>
+      fontFamily.isNotEmpty && fonts.containsKey(fontFamily)
+      ? fontFamily
+      : null;
+  final String fontFamily,
+      textSize,
+      align,
+      density,
+      background,
+      backgroundAssetId;
   final bool border, shadow, showDimensions;
   final double radius;
   final int backgroundColor;
@@ -27,6 +44,7 @@ class RoomIntroLook {
       ? 20
       : 12;
   RoomIntroLook copyWith({
+    String? fontFamily,
     String? textSize,
     String? align,
     String? density,
@@ -38,6 +56,7 @@ class RoomIntroLook {
     int? backgroundColor,
     String? backgroundAssetId,
   }) => RoomIntroLook(
+    fontFamily: fontFamily ?? this.fontFamily,
     textSize: textSize ?? this.textSize,
     align: align ?? this.align,
     density: density ?? this.density,
@@ -50,6 +69,7 @@ class RoomIntroLook {
     backgroundAssetId: backgroundAssetId ?? this.backgroundAssetId,
   );
   Map<String, dynamic> toMap() => {
+    'fontFamily': appliedFontFamily ?? '',
     'textSize': textSize,
     'align': align,
     'density': density,
@@ -69,6 +89,7 @@ class RoomIntroLook {
     final color = m['backgroundColor'];
     final id = '${m['backgroundAssetId'] ?? ''}'.trim();
     return RoomIntroLook(
+      fontFamily: choice('fontFamily', fonts.keys.toList(), ''),
       textSize: choice('textSize', ['small', 'standard', 'large'], 'standard'),
       align: choice('align', ['start', 'center'], 'start'),
       density: choice('density', ['compact', 'standard', 'wide'], 'standard'),

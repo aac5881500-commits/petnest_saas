@@ -433,7 +433,7 @@ void main() {
     );
     expect(
       PlatformMediaCategories.label(PlatformMediaCategories.dailyCareIcon),
-      '每日照護小圖示',
+      '共用小圖示',
     );
     final DailyCareSettingModel setting = const DailyCareSettingModel()
         .copyWith(

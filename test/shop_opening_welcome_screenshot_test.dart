@@ -1,5 +1,7 @@
 // 檔案名稱：test/shop_opening_welcome_screenshot_test.dart
 // 功能說明：以正式本機字體與照片驗證三種尺寸的 Flutter 畫面。
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,8 @@ import 'package:petnest_saas/features/auth/pages/shop_opening_welcome_page.dart'
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // 字形及少量邊緣的點陣化依宿主平台不同，保留各平台逐像素基準。
+  final goldenDirectory = Platform.isWindows ? 'goldens/windows' : 'goldens';
   for (final entry in <String, Size>{
     'phone_320': const Size(320, 800),
     'phone_390': const Size(390, 844),
@@ -51,7 +55,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byKey(const ValueKey('welcome-capture')),
-        matchesGoldenFile('goldens/shop_opening_${entry.key}.png'),
+        matchesGoldenFile('$goldenDirectory/shop_opening_${entry.key}.png'),
       );
     });
   }

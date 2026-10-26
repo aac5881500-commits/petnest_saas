@@ -1,3 +1,4 @@
+import 'room_intro_typography.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'room_intro_related.dart';
 import 'room_intro_comparison.dart';
@@ -463,10 +464,71 @@ class RoomIntroAppearanceEditorState extends State<RoomIntroAppearanceEditor> {
       ],
     ),
   );
+  Widget _pageFont(RoomIntroLook look, ValueChanged<RoomIntroLook> update) =>
+      Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                widget.detailMode ? '房型詳細：整頁字體' : '房間介紹：整頁字體',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text('選一次，整頁標題、內文、價格與按鈕一起套用。兩頁分別設定、各自保留。'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey<String>(
+                  'room-page-font-${widget.detailMode}-${look.fontFamily}',
+                ),
+                initialValue: look.appliedFontFamily ?? '',
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: '整頁字體'),
+                items: <DropdownMenuItem<String>>[
+                  for (final entry in RoomIntroLook.fonts.entries)
+                    DropdownMenuItem(
+                      value: entry.key,
+                      child: Text(
+                        entry.value,
+                        style: TextStyle(
+                          fontFamily: entry.key.isEmpty ? null : entry.key,
+                        ),
+                      ),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) update(look.copyWith(fontFamily: value));
+                },
+              ),
+              const SizedBox(height: 12),
+              RoomIntroTypography(
+                look: look,
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '舒適貓咪客房',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text('溫暖安心的住宿空間 · NT\$ 800 / 晚'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
   List<Widget> _listSettings(List<Map<String, dynamic>> rooms) {
     final s = _draft.list;
     final ordered = s.ordered(rooms);
     return [
+      _pageFont(s.look, (look) => _list(s.copyWith(look: look))),
       _combo(),
       const Text('排版選擇', style: TextStyle(fontWeight: FontWeight.bold)),
       _layouts(
@@ -590,6 +652,7 @@ class RoomIntroAppearanceEditorState extends State<RoomIntroAppearanceEditor> {
   ) {
     final s = _draft.detail;
     return [
+      _pageFont(s.look, (look) => _detail(s.copyWith(look: look))),
       _combo(),
       DropdownButtonFormField<String>(
         initialValue: selected,
@@ -645,6 +708,18 @@ class RoomIntroAppearanceEditorState extends State<RoomIntroAppearanceEditor> {
         padding: EdgeInsets.symmetric(vertical: 12),
         child: Text('圖片與文字', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
+      _choices('照片排版', s.photoLayout, const {
+        'bottom': '下方縮圖',
+        'left': '左側縮圖',
+        'right': '右側縮圖',
+        'overlay': '照片內浮動縮圖',
+        'collage': '主圖＋多圖拼貼',
+        'grid': '多圖網格',
+      }, (v) => _detail(s.copyWith(photoLayout: v))),
+      const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: Text('照片排版可搭配上方任一詳細頁版型。拼貼與網格會同時呈現多張照片，點照片可放大；僅一張時自動顯示主圖。'),
+      ),
       _choices('照片比例', s.imageAspect, const {
         'square': '正方形',
         'landscape': '4:3',
@@ -655,7 +730,7 @@ class RoomIntroAppearanceEditorState extends State<RoomIntroAppearanceEditor> {
         'contain': '完整顯示',
       }, (v) => _detail(s.copyWith(imageFit: v))),
       _toggle(
-        '顯示縮圖列（關閉後仍可用左右按鈕切換）',
+        '顯示縮圖導覽（拼貼與網格仍會顯示多張照片）',
         s.showThumbnails,
         (v) => _detail(s.copyWith(showThumbnails: v)),
       ),

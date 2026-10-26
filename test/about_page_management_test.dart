@@ -183,6 +183,56 @@ void main() {
     expect(find.text('已儲存'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('儲存期間後續輸入仍保留為未儲存草稿', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final saving = Completer<void>();
+    final writes = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShopAboutManagePage(
+          shopId: 'local',
+          shopStream: Stream.value(shop),
+          saveAbout: (data) async {
+            writes.add(Map.of(data));
+            if (writes.length == 1) await saving.future;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '這次送出的標題');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '儲存'));
+    await tester.pump();
+    expect(writes.single['aboutTitle'], '這次送出的標題');
+    // The text-input connection may receive IME or keyboard updates after
+    // submission even while the editor ignores pointer events.
+    tester.testTextInput.enterText('送出後繼續輸入的標題');
+    await tester.pump();
+    saving.complete();
+    await tester.pumpAndSettle();
+    final state =
+        tester.state(find.byType(ShopAboutManagePage))
+            as ShopDashboardLeaveAware;
+    expect(state.dashboardHasUnsavedChanges, isTrue);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+      '送出後繼續輸入的標題',
+    );
+    expect(find.text('有未儲存變更'), findsOneWidget);
+    ScaffoldMessenger.of(
+      tester.element(find.byType(ShopAboutManagePage)),
+    ).hideCurrentSnackBar();
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '儲存'));
+    await tester.pumpAndSettle();
+    expect(writes, hasLength(2));
+    expect(writes.last['aboutTitle'], '送出後繼續輸入的標題');
+    expect(state.dashboardHasUnsavedChanges, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('六種結構在手機與桌機，大字、單人團隊及空區塊安全顯示', (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     for (final width in [360.0, 390.0, 430.0, 1200.0]) {

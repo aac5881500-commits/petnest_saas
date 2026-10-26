@@ -10,6 +10,12 @@ const {
   mergeInventoryLines,
 } = require("./store_inventory");
 const {quoteBundle, quoteCart} = require("./store_pricing");
+const {
+  storeOrderRequestIdentity,
+  readStoreOrderReplay,
+  createStoreOrderOnce,
+  storeOrderFailureFromTransaction,
+} = require("./store_order_idempotency");
 const {toInt} = require("../daycare/daycare_utils");
 const {
   loadAppMemberState,
@@ -72,6 +78,16 @@ exports.createStoreOrder = onCall(
       }
 
       const firestore = admin.firestore();
+      const requestIdentity = storeOrderRequestIdentity({
+        shopId, userId, requestData,
+      });
+      const orders = firestore.collection("shops").doc(shopId)
+          .collection("store_orders");
+      const orderRef = requestIdentity ?
+        orders.doc(requestIdentity.orderId) : orders.doc();
+      const replay = await readStoreOrderReplay(orderRef, requestIdentity);
+      if (replay) return replay;
+
       const shopSnapshot = await firestore
           .collection("shops")
           .doc(shopId)
@@ -423,11 +439,6 @@ exports.createStoreOrder = onCall(
       const memberState = await loadAppMemberState(firestore, shopId, userId);
       const requestedPoints = toInt(requestData.requestedPoints, 0);
 
-      const orderRef = firestore
-          .collection("shops")
-          .doc(shopId)
-          .collection("store_orders")
-          .doc();
       const counterRef = firestore
           .collection("shops")
           .doc(shopId)
@@ -439,134 +450,128 @@ exports.createStoreOrder = onCall(
 
       let result;
       try {
-        result = await firestore.runTransaction(async (transaction) => {
-          const counterSnapshot = await transaction.get(counterRef);
-          const current = counterSnapshot.exists ?
-            Number((counterSnapshot.data() || {}).current || 0) :
-            0;
-          const next = current + 1;
-          const orderCode = `${shopId}-S${String(next).padStart(6, "0")}`;
+        result = await createStoreOrderOnce({
+          firestore,
+          orderRef,
+          identity: requestIdentity,
+          create: async (transaction) => {
+            const counterSnapshot = await transaction.get(counterRef);
+            const current = counterSnapshot.exists ?
+              Number((counterSnapshot.data() || {}).current || 0) :
+              0;
+            const next = current + 1;
+            const orderCode = `${shopId}-S${String(next).padStart(6, "0")}`;
 
-          const spendPlan = await prepareSpendDeduct(transaction, {
-            firestore,
-            shopId,
-            userId,
-            bookingId: orderRef.id,
-            setting: pointSetting,
-            channel: "store",
-            isAppMember: memberState.isAppMember,
-            requestedPoints,
-            payableAfterCoupon: subtotal,
-            operatorUid: userId,
-            spendLogId: spendStoreLogId(orderRef.id),
-            extraRef: orderRef,
-          });
-          const pointAmount = spendPlan.pointAmount || 0;
-          const pointsUsed = spendPlan.pointsUsed || 0;
-          const totalAmount = Math.max(0, subtotal - pointAmount);
-
-          if (reservationLines.length > 0) {
-            await applyReservation({
-              transaction,
+            const spendPlan = await prepareSpendDeduct(transaction, {
+              firestore,
               shopId,
-              orderId: orderRef.id,
-              lines: reservationLines,
-              expireAt,
               userId,
+              bookingId: orderRef.id,
+              setting: pointSetting,
+              channel: "store",
+              isAppMember: memberState.isAppMember,
+              requestedPoints,
+              payableAfterCoupon: subtotal,
+              operatorUid: userId,
+              spendLogId: spendStoreLogId(orderRef.id),
+              extraRef: orderRef,
             });
-          }
+            const pointAmount = spendPlan.pointAmount || 0;
+            const pointsUsed = spendPlan.pointsUsed || 0;
+            const totalAmount = Math.max(0, subtotal - pointAmount);
 
-          commitSpendDeduct(transaction, spendPlan);
+            if (reservationLines.length > 0) {
+              await applyReservation({
+                transaction,
+                shopId,
+                orderId: orderRef.id,
+                lines: reservationLines,
+                expireAt,
+                userId,
+              });
+            }
 
-          transaction.set(counterRef, {
-            current: next,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, {merge: true});
+            commitSpendDeduct(transaction, spendPlan);
 
-          for (const promotionId of appliedPromotionIds) {
-            transaction.update(
-                firestore
-                    .collection("shops")
-                    .doc(shopId)
-                    .collection("store_promotions")
-                    .doc(promotionId),
-                {
-                  usedOrderCount: admin.firestore.FieldValue.increment(1),
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                },
-            );
-          }
+            transaction.set(counterRef, {
+              current: next,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, {merge: true});
 
-          transaction.set(orderRef, {
-            orderId: orderRef.id,
-            orderCode,
-            shopId,
-            shopNameSnapshot: normalizeString(shopData.name),
-            userId,
-            items: orderItems,
-            bundles: bundleSnapshots,
-            bundleDiscount: pricedCart.bundleDiscount || 0,
-            originalSubtotal: pricedCart.originalSubtotal,
-            promotionDiscount: pricedCart.promotionDiscount,
-            itemPromotionDiscount: pricedCart.itemPromotionDiscount,
-            campaignDiscount: pricedCart.campaignDiscount,
-            quantityDiscount: pricedCart.quantityDiscount,
-            amountDiscount: pricedCart.amountDiscount,
-            finalSubtotal: pricedCart.finalSubtotal,
-            subtotal,
-            shippingFee: 0,
-            totalAmount,
-            pointAmount,
-            pointsUsed,
-            pointsDiscountAmount: pointAmount,
-            quantityPromotionId: pricedCart.quantityPromotion ?
+            for (const promotionId of appliedPromotionIds) {
+              transaction.update(
+                  firestore
+                      .collection("shops")
+                      .doc(shopId)
+                      .collection("store_promotions")
+                      .doc(promotionId),
+                  {
+                    usedOrderCount: admin.firestore.FieldValue.increment(1),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  },
+              );
+            }
+
+            const order = {
+              orderId: orderRef.id,
+              orderCode,
+              shopId,
+              shopNameSnapshot: normalizeString(shopData.name),
+              userId,
+              items: orderItems,
+              bundles: bundleSnapshots,
+              bundleDiscount: pricedCart.bundleDiscount || 0,
+              originalSubtotal: pricedCart.originalSubtotal,
+              promotionDiscount: pricedCart.promotionDiscount,
+              itemPromotionDiscount: pricedCart.itemPromotionDiscount,
+              campaignDiscount: pricedCart.campaignDiscount,
+              quantityDiscount: pricedCart.quantityDiscount,
+              amountDiscount: pricedCart.amountDiscount,
+              finalSubtotal: pricedCart.finalSubtotal,
+              subtotal,
+              shippingFee: 0,
+              totalAmount,
+              pointAmount,
+              pointsUsed,
+              pointsDiscountAmount: pointAmount,
+              quantityPromotionId: pricedCart.quantityPromotion ?
               normalizeString(pricedCart.quantityPromotion.id) : "",
-            quantityPromotionName: pricedCart.quantityPromotion ?
+              quantityPromotionName: pricedCart.quantityPromotion ?
               normalizeString(pricedCart.quantityPromotion.name) : "",
-            amountPromotionId: pricedCart.amountPromotion ?
+              amountPromotionId: pricedCart.amountPromotion ?
               normalizeString(pricedCart.amountPromotion.id) : "",
-            amountPromotionName: pricedCart.amountPromotion ?
+              amountPromotionName: pricedCart.amountPromotion ?
               normalizeString(pricedCart.amountPromotion.name) : "",
-            fulfillmentType: "pickup",
-            status: "pending_payment",
-            paymentStatus: "unpaid",
-            customerName,
-            customerPhone,
-            pickupNote: normalizeString(settings.pickupNote),
-            shopAddressSnapshot: shopAddressOf(shopData),
-            reservationExpireAt: admin.firestore.Timestamp.fromDate(expireAt),
-            lastPaymentId: "",
-            inventoryReturned: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
+              fulfillmentType: "pickup",
+              status: "pending_payment",
+              paymentStatus: "unpaid",
+              customerName,
+              customerPhone,
+              pickupNote: normalizeString(settings.pickupNote),
+              shopAddressSnapshot: shopAddressOf(shopData),
+              reservationExpireAt: admin.firestore.Timestamp.fromDate(expireAt),
+              lastPaymentId: "",
+              inventoryReturned: false,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
 
-          return {
-            orderId: orderRef.id,
-            orderCode,
-            totalAmount,
-            pointAmount,
-            pointsUsed,
-          };
+            const response = {
+              orderId: orderRef.id,
+              orderCode,
+              shopId,
+              totalAmount,
+              pointAmount,
+              pointsUsed,
+              reservationExpireAt: expireAt.toISOString(),
+            };
+            return {order, response};
+          },
         });
       } catch (error) {
-        if (error instanceof HttpsError) {
-          throw error;
-        }
-        throw new HttpsError(
-            "failed-precondition",
-            error && error.message ? error.message : "無法建立商城訂單",
-        );
+        throw storeOrderFailureFromTransaction(error);
       }
 
-      return {
-        orderId: result.orderId,
-        orderCode: result.orderCode,
-        shopId,
-        totalAmount: result.totalAmount != null ? result.totalAmount : subtotal,
-        pointAmount: result.pointAmount || 0,
-        pointsUsed: result.pointsUsed || 0,
-        reservationExpireAt: expireAt.toISOString(),
-      };
+      return result;
     },
 );

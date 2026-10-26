@@ -68,6 +68,58 @@ class _TourTestPanels extends StatelessWidget {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets('入口階段強調真實卡片，暫停不占下一步位置', (tester) async {
+    for (final width in [320.0, 390.0, 1440.0]) {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      final tour = ShopFeatureTourController(uid: 'u', shopId: 'entry-$width');
+      await tour.load();
+      tour.configure({'ShopCameraAccessPage': true});
+      tour.selectCat = () async => true;
+      var entered = 0;
+      final entry = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShopFeatureTourHost(
+            controller: tour,
+            child: Scaffold(
+              body: Center(
+                child: ShopTourAnchor(
+                  ids: const ['entry:ShopCameraAccessPage'],
+                  child: TextButton(
+                    key: entry,
+                    onPressed: () => entered++,
+                    child: const Text('攝影機分享申請真入口'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tour.start();
+      await tester.pumpAndSettle();
+      expect(find.text('點這裡繼續'), findsOneWidget);
+      expect(find.byKey(const Key('tour-real-entry-hint')), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('暫停導覽')).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const Key('tour-real-entry-hint'))).dy,
+        ),
+      );
+      await tester.tap(find.byKey(entry));
+      expect(entered, 1);
+      expect(tour.paused, isFalse);
+      await tester.tap(find.text('暫停導覽'));
+      await tester.pumpAndSettle();
+      expect(tour.paused, isTrue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      tour.dispose();
+    }
+    await tester.binding.setSurfaceSize(null);
+  });
+
   test('舊進度保留語意，已完成頁不重跑，依新版重點數校正', () async {
     for (final entry in {
       'ShopAddonPage': 4,

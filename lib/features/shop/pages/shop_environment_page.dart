@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_environment_page.dart
 // 功能說明：前台環境介紹頁
 // 顯示店家環境介紹、安心設備、環境照片牆
@@ -10,62 +11,6 @@ import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_intro_view.dart';
-
-const String _environmentHeroImageUrl =
-    'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=1200';
-
-const String _environmentBannerImageUrl =
-    'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=1000';
-
-const String _environmentHeroTitle = '讓每一隻貓咪\n都能像在家一樣放鬆';
-
-const String _environmentHeroSubtitle = '安心・舒適・乾淨的貓咪住宿空間';
-
-const String _environmentBannerTitle = '用心打造每一個細節\n只為給貓咪更好的住宿體驗';
-
-const String _environmentBottomNote = '每隻貓咪個性不同，實際住宿安排會依照貓咪狀況與店家現場評估調整。';
-
-const List<Map<String, String>> _environmentFeatures = [
-  {
-    'icon': 'home',
-    'title': '獨立住宿空間',
-    'description': '每間房皆為獨立空間，降低貓咪壓力，提供安靜舒適的休息環境。',
-    'imageUrl':
-        'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=800',
-  },
-  {
-    'icon': 'clean',
-    'title': '每日清潔消毒',
-    'description': '每日定時清潔與消毒，維持環境乾淨，也讓貓咪住得更安心。',
-    'imageUrl':
-        'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800',
-  },
-  {
-    'icon': 'air',
-    'title': '24 小時冷氣空調',
-    'description': '全館恆溫控制，讓貓咪在炎熱或潮濕天氣中也能舒適休息。',
-    'imageUrl':
-        'https://images.unsplash.com/photo-1495360010541-f48722b34f7d?w=800',
-  },
-];
-
-const List<String> _environmentGalleryImages = [
-  'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600',
-  'https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=600',
-  'https://images.unsplash.com/photo-1495360010541-f48722b34f7d?w=600',
-  'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=600',
-  'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=600',
-  'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=600',
-];
-
-const List<String> _defaultFacilityKeys = <String>[
-  'air_cleaner',
-  'camera_24h',
-  'hospital',
-  'water',
-  'sunlight',
-  'disinfect',
-];
 
 class ShopEnvironmentPage extends StatelessWidget {
   const ShopEnvironmentPage({
@@ -116,6 +61,22 @@ class ShopEnvironmentPage extends StatelessWidget {
                 snapshot.data?.data() as Map<String, dynamic>?;
             final Map<String, dynamic>? environmentIntro =
                 shopData?['environmentIntro'] as Map<String, dynamic>?;
+            if (snapshot.hasError) {
+              return const Scaffold(body: Center(child: Text('環境介紹暫時無法載入')));
+            }
+            if (!snapshot.hasData) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final hasPreview =
+                heroTitle != null ||
+                features != null ||
+                galleryImages != null ||
+                presentation != null;
+            if (!hasPreview && !ShopIntroContent.environment(shopData ?? {})) {
+              return const Scaffold(body: SizedBox.shrink());
+            }
             final bool hasSavedIntro = environmentIntro != null;
 
             final EnvironmentIntroStyle resolvedStyle =
@@ -125,25 +86,25 @@ class ShopEnvironmentPage extends StatelessWidget {
                 heroTitle ??
                 (hasSavedIntro
                     ? (environmentIntro['heroTitle'] ?? '').toString()
-                    : _environmentHeroTitle);
+                    : '');
 
             final String displayHeroSubtitle =
                 heroSubtitle ??
                 (hasSavedIntro
                     ? (environmentIntro['heroSubtitle'] ?? '').toString()
-                    : _environmentHeroSubtitle);
+                    : '');
 
             final String displayBannerTitle =
                 bannerTitle ??
                 (hasSavedIntro
                     ? (environmentIntro['bannerTitle'] ?? '').toString()
-                    : _environmentBannerTitle);
+                    : '');
 
             final String displayBottomNote =
                 bottomNote ??
                 (hasSavedIntro
                     ? (environmentIntro['bottomNote'] ?? '').toString()
-                    : _environmentBottomNote);
+                    : '');
 
             final List<Map<String, dynamic>> displayFeatures =
                 features ??
@@ -151,23 +112,21 @@ class ShopEnvironmentPage extends StatelessWidget {
                   environmentIntro?['features'] ??
                       (hasSavedIntro
                           ? const <Map<String, dynamic>>[]
-                          : _environmentFeatures),
+                          : const <Map<String, dynamic>>[]),
                 );
 
             final List<String> displayGalleryImages =
                 galleryImages ??
                 _readGalleryImageUrls(
                   environmentIntro?['galleryImages'] ??
-                      (hasSavedIntro
-                          ? const <String>[]
-                          : _environmentGalleryImages),
+                      (hasSavedIntro ? const <String>[] : const <String>[]),
                 );
 
             final List<String> selectedFacilityKeys =
                 facilityKeys ??
                 List<String>.from(
                   environmentIntro?['facilityKeys'] ??
-                      (hasSavedIntro ? const <String>[] : _defaultFacilityKeys),
+                      (hasSavedIntro ? const <String>[] : const <String>[]),
                 );
 
             final List<Map<String, dynamic>> displayCareItems =
@@ -180,16 +139,14 @@ class ShopEnvironmentPage extends StatelessWidget {
 
             final String displayHeroImageUrl =
                 heroImageUrl ??
-                (hasSavedIntro
-                        ? (environmentIntro['heroImageUrl'] ?? '')
-                        : _environmentHeroImageUrl)
+                (hasSavedIntro ? (environmentIntro['heroImageUrl'] ?? '') : '')
                     .toString();
 
             final String displayBannerImageUrl =
                 bannerImageUrl ??
                 (hasSavedIntro
                         ? (environmentIntro['bannerImageUrl'] ?? '')
-                        : _environmentBannerImageUrl)
+                        : '')
                     .toString();
 
             final EnvironmentImageFrameSetting resolvedHeroFrame =
