@@ -131,6 +131,9 @@ class AboutAppearanceEditor extends StatelessWidget {
                                 'alternating': '桌機圖文左右交替，手機上下排列',
                                 'principles': '以照護理念卡片為主要內容',
                                 'team': '優先介紹店主與團隊，再接理念經歷',
+                                'boutique': '置中品牌抬頭，優先展示店家資訊與特色',
+                                'highlights': '圖文簡介搭配橫向服務亮點',
+                                'editorial': '專欄抬頭、編號特色與到店資訊',
                               }[e.key]!,
                             ),
                           ],
@@ -141,6 +144,25 @@ class AboutAppearanceEditor extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.lock_outline),
+          title: Text('店家資訊固定顯示'),
+          subtitle: Text('自動引用店家基本資料與營業資訊；所有版型都會保留。'),
+        ),
+        _chips(
+          '店家資訊呈現',
+          setting.contactLayout,
+          AboutPageSetting.contactLayouts,
+          (value) => _change({'contactLayout': value}),
+        ),
+        _chips(
+          '特色展示方式',
+          setting.highlightLayout,
+          AboutPageSetting.highlightLayouts,
+          (value) => _change({'highlightLayout': value}),
         ),
         _chips(
           '字體來源',
@@ -376,6 +398,25 @@ class _AboutLayoutSketch extends CustomPainter {
       Paint()..color = color.withValues(alpha: .3),
     );
     switch (layout) {
+      case 'boutique':
+        box(55, 0, 60, 12);
+        box(25, 20, 120, 6);
+        box(0, 35, 170, 25);
+        break;
+      case 'highlights':
+        box(0, 0, 70, 28);
+        box(80, 0, 90, 8);
+        box(80, 16, 80, 6);
+        for (var i = 0; i < 3; i++) {
+          box(i * 58, 38, 50, 20);
+        }
+        break;
+      case 'editorial':
+        box(0, 0, 170, 3);
+        box(0, 10, 140, 10);
+        box(0, 28, 170, 16);
+        box(0, 50, 170, 8);
+        break;
       case 'brief':
         box(0, 0, 65, 45);
         box(75, 4, 95, 7);

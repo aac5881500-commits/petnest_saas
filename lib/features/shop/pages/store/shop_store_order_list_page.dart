@@ -27,6 +27,8 @@ class ShopStoreOrderListPage extends StatefulWidget {
 
 class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
   String _filter = 'all';
+  String _keyword = '';
+  int _days = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,38 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
 
     return Column(
       children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: TextField(
+            onChanged: (value) => setState(() => _keyword = value),
+            decoration: const InputDecoration(
+              hintText: '搜尋訂單編號、客人、電話或商品',
+              prefixIcon: Icon(Icons.search),
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Wrap(
+            spacing: 8,
+            children: [
+              for (final days in [0, 1, 7, 30])
+                ChoiceChip(
+                  label: Text(
+                    days == 0
+                        ? '全部日期'
+                        : days == 1
+                        ? '今天'
+                        : '近 $days 天',
+                  ),
+                  selected: _days == days,
+                  onSelected: (_) => setState(() => _days = days),
+                ),
+            ],
+          ),
+        ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -63,6 +97,13 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
                   BuildContext context,
                   AsyncSnapshot<List<StoreOrderModel>> snapshot,
                 ) {
+                  if (snapshot.hasError) {
+                    return const StoreEmptyState(
+                      title: '訂單讀取失敗',
+                      subtitle: '請確認網路與訂單查看權限，再重新進入賣場。',
+                      icon: Icons.cloud_off_outlined,
+                    );
+                  }
                   final List<StoreOrderModel> all =
                       snapshot.data ?? const <StoreOrderModel>[];
                   if (snapshot.connectionState == ConnectionState.waiting &&
@@ -79,12 +120,29 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
                   final List<StoreOrderModel> orders = all.where((
                     StoreOrderModel order,
                   ) {
-                    return _filter == 'all' || order.status == _filter;
+                    final key = _keyword.trim().toLowerCase();
+                    final now = DateTime.now();
+                    final start = DateTime(
+                      now.year,
+                      now.month,
+                      now.day,
+                    ).subtract(Duration(days: _days > 0 ? _days - 1 : 0));
+                    return (_filter == 'all' || order.status == _filter) &&
+                        (_days == 0 || !order.createdAt.isBefore(start)) &&
+                        (key.isEmpty ||
+                            [
+                              order.orderCode,
+                              order.customerName,
+                              order.customerPhone,
+                              ...order.items.map((item) => item.productName),
+                            ].any(
+                              (value) => value.toLowerCase().contains(key),
+                            ));
                   }).toList();
                   if (orders.isEmpty) {
                     return const StoreEmptyState(
-                      title: '這個狀態沒有訂單',
-                      subtitle: '試試其他篩選。',
+                      title: '沒有符合條件的訂單',
+                      subtitle: '請調整搜尋文字、日期或訂單狀態。',
                       icon: Icons.filter_alt_outlined,
                     );
                   }

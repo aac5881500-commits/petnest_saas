@@ -31,7 +31,6 @@ class StoreSettingsBasicPage extends StatefulWidget {
 class _StoreSettingsBasicPageState extends State<StoreSettingsBasicPage> {
   final TextEditingController _storeName = TextEditingController();
   final TextEditingController _storeSubtitle = TextEditingController();
-  bool _storefrontEnabled = true;
   bool _loaded = false;
 
   @override
@@ -51,11 +50,7 @@ class _StoreSettingsBasicPageState extends State<StoreSettingsBasicPage> {
     );
     await StoreSettingsService.instance.mergeSettings(
       shopId: widget.shopId,
-      data: <String, dynamic>{
-        'storefrontEnabled': _storefrontEnabled,
-        'storeName': name,
-        'storeDescription': subtitle,
-      },
+      data: <String, dynamic>{'storeName': name, 'storeDescription': subtitle},
     );
     await StoreSettingsService.instance.saveStoreAppearance(
       shopId: widget.shopId,
@@ -80,7 +75,6 @@ class _StoreSettingsBasicPageState extends State<StoreSettingsBasicPage> {
             if (!_loaded && snapshot.hasData) {
               final StoreHomeDisplaySettings home =
                   StoreHomeDisplaySettings.fromMap(snapshot.data!);
-              _storefrontEnabled = snapshot.data!['storefrontEnabled'] != false;
               _storeName.text = home.storeName.isNotEmpty
                   ? home.storeName
                   : home.storeAppearance.storeTitle;
@@ -94,15 +88,9 @@ class _StoreSettingsBasicPageState extends State<StoreSettingsBasicPage> {
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: <Widget>[
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('商城啟用'),
-                    subtitle: const Text('關閉後前台不顯示賣場入口'),
-                    value: _storefrontEnabled,
-                    onChanged: widget.canManage
-                        ? (bool value) =>
-                              setState(() => _storefrontEnabled = value)
-                        : null,
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('營業狀態請在商城設定首頁調整；首頁商城入口可在前台外觀設定調整。'),
                   ),
                   TextField(
                     controller: _storeName,
@@ -730,7 +718,6 @@ class StoreSettingsOrdersPage extends StatefulWidget {
 class _StoreSettingsOrdersPageState extends State<StoreSettingsOrdersPage> {
   final TextEditingController _orderNote = TextEditingController();
   final TextEditingController _cancelRuleNote = TextEditingController();
-  bool _acceptNewOrders = true;
   bool _loaded = false;
 
   @override
@@ -744,7 +731,6 @@ class _StoreSettingsOrdersPageState extends State<StoreSettingsOrdersPage> {
     await StoreSettingsService.instance.mergeSettings(
       shopId: widget.shopId,
       data: <String, dynamic>{
-        'acceptNewOrders': _acceptNewOrders,
         'orderNote': _orderNote.text.trim(),
         'cancelRuleNote': _cancelRuleNote.text.trim(),
       },
@@ -764,7 +750,6 @@ class _StoreSettingsOrdersPageState extends State<StoreSettingsOrdersPage> {
       builder:
           (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
             if (!_loaded && snapshot.hasData) {
-              _acceptNewOrders = snapshot.data!['acceptNewOrders'] != false;
               _orderNote.text = (snapshot.data!['orderNote'] ?? '').toString();
               _cancelRuleNote.text = (snapshot.data!['cancelRuleNote'] ?? '')
                   .toString();
@@ -775,14 +760,9 @@ class _StoreSettingsOrdersPageState extends State<StoreSettingsOrdersPage> {
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: <Widget>[
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('接受新訂單'),
-                    value: _acceptNewOrders,
-                    onChanged: widget.canManage
-                        ? (bool value) =>
-                              setState(() => _acceptNewOrders = value)
-                        : null,
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('開始或暫停接單，請在商城設定首頁的「營業狀態」調整。'),
                   ),
                   TextField(
                     controller: _orderNote,

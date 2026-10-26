@@ -24,6 +24,21 @@ const {
   spendStoreLogId,
 } = require("../points/sync_booking_points");
 
+const {hasStoreEntitlement, canAcceptStoreOrders} = require("./store_access");
+
+/**
+ * @param {Object} shop 店家
+ * @param {Object} settings 商城設定
+ */
+function assertStoreAvailable(shop, settings) {
+  if (!hasStoreEntitlement(shop)) {
+    throw new HttpsError("failed-precondition", "商城尚未開通或方案已到期，暫時無法下單。");
+  }
+  if (!canAcceptStoreOrders(shop, settings)) {
+    throw new HttpsError("failed-precondition", "商城目前暫停接單，請稍後再試。");
+  }
+}
+
 const RESERVATION_MINUTES = 20;
 
 /**
@@ -103,12 +118,6 @@ exports.createStoreOrder = onCall(
             "店家正在進行資料清除，無法建立商城訂單。",
         );
       }
-      const enabledModules = require("../sales/commercial_policy")
-          .effectiveModules(shopData);
-      if (!enabledModules.includes("store")) {
-        throw new HttpsError("failed-precondition", "此店家尚未開放賣場。");
-      }
-
       const settingsSnapshot = await firestore
           .collection("shops")
           .doc(shopId)
@@ -116,9 +125,7 @@ exports.createStoreOrder = onCall(
           .doc("main")
           .get();
       const settings = settingsSnapshot.data() || {};
-      if (settings.storefrontEnabled === false) {
-        throw new HttpsError("failed-precondition", "賣場目前未開放下單。");
-      }
+      assertStoreAvailable(shopData, settings);
 
       const userSnapshot = await firestore
           .collection("users")
@@ -455,6 +462,15 @@ exports.createStoreOrder = onCall(
           orderRef,
           identity: requestIdentity,
           create: async (transaction) => {
+            // 同一交易讀取資格與營業狀態，與暫停接單的並行變更衝突時重試。
+            const liveShop = await transaction.get(
+                firestore.collection("shops").doc(shopId),
+            );
+            const liveSettings = await transaction.get(
+                firestore.collection("shops").doc(shopId)
+                    .collection("store_settings").doc("main"),
+            );
+            assertStoreAvailable(liveShop.data(), liveSettings.data());
             const counterSnapshot = await transaction.get(counterRef);
             const current = counterSnapshot.exists ?
               Number((counterSnapshot.data() || {}).current || 0) :

@@ -119,10 +119,13 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
   }
 
   Future<void> _save() async {
-    if (_formKey.currentState?.validate() != true || _saving) {
+    if (_saving ||
+        _selectingImage ||
+        _formKey.currentState?.validate() != true) {
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() => _saving = true);
 
     try {
@@ -255,142 +258,352 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? '編輯庫存品項' : '新增庫存品項')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            if (_isEditing)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
+    final busy = _saving || _selectingImage;
+    return PopScope(
+      canPop: !busy,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F8FB),
+        appBar: AppBar(title: Text(_isEditing ? '編輯庫存品項' : '新增庫存品項')),
+        bottomNavigationBar: _buildSaveBar(busy),
+        body: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: AbsorbPointer(
+            absorbing: _saving,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 800;
+                    final details = Column(
+                      children: [
+                        _buildBasicInfo(),
+                        const SizedBox(height: 16),
+                        _buildStockSettings(),
+                      ],
+                    );
+                    final image = _section(
+                      title: '品項圖片',
+                      icon: Icons.photo_library_outlined,
+                      subtitle: '選填，方便在庫存列表辨識用品',
+                      child: _buildImagePicker(),
+                    );
+                    return ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.all(wide ? 24 : 16),
+                      children: [
+                        Text(
+                          _isEditing ? '更新品項資料' : '建立新的庫存品項',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          '填寫品項名稱與計量單位，再設定庫存提醒。標示 * 為必填。',
+                          style: TextStyle(
+                            color: Color(0xFF667085),
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (wide)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: details),
+                              const SizedBox(width: 20),
+                              SizedBox(width: 280, child: image),
+                            ],
+                          )
+                        else ...[
+                          details,
+                          const SizedBox(height: 16),
+                          image,
+                        ],
+                        const SizedBox(height: 16),
+                        _buildStockNotice(),
+                      ],
+                    );
+                  },
                 ),
-                child: const Text('目前庫存不可在此直接修改。請使用進貨、手動出庫或盤點調整。'),
-              ),
-            _buildImagePicker(),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '品項名稱',
-                border: OutlineInputBorder(),
-              ),
-              validator: (String? value) {
-                if ((value ?? '').trim().isEmpty) {
-                  return '請輸入品項名稱';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: '說明',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCategory ?? '',
-              decoration: const InputDecoration(
-                labelText: '分類',
-                border: OutlineInputBorder(),
-              ),
-              items: <DropdownMenuItem<String>>[
-                const DropdownMenuItem<String>(
-                  value: '',
-                  child: Text(InventoryConstants.categoryUnspecifiedLabel),
-                ),
-                ...InventoryConstants.categoryDropdownOptions(
-                  _legacyCategory,
-                ).map((String category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
-                  );
-                }),
-              ],
-              onChanged: (String? value) {
-                setState(() {
-                  _selectedCategory = (value == null || value.isEmpty)
-                      ? null
-                      : value;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _skuController,
-              decoration: const InputDecoration(
-                labelText: 'SKU',
-                border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _barcodeController,
-              decoration: const InputDecoration(
-                labelText: '條碼',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _unitController,
-              decoration: const InputDecoration(
-                labelText: '單位',
-                hintText: '例如：包、罐、個',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _safetyStockController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: '安全庫存',
-                helperText: '庫存低於或等於此數量時顯示低庫存',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('允許小數數量'),
-              subtitle: const Text('例如每房每晚扣除 0.5 包貓砂'),
-              value: _allowDecimal,
-              onChanged: (bool value) {
-                setState(() => _allowDecimal = value);
-              },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('啟用'),
-              subtitle: const Text('停用後不可再被新功能選取，歷史紀錄仍可顯示'),
-              value: _enabled,
-              onChanged: (bool value) {
-                setState(() => _enabled = value);
-              },
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: Text(_saving ? '儲存中...' : '儲存'),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+
+  InputDecoration _decoration(String label, {String? hint, String? helper}) =>
+      InputDecoration(
+        labelText: label,
+        hintText: hint,
+        helperText: helper,
+        helperMaxLines: 3,
+        errorMaxLines: 2,
+        border: const OutlineInputBorder(),
+      );
+
+  Widget _buildBasicInfo() => _section(
+    title: '基本資料',
+    subtitle: '清楚命名，方便搜尋與分類管理',
+    icon: Icons.inventory_2_outlined,
+    child: Column(
+      children: [
+        TextFormField(
+          controller: _nameController,
+          textInputAction: TextInputAction.next,
+          decoration: _decoration('品項名稱 *', hint: '例如：豆腐砂 6L、主食罐 80g'),
+          validator: (value) => (value ?? '').trim().isEmpty ? '請輸入品項名稱' : null,
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedCategory ?? '',
+          isExpanded: true,
+          decoration: _decoration('分類', helper: '選填，可依用品類型整理'),
+          items: [
+            const DropdownMenuItem(
+              value: '',
+              child: Text(InventoryConstants.categoryUnspecifiedLabel),
+            ),
+            ...InventoryConstants.categoryDropdownOptions(_legacyCategory).map(
+              (category) => DropdownMenuItem(
+                value: category,
+                child: Text(category, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          onChanged: (value) => setState(
+            () => _selectedCategory = (value == null || value.isEmpty)
+                ? null
+                : value,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _fieldPair(
+          TextFormField(
+            controller: _skuController,
+            textInputAction: TextInputAction.next,
+            decoration: _decoration(
+              '品項編號（SKU）',
+              hint: '例如：CAT-LITTER-001',
+              helper: '選填，店內使用的識別編號',
+            ),
+          ),
+          TextFormField(
+            controller: _barcodeController,
+            textInputAction: TextInputAction.next,
+            decoration: _decoration(
+              '條碼',
+              hint: '輸入商品條碼',
+              helper: '選填，保留條碼開頭的 0',
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _descriptionController,
+          minLines: 2,
+          maxLines: 4,
+          decoration: _decoration('品項說明', hint: '選填，例如品牌、規格或保存注意事項'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildStockSettings() => _section(
+    title: '庫存設定',
+    subtitle: '設定計量方式與補貨提醒',
+    icon: Icons.tune,
+    child: Column(
+      children: [
+        _fieldPair(
+          TextFormField(
+            controller: _unitController,
+            textInputAction: TextInputAction.next,
+            decoration: _decoration(
+              '計量單位 *',
+              hint: '例如：包、罐、瓶、個',
+              helper: '進貨、出庫與耗材共用此單位',
+            ),
+            validator: (value) =>
+                (value ?? '').trim().isEmpty ? '請輸入計量單位' : null,
+          ),
+          TextFormField(
+            controller: _safetyStockController,
+            textInputAction: TextInputAction.done,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: _decoration(
+              '安全庫存 *',
+              hint: '例如：5',
+              helper: '0 表示不設低庫存門檻；缺貨仍會提醒',
+            ),
+            validator: (value) {
+              final quantity = num.tryParse((value ?? '').trim());
+              if (quantity == null || !quantity.isFinite) return '請輸入有效數字';
+              if (quantity < 0) return '安全庫存不可為負數';
+              return null;
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          '存量低於或等於安全庫存時，系統會顯示低庫存提醒。',
+          style: TextStyle(fontSize: 12, color: Color(0xFF667085), height: 1.5),
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('允許小數用量'),
+          subtitle: const Text('適合分裝用品，例如每房每晚使用 0.5 包貓砂'),
+          value: _allowDecimal,
+          onChanged: (value) => setState(() => _allowDecimal = value),
+        ),
+        const Divider(height: 1),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('啟用品項'),
+          subtitle: const Text('停用後無法供新設定選取，歷史紀錄仍會保留'),
+          value: _enabled,
+          onChanged: (value) => setState(() => _enabled = value),
+        ),
+      ],
+    ),
+  );
+
+  Widget _fieldPair(Widget first, Widget second) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 460) {
+        return Column(children: [first, const SizedBox(height: 16), second]);
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: first),
+          const SizedBox(width: 16),
+          Expanded(child: second),
+        ],
+      );
+    },
+  );
+
+  Widget _section({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Widget child,
+  }) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE4E7EC)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF667085),
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 20),
+        child,
+      ],
+    ),
+  );
+
+  Widget _buildStockNotice() => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Theme.of(
+        context,
+      ).colorScheme.primaryContainer.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            _isEditing
+                ? '此頁只更新品項資料。調整現有存量，請使用進貨、出庫或盤點。'
+                : '新建品項的存量為 0。儲存後，請至品項頁使用「進貨」登錄實際數量。',
+            style: const TextStyle(fontSize: 13, height: 1.6),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildSaveBar(bool busy) => Material(
+    color: Colors.white,
+    child: SafeArea(
+      top: false,
+      child: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE4E7EC))),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Align(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1072),
+            child: Row(
+              children: [
+                OutlinedButton(
+                  onPressed: busy ? null : () => Navigator.maybePop(context),
+                  child: const Text('取消'),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: busy ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check, size: 18),
+                  label: Text(
+                    _saving ? '儲存中…' : (_isEditing ? '儲存變更' : '建立品項'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _buildImagePicker() {
     final Uint8List? selectedBytes = _selectedImageBytes;
@@ -404,55 +617,47 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Text(
-          '品項圖片',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-        ),
-        const FixedImageSpecHint(spec: FixedImageSpec.inventoryItem),
-        if (hasImage)
-          Container(
+        AspectRatio(
+          aspectRatio: 1,
+          child: Container(
             width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 160, maxHeight: 240),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: const Color(0xFFF0F5FC),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: const Color(0xFFE0E5ED)),
             ),
             clipBehavior: Clip.antiAlias,
             child: hasSelectedImage
                 ? Image.memory(selectedBytes, fit: BoxFit.contain)
-                : Image.network(
+                : hasExistingImage
+                ? Image.network(
                     existingImageUrl,
                     fit: BoxFit.contain,
-                    errorBuilder:
-                        (
-                          BuildContext context,
-                          Object error,
-                          StackTrace? stackTrace,
-                        ) {
-                          return const Center(child: Text('原圖片載入失敗'));
-                        },
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Text(
+                        '原圖片載入失敗，可重新選擇圖片',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 40,
+                        color: Color(0xFF65749B),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        '尚未選擇品項圖片',
+                        style: TextStyle(color: Color(0xFF667085)),
+                      ),
+                    ],
                   ),
-          )
-        else
-          Container(
-            width: double.infinity,
-            height: 140,
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(Icons.inventory_2_outlined, size: 40),
-                SizedBox(height: 8),
-                Text('尚未選擇品項圖片'),
-              ],
-            ),
           ),
-        const SizedBox(height: 10),
+        ),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -475,6 +680,17 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
                 label: const Text('刪除圖片'),
               ),
           ],
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          '建議使用正方形圖片，選擇後可裁切。',
+          style: TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF667085)),
+        ),
+        const ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          title: Text('查看圖片規格', style: TextStyle(fontSize: 12)),
+          children: [FixedImageSpecHint(spec: FixedImageSpec.inventoryItem)],
         ),
       ],
     );

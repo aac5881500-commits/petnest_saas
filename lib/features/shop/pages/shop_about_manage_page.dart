@@ -788,7 +788,13 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                 index: _tab,
                 children: [
                   _settingsScroll('content', [
-                    const Text('文字沿用首頁摘要與完整介紹的既有資料來源；此處只儲存真實店家內容。'),
+                    const ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.storefront_outlined),
+                      title: Text('店家資訊固定顯示'),
+                      subtitle: Text('電話、地址、營業時間與許可字號自動引用基本資料。可在「排版外觀」選擇呈現方式。'),
+                    ),
+                    const Text('填寫品牌介紹與服務特色，左側可即時預覽；儲存後才會更新前台。'),
                     _sectionTitle('主標題'),
                     _inputBox(
                       controller: _titleController,
@@ -814,6 +820,16 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                       onChanged: (v) =>
                           _changeSetting(_setting.copyWith({'expandable': v})),
                     ),
+                    AboutItemsEditor(
+                      section: 'highlights',
+                      items: _setting.items('highlights'),
+                      shop: _draftShop,
+                      onChanged: (items) => _changeSetting(
+                        _setting.withItems('highlights', items),
+                      ),
+                      onUpload: _uploadContentPhoto,
+                    ),
+                    const Text('可填寫實際提供的房型設備、陪伴方式或清潔安排。空白特色不會顯示。'),
                     AboutItemsEditor(
                       section: 'stories',
                       items: _setting.items('stories'),
@@ -936,12 +952,17 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                                     .sectionOrder[i]]!,
                               ),
                               value: _setting.visible(_setting.sectionOrder[i]),
-                              onChanged: (v) => _changeSetting(
-                                _setting.setVisible(
-                                  _setting.sectionOrder[i],
-                                  v,
-                                ),
-                              ),
+                              subtitle: _setting.sectionOrder[i] == 'contact'
+                                  ? const Text('固定顯示，可調整順序')
+                                  : null,
+                              onChanged: _setting.sectionOrder[i] == 'contact'
+                                  ? null
+                                  : (v) => _changeSetting(
+                                      _setting.setVisible(
+                                        _setting.sectionOrder[i],
+                                        v,
+                                      ),
+                                    ),
                             ),
                           ),
                           IconButton(

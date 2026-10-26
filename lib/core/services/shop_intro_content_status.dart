@@ -60,7 +60,7 @@ class ShopIntroContent {
     }
     final setting = AboutPageSetting.fromShop(shop);
     // A cover, layout, contact details or generic section title alone is not an introduction.
-    return ['stories', 'principles', 'team', 'credentials'].any(
+    return ['highlights', 'stories', 'principles', 'team', 'credentials'].any(
       (section) => setting
           .items(section)
           .any(

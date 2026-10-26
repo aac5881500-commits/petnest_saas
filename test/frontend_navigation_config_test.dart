@@ -19,6 +19,56 @@ void main() {
     loggedIn: true,
   );
 
+  testWidgets('新增底欄樣式讀寫與窄版呈現', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final appearance in [
+      FrontendNavigationConfig.appearanceFloatingIsland,
+      FrontendNavigationConfig.appearanceSegmented,
+      FrontendNavigationConfig.appearanceHomeFocus,
+    ]) {
+      final draft = FrontendNavigationConfig.defaults().copyWith(
+        style: FrontendNavigationConfig.styleBottom,
+        bottomAppearance: appearance,
+      );
+      final restored = FrontendNavigationConfig.fromMap(draft.toMap());
+      expect(restored, draft);
+      expect(restored.isFloatingBar, isTrue);
+      for (final surface in [
+        FrontendNavigationConfig.surfaceOpaque,
+        FrontendNavigationConfig.surfaceTranslucent,
+        FrontendNavigationConfig.surfaceTransparent,
+      ]) {
+        String? tapped;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              bottomNavigationBar: ModernBottomNavigation(
+                slots: restored.resolvedBottomSlots(openShop),
+                theme: HomeThemeModel.modernDefault,
+                selectedId: 'home',
+                appearance: appearance,
+                surface: surface,
+                onSelect: (item) => tapped = item.id,
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('首頁'));
+        expect(tapped, 'home');
+      }
+    }
+    expect(
+      FrontendNavigationConfig.fromMap({
+        'bottomNavigationAppearance': 'unknown',
+      }).bottomAppearance,
+      FrontendNavigationConfig.appearanceAttached,
+    );
+  });
+
   test('舊資料沒有 navigationStyle 時使用側邊選單', () {
     final FrontendNavigationConfig config = FrontendNavigationConfig.fromMap(
       <String, dynamic>{'headerSubtitle': 'hi'},
@@ -92,7 +142,10 @@ void main() {
     final FrontendNavigationConfig config = FrontendNavigationConfig.fromMap(
       <String, dynamic>{'navigationStyle': 'bottom'},
     );
-    expect(config.bottomAppearance, FrontendNavigationConfig.appearanceAttached);
+    expect(
+      config.bottomAppearance,
+      FrontendNavigationConfig.appearanceAttached,
+    );
     expect(config.bottomSurface, FrontendNavigationConfig.surfaceOpaque);
     final FrontendNavigationConfig unknown = FrontendNavigationConfig.fromMap(
       <String, dynamic>{
@@ -100,7 +153,10 @@ void main() {
         'bottomNavigationSurface': 'blur',
       },
     );
-    expect(unknown.bottomAppearance, FrontendNavigationConfig.appearanceAttached);
+    expect(
+      unknown.bottomAppearance,
+      FrontendNavigationConfig.appearanceAttached,
+    );
     expect(unknown.bottomSurface, FrontendNavigationConfig.surfaceOpaque);
   });
 
@@ -149,9 +205,7 @@ void main() {
     expect(find.text('已使用'), findsWidgets);
   });
 
-  testWidgets('店家選單只對店主顯示回後台，主要分頁返回回到店家首頁', (
-    tester,
-  ) async {
+  testWidgets('店家選單只對店主顯示回後台，主要分頁返回回到店家首頁', (tester) async {
     final List<FrontendNavigationItem?> slots =
         FrontendNavigationConfig.defaults().resolvedBottomSlots(openShop);
     await tester.pumpWidget(
@@ -236,11 +290,7 @@ void main() {
     await tester.tap(find.text('返回平台'));
     await tester.pumpAndSettle();
 
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: _ShopShell(),
-      ),
-    );
+    await tester.pumpWidget(const MaterialApp(home: _ShopShell()));
     await tester.tap(find.text('我的訂單'));
     await tester.pumpAndSettle();
     expect(find.text('訂單頁'), findsOneWidget);

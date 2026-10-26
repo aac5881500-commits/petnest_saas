@@ -3,6 +3,7 @@
 // 🧹 住宿／安親耗材設定頁
 
 import 'dart:async';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';
@@ -17,9 +18,18 @@ import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_item_p
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_status_chip.dart';
 
 class ShopBookingSupplySettingsPage extends StatelessWidget {
-  const ShopBookingSupplySettingsPage({super.key, required this.shopId});
+  const ShopBookingSupplySettingsPage({
+    super.key,
+    required this.shopId,
+    this.memberData,
+  });
 
   final String shopId;
+  final Map<String, dynamic>? memberData;
+  bool get _canManage => ShopService.instance.hasPermission(
+    memberData,
+    ShopPermissionKeys.manageInventory,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -40,11 +50,15 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
   Widget _page(BuildContext context, {required bool daycareOn}) {
     return Scaffold(
       appBar: AppBar(title: Text(daycareOn ? '住宿／安親耗材設定' : '住宿耗材設定')),
-      floatingActionButton: FloatingActionButton(
-        tooltip: '新增服務耗材',
-        onPressed: () => _openEditor(context: context),
-        child: const Icon(Icons.add),
-      ),
+      backgroundColor: const Color(0xFFF6F8FB),
+      floatingActionButton: _canManage
+          ? FloatingActionButton.extended(
+              tooltip: '新增服務耗材',
+              onPressed: () => _openEditor(context: context),
+              icon: const Icon(Icons.add),
+              label: const Text('新增耗材'),
+            )
+          : null,
       body: StreamBuilder<List<BookingSupplySettingModel>>(
         stream: BookingSupplySettingService.instance.streamSettings(shopId),
         builder:
@@ -57,6 +71,17 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
 
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      '暫時無法讀取耗材設定，請返回後重試。',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
               final List<BookingSupplySettingModel> settings =
                   snapshot.data ?? const <BookingSupplySettingModel>[];
 
@@ -68,6 +93,11 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
                     children: <Widget>[
                       _IntroCard(daycareOn: daycareOn),
+                      if (!_canManage)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text('目前為唯讀模式；編輯耗材需要管理庫存權限。'),
+                        ),
                       const SizedBox(height: 12),
                       if (settings.isEmpty)
                         _EmptySupplies(daycareOn: daycareOn)
@@ -79,10 +109,12 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
                             child: _SettingCard(
                               daycareOn: daycareOn,
                               setting: setting,
-                              onTap: () => _openEditor(
-                                context: context,
-                                setting: setting,
-                              ),
+                              onTap: !_canManage
+                                  ? null
+                                  : () => _openEditor(
+                                      context: context,
+                                      setting: setting,
+                                    ),
                             ),
                           ),
                     ],
@@ -98,6 +130,7 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
     required BuildContext context,
     BookingSupplySettingModel? setting,
   }) async {
+    if (!_canManage) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
@@ -192,7 +225,7 @@ class _SettingCard extends StatelessWidget {
 
   final bool daycareOn;
   final BookingSupplySettingModel setting;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

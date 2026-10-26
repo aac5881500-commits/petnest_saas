@@ -249,7 +249,16 @@ void main() {
                 child: ModernHomeAboutSection(
                   theme: theme,
                   setting: setting,
-                  shop: const <String, dynamic>{'name': '很長的店名用來確認品牌卡不會爆版'},
+                  shop: const <String, dynamic>{
+                    'name': '很長的店名用來確認品牌卡不會爆版',
+                    'homeAppearance': {
+                      'aboutPage': {
+                        'stories': [
+                          {'title': '測試品牌故事'},
+                        ],
+                      },
+                    },
+                  },
                   environmentIntro: const <String, dynamic>{},
                   shopName: '很長的店名用來確認品牌卡不會爆版',
                   logoUrl: '',
@@ -277,7 +286,15 @@ void main() {
                 layout: HomeAboutLayouts.imageEntry,
                 showImage: true,
               ),
-              shop: const <String, dynamic>{},
+              shop: const <String, dynamic>{
+                'homeAppearance': {
+                  'aboutPage': {
+                    'stories': [
+                      {'title': '測試品牌故事'},
+                    ],
+                  },
+                },
+              },
               environmentIntro: const <String, dynamic>{},
               shopName: '毛孩旅店',
               logoUrl: '',
@@ -481,7 +498,15 @@ void main() {
               child: ModernHomeAboutSection(
                 theme: HomeThemeModel.modernDefault,
                 setting: setting,
-                shop: const <String, dynamic>{},
+                shop: const <String, dynamic>{
+                  'homeAppearance': {
+                    'aboutPage': {
+                      'stories': [
+                        {'title': '測試品牌故事'},
+                      ],
+                    },
+                  },
+                },
                 environmentIntro: const <String, dynamic>{},
                 shopName: '毛孩旅店',
                 logoUrl: '',
@@ -656,7 +681,15 @@ void main() {
               child: ModernHomeAboutSection(
                 theme: HomeThemeModel.modernDefault,
                 setting: setting,
-                shop: const <String, dynamic>{},
+                shop: const <String, dynamic>{
+                  'homeAppearance': {
+                    'aboutPage': {
+                      'stories': [
+                        {'title': '測試品牌故事'},
+                      ],
+                    },
+                  },
+                },
                 environmentIntro: const <String, dynamic>{},
                 shopName: '毛孩旅店',
                 logoUrl: '',

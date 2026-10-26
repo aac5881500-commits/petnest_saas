@@ -180,7 +180,7 @@ class _ItemEditorState extends State<_ItemEditor> {
           ),
           onChanged: (v) => widget.onChanged(widget.item.copyWith(text: v)),
         ),
-        if (widget.section == 'principles')
+        if (['principles', 'highlights'].contains(widget.section))
           DropdownButtonFormField<String>(
             initialValue:
                 const [
@@ -206,17 +206,18 @@ class _ItemEditorState extends State<_ItemEditor> {
             onChanged: (v) => widget.onChanged(widget.item.copyWith(icon: v)),
           ),
         const SizedBox(height: 12),
-        AboutMediaField(
-          value: widget.item.image,
-          shop: widget.shop,
-          onChanged: (image) =>
-              widget.onChanged(widget.item.copyWith(image: image)),
-          allowLibrary:
-              widget.section == 'stories' || widget.section == 'principles',
-          allowFirst:
-              widget.section == 'stories' || widget.section == 'principles',
-          onUpload: widget.onUpload,
-        ),
+        if (widget.section != 'highlights')
+          AboutMediaField(
+            value: widget.item.image,
+            shop: widget.shop,
+            onChanged: (image) =>
+                widget.onChanged(widget.item.copyWith(image: image)),
+            allowLibrary:
+                widget.section == 'stories' || widget.section == 'principles',
+            allowFirst:
+                widget.section == 'stories' || widget.section == 'principles',
+            onUpload: widget.onUpload,
+          ),
         if (widget.section == 'credentials')
           const Text('此處為店家自行提供的經歷或證明，不代表平台認證。'),
       ],

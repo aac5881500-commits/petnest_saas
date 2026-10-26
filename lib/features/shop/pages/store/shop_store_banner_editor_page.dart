@@ -1,3 +1,4 @@
+import '../../widgets/store/store_banner_template_picker.dart';
 // 檔案名稱：lib/features/shop/pages/store/shop_store_banner_editor_page.dart
 // 功能說明：活動海報編輯器：首頁 / 商城共用 StoreBannerView。
 // scope 決定儲存位置與連結選項，不要複製第二套 Editor。
@@ -770,7 +771,9 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('套用快速版型？'),
-          content: const Text('套用後會調整目前文字、漸層與按鈕位置。'),
+          content: const Text(
+            '保留目前圖片與文案，重新安排字級、文字位置、漸層與按鈕。其他自訂文字會由模板的標題與副標題取代。',
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -797,6 +800,8 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
         imageStoragePath: imagePath,
       );
       _cta.text = _draft.ctaText;
+      _dirty = true;
+      _tabs.animateTo(template == StoreBannerTemplates.imageOnly ? 0 : 2);
       String? titleId;
       for (final StoreBannerTextElement item in _draft.textElements) {
         if (item.id.endsWith('_title')) {
@@ -1005,7 +1010,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(16, 10, 16, 10),
                     child: Text(
-                      '此海報尚未轉為固定成品，重新發布後可避免不同裝置跑版。',
+                      '調整完成後，按「預覽海報」確認，再發布套用。',
                       style: TextStyle(height: 1.4),
                     ),
                   ),
@@ -1173,23 +1178,7 @@ class _PreviewBlock extends StatelessWidget {
                     : '切到「圖片」分頁可拖曳調整顯示位置',
             }, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
-            const Text('快速版型', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: StoreBannerTemplates.idsFor(scope).map((String value) {
-                final String label =
-                    value == StoreBannerTemplates.promo &&
-                        scope == PetNestBannerScope.home
-                    ? '活動宣傳'
-                    : StoreBannerTemplates.label(value);
-                return ActionChip(
-                  label: Text(label),
-                  onPressed: () => onTemplate(value),
-                );
-              }).toList(),
-            ),
+            StoreBannerTemplatePicker(scope: scope, onSelected: onTemplate),
           ],
         ),
       ),
@@ -1244,36 +1233,14 @@ class _EditorColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
-        if (onTemplate != null) ...<Widget>[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '快速版型',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
+        if (onTemplate != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: StoreBannerTemplates.idsFor(scope).map((String value) {
-                final String label =
-                    value == StoreBannerTemplates.promo &&
-                        scope == PetNestBannerScope.home
-                    ? '活動宣傳'
-                    : StoreBannerTemplates.label(value);
-                return ActionChip(
-                  label: Text(label),
-                  onPressed: () => onTemplate!(value),
-                );
-              }).toList(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: StoreBannerTemplatePicker(
+              scope: scope,
+              onSelected: onTemplate!,
             ),
           ),
-        ],
         TabBar(
           controller: tabs,
           isScrollable: true,
@@ -1458,10 +1425,23 @@ class _ImagePanel extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: <Widget>[
-        FixedImageSpecHint(
-          spec: scope == PetNestBannerScope.home
-              ? FixedImageSpec.homeBanner
-              : FixedImageSpec.storeBanner,
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: const Text(
+            '圖片上傳建議',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          subtitle: const Text(
+            '16:9 橫幅 · 建議 1600 × 900 · 最大 5 MB',
+            style: TextStyle(fontSize: 12),
+          ),
+          children: <Widget>[
+            FixedImageSpecHint(
+              spec: scope == PetNestBannerScope.home
+                  ? FixedImageSpec.homeBanner
+                  : FixedImageSpec.storeBanner,
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(

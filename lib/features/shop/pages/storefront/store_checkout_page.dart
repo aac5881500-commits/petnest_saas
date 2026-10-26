@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_purchase_gate.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -20,6 +21,8 @@ import 'package:petnest_saas/core/services/store_pricing_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/store_settings_service.dart';
 import 'package:petnest_saas/core/services/store_stock_helper.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_product_price_view.dart';
 import 'package:petnest_saas/features/shop/widgets/store/storefront_theme.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
@@ -169,6 +172,23 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
     final submittedPoints = _requestedPoints;
     setState(() => _submitting = true);
     try {
+      // 已成立或結果未知的請求仍走原本恢復流程；伺服器會判斷是否為舊單。
+      if (!_checkout.hasUnresolvedCreation) {
+        final shop = await ShopService.instance.getShop(widget.shopId);
+        final settings =
+            (await StoreSettingsService.instance
+                    .settingsRef(widget.shopId)
+                    .get())
+                .data();
+        if (!StorefrontAccess.canAcceptOrders(shop: shop, settings: settings)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('商城尚未營業、已到期或暫停接單，請稍後再試。')),
+            );
+          }
+          return;
+        }
+      }
       final outcome = await _checkout.run(
         newOrderRequestId: () =>
             FirebaseFirestore.instance.collection('checkout_requests').doc().id,
@@ -284,7 +304,10 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      StorePurchaseGate(shopId: widget.shopId, builder: _buildPage);
+
+  Widget _buildPage(BuildContext context, bool canPurchase) {
     return StorefrontTheme(
       shopId: widget.shopId,
       shopTheme: widget.theme,
@@ -641,6 +664,9 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
                                             FilledButton(
                                               onPressed:
                                                   _submitting ||
+                                                      (!canPurchase &&
+                                                          !_checkout
+                                                              .hasUnresolvedCreation) ||
                                                       (!_checkout
                                                               .hasUnresolvedCreation &&
                                                           ((payable > 0 &&

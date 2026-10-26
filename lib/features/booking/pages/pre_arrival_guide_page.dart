@@ -13,9 +13,11 @@ class PreArrivalGuidePage extends StatefulWidget {
     super.key,
     required this.guide,
     this.progressScope,
+    this.embedded = false,
   });
 
   final PreArrivalGuideModel guide;
+  final bool embedded;
 
   /// Null for shop previews: preview checks never alter customer progress.
   final String? progressScope;
@@ -100,6 +102,7 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
         return Scaffold(
           backgroundColor: BookingDetailUi.of(context).background,
           appBar: AppBar(
+            automaticallyImplyLeading: !widget.embedded,
             title: Text(guide.displayTitle),
             backgroundColor: BookingDetailUi.of(context).background,
           ),

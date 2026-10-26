@@ -126,8 +126,43 @@ class AboutPageSetting {
     'alternating': '圖文交錯版',
     'principles': '理念卡片版',
     'team': '團隊版',
+    'boutique': '品牌名片版',
+    'highlights': '特色導覽版',
+    'editorial': '雜誌專欄版',
   };
+  static const contactLayouts = {
+    'list': '經典清單',
+    'tiles': '資訊方格',
+    'brand': '品牌名片',
+    'visit': '到店指南',
+  };
+  static const highlightLayouts = {
+    'cards': '圖示卡片',
+    'ribbon': '橫向亮點',
+    'numbered': '編號專欄',
+  };
+  String get contactLayout => choice(
+    'contactLayout',
+    contactLayouts.keys.toList(),
+    layout == 'boutique'
+        ? 'brand'
+        : layout == 'editorial'
+        ? 'visit'
+        : layout == 'highlights'
+        ? 'tiles'
+        : 'list',
+  );
+  String get highlightLayout => choice(
+    'highlightLayout',
+    highlightLayouts.keys.toList(),
+    layout == 'editorial'
+        ? 'numbered'
+        : layout == 'highlights'
+        ? 'ribbon'
+        : 'cards',
+  );
   static const sectionNames = {
+    'highlights': '店家特色',
     'stories': '品牌故事',
     'principles': '照護理念',
     'team': '團隊介紹',
@@ -157,11 +192,16 @@ class AboutPageSetting {
   }
 
   bool visible(String section) =>
+      section == 'contact' ||
       _raw['visibility'] is! Map ||
       (_raw['visibility'] as Map)[section] != false;
   List<String> get sectionOrder {
     final raw = _raw['sectionOrder'];
-    final defaults = layout == 'team'
+    final defaults = layout == 'boutique'
+        ? ['contact', 'highlights']
+        : layout == 'highlights'
+        ? ['highlights', 'principles']
+        : layout == 'team'
         ? ['team', 'principles']
         : ['brief', 'principles'].contains(layout)
         ? ['principles']
@@ -196,7 +236,7 @@ class AboutPageSetting {
     'visibility': {
       if (_raw['visibility'] is Map)
         ...Map<String, dynamic>.from(_raw['visibility']),
-      key: value,
+      key: key == 'contact' ? true : value,
     },
   });
   double number(

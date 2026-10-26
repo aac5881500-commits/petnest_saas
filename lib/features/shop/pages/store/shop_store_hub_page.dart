@@ -2,6 +2,8 @@
 // 功能說明：店家賣場後台
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/storefront_access.dart';
+import 'package:petnest_saas/features/shop/pages/store/shop_store_operations_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_category_page.dart';
@@ -23,14 +25,23 @@ class ShopStoreHubPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool canProducts = _can(ShopPermissionKeys.manageStoreProducts);
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(shopId),
+      builder: (context, snapshot) =>
+          _contents(context, StorefrontAccess.hasEntitlement(snapshot.data)),
+    );
+  }
+
+  Widget _contents(BuildContext context, bool entitled) {
+    final bool canProducts =
+        entitled && _can(ShopPermissionKeys.manageStoreProducts);
     final bool canOrders =
         _can(ShopPermissionKeys.viewStoreOrders) ||
         _can(ShopPermissionKeys.manageStoreOrders);
     final bool canSettings = _can(ShopPermissionKeys.manageStoreSettings);
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Column(
         children: <Widget>[
           StoreAdminSummaryBar(shopId: shopId),
@@ -38,6 +49,7 @@ class ShopStoreHubPage extends StatelessWidget {
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: <Widget>[
+              Tab(text: '營運總覽'),
               Tab(text: '商品'),
               Tab(text: '訂單'),
               Tab(text: '分類'),
@@ -48,6 +60,17 @@ class ShopStoreHubPage extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: <Widget>[
+                Builder(
+                  builder: (context) => ShopStoreOperationsPage(
+                    shopId: shopId,
+                    memberData: memberData,
+                    canProducts: canProducts,
+                    canOrders: canOrders,
+                    canSettings: canSettings,
+                    onTab: (index) =>
+                        DefaultTabController.of(context).animateTo(index),
+                  ),
+                ),
                 ShopStoreProductListPage(
                   shopId: shopId,
                   canManage: canProducts,

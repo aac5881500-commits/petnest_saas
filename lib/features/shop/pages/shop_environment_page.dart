@@ -1,3 +1,4 @@
+import '../data/environment_feature_icons.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_environment_page.dart
 // 功能說明：前台環境介紹頁
@@ -206,32 +207,7 @@ class ShopEnvironmentPage extends StatelessWidget {
   }
 }
 
-IconData environmentIntroIcon(String key) {
-  switch (key) {
-    case 'home':
-      return Icons.home_rounded;
-    case 'clean':
-      return Icons.cleaning_services_rounded;
-    case 'air':
-      return Icons.ac_unit_rounded;
-    case 'camera':
-      return Icons.videocam_rounded;
-    case 'hospital':
-      return Icons.local_hospital_rounded;
-    case 'water':
-      return Icons.water_drop_rounded;
-    case 'sun':
-      return Icons.wb_sunny_rounded;
-    case 'clean_hand':
-      return Icons.clean_hands_rounded;
-    case 'pets':
-      return Icons.pets_rounded;
-    case 'toys':
-      return Icons.toys_rounded;
-    default:
-      return Icons.pets_rounded;
-  }
-}
+IconData environmentIntroIcon(String key) => environmentFeatureIcon(key);
 
 List<String> _readGalleryImageUrls(dynamic raw) {
   if (raw is! List) {

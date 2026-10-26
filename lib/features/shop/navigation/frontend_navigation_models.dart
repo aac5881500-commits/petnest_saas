@@ -390,6 +390,9 @@ class FrontendNavigationConfig {
   static const String appearanceAttached = 'attached';
   static const String appearanceFloatingPill = 'floatingPill';
   static const String appearanceFloatingMinimal = 'floatingMinimal';
+  static const String appearanceFloatingIsland = 'floatingIsland';
+  static const String appearanceSegmented = 'segmented';
+  static const String appearanceHomeFocus = 'homeFocus';
   static const String surfaceOpaque = 'opaque';
   static const String surfaceTranslucent = 'translucent';
   static const String surfaceTransparent = 'transparent';
@@ -409,7 +412,10 @@ class FrontendNavigationConfig {
 
   bool get isFloatingBar =>
       bottomAppearance == appearanceFloatingPill ||
-      bottomAppearance == appearanceFloatingMinimal;
+      bottomAppearance == appearanceFloatingMinimal ||
+      bottomAppearance == appearanceFloatingIsland ||
+      bottomAppearance == appearanceSegmented ||
+      bottomAppearance == appearanceHomeFocus;
 
   bool usesBottomBar(double width) {
     return isBottom && width < phoneBreakpoint;
@@ -432,7 +438,8 @@ class FrontendNavigationConfig {
   }
 
   factory FrontendNavigationConfig.fromMap(Map<String, dynamic>? map) {
-    final FrontendNavigationConfig fallback = FrontendNavigationConfig.defaults();
+    final FrontendNavigationConfig fallback =
+        FrontendNavigationConfig.defaults();
     if (map == null) {
       return fallback;
     }
@@ -451,6 +458,7 @@ class FrontendNavigationConfig {
       used.add(id);
       return id;
     }
+
     return FrontendNavigationConfig(
       style: style,
       drawerItemOrder: _cleanOrder(map['drawerItemOrder']),
@@ -468,6 +476,9 @@ class FrontendNavigationConfig {
     switch (raw?.toString()) {
       case appearanceFloatingPill:
       case appearanceFloatingMinimal:
+      case appearanceFloatingIsland:
+      case appearanceSegmented:
+      case appearanceHomeFocus:
         return raw.toString();
       default:
         return appearanceAttached;
@@ -489,8 +500,9 @@ class FrontendNavigationConfig {
     if (raw is List) {
       for (final Object? item in raw) {
         final String id = item.toString();
-        final FrontendNavigationItem? known =
-            FrontendNavigationRegistry.find(id);
+        final FrontendNavigationItem? known = FrontendNavigationRegistry.find(
+          id,
+        );
         if (known == null || !known.ownerSelectable || seen.contains(id)) {
           continue;
         }
@@ -600,7 +612,9 @@ class FrontendNavigationConfig {
       if (!shop.isEnabled(item)) {
         continue;
       }
-      if (item.requiresLogin && !shop.loggedIn && item.action != FrontendNavAction.member) {
+      if (item.requiresLogin &&
+          !shop.loggedIn &&
+          item.action != FrontendNavAction.member) {
         continue;
       }
       result.add(item);
@@ -661,7 +675,9 @@ class FrontendNavigationConfig {
       return null;
     }
     final FrontendNavigationItem? item = FrontendNavigationRegistry.find(id);
-    if (item == null || !item.ownerSelectable || item.id == FrontendNavigationRegistry.homeId) {
+    if (item == null ||
+        !item.ownerSelectable ||
+        item.id == FrontendNavigationRegistry.homeId) {
       return null;
     }
     if (!shop.isEnabled(item)) {

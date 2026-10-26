@@ -1,3 +1,4 @@
+import 'modern_bottom_navigation.dart';
 import 'home_section_settings_group.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
@@ -497,6 +498,21 @@ class _BottomAppearanceEditor extends StatelessWidget {
             title: '極簡懸浮',
             subtitle: '較矮、少裝飾',
           ),
+          _Choice(
+            value: FrontendNavigationConfig.appearanceFloatingIsland,
+            title: '圓角浮島',
+            subtitle: '方圓底座、選中短線',
+          ),
+          _Choice(
+            value: FrontendNavigationConfig.appearanceSegmented,
+            title: '分格選單',
+            subtitle: '獨立框線、清楚分區',
+          ),
+          _Choice(
+            value: FrontendNavigationConfig.appearanceHomeFocus,
+            title: '首頁聚焦',
+            subtitle: '主題色圓形首頁',
+          ),
         ],
         selected: config.bottomAppearance,
         onSelected: (String value) {
@@ -671,19 +687,28 @@ class _ChoiceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        for (int i = 0; i < options.length; i++) ...<Widget>[
-          if (i > 0) const SizedBox(width: 8),
-          Expanded(
-            child: _MiniPreviewCard(
-              choice: options[i],
-              selected: options[i].value == selected,
-              onTap: () => onSelected(options[i].value),
-            ),
-          ),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 460
+            ? 3
+            : (constraints.maxWidth >= 280 ? 2 : 1);
+        final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final choice in options)
+              SizedBox(
+                width: width,
+                child: _MiniPreviewCard(
+                  choice: choice,
+                  selected: choice.value == selected,
+                  onTap: () => onSelected(choice.value),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -701,9 +726,7 @@ class _MiniPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool floating =
-        choice.value == FrontendNavigationConfig.appearanceFloatingPill ||
-        choice.value == FrontendNavigationConfig.appearanceFloatingMinimal;
+    final bool floating = ModernBottomNavigation.isFloating(choice.value);
     final bool minimal =
         choice.value == FrontendNavigationConfig.appearanceFloatingMinimal;
     final double alpha = switch (choice.value) {
@@ -736,12 +759,56 @@ class _MiniPreviewCard extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.bottomCenter,
                   child: Container(
-                    height: minimal ? 10 : 14,
+                    height: 24,
                     margin: EdgeInsets.symmetric(horizontal: floating ? 6 : 0),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2563EB).withValues(alpha: alpha),
-                      borderRadius: BorderRadius.circular(floating ? 8 : 2),
+                      borderRadius: BorderRadius.circular(
+                        minimal
+                            ? 8
+                            : (choice.value ==
+                                          FrontendNavigationConfig
+                                              .appearanceFloatingIsland ||
+                                      choice.value ==
+                                          FrontendNavigationConfig
+                                              .appearanceSegmented
+                                  ? 4
+                                  : (floating ? 12 : 2)),
+                      ),
                       border: Border.all(color: const Color(0xFF93C5FD)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        for (int i = 0; i < 5; i++)
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: i == 2
+                                  ? Colors.white.withValues(alpha: 0.28)
+                                  : null,
+                              borderRadius: BorderRadius.circular(
+                                choice.value ==
+                                        FrontendNavigationConfig
+                                            .appearanceHomeFocus
+                                    ? 12
+                                    : 3,
+                              ),
+                              border:
+                                  choice.value ==
+                                      FrontendNavigationConfig
+                                          .appearanceSegmented
+                                  ? Border.all(color: Colors.white70)
+                                  : null,
+                            ),
+                            child: Icon(
+                              i == 2 ? Icons.home_rounded : Icons.circle,
+                              size: i == 2 ? 12 : 5,
+                              color: Colors.white,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),

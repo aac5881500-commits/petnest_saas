@@ -2,6 +2,7 @@
 // 功能說明：賣場設定首頁：分區進入，不再一頁滑到底。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_business_status_card.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_sections.dart';
 
 class ShopStoreSettingsPage extends StatelessWidget {
@@ -19,6 +20,7 @@ class ShopStoreSettingsPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: <Widget>[
+        StoreBusinessStatusCard(shopId: shopId, canManage: canManage),
         const Text(
           '商城設定',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
@@ -33,7 +35,7 @@ class ShopStoreSettingsPage extends StatelessWidget {
           context,
           icon: Icons.storefront_outlined,
           title: '商城基本設定',
-          subtitle: '啟用、名稱、副標',
+          subtitle: '商城名稱與副標',
           page: StoreSettingsBasicPage(shopId: shopId, canManage: canManage),
         ),
         _tile(
@@ -71,7 +73,7 @@ class ShopStoreSettingsPage extends StatelessWidget {
           context,
           icon: Icons.receipt_long_outlined,
           title: '訂單設定',
-          subtitle: '接單、備註、取消規則',
+          subtitle: '備註與取消規則',
           page: StoreSettingsOrdersPage(shopId: shopId, canManage: canManage),
         ),
         _tile(

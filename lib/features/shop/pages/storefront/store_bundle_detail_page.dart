@@ -3,6 +3,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_purchase_gate.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';
@@ -82,7 +83,10 @@ class _StoreBundleDetailPageState extends State<StoreBundleDetailPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      StorePurchaseGate(shopId: widget.shopId, builder: _buildPage);
+
+  Widget _buildPage(BuildContext context, bool canPurchase) {
     return StorefrontTheme(
       shopId: widget.shopId,
       shopTheme: widget.theme,
@@ -275,10 +279,16 @@ class _StoreBundleDetailPageState extends State<StoreBundleDetailPage> {
                                   12,
                                 ),
                                 child: FilledButton(
-                                  onPressed: soldOut
+                                  onPressed: !canPurchase || soldOut
                                       ? null
                                       : () => _addToCart(maxSets),
-                                  child: Text(soldOut ? '目前缺貨' : '加入購物車'),
+                                  child: Text(
+                                    !canPurchase
+                                        ? '目前暫停接單'
+                                        : soldOut
+                                        ? '目前缺貨'
+                                        : '加入購物車',
+                                  ),
                                 ),
                               ),
                             ),

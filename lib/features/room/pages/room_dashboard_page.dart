@@ -22,7 +22,7 @@ import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
 import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entry.dart';
 
-enum _RoomQuickFilter { all, needs, checkedIn, vacant }
+import 'package:petnest_saas/features/room/widgets/room_workbench_layout.dart';
 
 enum _DeskView { rooms, reports }
 
@@ -91,12 +91,21 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
   bool _hasPermission = false;
   bool _canManageCameras = false;
   String _selectedRoomTypeFilter = '__all__';
-  _RoomQuickFilter _quickFilter = _RoomQuickFilter.all;
+  RoomOverviewFilter _quickFilter = RoomOverviewFilter.all;
   final Set<String> _collapsedTypes = <String>{};
   final Set<String> _busyKeys = <String>{};
   _DeskView _deskView = _DeskView.rooms;
   String _selectedRoomId = '';
   int _streamRetry = 0;
+  final _roomSearch = TextEditingController();
+  String _roomQuery = '';
+
+  @override
+  void dispose() {
+    _roomSearch.dispose();
+    super.dispose();
+  }
+
   DailyCareReportCenterSnapshot? _lastReport;
 
   DateTime get weekStart {
@@ -481,16 +490,15 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       if (typeFilter != '__all__' && row.typeName != typeFilter) {
         return false;
       }
-      switch (_quickFilter) {
-        case _RoomQuickFilter.all:
-          return true;
-        case _RoomQuickFilter.needs:
-          return row.needsAction(reportsOn: reportsOn);
-        case _RoomQuickFilter.checkedIn:
-          return row.label == '入住中';
-        case _RoomQuickFilter.vacant:
-          return row.label == DaycareOccupancyService.vacantLabel;
-      }
+      return roomOverviewMatches(
+        filter: _quickFilter,
+        status: row.presentation,
+        needsAction: row.needsAction(reportsOn: reportsOn),
+        query: _roomQuery,
+        name: row.name,
+        type: row.typeName,
+        pets: _petNames(row.booking),
+      );
     }).toList();
     final int emptyCount = _count(allRows, DaycareOccupancyService.vacantLabel);
     final int disabledCount = _count(
@@ -621,67 +629,103 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     final Widget header = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (_canManageCameras)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: ShopCameraShareEntry(
-              shopId: widget.shopId,
-              builder: (BuildContext context, ShopCameraShareEntryView view) {
-                return Material(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final heading = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '房務總覽',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                    label: Text(
+                      '${DateFormat('yyyy/MM/dd').format(selectedDate)} · 選擇日期',
+                    ),
+                    onPressed: _busyKeys.isNotEmpty
+                        ? null
+                        : () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (date != null && mounted) {
+                              setState(() => selectedDate = date);
+                            }
+                          },
+                  ),
+                ],
+              );
+              if (!_canManageCameras) {
+                return heading;
+              }
+              final camera = ShopCameraShareEntry(
+                shopId: widget.shopId,
+                builder: (context, view) => Material(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                     onTap: () =>
                         openShopCameraAccessPage(context, widget.shopId),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
+                      padding: const EdgeInsets.all(12),
                       child: Row(
-                        children: <Widget>[
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: _accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.video_camera_front_outlined,
-                              color: _accent,
-                            ),
+                        children: [
+                          const Icon(
+                            Icons.video_camera_front_outlined,
+                            color: _accent,
+                            size: 22,
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
+                              children: [
                                 const Text(
                                   '攝影機分享申請',
-                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                const SizedBox(height: 2),
                                 Text(
                                   view.subtitle,
                                   style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.black54,
+                                    fontSize: 12,
+                                    color: Color(0xFF667085),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right),
+                          const Icon(Icons.chevron_right, size: 18),
                         ],
                       ),
                     ),
                   ),
+                ),
+              );
+              if (constraints.maxWidth < 650) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [heading, camera],
                 );
-              },
-            ),
+              }
+              return Row(
+                children: [
+                  Expanded(child: heading),
+                  SizedBox(width: 320, child: camera),
+                ],
+              );
+            },
           ),
+        ),
         _dateBar(desktop: desktop),
         _filters(rooms: rooms, typeNames: typeNames, typeFilter: typeFilter),
         if (!reportsOn)
@@ -698,25 +742,55 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     );
 
     if (!desktop) {
-      return Column(
-        children: <Widget>[
-          header,
-          Expanded(
-            child: rooms.isEmpty
-                ? const Center(child: Text('尚無房間'))
-                : _groupedList(
-                    filtered: filtered,
-                    allRows: allRows,
-                    bookings: bookings,
-                    occupancies: occupancies,
-                    calendarStatus: calendarStatus,
-                    dense: true,
-                    splitSelect: false,
-                    reportsOn: reportsOn,
-                    selectedRoomId: _selectedRoomId,
+      return NestedScrollView(
+        headerSliverBuilder: (context, innerScrolled) => [
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                header,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  child: TextField(
+                    controller: _roomSearch,
+                    decoration: InputDecoration(
+                      hintText: '搜尋房號、房型或寵物',
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _roomQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: '清除搜尋',
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                _roomSearch.clear();
+                                setState(() => _roomQuery = '');
+                              },
+                            ),
+                    ),
+                    onChanged: (value) =>
+                        setState(() => _roomQuery = value.trim()),
                   ),
+                ),
+              ],
+            ),
           ),
         ],
+        body: rooms.isEmpty
+            ? const Center(child: Text('尚無房間'))
+            : _groupedList(
+                filtered: filtered,
+                allRows: allRows,
+                bookings: bookings,
+                occupancies: occupancies,
+                calendarStatus: calendarStatus,
+                dense: true,
+                splitSelect: false,
+                reportsOn: reportsOn,
+                selectedRoomId: _selectedRoomId,
+              ),
       );
     }
 
@@ -724,39 +798,90 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     _syncDesktopRoomSelection(displayRoomId);
     final _DashRoom? selectedRow = _roomById(filtered, displayRoomId);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Column(
-        children: <Widget>[
-          header,
-          const SizedBox(height: 8),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Expanded(
-                  flex: 42,
-                  child: rooms.isEmpty
-                      ? const Center(child: Text('尚無房間'))
-                      : _groupedList(
-                          filtered: filtered,
-                          allRows: allRows,
-                          bookings: bookings,
-                          occupancies: occupancies,
-                          calendarStatus: calendarStatus,
-                          dense: true,
-                          splitSelect: false,
-                          reportsOn: reportsOn,
-                          workbench: true,
-                          selectedRoomId: displayRoomId,
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1680),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            children: [
+              header,
+              const SizedBox(height: 12),
+              Expanded(
+                child: RoomWorkbenchSplit(
+                  rooms: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '房間列表',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${filtered.length} / ${rooms.length} 間',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF667085),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _roomSearch,
+                        decoration: InputDecoration(
+                          hintText: '搜尋房號、房型或寵物',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: _roomQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: '清除搜尋',
+                                  icon: const Icon(Icons.close, size: 18),
+                                  onPressed: () {
+                                    _roomSearch.clear();
+                                    setState(() => _roomQuery = '');
+                                  },
+                                ),
                         ),
+                        onChanged: (value) =>
+                            setState(() => _roomQuery = value.trim()),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: rooms.isEmpty
+                            ? const Center(child: Text('尚無房間'))
+                            : _groupedList(
+                                filtered: filtered,
+                                allRows: allRows,
+                                bookings: bookings,
+                                occupancies: occupancies,
+                                calendarStatus: calendarStatus,
+                                dense: true,
+                                splitSelect: false,
+                                reportsOn: reportsOn,
+                                workbench: true,
+                                selectedRoomId: displayRoomId,
+                              ),
+                      ),
+                    ],
+                  ),
+                  detail: _roomRecordPane(row: selectedRow),
                 ),
-                const SizedBox(width: 12),
-                Expanded(flex: 58, child: _roomRecordPane(row: selectedRow)),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -813,7 +938,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       ),
       clipBehavior: Clip.antiAlias,
       child: row == null
-          ? const Center(child: Text('請選擇房間'))
+          ? const Center(child: Text('從左側選擇房間，查看房況與當日操作'))
           : RoomCalendarPage(
               key: ValueKey<String>('room-record-${row.id}'),
               embedded: true,
@@ -825,6 +950,11 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
               roomImageUrl: '',
               room: row.room,
               focusDate: selectedDate,
+              onDateSelected: (date) {
+                if (!DateUtils.isSameDay(date, selectedDate)) {
+                  setState(() => selectedDate = date);
+                }
+              },
             ),
     );
   }
@@ -1145,28 +1275,41 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
               children: <Widget>[
                 chip(
                   label: '全部',
-                  selected: _quickFilter == _RoomQuickFilter.all,
+                  selected: _quickFilter == RoomOverviewFilter.all,
                   onTap: () =>
-                      setState(() => _quickFilter = _RoomQuickFilter.all),
+                      setState(() => _quickFilter = RoomOverviewFilter.all),
                 ),
                 chip(
                   label: '需處理',
-                  selected: _quickFilter == _RoomQuickFilter.needs,
+                  selected: _quickFilter == RoomOverviewFilter.needs,
                   onTap: () =>
-                      setState(() => _quickFilter = _RoomQuickFilter.needs),
+                      setState(() => _quickFilter = RoomOverviewFilter.needs),
                 ),
                 chip(
                   label: '入住中',
-                  selected: _quickFilter == _RoomQuickFilter.checkedIn,
-                  onTap: () =>
-                      setState(() => _quickFilter = _RoomQuickFilter.checkedIn),
+                  selected: _quickFilter == RoomOverviewFilter.checkedIn,
+                  onTap: () => setState(
+                    () => _quickFilter = RoomOverviewFilter.checkedIn,
+                  ),
                 ),
                 chip(
                   label: '空房',
-                  selected: _quickFilter == _RoomQuickFilter.vacant,
+                  selected: _quickFilter == RoomOverviewFilter.vacant,
                   onTap: () =>
-                      setState(() => _quickFilter = _RoomQuickFilter.vacant),
+                      setState(() => _quickFilter = RoomOverviewFilter.vacant),
                 ),
+                for (final entry in const {
+                  RoomOverviewFilter.inUse: '使用中',
+                  RoomOverviewFilter.cleaning: '清潔中',
+                  RoomOverviewFilter.closed: '當日關閉',
+                  RoomOverviewFilter.maintenance: '維修中',
+                  RoomOverviewFilter.disabled: '未啟用',
+                }.entries)
+                  chip(
+                    label: entry.value,
+                    selected: _quickFilter == entry.key,
+                    onTap: () => setState(() => _quickFilter = entry.key),
+                  ),
               ],
             ),
           ),
@@ -1216,44 +1359,53 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         title: '空房',
         count: emptyCount,
         presentation: RoomStatusPresentation.available(),
-        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.vacant),
+        onTap: () => setState(() => _quickFilter = RoomOverviewFilter.vacant),
       ),
       _summaryCard(
         title: '使用中',
         count: usingCount,
         presentation: RoomStatusPresentation.stayCheckedIn(),
-        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.checkedIn),
+        onTap: () => setState(() => _quickFilter = RoomOverviewFilter.inUse),
       ),
       _summaryCard(
         title: '清潔中',
         count: cleaningCount,
         presentation: RoomStatusPresentation.cleaning(),
-        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.needs),
+        onTap: () => setState(() => _quickFilter = RoomOverviewFilter.cleaning),
       ),
       _summaryCard(
-        title: '今日關閉',
+        title: '當日關閉',
         count: closedCount,
         presentation: RoomStatusPresentation.closed(),
-        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.needs),
+        onTap: () => setState(() => _quickFilter = RoomOverviewFilter.closed),
       ),
       _summaryCard(
         title: '維修中',
         count: blockedCount,
         presentation: RoomStatusPresentation.maintenance(),
-        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.needs),
+        onTap: () =>
+            setState(() => _quickFilter = RoomOverviewFilter.maintenance),
       ),
       if (disabledCount > 0)
         _summaryCard(
           title: '未啟用',
           count: disabledCount,
           presentation: RoomStatusPresentation.disabled(),
-          onTap: () => setState(() => _quickFilter = _RoomQuickFilter.all),
+          onTap: () =>
+              setState(() => _quickFilter = RoomOverviewFilter.disabled),
         ),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       child: desktop
-          ? Wrap(spacing: 8, runSpacing: 8, children: cards)
+          ? Row(
+              children: [
+                for (var i = 0; i < cards.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  Expanded(child: cards[i]),
+                ],
+              ],
+            )
           : SizedBox(
               height: 78,
               child: ListView.separated(
@@ -1281,7 +1433,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: 120,
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
@@ -1326,7 +1477,30 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     String selectedRoomId = '',
   }) {
     if (filtered.isEmpty) {
-      return const Center(child: Text('沒有符合篩選的房間'));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.search_off, size: 32, color: Color(0xFF98A2B3)),
+              const SizedBox(height: 12),
+              const Text('沒有符合條件的房間'),
+              TextButton(
+                onPressed: () {
+                  _roomSearch.clear();
+                  setState(() {
+                    _roomQuery = '';
+                    _quickFilter = RoomOverviewFilter.all;
+                    _selectedRoomTypeFilter = '__all__';
+                  });
+                },
+                child: const Text('清除搜尋與篩選'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     final Map<String, List<_DashRoom>> groups = <String, List<_DashRoom>>{};
     for (final _DashRoom row in filtered) {
@@ -1418,6 +1592,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     final bool vacant = row.label == DaycareOccupancyService.vacantLabel;
     final bool selected = selectedRoomId == row.id;
     final DateTime today = DateTime.now();
+    final dayLabels = <String>[];
     final List<Color> dots = weekDays.map((DateTime day) {
       final RoomDayStatus dayStatus = resolveRoomDayStatus(
         date: day,
@@ -1434,10 +1609,16 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
           day: day,
         ),
       );
+      dayLabels.add(dayStatus.label);
       return dayStatus.color;
     }).toList();
     if (workbench) {
-      return _workbenchRoomTile(row: row, selected: selected, dots: dots);
+      return _workbenchRoomTile(
+        row: row,
+        selected: selected,
+        dots: dots,
+        labels: dayLabels,
+      );
     }
     final Widget actions = _rowActions(
       row: row,
@@ -1639,66 +1820,21 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     required _DashRoom row,
     required bool selected,
     required List<Color> dots,
+    required List<String> labels,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: selected ? const Color(0xFFE8F2FC) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () => _onRoomSurfaceTap(row),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 84),
-            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: selected ? _accent : const Color(0xFFE5E7EB),
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        row.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    RoomStatusChip(
-                      presentation: row.presentation,
-                      compact: true,
-                    ),
-                  ],
-                ),
-                Text(
-                  row.typeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
-                ),
-                const SizedBox(height: 2),
-                RoomWeekDots(
-                  colors: dots,
-                  onDotTap: (int index) =>
-                      _onWeekDotTap(row: row, index: index),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return RoomWorkbenchRoomCard(
+      name: row.name,
+      type: row.typeName,
+      status: row.presentation,
+      selected: selected,
+      days: weekDays,
+      colors: dots,
+      labels: labels,
+      selectedDate: selectedDate,
+      pets: _petNames(row.booking),
+      pending: _reportsOn ? row.pendingSessions : 0,
+      onTap: () => _onRoomSurfaceTap(row),
+      onDayTap: (index) => _onWeekDotTap(row: row, index: index),
     );
   }
 

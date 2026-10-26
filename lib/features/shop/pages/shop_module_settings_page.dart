@@ -115,7 +115,8 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
     return module != ShopModules.basicInfo &&
         module != ShopModules.reports &&
         module != ShopModules.daycare &&
-        module != ShopModules.inventory;
+        module != ShopModules.inventory &&
+        module != ShopModules.store;
   }
 
   bool get _basicPlanTemplateLocked {
@@ -135,10 +136,6 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
   }
 
   bool _isModuleBlockedByPlan(String module) {
-    if (_plan == 'basic' && module == ShopModules.store) {
-      return true;
-    }
-
     return false;
   }
 
@@ -148,11 +145,9 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
     final isMainModule = _isMainModule(module);
 
     if (value && _isModuleBlockedByPlan(module)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_plan == 'basic' ? '999 方案目前不開放賣場功能' : '免費版無法開啟主要模板'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('目前方案無法開啟此模板')));
       return;
     }
 
@@ -246,7 +241,10 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
   @override
   Widget build(BuildContext context) {
     final visibleModules = ShopModules.all
-        .where((String module) => module != ShopModules.daycare)
+        .where(
+          (String module) =>
+              module != ShopModules.daycare && module != ShopModules.store,
+        )
         .toList();
 
     return dashboardGuard(
@@ -266,7 +264,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
               ),
               child: const Text(
                 '可先保留未來模組位置，不一定全部顯示。\n'
-                '基本資訊、表格統計先固定保留；其他模組可依方案或需求開關。',
+                '基本資訊、表格統計先固定保留；其他模組可依方案或需求開關。\n商城已包含在 999 以上付費方案，請至商城設定管理營業狀態。',
               ),
             ),
             const SizedBox(height: 16),

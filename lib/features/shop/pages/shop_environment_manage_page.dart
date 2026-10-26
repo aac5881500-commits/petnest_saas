@@ -1112,66 +1112,92 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
 
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 640),
       builder: (BuildContext sheetContext) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  '特色圖片',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.85,
+            ),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      '特色圖片',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      FixedImageSpec.environmentFeature.hintText,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: Color(0xFF8A6A45),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: AspectRatio(
+                            aspectRatio: 4 / 3,
+                            child: imageUrl.isEmpty
+                                ? const ColoredBox(
+                                    color: Color(0xFFF5EBDD),
+                                    child: Center(
+                                      child: Text(
+                                        '尚未上傳圖片',
+                                        style: TextStyle(
+                                          color: Color(0xFF8A6A45),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stack) =>
+                                        const Center(
+                                          child: Icon(
+                                            Icons.broken_image_outlined,
+                                          ),
+                                        ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _pickAndUploadFeatureImage(index);
+                      },
+                      icon: const Icon(Icons.upload_rounded),
+                      label: Text(imageUrl.isEmpty ? '上傳照片' : '更換圖片'),
+                    ),
+                    if (imageUrl.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _removeFeatureImage(index);
+                        },
+                        child: const Text('移除圖片'),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  FixedImageSpec.environmentFeature.hintText,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: Color(0xFF8A6A45),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: AspectRatio(
-                    aspectRatio: 4 / 3,
-                    child: imageUrl.isEmpty
-                        ? const ColoredBox(
-                            color: Color(0xFFF5EBDD),
-                            child: Center(
-                              child: Text(
-                                '尚未上傳圖片',
-                                style: TextStyle(
-                                  color: Color(0xFF8A6A45),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Image.network(imageUrl, fit: BoxFit.cover),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    _pickAndUploadFeatureImage(index);
-                  },
-                  icon: const Icon(Icons.upload_rounded),
-                  label: Text(imageUrl.isEmpty ? '上傳照片' : '更換圖片'),
-                ),
-                if (imageUrl.isNotEmpty)
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                      _removeFeatureImage(index);
-                    },
-                    child: const Text('移除圖片'),
-                  ),
-              ],
+              ),
             ),
           ),
         );

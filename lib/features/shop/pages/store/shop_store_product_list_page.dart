@@ -77,6 +77,13 @@ class _ShopStoreProductListPageState extends State<ShopStoreProductListPage> {
                           BuildContext context,
                           AsyncSnapshot<List<StoreCategoryModel>> categorySnap,
                         ) {
+                          if (productSnap.hasError) {
+                            return const StoreEmptyState(
+                              title: '商品讀取失敗',
+                              subtitle: '請確認網路與商品查看權限，再重新進入賣場。',
+                              icon: Icons.cloud_off_outlined,
+                            );
+                          }
                           if (productSnap.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(

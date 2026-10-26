@@ -1263,19 +1263,36 @@ class _HomeBannerMobileEditorState extends State<_HomeBannerMobileEditor>
                         },
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    banner.hasPublishedPoster ? '已發布成品' : '尚未發布',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    title: const Text('啟用'),
-                    value: banner.enabled,
-                    onChanged: (bool value) {
-                      _editor.updateEnabled(value);
-                      setState(() => _draft = _draft.copyWith(enabled: value));
-                    },
+                  Row(
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          banner.hasPublishedPoster ? '已發布成品' : '編輯草稿',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Text('啟用海報', style: TextStyle(fontSize: 13)),
+                      Switch(
+                        value: banner.enabled,
+                        onChanged: (value) {
+                          _editor.updateEnabled(value);
+                          setState(
+                            () => _draft = _draft.copyWith(enabled: value),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

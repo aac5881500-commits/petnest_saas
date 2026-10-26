@@ -68,8 +68,7 @@ import 'package:petnest_saas/features/shop/pages/shop_device_page.dart';
 import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entry.dart';
 import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
-import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
-import 'package:petnest_saas/features/shop/pages/inventory/shop_booking_supply_settings_page.dart';
+import 'package:petnest_saas/features/shop/widgets/inventory/inventory_management_hub.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
 
@@ -785,7 +784,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       result.add(ShopModules.inventory);
     }
 
-    if (enabledModules.contains(ShopModules.store) && canSeeStore) {
+    if (canSeeStore) {
       result.add(ShopModules.store);
     }
     return result;
@@ -2779,65 +2778,12 @@ class _InventoryTab extends StatelessWidget {
   final bool isProfileComplete;
   final Map<String, dynamic>? memberData;
 
-  bool _can(String permissionKey) {
-    return ShopService.instance.hasPermission(memberData, permissionKey);
-  }
-
   @override
-  Widget build(BuildContext context) {
-    return _DashboardResponsiveBody(
-      children: [
-        _DashboardSection(
-          title: '中央庫存',
-          children: [
-            if (_can(ShopPermissionKeys.viewInventory) ||
-                _can(ShopPermissionKeys.manageInventory) ||
-                _can(ShopPermissionKeys.receiveInventory) ||
-                _can(ShopPermissionKeys.adjustInventory))
-              _MenuTile(
-                title: '庫存管理',
-                subtitle: isProfileComplete
-                    ? '管理庫存品項、進貨、出庫、盤點與異動流水'
-                    : '請先完成基本資料',
-                icon: Icons.inventory_2_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (BuildContext context) {
-                        return ShopInventoryListPage(
-                          shopId: shopId,
-                          memberData: memberData,
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            if (_can(ShopPermissionKeys.manageInventory) ||
-                _can(ShopPermissionKeys.viewInventory))
-              _MenuTile(
-                title: '住宿耗材設定',
-                subtitle: isProfileComplete ? '設定入住必要用品，可選擇綁定中央庫存' : '請先完成基本資料',
-                icon: Icons.cleaning_services_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (BuildContext context) {
-                        return ShopBookingSupplySettingsPage(shopId: shopId);
-                      },
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => InventoryManagementHub(
+    shopId: shopId,
+    isProfileComplete: isProfileComplete,
+    memberData: memberData,
+  );
 }
 
 /// ===== 表格統計分頁 =====

@@ -3,6 +3,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_purchase_gate.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
@@ -66,7 +67,10 @@ class _StoreProductDetailPageState extends State<StoreProductDetailPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      StorePurchaseGate(shopId: widget.shopId, builder: _buildPage);
+
+  Widget _buildPage(BuildContext context, bool canPurchase) {
     return StreamBuilder<StoreProductModel?>(
       stream: StoreProductService.instance
           .productsRef(widget.shopId)
@@ -362,7 +366,8 @@ class _StoreProductDetailPageState extends State<StoreProductDetailPage> {
                                                 color: secondaryBtn,
                                               ),
                                             ),
-                                            onPressed: outOfStock
+                                            onPressed:
+                                                !canPurchase || outOfStock
                                                 ? null
                                                 : () async {
                                                     if (!await _ensureLogin()) {
@@ -415,7 +420,11 @@ class _StoreProductDetailPageState extends State<StoreProductDetailPage> {
                                               Icons.shopping_cart_outlined,
                                             ),
                                             label: Text(
-                                              outOfStock ? '目前缺貨' : '加入購物車',
+                                              !canPurchase
+                                                  ? '目前暫停接單'
+                                                  : outOfStock
+                                                  ? '目前缺貨'
+                                                  : '加入購物車',
                                             ),
                                           ),
                                         ),
@@ -429,7 +438,8 @@ class _StoreProductDetailPageState extends State<StoreProductDetailPage> {
                                                     primaryBtn,
                                                   ),
                                             ),
-                                            onPressed: outOfStock
+                                            onPressed:
+                                                !canPurchase || outOfStock
                                                 ? null
                                                 : () async {
                                                     if (!await _ensureLogin()) {
@@ -481,7 +491,11 @@ class _StoreProductDetailPageState extends State<StoreProductDetailPage> {
                                                     }
                                                   },
                                             child: Text(
-                                              outOfStock ? '目前缺貨' : '立即購買',
+                                              !canPurchase
+                                                  ? '目前暫停接單'
+                                                  : outOfStock
+                                                  ? '目前缺貨'
+                                                  : '立即購買',
                                             ),
                                           ),
                                         ),

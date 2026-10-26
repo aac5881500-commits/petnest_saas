@@ -2,6 +2,7 @@
 // 功能說明：後台環境特色卡片管理區塊
 
 import 'package:flutter/material.dart';
+import '../../data/environment_feature_icons.dart';
 
 class EnvironmentFeatureManager extends StatelessWidget {
   const EnvironmentFeatureManager({
@@ -25,32 +26,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
   final Future<void> Function(int index) onManageImage;
   final bool busy;
 
-  IconData _featureIcon(String key) {
-    switch (key) {
-      case 'home':
-        return Icons.home_rounded;
-      case 'clean':
-        return Icons.cleaning_services_rounded;
-      case 'air':
-        return Icons.ac_unit_rounded;
-      case 'camera':
-        return Icons.videocam_rounded;
-      case 'hospital':
-        return Icons.local_hospital_rounded;
-      case 'water':
-        return Icons.water_drop_rounded;
-      case 'sun':
-        return Icons.wb_sunny_rounded;
-      case 'clean_hand':
-        return Icons.clean_hands_rounded;
-      case 'pets':
-        return Icons.pets_rounded;
-      case 'toys':
-        return Icons.toys_rounded;
-      default:
-        return Icons.pets_rounded;
-    }
-  }
+  IconData _featureIcon(String key) => environmentFeatureIcon(key);
 
   @override
   Widget build(BuildContext context) {

@@ -11,10 +11,10 @@ class StoreBannerTemplateMetrics {
   static const double designHeight = 900;
   static const double titleLineHeight = 1.15;
   static const double subtitleLineHeight = 1.3;
-  static const double textGap = 20;
-  static const double ctaGap = 32;
-  static const double safeTop = 72;
-  static const double safeBottom = 846;
+  static const double textGap = 24;
+  static const double ctaGap = 40;
+  static const double safeTop = 80;
+  static const double safeBottom = 810;
 
   static double get safeSpan => safeBottom - safeTop;
 
@@ -354,8 +354,6 @@ class StoreBannerTemplates {
 
   static String _defaultCtaSize(String template) {
     switch (template) {
-      case centerCopy:
-      case bottomCard:
       case promo:
         return StoreBannerCtaSizes.large;
       default:
@@ -366,18 +364,18 @@ class StoreBannerTemplates {
   static ({double title, double subtitle}) _defaultPx(String template) {
     switch (template) {
       case centerCopy:
-        return (title: 112, subtitle: 48);
+        return (title: 100, subtitle: 52);
       case bottomCard:
-        return (title: 96, subtitle: 42);
+        return (title: 92, subtitle: 48);
       case bottomLeft:
       case bottomRight:
-        return (title: 100, subtitle: 44);
+        return (title: 96, subtitle: 48);
       case topMinimal:
-        return (title: 92, subtitle: 40);
+        return (title: 88, subtitle: 48);
       case promo:
-        return (title: 116, subtitle: 48);
+        return (title: 108, subtitle: 52);
       default:
-        return (title: 104, subtitle: 46);
+        return (title: 96, subtitle: 52);
     }
   }
 
@@ -496,9 +494,19 @@ class StoreBannerTemplates {
       size: ctaSize,
       scale: ctaScale,
     );
+    final stackHeight = StoreBannerTemplateMetrics.stackHeight(
+      titlePx: titlePx,
+      subtitlePx: subtitlePx,
+      titleLines: titleLines,
+      subtitleLines: subtitleLines,
+      ctaHeight: ctaHeight,
+    );
     final ({double title, double subtitle, double cta}) upper =
         StoreBannerTemplateMetrics.fromTop(
-          topDesign: StoreBannerTemplateMetrics.safeTop,
+          topDesign: math.max(
+            StoreBannerTemplateMetrics.safeTop,
+            (900 - stackHeight) / 2,
+          ),
           titlePx: titlePx,
           subtitlePx: subtitlePx,
           titleLines: titleLines,
@@ -515,7 +523,7 @@ class StoreBannerTemplates {
         );
     final ({double title, double subtitle, double cta}) topSlots =
         StoreBannerTemplateMetrics.fromTop(
-          topDesign: 64,
+          topDesign: StoreBannerTemplateMetrics.safeTop,
           titlePx: titlePx,
           subtitlePx: subtitlePx,
           titleLines: titleLines,

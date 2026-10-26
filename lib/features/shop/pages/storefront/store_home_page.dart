@@ -2,6 +2,7 @@
 // 功能說明：商城前台首頁
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
@@ -127,9 +128,42 @@ class _StoreHomePageState extends State<StoreHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('商城')),
+            body: const Center(child: Text('商城讀取失敗，請稍後重試')),
+          );
+        }
+        if (!snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('商城')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _buildStore(context, snapshot.data!);
+      },
+    );
+  }
+
+  Widget _buildStore(BuildContext context, Map<String, dynamic> liveShop) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
       builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>> settingsSnapshot) {
+        if (settingsSnapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('商城')),
+            body: const Center(child: Text('商城設定讀取失敗，請稍後重試')),
+          );
+        }
+        if (!settingsSnapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('商城')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
         final StoreHomeDisplaySettings home = StoreHomeDisplaySettings.fromMap(
           settingsSnapshot.data ?? const <String, dynamic>{},
         );
@@ -174,7 +208,7 @@ class _StoreHomePageState extends State<StoreHomePage> {
           ),
           body:
               !StorefrontAccess.isStorefrontOpen(
-                shop: widget.shop,
+                shop: liveShop,
                 settings: settingsSnapshot.data,
               )
               ? const Center(child: Text('賣場目前未開放'))
@@ -323,6 +357,21 @@ class _StoreHomePageState extends State<StoreHomePage> {
 
                                     return CustomScrollView(
                                       slivers: <Widget>[
+                                        if (!StorefrontAccess.canAcceptOrders(
+                                          shop: liveShop,
+                                          settings: settingsSnapshot.data,
+                                        ))
+                                          const SliverToBoxAdapter(
+                                            child: Card(
+                                              margin: EdgeInsets.all(16),
+                                              child: Padding(
+                                                padding: EdgeInsets.all(16),
+                                                child: Text(
+                                                  '商城暫停接單中，仍可瀏覽商品；既有訂單請至我的訂單查看。',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                         SliverToBoxAdapter(
                                           child: Padding(
                                             padding: const EdgeInsets.fromLTRB(

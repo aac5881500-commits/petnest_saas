@@ -33,13 +33,20 @@ class ModernBottomNavigation extends StatelessWidget {
 
   static bool isFloating(String appearance) {
     return appearance == FrontendNavigationConfig.appearanceFloatingPill ||
-        appearance == FrontendNavigationConfig.appearanceFloatingMinimal;
+        appearance == FrontendNavigationConfig.appearanceFloatingMinimal ||
+        appearance == FrontendNavigationConfig.appearanceFloatingIsland ||
+        appearance == FrontendNavigationConfig.appearanceSegmented ||
+        appearance == FrontendNavigationConfig.appearanceHomeFocus;
   }
 
   static double barHeightFor(String appearance) {
     switch (appearance) {
       case FrontendNavigationConfig.appearanceFloatingMinimal:
         return minimalHeight;
+      case FrontendNavigationConfig.appearanceHomeFocus:
+        return 72;
+      case FrontendNavigationConfig.appearanceFloatingIsland:
+      case FrontendNavigationConfig.appearanceSegmented:
       case FrontendNavigationConfig.appearanceFloatingPill:
         return pillHeight;
       default:
@@ -67,10 +74,13 @@ class ModernBottomNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final double safeBottom = MediaQuery.paddingOf(context).bottom;
     final bool floating = isFloating(appearance);
-    final double radius = appearance ==
-            FrontendNavigationConfig.appearanceFloatingMinimal
+    final double radius =
+        appearance == FrontendNavigationConfig.appearanceFloatingMinimal
         ? 18
-        : (floating ? 28 : 0);
+        : (appearance == FrontendNavigationConfig.appearanceFloatingIsland ||
+                  appearance == FrontendNavigationConfig.appearanceSegmented
+              ? 16
+              : (floating ? 28 : 0));
     return Padding(
       padding: EdgeInsets.fromLTRB(
         floating ? sideInset : 0,
@@ -83,8 +93,8 @@ class ModernBottomNavigation extends StatelessWidget {
         surface: surface,
         height: barHeightFor(appearance),
         radius: radius,
-        minimal: appearance ==
-            FrontendNavigationConfig.appearanceFloatingMinimal,
+        minimal:
+            appearance == FrontendNavigationConfig.appearanceFloatingMinimal,
         child: Row(
           children: <Widget>[
             for (int i = 0; i < 5; i++)
@@ -93,10 +103,12 @@ class ModernBottomNavigation extends StatelessWidget {
                   item: i < slots.length ? slots[i] : null,
                   theme: theme,
                   surface: surface,
-                  selected: i < slots.length &&
+                  selected:
+                      i < slots.length &&
                       slots[i] != null &&
                       slots[i]!.id == selectedId,
                   emphasized: i == 2,
+                  appearance: appearance,
                   onSelect: onSelect,
                 ),
               ),
@@ -177,6 +189,7 @@ class _Slot extends StatelessWidget {
     required this.surface,
     required this.selected,
     required this.emphasized,
+    required this.appearance,
     required this.onSelect,
   });
 
@@ -185,6 +198,7 @@ class _Slot extends StatelessWidget {
   final String surface;
   final bool selected;
   final bool emphasized;
+  final String appearance;
   final ValueChanged<FrontendNavigationItem> onSelect;
 
   @override
@@ -197,48 +211,96 @@ class _Slot extends StatelessWidget {
     final Color ink = _inkColor(theme, transparent: transparent);
     final Color color = selected ? theme.primaryColor : ink;
     final double iconSize = emphasized ? 26 : 22;
+    final bool segmented =
+        appearance == FrontendNavigationConfig.appearanceSegmented;
+    final bool focus =
+        appearance == FrontendNavigationConfig.appearanceHomeFocus &&
+        emphasized;
+    final bool island =
+        appearance == FrontendNavigationConfig.appearanceFloatingIsland;
     return Semantics(
       button: true,
       selected: selected,
       label: item!.label,
-      child: InkWell(
-        onTap: () => onSelect(item!),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: selected
-                      ? theme.primaryColor.withValues(
-                          alpha: transparent ? 0.16 : 0.12,
-                        )
-                      : (transparent
-                            ? ink.withValues(alpha: 0.08)
-                            : Colors.transparent),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: emphasized ? 10 : 8,
-                    vertical: emphasized ? 3 : 2,
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: segmented ? 3 : 0,
+          vertical: segmented ? 6 : 0,
+        ),
+        decoration: BoxDecoration(
+          color: segmented && selected
+              ? theme.primaryColor.withValues(alpha: 0.14)
+              : null,
+          borderRadius: BorderRadius.circular(12),
+          border: segmented
+              ? Border.all(
+                  color: theme.primaryColor.withValues(
+                    alpha: selected ? 0.45 : 0.12,
                   ),
-                  child: Icon(item!.icon, size: iconSize, color: color),
+                )
+              : null,
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => onSelect(item!),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: focus
+                        ? theme.primaryColor
+                        : selected
+                        ? theme.primaryColor.withValues(
+                            alpha: transparent ? 0.16 : 0.12,
+                          )
+                        : (transparent
+                              ? ink.withValues(alpha: 0.08)
+                              : Colors.transparent),
+                    borderRadius: BorderRadius.circular(focus ? 24 : 14),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: focus ? 12 : (emphasized ? 10 : 8),
+                      vertical: focus ? 8 : (emphasized ? 3 : 2),
+                    ),
+                    child: Icon(
+                      item!.icon,
+                      size: iconSize,
+                      color: focus
+                          ? (theme.primaryColor.computeLuminance() > 0.45
+                                ? Colors.black87
+                                : Colors.white)
+                          : color,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                item!.shortLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: color,
+                if (island) ...[
+                  const SizedBox(height: 2),
+                  Container(
+                    width: selected ? 16 : 4,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: selected ? theme.primaryColor : Colors.transparent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 2),
+                Text(
+                  item!.shortLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: color,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -249,7 +311,8 @@ class _Slot extends StatelessWidget {
     if (!transparent) {
       return theme.textColor.withValues(alpha: 0.62);
     }
-    final bool lightBackground = theme.backgroundColor.computeLuminance() > 0.55;
+    final bool lightBackground =
+        theme.backgroundColor.computeLuminance() > 0.55;
     final Color base = lightBackground ? const Color(0xFF1F2937) : Colors.white;
     return base.withValues(alpha: 0.88);
   }

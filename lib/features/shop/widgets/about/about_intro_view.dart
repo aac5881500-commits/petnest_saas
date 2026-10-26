@@ -107,7 +107,11 @@ class AboutIntroView extends StatelessWidget {
                   final width = c.maxWidth.clamp(0.0, 1240.0);
                   final order = setting.sectionOrder;
                   final raw = setting.toMap();
-                  final priority = setting.layout == 'team'
+                  final priority = setting.layout == 'boutique'
+                      ? ['contact', 'highlights']
+                      : setting.layout == 'highlights'
+                      ? ['highlights', 'principles']
+                      : setting.layout == 'team'
                       ? ['team', 'principles']
                       : setting.layout == 'principles' ||
                             setting.layout == 'brief'
@@ -146,57 +150,64 @@ class AboutIntroView extends StatelessWidget {
                         );
                       }
                     } else if (key == 'contact') {
-                      if ([
-                        'phone',
-                        'address',
-                        'businessHours',
-                        'licenseNumber',
-                        'igUrl',
-                        'lineUrl',
-                      ].any((k) => '${shop[k] ?? ''}'.trim().isNotEmpty)) {
-                        sections.add(
-                          KeyedSubtree(
-                            key: contactKey,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              child: _card(
-                                resolved,
-                                AboutShopInfoSection(
-                                  shopId: '',
-                                  theme: resolved.copyWith(
-                                    cardColorValue: _surface(
-                                      resolved,
-                                    ).toARGB32(),
-                                    textColorValue: _color(
-                                      'bodyColor',
-                                      resolved.textColor,
-                                      _surface(resolved),
-                                    ).toARGB32(),
-                                    secondaryTextColorValue: _color(
-                                      'secondaryTextColor',
-                                      resolved.secondaryTextColor,
-                                      _surface(resolved),
-                                    ).toARGB32(),
-                                    primaryColorValue: _color(
-                                      'iconColor',
-                                      resolved.primaryColor,
-                                      _surface(resolved),
-                                    ).toARGB32(),
-                                  ),
-                                  shopData: shop,
-                                  previewOnly: preview,
-                                  actionColor: _color(
-                                    'buttonColor',
+                      sections.add(
+                        KeyedSubtree(
+                          key: contactKey,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: _card(
+                              resolved,
+                              AboutShopInfoSection(
+                                shopId: '',
+                                theme: resolved.copyWith(
+                                  cardColorValue: _surface(resolved).toARGB32(),
+                                  textColorValue: _color(
+                                    'bodyColor',
+                                    resolved.textColor,
+                                    _surface(resolved),
+                                  ).toARGB32(),
+                                  secondaryTextColorValue: _color(
+                                    'secondaryTextColor',
+                                    resolved.secondaryTextColor,
+                                    _surface(resolved),
+                                  ).toARGB32(),
+                                  primaryColorValue: _color(
+                                    'iconColor',
                                     resolved.primaryColor,
                                     _surface(resolved),
-                                  ),
-                                  frameless: true,
+                                  ).toARGB32(),
                                 ),
-                                '',
+                                shopData: shop,
+                                layout: setting.contactLayout,
+                                previewOnly: preview,
+                                actionColor: _color(
+                                  'buttonColor',
+                                  resolved.primaryColor,
+                                  _surface(resolved),
+                                ),
+                                frameless: true,
                               ),
+                              '',
                             ),
+                          ),
+                        ),
+                      );
+                    } else if (key == 'highlights') {
+                      final items = setting
+                          .items(key)
+                          .where(
+                            (item) =>
+                                item.visible &&
+                                (item.title.trim().isNotEmpty ||
+                                    item.text.trim().isNotEmpty),
+                          )
+                          .toList();
+                      if (items.isNotEmpty) {
+                        sections.add(
+                          _block(
+                            '店家特色',
+                            _highlights(items, resolved, width),
+                            resolved,
                           ),
                         );
                       }
@@ -447,6 +458,46 @@ class AboutIntroView extends StatelessWidget {
           ),
       ],
     );
+    if (setting.layout == 'boutique') {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: _card(
+          t,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(Icons.storefront_outlined, color: t.primaryColor, size: 34),
+              const SizedBox(height: 14),
+              if (title.trim().isNotEmpty)
+                Center(child: _text(title, t, title: true)),
+              if (description.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: _text(description, t),
+                ),
+              if (hasImage) ...[const SizedBox(height: 18), image()],
+            ],
+          ),
+          '',
+        ),
+      );
+    }
+    if (setting.layout == 'editorial') {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(height: 3, color: t.primaryColor),
+            const SizedBox(height: 20),
+            copy,
+            const SizedBox(height: 20),
+            if (hasImage) image(),
+            Divider(height: 32, color: t.cardBorderColor),
+          ],
+        ),
+      );
+    }
     if (setting.layout == 'classic' &&
         (hasImage || setting.cover.source == 'legacy')) {
       return ConstrainedBox(
@@ -489,7 +540,10 @@ class AboutIntroView extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: setting.layout == 'brief' && width >= 700 && hasImage
+      child:
+          ['brief', 'highlights'].contains(setting.layout) &&
+              width >= 700 &&
+              hasImage
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -505,6 +559,96 @@ class AboutIntroView extends StatelessWidget {
                 copy,
               ],
             ),
+    );
+  }
+
+  Widget _highlights(
+    List<AboutContentItem> items,
+    HomeThemeModel t,
+    double width,
+  ) {
+    final mode = setting.highlightLayout;
+    final columns = width >= 900
+        ? 3
+        : width >= 620
+        ? 2
+        : 1;
+    final gap = _gap;
+    return Wrap(
+      spacing: gap,
+      runSpacing: gap,
+      children: [
+        for (var index = 0; index < items.length; index++)
+          SizedBox(
+            width: (width - 40 - (columns - 1) * gap) / columns,
+            child: KeyedSubtree(
+              key: ValueKey('about-highlights-${items[index].id}'),
+              child: _card(
+                t,
+                mode == 'ribbon'
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            icons[items[index].icon] ?? Icons.pets,
+                            color: _color(
+                              'iconColor',
+                              t.primaryColor,
+                              _surface(t),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (items[index].title.trim().isNotEmpty)
+                                  _text(items[index].title, t, title: true),
+                                if (items[index].text.trim().isNotEmpty)
+                                  _text(items[index].text, t),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (mode == 'numbered')
+                            Text(
+                              '${index + 1}'.padLeft(2, '0'),
+                              style: TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                color: _color(
+                                  'iconColor',
+                                  t.primaryColor,
+                                  _surface(t),
+                                ),
+                              ),
+                            )
+                          else
+                            Icon(
+                              icons[items[index].icon] ?? Icons.pets,
+                              size: 30,
+                              color: _color(
+                                'iconColor',
+                                t.primaryColor,
+                                _surface(t),
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          if (items[index].title.trim().isNotEmpty)
+                            _text(items[index].title, t, title: true),
+                          if (items[index].text.trim().isNotEmpty)
+                            _text(items[index].text, t),
+                        ],
+                      ),
+                '',
+              ),
+            ),
+          ),
+      ],
     );
   }
 

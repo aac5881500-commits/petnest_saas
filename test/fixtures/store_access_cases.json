@@ -1,0 +1,168 @@
+[
+  {
+    "name": "999 方案無商城模組仍可接單",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2026-10-26",
+      "enabledModules": [
+        "cat_hotel"
+      ]
+    },
+    "settings": {
+      "businessStatus": "open",
+      "acceptNewOrders": true
+    },
+    "entitled": true,
+    "accept": true
+  },
+  {
+    "name": "免費店勾選商城也不會開通",
+    "shop": {
+      "plan": "free",
+      "paidUntilDate": "2027-01-01",
+      "enabledModules": [
+        "store"
+      ]
+    },
+    "settings": {
+      "businessStatus": "open"
+    },
+    "entitled": false,
+    "accept": false
+  },
+  {
+    "name": "到期商城停止新訂單",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2026-10-25"
+    },
+    "settings": {
+      "businessStatus": "open"
+    },
+    "entitled": false,
+    "accept": false
+  },
+  {
+    "name": "暫停接單仍保留付費資格",
+    "shop": {
+      "plan": "pro",
+      "paidUntilDate": "2027-01-01"
+    },
+    "settings": {
+      "businessStatus": "paused"
+    },
+    "entitled": true,
+    "accept": false
+  },
+  {
+    "name": "新商城尚未設定時不接單",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2027-01-01"
+    },
+    "settings": {},
+    "entitled": true,
+    "accept": false
+  },
+  {
+    "name": "只存過外觀仍屬準備中",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2027-01-01"
+    },
+    "settings": {
+      "storeName": "選品"
+    },
+    "entitled": true,
+    "accept": false
+  },
+  {
+    "name": "準備中不接單",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2027-01-01"
+    },
+    "settings": {
+      "businessStatus": "preparing"
+    },
+    "entitled": true,
+    "accept": false
+  },
+  {
+    "name": "舊商城沿用開放狀態",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2027-01-01"
+    },
+    "settings": {
+      "storefrontEnabled": true
+    },
+    "entitled": true,
+    "accept": true
+  },
+  {
+    "name": "舊商城暫停不能繞過",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2027-01-01"
+    },
+    "settings": {
+      "storefrontEnabled": true,
+      "acceptNewOrders": false
+    },
+    "entitled": true,
+    "accept": false
+  },
+  {
+    "name": "已排程降級在生效日停用",
+    "shop": {
+      "plan": "pro",
+      "paidUntilDate": "2027-01-01",
+      "nextPlan": "free",
+      "nextPlanStarts": "2026-10-26"
+    },
+    "settings": {
+      "businessStatus": "open"
+    },
+    "entitled": false,
+    "accept": false
+  },
+  {
+    "name": "未來升級不能提早開通",
+    "shop": {
+      "plan": "free",
+      "paidUntilDate": "2027-01-01",
+      "nextPlan": "basic",
+      "nextPlanStarts": "2026-10-27"
+    },
+    "settings": {
+      "businessStatus": "open"
+    },
+    "entitled": false,
+    "accept": false
+  },
+  {
+    "name": "刪除中的商城停止接單",
+    "shop": {
+      "plan": "basic",
+      "paidUntilDate": "2027-01-01",
+      "deletionState": "deleting"
+    },
+    "settings": {
+      "businessStatus": "open"
+    },
+    "entitled": false,
+    "accept": false
+  },
+  {
+    "name": "無期限資料不能自行開通",
+    "shop": {
+      "plan": "basic"
+    },
+    "settings": {
+      "businessStatus": "open"
+    },
+    "entitled": false,
+    "accept": false
+  }
+]

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/room/widgets/room_workbench_layout.dart';
 // 檔案名稱：lib/features/auth/pages/room_calendar_page.dart
 // 功能說明：房間日曆（最終完整版 訂單自動上色）
 
@@ -58,6 +59,7 @@ class RoomCalendarPage extends StatefulWidget {
     this.room = const <String, dynamic>{},
     this.embeddedDetail,
     this.focusDate,
+    this.onDateSelected,
   });
 
   final String shopId;
@@ -83,6 +85,8 @@ class RoomCalendarPage extends StatefulWidget {
 
   /// 房務總覽目前選取的日期。有值時右側直接顯示該日，而不是只顯示今天待辦。
   final DateTime? focusDate;
+
+  final ValueChanged<DateTime>? onDateSelected;
 
   @override
   State<RoomCalendarPage> createState() => _RoomCalendarPageState();
@@ -380,496 +384,506 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                       doc.data(),
                 ];
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _bookingSnapshots(),
-          builder: (context, bookingSnap) {
-            final allBookingDocs = bookingSnap.data?.docs ?? [];
+              stream: _bookingSnapshots(),
+              builder: (context, bookingSnap) {
+                final allBookingDocs = bookingSnap.data?.docs ?? [];
 
-            final bookings = allBookingDocs.where((doc) {
-              return roomBookingVisibleInMonth(
-                booking: doc.data(),
-                monthStart: _monthStart,
-                nextMonthStart: _nextMonthStart,
-              );
-            }).toList();
+                final bookings = allBookingDocs.where((doc) {
+                  return roomBookingVisibleInMonth(
+                    booking: doc.data(),
+                    monthStart: _monthStart,
+                    nextMonthStart: _nextMonthStart,
+                  );
+                }).toList();
 
-            final daysInMonth = DateUtils.getDaysInMonth(
-              _currentMonth.year,
-              _currentMonth.month,
-            );
+                final daysInMonth = DateUtils.getDaysInMonth(
+                  _currentMonth.year,
+                  _currentMonth.month,
+                );
 
-            final firstDayOfMonth = DateTime(
-              _currentMonth.year,
-              _currentMonth.month,
-              1,
-            );
+                final firstDayOfMonth = DateTime(
+                  _currentMonth.year,
+                  _currentMonth.month,
+                  1,
+                );
 
-            final leadingEmptyDays = firstDayOfMonth.weekday % 7;
-            final totalGridCount = daysInMonth + leadingEmptyDays;
-            final List<Widget> topChrome = <Widget>[
-              if (!widget.embedded)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          width: 72,
-                          height: 72,
-                          color: Colors.orange.withValues(alpha: 0.12),
-                          child: widget.roomImageUrl.isNotEmpty
-                              ? Image.network(
-                                  widget.roomImageUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(
+                final leadingEmptyDays = firstDayOfMonth.weekday % 7;
+                final totalGridCount = daysInMonth + leadingEmptyDays;
+                final List<Widget> topChrome = <Widget>[
+                  if (!widget.embedded)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              width: 72,
+                              height: 72,
+                              color: Colors.orange.withValues(alpha: 0.12),
+                              child: widget.roomImageUrl.isNotEmpty
+                                  ? Image.network(
+                                      widget.roomImageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return const Icon(
+                                              Icons.meeting_room,
+                                              color: Colors.orange,
+                                              size: 34,
+                                            );
+                                          },
+                                    )
+                                  : const Icon(
                                       Icons.meeting_room,
                                       color: Colors.orange,
                                       size: 34,
-                                    );
-                                  },
-                                )
-                              : const Icon(
-                                  Icons.meeting_room,
-                                  color: Colors.orange,
-                                  size: 34,
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.roomName,
-                              style: const TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.roomTypeName,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF7A5A32),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              '單房使用紀錄 / 可關閉單日房間',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              /// 🔥 月份切換列
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: () {
-                        setState(() {
-                          _currentMonth = DateTime(
-                            _currentMonth.year,
-                            _currentMonth.month - 1,
-                          );
-                        });
-                      },
-                    ),
-                    Text(
-                      '${_currentMonth.year} 年 ${_currentMonth.month} 月',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: () {
-                        setState(() {
-                          _currentMonth = DateTime(
-                            _currentMonth.year,
-                            _currentMonth.month + 1,
-                          );
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              /// 🔥 星期列
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                child: Row(
-                  children: const [
-                    _WeekdayText('日'),
-                    _WeekdayText('一'),
-                    _WeekdayText('二'),
-                    _WeekdayText('三'),
-                    _WeekdayText('四'),
-                    _WeekdayText('五'),
-                    _WeekdayText('六'),
-                  ],
-                ),
-              ),
-            ];
-            Widget buildMonthCard() {
-              return Container(
-                margin: EdgeInsets.fromLTRB(
-                  widget.embedded ? 4 : 12,
-                  0,
-                  widget.embedded ? 4 : 12,
-                  widget.embedded ? 0 : 12,
-                ),
-                padding: EdgeInsets.only(top: widget.embedded ? 0 : 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: LayoutBuilder(
-                  builder: (BuildContext context, BoxConstraints constraints) {
-                    final bool embeddedGrid = widget.embedded;
-                    final int rowCount = (totalGridCount / 7).ceil().clamp(
-                      1,
-                      6,
-                    );
-                    final double availableHeight = constraints.maxHeight;
-                    final double embeddedCellHeight = availableHeight.isFinite
-                        ? ((availableHeight - (rowCount - 1) * 2) / rowCount)
-                              .clamp(1.0, 60.0)
-                        : 56.0;
-                    final Widget grid = GridView.builder(
-                      shrinkWrap: false,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        embeddedGrid ? 4 : 14,
-                        embeddedGrid ? 0 : 10,
-                        embeddedGrid ? 4 : 14,
-                        embeddedGrid ? 0 : 18,
-                      ),
-                      gridDelegate: embeddedGrid
-                          ? SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 7,
-                              mainAxisExtent: embeddedCellHeight,
-                              mainAxisSpacing: 2,
-                              crossAxisSpacing: 2,
-                            )
-                          : const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 7,
-                              childAspectRatio: 0.68,
-                            ),
-                      itemCount: totalGridCount,
-                      itemBuilder: (context, index) {
-                        if (index < leadingEmptyDays) {
-                          return const SizedBox.shrink();
-                        }
-
-                        final dayNumber = index - leadingEmptyDays + 1;
-
-                        final date = DateTime(
-                          _currentMonth.year,
-                          _currentMonth.month,
-                          dayNumber,
-                        );
-
-                        final key = _format(date);
-
-                        /// 🔥 預設狀態
-                        final String calendarStatus = map[key] ?? '';
-                        String status = map[key] ?? 'available';
-                        Map<String, dynamic>? dayBooking;
-                        String? dayBookingId;
-
-                        /// 維修中 / 關閉日優先，不讓訂單狀態蓋掉。
-                        /// 顯示用的代表訂單只影響顏色；點擊仍會列出全部有效訂單。
-                        final List<RoomDayBookingChoice> dayMatches =
-                            _isBlockedStatus(status)
-                            ? const <RoomDayBookingChoice>[]
-                            : activeBookingsOnRoomDay(
-                                bookings: <RoomDayBookingChoice>[
-                                  for (final QueryDocumentSnapshot<
-                                        Map<String, dynamic>
-                                      >
-                                      doc
-                                      in bookings)
-                                    RoomDayBookingChoice(
-                                      id: doc.id,
-                                      data: doc.data(),
                                     ),
-                                ],
-                                roomId: widget.roomId,
-                                day: date,
-                                occupancies: occupancies,
-                              );
-                        final RoomDayBookingChoice? displayBooking =
-                            preferredRoomDayBooking(dayMatches);
-                        if (displayBooking != null) {
-                          dayBooking = displayBooking.data;
-                          dayBookingId = displayBooking.id;
-                          status = _calendarStatusOfBooking(dayBooking);
-                        }
-
-                        /// 🔥 可操作範圍
-                        final isPastDate = date.isBefore(
-                          today.subtract(const Duration(days: 1)),
-                        );
-
-                        final isFutureOutOfRange = date.isAfter(
-                          lastAllowedDate,
-                        );
-
-                        final hasBooking = dayBooking != null;
-                        final isBlocked = _isBlockedStatus(status);
-
-                        final RoomDayStatus dayStatus = resolveRoomDayStatus(
-                          date: date,
-                          today: today,
-                          room: widget.room,
-                          calendarStatus: calendarStatus,
-                          booking: dayBooking,
-                        );
-
-                        /// 過去且沒有有效訂單時，桌機與手機都用同一套歷史灰色。
-                        final bool historyDay = dayStatus.isHistory;
-
-                        /// 過去日期如果有訂單或維修紀錄，要能顯示出來
-                        final isDisabled = widget.embedded
-                            ? isFutureOutOfRange
-                            : isFutureOutOfRange ||
-                                  (isPastDate && !hasBooking && !isBlocked);
-
-                        final isSelected =
-                            _selectedDate != null &&
-                            date.year == _selectedDate!.year &&
-                            date.month == _selectedDate!.month &&
-                            date.day == _selectedDate!.day;
-
-                        /// 圓點顏色只走 RoomDayStatus，桌機與手機同一套。
-                        Color color = dayStatus.color;
-                        if (isDisabled) {
-                          color = Colors.grey.shade300;
-                        }
-
-                        return GestureDetector(
-                          onTap: isDisabled
-                              ? null
-                              : () {
-                                  final RoomOverviewGestureResult result =
-                                      resolveRoomOverviewGesture(
-                                        gesture:
-                                            RoomOverviewGesture.calendarDay,
-                                        roomId: widget.roomId,
-                                        date: date,
-                                      );
-                                  if (result.navigatesToOrder) {
-                                    return;
-                                  }
-                                  setState(() {
-                                    _selectedDate = result.date ?? date;
-                                    _selectedStatus = status;
-                                    _selectedBooking = dayBooking;
-                                    _selectedBookingId = dayBookingId;
-                                  });
-                                },
-                          child: Container(
-                            margin: EdgeInsets.all(widget.embedded ? 1 : 4),
-                            padding: EdgeInsets.symmetric(
-                              vertical: widget.embedded ? 1 : 6,
                             ),
-                            decoration: BoxDecoration(
-                              color: isDisabled
-                                  ? Colors.grey.shade100
-                                  : historyDay
-                                  ? Colors.grey.shade50
-                                  : status == 'booked'
-                                  ? Colors.deepOrange.withValues(alpha: 0.05)
-                                  : status == 'occupied'
-                                  ? Colors.blue.withValues(alpha: 0.06)
-                                  : _isBlockedStatus(status)
-                                  ? Colors.black.withValues(alpha: 0.04)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.blue
-                                    : isDisabled
-                                    ? Colors.grey.shade300
-                                    : color.withValues(alpha: 0.35),
-                                width: isSelected ? 2 : 1,
-                              ),
-                              boxShadow: isDisabled || widget.embedded
-                                  ? []
-                                  : [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.04,
-                                        ),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '$dayNumber',
-                                  style: TextStyle(
-                                    color: isDisabled
-                                        ? Colors.grey
-                                        : historyDay
-                                        ? Colors.grey.shade600
-                                        : const Color(0xFF333333),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: widget.embedded ? 13 : 16,
+                                  widget.roomName,
+                                  style: const TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w900,
                                   ),
                                 ),
-
-                                SizedBox(height: widget.embedded ? 2 : 4),
-
-                                Container(
-                                  width: widget.embedded ? 8 : 10,
-                                  height: widget.embedded ? 8 : 10,
-                                  decoration: BoxDecoration(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : color,
-                                    shape: BoxShape.circle,
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.roomTypeName,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF7A5A32),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  '單房使用紀錄 / 可關閉單日房間',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+
+                  /// 🔥 月份切換列
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () {
+                            setState(() {
+                              _currentMonth = DateTime(
+                                _currentMonth.year,
+                                _currentMonth.month - 1,
+                              );
+                            });
+                          },
+                        ),
+                        Text(
+                          '${_currentMonth.year} 年 ${_currentMonth.month} 月',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () {
+                            setState(() {
+                              _currentMonth = DateTime(
+                                _currentMonth.year,
+                                _currentMonth.month + 1,
+                              );
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  /// 🔥 星期列
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                    child: Row(
+                      children: const [
+                        _WeekdayText('日'),
+                        _WeekdayText('一'),
+                        _WeekdayText('二'),
+                        _WeekdayText('三'),
+                        _WeekdayText('四'),
+                        _WeekdayText('五'),
+                        _WeekdayText('六'),
+                      ],
+                    ),
+                  ),
+                ];
+                Widget buildMonthCard() {
+                  return Container(
+                    margin: EdgeInsets.fromLTRB(
+                      widget.embedded ? 4 : 12,
+                      0,
+                      widget.embedded ? 4 : 12,
+                      widget.embedded ? 0 : 12,
+                    ),
+                    padding: EdgeInsets.only(top: widget.embedded ? 0 : 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: LayoutBuilder(
+                      builder: (BuildContext context, BoxConstraints constraints) {
+                        final bool embeddedGrid = widget.embedded;
+                        final int rowCount = (totalGridCount / 7).ceil().clamp(
+                          1,
+                          6,
                         );
+                        final double availableHeight = constraints.maxHeight;
+                        final double embeddedCellHeight =
+                            availableHeight.isFinite
+                            ? ((availableHeight - (rowCount - 1) * 2) /
+                                      rowCount)
+                                  .clamp(1.0, 60.0)
+                            : 56.0;
+                        final Widget grid = GridView.builder(
+                          shrinkWrap: false,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            embeddedGrid ? 4 : 14,
+                            embeddedGrid ? 0 : 10,
+                            embeddedGrid ? 4 : 14,
+                            embeddedGrid ? 0 : 18,
+                          ),
+                          gridDelegate: embeddedGrid
+                              ? SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 7,
+                                  mainAxisExtent: embeddedCellHeight,
+                                  mainAxisSpacing: 2,
+                                  crossAxisSpacing: 2,
+                                )
+                              : const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 7,
+                                  childAspectRatio: 0.68,
+                                ),
+                          itemCount: totalGridCount,
+                          itemBuilder: (context, index) {
+                            if (index < leadingEmptyDays) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final dayNumber = index - leadingEmptyDays + 1;
+
+                            final date = DateTime(
+                              _currentMonth.year,
+                              _currentMonth.month,
+                              dayNumber,
+                            );
+
+                            final key = _format(date);
+
+                            /// 🔥 預設狀態
+                            final String calendarStatus = map[key] ?? '';
+                            String status = map[key] ?? 'available';
+                            Map<String, dynamic>? dayBooking;
+                            String? dayBookingId;
+
+                            /// 維修中 / 關閉日優先，不讓訂單狀態蓋掉。
+                            /// 顯示用的代表訂單只影響顏色；點擊仍會列出全部有效訂單。
+                            final List<RoomDayBookingChoice> dayMatches =
+                                _isBlockedStatus(status)
+                                ? const <RoomDayBookingChoice>[]
+                                : activeBookingsOnRoomDay(
+                                    bookings: <RoomDayBookingChoice>[
+                                      for (final QueryDocumentSnapshot<
+                                            Map<String, dynamic>
+                                          >
+                                          doc
+                                          in bookings)
+                                        RoomDayBookingChoice(
+                                          id: doc.id,
+                                          data: doc.data(),
+                                        ),
+                                    ],
+                                    roomId: widget.roomId,
+                                    day: date,
+                                    occupancies: occupancies,
+                                  );
+                            final RoomDayBookingChoice? displayBooking =
+                                preferredRoomDayBooking(dayMatches);
+                            if (displayBooking != null) {
+                              dayBooking = displayBooking.data;
+                              dayBookingId = displayBooking.id;
+                              status = _calendarStatusOfBooking(dayBooking);
+                            }
+
+                            /// 🔥 可操作範圍
+                            final isPastDate = date.isBefore(
+                              today.subtract(const Duration(days: 1)),
+                            );
+
+                            final isFutureOutOfRange = date.isAfter(
+                              lastAllowedDate,
+                            );
+
+                            final hasBooking = dayBooking != null;
+                            final isBlocked = _isBlockedStatus(status);
+
+                            final RoomDayStatus dayStatus =
+                                resolveRoomDayStatus(
+                                  date: date,
+                                  today: today,
+                                  room: widget.room,
+                                  calendarStatus: calendarStatus,
+                                  booking: dayBooking,
+                                );
+
+                            /// 過去且沒有有效訂單時，桌機與手機都用同一套歷史灰色。
+                            final bool historyDay = dayStatus.isHistory;
+
+                            /// 過去日期如果有訂單或維修紀錄，要能顯示出來
+                            final isDisabled = widget.embedded
+                                ? isFutureOutOfRange
+                                : isFutureOutOfRange ||
+                                      (isPastDate && !hasBooking && !isBlocked);
+
+                            final isSelected =
+                                _selectedDate != null &&
+                                date.year == _selectedDate!.year &&
+                                date.month == _selectedDate!.month &&
+                                date.day == _selectedDate!.day;
+
+                            /// 圓點顏色只走 RoomDayStatus，桌機與手機同一套。
+                            Color color = dayStatus.color;
+                            if (isDisabled) {
+                              color = Colors.grey.shade300;
+                            }
+
+                            return GestureDetector(
+                              onTap: isDisabled
+                                  ? null
+                                  : () {
+                                      final RoomOverviewGestureResult result =
+                                          resolveRoomOverviewGesture(
+                                            gesture:
+                                                RoomOverviewGesture.calendarDay,
+                                            roomId: widget.roomId,
+                                            date: date,
+                                          );
+                                      if (result.navigatesToOrder) {
+                                        return;
+                                      }
+                                      setState(() {
+                                        _selectedDate = result.date ?? date;
+                                        _selectedStatus = status;
+                                        _selectedBooking = dayBooking;
+                                        _selectedBookingId = dayBookingId;
+                                      });
+                                      widget.onDateSelected?.call(
+                                        result.date ?? date,
+                                      );
+                                    },
+                              child: Container(
+                                margin: EdgeInsets.all(widget.embedded ? 1 : 4),
+                                padding: EdgeInsets.symmetric(
+                                  vertical: widget.embedded ? 1 : 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDisabled
+                                      ? Colors.grey.shade100
+                                      : historyDay
+                                      ? Colors.grey.shade50
+                                      : status == 'booked'
+                                      ? Colors.deepOrange.withValues(
+                                          alpha: 0.05,
+                                        )
+                                      : status == 'occupied'
+                                      ? Colors.blue.withValues(alpha: 0.06)
+                                      : _isBlockedStatus(status)
+                                      ? Colors.black.withValues(alpha: 0.04)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.blue
+                                        : isDisabled
+                                        ? Colors.grey.shade300
+                                        : color.withValues(alpha: 0.35),
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                  boxShadow: isDisabled || widget.embedded
+                                      ? []
+                                      : [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.04,
+                                            ),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '$dayNumber',
+                                      style: TextStyle(
+                                        color: isDisabled
+                                            ? Colors.grey
+                                            : historyDay
+                                            ? Colors.grey.shade600
+                                            : const Color(0xFF333333),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: widget.embedded ? 13 : 16,
+                                      ),
+                                    ),
+
+                                    SizedBox(height: widget.embedded ? 2 : 4),
+
+                                    Container(
+                                      width: widget.embedded ? 8 : 10,
+                                      height: widget.embedded ? 8 : 10,
+                                      decoration: BoxDecoration(
+                                        color: isDisabled
+                                            ? Colors.grey.shade400
+                                            : color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                        if (!embeddedGrid) {
+                          return SizedBox(height: 500, child: grid);
+                        }
+                        return grid;
                       },
-                    );
-                    if (!embeddedGrid) {
-                      return SizedBox(height: 500, child: grid);
-                    }
-                    return grid;
-                  },
-                ),
-              );
-            }
-
-            final DateTime? panelDate = _selectedDate;
-            final _CalendarDayFacts? selectedFacts = panelDate == null
-                ? null
-                : _factsFor(
-                    date: panelDate,
-                    calendarStatus: map[_format(panelDate)] ?? '',
-                    calendarBookingId:
-                        calendarBookingIds[_format(panelDate)] ?? '',
-                    bookings: allBookingDocs,
-                    occupancies: occupancies,
+                    ),
                   );
-            final RoomDayStatus? selectedDayStatus = panelDate == null
-                ? null
-                : resolveRoomDayStatus(
-                    date: panelDate,
-                    today: today,
-                    room: widget.room,
-                    calendarStatus: map[_format(panelDate)] ?? '',
-                    booking: selectedFacts?.booking,
-                  );
-            final Map<String, dynamic>? panelBooking = selectedFacts?.booking;
+                }
 
-            if (widget.embedded) {
-              return _embeddedWorkspace(
-                monthCard: buildMonthCard(),
-                facts: selectedFacts,
-                dayStatus: selectedDayStatus,
-              );
-            }
-            return ListView(
-              padding: EdgeInsets.zero,
-              children: <Widget>[
-                ...topChrome,
-                buildMonthCard(),
-                if (panelDate != null &&
-                    selectedFacts != null &&
-                    selectedDayStatus != null)
-                  _selectedDateActionPanel(
-                    date: panelDate,
-                    status: selectedFacts.status,
+                final DateTime? panelDate = _selectedDate;
+                final _CalendarDayFacts? selectedFacts = panelDate == null
+                    ? null
+                    : _factsFor(
+                        date: panelDate,
+                        calendarStatus: map[_format(panelDate)] ?? '',
+                        calendarBookingId:
+                            calendarBookingIds[_format(panelDate)] ?? '',
+                        bookings: allBookingDocs,
+                        occupancies: occupancies,
+                      );
+                final RoomDayStatus? selectedDayStatus = panelDate == null
+                    ? null
+                    : resolveRoomDayStatus(
+                        date: panelDate,
+                        today: today,
+                        room: widget.room,
+                        calendarStatus: map[_format(panelDate)] ?? '',
+                        booking: selectedFacts?.booking,
+                      );
+                final Map<String, dynamic>? panelBooking =
+                    selectedFacts?.booking;
+
+                if (widget.embedded) {
+                  return _embeddedWorkspace(
+                    monthCard: buildMonthCard(),
                     facts: selectedFacts,
                     dayStatus: selectedDayStatus,
-                  ),
-
-                if (panelDate != null &&
-                    _dailyCareSettingLoaded &&
-                    _dailyCareSetting.enabled &&
-                    panelBooking != null &&
-                    panelBooking['status'] == 'checked_in' &&
-                    _isSelectedDateACareDate() &&
-                    DailyCareReportEligibility.isEntitled(
-                      DailyCareReportEligibility.resolvedEntitlement(
-                        booking: panelBooking,
-                        setting: _dailyCareSetting,
-                        daycare: false,
+                  );
+                }
+                return ListView(
+                  padding: EdgeInsets.zero,
+                  children: <Widget>[
+                    ...topChrome,
+                    buildMonthCard(),
+                    if (panelDate != null &&
+                        selectedFacts != null &&
+                        selectedDayStatus != null)
+                      _selectedDateActionPanel(
+                        date: panelDate,
+                        status: selectedFacts.status,
+                        facts: selectedFacts,
+                        dayStatus: selectedDayStatus,
                       ),
-                    ))
-                  _dailyCarePanel(),
 
-                _roomActionLogsPanel(),
+                    if (panelDate != null &&
+                        _dailyCareSettingLoaded &&
+                        _dailyCareSetting.enabled &&
+                        panelBooking != null &&
+                        panelBooking['status'] == 'checked_in' &&
+                        _isSelectedDateACareDate() &&
+                        DailyCareReportEligibility.isEntitled(
+                          DailyCareReportEligibility.resolvedEntitlement(
+                            booking: panelBooking,
+                            setting: _dailyCareSetting,
+                            daycare: false,
+                          ),
+                        ))
+                      _dailyCarePanel(),
 
-                /// 🔥 圖例
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: RoomStatusPresentation.legendItems()
-                        .map(
-                          (RoomStatusPresentation item) =>
-                              _legend(item.color, item.label),
-                        )
-                        .toList(),
-                  ),
-                ),
-              ],
+                    _roomActionLogsPanel(),
+
+                    /// 🔥 圖例
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Wrap(
+                        spacing: 16,
+                        runSpacing: 8,
+                        children: RoomStatusPresentation.legendItems()
+                            .map(
+                              (RoomStatusPresentation item) =>
+                                  _legend(item.color, item.label),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
-          },
-        );
           },
         );
       },
@@ -914,52 +928,32 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     required _CalendarDayFacts? facts,
     required RoomDayStatus? dayStatus,
   }) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double maxH = constraints.maxHeight;
-        double zone = 400;
-        if (maxH.isFinite && maxH > 0) {
-          zone = (maxH * 0.52).clamp(360.0, 430.0);
-          if (maxH - zone < 150) {
-            zone = (maxH - 150).clamp(240.0, 430.0);
-          }
-        }
-        return Column(
-          children: <Widget>[
-            SizedBox(
-              height: zone,
-              child: Column(
-                children: <Widget>[
-                  if (widget.embeddedHeader != null) widget.embeddedHeader!,
-                  _embeddedMonthSwitcher(),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
-                    child: Row(
-                      children: <Widget>[
-                        _WeekdayText('日', fontSize: 11),
-                        _WeekdayText('一', fontSize: 11),
-                        _WeekdayText('二', fontSize: 11),
-                        _WeekdayText('三', fontSize: 11),
-                        _WeekdayText('四', fontSize: 11),
-                        _WeekdayText('五', fontSize: 11),
-                        _WeekdayText('六', fontSize: 11),
-                      ],
-                    ),
-                  ),
-                  Expanded(child: monthCard),
-                  _embeddedLegend(),
-                ],
-              ),
+    return RoomRecordWorkspaceLayout(
+      calendar: Column(
+        children: [
+          if (widget.embeddedHeader != null) widget.embeddedHeader!,
+          _embeddedMonthSwitcher(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                _WeekdayText('日', fontSize: 12),
+                _WeekdayText('一', fontSize: 12),
+                _WeekdayText('二', fontSize: 12),
+                _WeekdayText('三', fontSize: 12),
+                _WeekdayText('四', fontSize: 12),
+                _WeekdayText('五', fontSize: 12),
+                _WeekdayText('六', fontSize: 12),
+              ],
             ),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
-            Expanded(
-              child:
-                  widget.embeddedDetail ??
-                  _embeddedDetailScroll(facts: facts, dayStatus: dayStatus),
-            ),
-          ],
-        );
-      },
+          ),
+          Expanded(child: monthCard),
+          _embeddedLegend(),
+        ],
+      ),
+      detail:
+          widget.embeddedDetail ??
+          _embeddedDetailScroll(facts: facts, dayStatus: dayStatus),
     );
   }
 
@@ -972,6 +966,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: '上一個月',
             icon: const Icon(Icons.chevron_left, size: 20),
             onPressed: () {
               setState(() {
@@ -993,6 +988,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: '下一個月',
             icon: const Icon(Icons.chevron_right, size: 20),
             onPressed: () {
               setState(() {
@@ -1037,7 +1033,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         const SizedBox(width: 3),
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: Colors.black54),
+          style: const TextStyle(fontSize: 11, color: Colors.black54),
         ),
       ],
     );
@@ -1048,7 +1044,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     required RoomDayStatus? dayStatus,
   }) {
     final DateTime? date = _selectedDate;
-    final String title = date == null ? '所選日期' : '所選日期資訊';
+    final String title = date == null ? '所選日期' : '當日房務';
     final Map<String, dynamic>? careBooking = facts?.booking;
     final bool showCare =
         date != null &&
@@ -1300,7 +1296,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   Widget _embeddedInfoCard({required String title, required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
@@ -1311,7 +1307,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         children: <Widget>[
           Text(
             title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           child,
@@ -1386,7 +1382,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           else if (roomCalendarDateIsPast(date))
             const Text(
               '歷史日期僅供查詢。',
-              style: TextStyle(fontSize: 12, height: 1.35, color: Colors.black54),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: Colors.black54,
+              ),
             )
           else
             const Text(

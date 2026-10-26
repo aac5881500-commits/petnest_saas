@@ -2,6 +2,7 @@
 // 功能說明：每店獨立購物車。不扣除 currentStock。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_purchase_gate.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';
@@ -26,7 +27,10 @@ class StoreCartPage extends StatelessWidget {
   final HomeThemeModel theme;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      StorePurchaseGate(shopId: shopId, builder: _buildPage);
+
+  Widget _buildPage(BuildContext context, bool canPurchase) {
     return StorefrontTheme(
       shopId: shopId,
       shopTheme: theme,
@@ -392,7 +396,10 @@ class StoreCartPage extends StatelessWidget {
                                       SizedBox(
                                         width: double.infinity,
                                         child: FilledButton(
-                                          onPressed: hasInvalid || total <= 0
+                                          onPressed:
+                                              !canPurchase ||
+                                                  hasInvalid ||
+                                                  total <= 0
                                               ? null
                                               : () {
                                                   Navigator.push(
@@ -409,7 +416,9 @@ class StoreCartPage extends StatelessWidget {
                                                     ),
                                                   );
                                                 },
-                                          child: const Text('前往結帳'),
+                                          child: Text(
+                                            canPurchase ? '前往結帳' : '目前暫停接單',
+                                          ),
                                         ),
                                       ),
                                     ],

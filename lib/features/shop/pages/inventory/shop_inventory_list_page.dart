@@ -28,10 +28,12 @@ class ShopInventoryListPage extends StatefulWidget {
     super.key,
     required this.shopId,
     this.memberData,
+    this.initialStockStatus,
   });
 
   final String shopId;
   final Map<String, dynamic>? memberData;
+  final InventoryStockStatus? initialStockStatus;
 
   @override
   State<ShopInventoryListPage> createState() => _ShopInventoryListPageState();
@@ -59,6 +61,13 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
   @override
   void initState() {
     super.initState();
+    _filter = switch (widget.initialStockStatus) {
+      InventoryStockStatus.low => _InventoryFilter.low,
+      InventoryStockStatus.outOfStock => _InventoryFilter.outOfStock,
+      InventoryStockStatus.normal => _InventoryFilter.normal,
+      InventoryStockStatus.disabled => _InventoryFilter.disabled,
+      null => _InventoryFilter.all,
+    };
     _linkSubscription = InventoryLinkageService.instance
         .watchShop(widget.shopId)
         .listen(
@@ -101,6 +110,7 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
       floatingActionButton: _canManage
           ? FloatingActionButton(
               onPressed: _openCreate,
+              tooltip: '新增庫存品項',
               child: const Icon(Icons.add),
             )
           : null,
@@ -146,7 +156,17 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
                       const SizedBox(height: 10),
                       TextField(
                         controller: _searchController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
+                          suffixIcon: _keyword.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: '清除搜尋',
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _keyword = '');
+                                  },
+                                ),
                           hintText: '搜尋品項、SKU、條碼或分類',
                           prefixIcon: Icon(Icons.search),
                           border: OutlineInputBorder(),

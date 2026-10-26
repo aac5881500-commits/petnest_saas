@@ -2,6 +2,7 @@
 // 功能說明：環境特色 Icon 選擇 Dialog
 
 import 'package:flutter/material.dart';
+import '../../data/environment_feature_icons.dart';
 
 class EnvironmentIconPickerDialog extends StatelessWidget {
   const EnvironmentIconPickerDialog({super.key, required this.onSelect});
@@ -10,33 +11,27 @@ class EnvironmentIconPickerDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icons = [
-      {'key': 'home', 'label': '住宿空間', 'icon': Icons.home_rounded},
-      {
-        'key': 'clean',
-        'label': '清潔消毒',
-        'icon': Icons.cleaning_services_rounded,
-      },
-      {'key': 'air', 'label': '空調', 'icon': Icons.ac_unit_rounded},
-      {'key': 'camera', 'label': '監視', 'icon': Icons.videocam_rounded},
-      {'key': 'hospital', 'label': '醫療', 'icon': Icons.local_hospital_rounded},
-      {'key': 'water', 'label': '飲水', 'icon': Icons.water_drop_rounded},
-      {'key': 'sun', 'label': '日照', 'icon': Icons.wb_sunny_rounded},
-      {'key': 'clean_hand', 'label': '定期消毒', 'icon': Icons.clean_hands_rounded},
-      {'key': 'pets', 'label': '寵物照護', 'icon': Icons.pets_rounded},
-      {'key': 'toys', 'label': '遊戲活動', 'icon': Icons.toys_rounded},
-    ];
-
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       title: const Text('選擇特色圖示'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ],
       content: SizedBox(
-        width: double.maxFinite,
-        child: GridView.count(
+        width: 640,
+        height: (MediaQuery.sizeOf(context).height * 0.65).clamp(160.0, 480.0),
+        child: GridView(
           shrinkWrap: true,
-          crossAxisCount: 2,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          children: icons.map((item) {
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 150,
+            mainAxisExtent: 96,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          children: environmentFeatureIcons.map((item) {
             return InkWell(
               onTap: () {
                 onSelect(item['key'] as String);
@@ -58,7 +53,11 @@ class EnvironmentIconPickerDialog extends StatelessWidget {
                       color: const Color(0xFFB87535),
                     ),
                     const SizedBox(height: 8),
-                    Text(item['label'] as String),
+                    Text(
+                      item['label'] as String,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ],
                 ),
               ),

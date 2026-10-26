@@ -39,6 +39,7 @@ import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
+import 'package:petnest_saas/core/services/store_home_draft_merge.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
@@ -118,6 +119,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       );
   bool _showFeaturedStoreProducts = true;
   bool _showStoreBanner = true;
+  bool _loadedShowStoreBanner = true;
   String _storeCardBackgroundFit = ModernStoreCardFits.cover;
   String _storeCardBackgroundAlignment = ModernStoreCardAlignments.center;
   String _storeCardOverlayPreset = ModernStoreCardOverlays.none;
@@ -480,6 +482,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _showFeaturedStoreProducts = setting.showFeaturedProducts;
     _featuredStoreTitleController.text = setting.featuredTitle;
     _showStoreBanner = setting.showStoreBanner;
+    _loadedShowStoreBanner = setting.showStoreBanner;
     _storeBannerTitleController.text = setting.storeBannerTitle;
     _storeBannerSubtitleController.text = setting.storeBannerSubtitle;
     _storeBannerButtonTextController.text = setting.storeBannerButtonText;
@@ -515,14 +518,18 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     final ModernStoreHomeSetting latest = ModernStoreHomeSetting.fromMap(
       modern,
     );
-    return latest.copyWith(
-      featuredProductLayout:
-          _featuredProductLayout == _loadedFeaturedProductLayout
-          ? null
-          : _featuredProductLayout,
-      storeEntryLayout: _storeEntryLayout == _loadedStoreEntryLayout
-          ? null
-          : _storeEntryLayout,
+    return mergeStoreHomeDisplayDraft(
+      latest: latest,
+      loaded: ModernStoreHomeSetting(
+        showStoreBanner: _loadedShowStoreBanner,
+        featuredProductLayout: _loadedFeaturedProductLayout,
+        storeEntryLayout: _loadedStoreEntryLayout,
+      ),
+      draft: ModernStoreHomeSetting(
+        showStoreBanner: _showStoreBanner,
+        featuredProductLayout: _featuredProductLayout,
+        storeEntryLayout: _storeEntryLayout,
+      ),
     );
   }
 
@@ -772,6 +779,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _showFeaturedStoreProducts = storeHomeSetting.showFeaturedProducts;
         _featuredStoreTitleController.text = storeHomeSetting.featuredTitle;
         _showStoreBanner = storeHomeSetting.showStoreBanner;
+        _loadedShowStoreBanner = storeHomeSetting.showStoreBanner;
         _storeBannerTitleController.text = storeHomeSetting.storeBannerTitle;
         _storeBannerSubtitleController.text =
             storeHomeSetting.storeBannerSubtitle;
@@ -2590,12 +2598,26 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           key: _storeSettingsKey,
           child: _editorCard(
             title: '商城',
-            subtitle: '商城首頁與商品展示已移至商城專屬設定。',
+            subtitle: '控制首頁「逛逛賣場」入口是否顯示。',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('顯示首頁商城入口'),
+                  subtitle: const Text(
+                    '只控制首頁「逛逛賣場」區塊；不影響商城接單與既有訂單。調整後請儲存外觀設定。',
+                  ),
+                  value: _showStoreBanner,
+                  onChanged: _isSaving
+                      ? null
+                      : (value) => setState(() {
+                          _showStoreBanner = value;
+                          _appearanceDirty = true;
+                        }),
+                ),
                 const Text(
-                  '此區塊內容與外觀請至商城設定管理。首頁排序只決定它出現的位置。',
+                  '商品、商城外觀與營業狀態請至商城設定管理。',
                   style: TextStyle(fontSize: 13, height: 1.4),
                 ),
                 Align(
