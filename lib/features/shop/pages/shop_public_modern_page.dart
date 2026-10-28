@@ -809,7 +809,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final HomeAboutSectionSetting aboutSection =
             HomeAboutSectionSetting.fromMap(modernAppearance['aboutSection']);
         final bool aboutVisible =
-            aboutSection.showsOnHome && ShopIntroContent.about(shop);
+            aboutSection.showsOnHome &&
+            (widget.layoutCanvas ||
+                widget.isPreview ||
+                ShopIntroContent.about(shop));
         final HomeNewsSectionSetting newsSection =
             HomeNewsSectionSetting.fromMap(modernAppearance['newsSection']);
         final List<HomeNewsItem> newsItems = mergeHomeNews(
@@ -883,10 +886,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final bool daycareAvailable = DaycareSettingsService.instance
             .isEnabledForShop(shop: shop, settings: _daycareSettings);
         final bool showAnnouncementsOnHome =
-            newsItems.isNotEmpty &&
             showAnnouncements &&
-            !(newsPhase == HomeNewsSectionPhase.empty &&
-                !newsSection.showEmptyPlaceholder);
+            (editorPreview ||
+                (newsItems.isNotEmpty &&
+                    !(newsPhase == HomeNewsSectionPhase.empty &&
+                        !newsSection.showEmptyPlaceholder)));
         // 舊住宿服務快捷列已由精緻小卡區取代，預覽與正式前台都不再畫出。
         const bool showStayServiceStrip = false;
         final bool storeModuleEnabled = StorefrontAccess.isModuleEnabled(shop);
@@ -916,7 +920,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               homeInfoOccupiesSection(policyPhase) &&
               visibility.shows(HomeSharedEntrySources.policy),
           showFaq:
-              faqItems.isNotEmpty &&
+              (editorPreview || faqItems.isNotEmpty) &&
               homeInfoOccupiesSection(faqPhase) &&
               visibility.shows(HomeSharedEntrySources.faq),
           showReviews:

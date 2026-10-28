@@ -83,12 +83,13 @@ class AboutMediaField extends StatelessWidget {
     required this.onChanged,
     this.allowLibrary = true,
     this.allowFirst = true,
+    this.allowShop = true,
     this.onUpload,
   });
   final AboutMedia value;
   final Map<String, dynamic> shop;
   final ValueChanged<AboutMedia> onChanged;
-  final bool allowLibrary, allowFirst;
+  final bool allowLibrary, allowFirst, allowShop;
   final Future<AboutMedia?> Function()? onUpload;
   Future<void> _pickShop(BuildContext context) async {
     final photos = {
@@ -172,10 +173,11 @@ class AboutMediaField extends StatelessWidget {
         spacing: 8,
         runSpacing: 6,
         children: [
-          OutlinedButton(
-            onPressed: () => _pickShop(context),
-            child: const Text('選擇店家照片'),
-          ),
+          if (allowShop)
+            OutlinedButton(
+              onPressed: () => _pickShop(context),
+              child: const Text('選擇店家照片'),
+            ),
           if (onUpload != null)
             OutlinedButton(
               onPressed: () async {

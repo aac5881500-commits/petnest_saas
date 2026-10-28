@@ -859,7 +859,12 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             selectedPetIds: _selectedPetIds,
             theme: widget.theme,
             onPetsLoaded: (pets) {
-              _pets = pets;
+              setState(() {
+                _pets = pets;
+                _selectedPetIds.removeWhere(
+                  (id) => !pets.any((p) => p['petId'] == id),
+                );
+              });
             },
             onTogglePet: (petId, value) {
               setState(() {

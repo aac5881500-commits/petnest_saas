@@ -1,3 +1,4 @@
+const {loadEligiblePets} = require("../bookings/pet_species_guard");
 // 檔案名稱：functions/daycare/convert_daycare_to_accommodation.js
 // 功能說明：臨托轉住宿：新開住宿單並互相連結，不覆蓋原臨托服務種類
 
@@ -180,6 +181,11 @@ exports.convertDaycareToAccommodation = onCall(
             normalizeString(latestData.convertedBookingId)) {
           return;
         }
+        const eligiblePets = await loadEligiblePets(firestore, {
+          userId: normalizeString(latestData.userId), shopId,
+          petIds: latestData.petIds || (latestData.pets || []).map((p) => p.petId),
+          accepted: ["cat"], staff: true, transaction,
+        });
         const bookingCode = await generateBookingCode(transaction, shopId);
         transaction.set(stayRef, {
           bookingId: stayRef.id,
@@ -192,7 +198,7 @@ exports.convertDaycareToAccommodation = onCall(
           customerName: daycare.customerName || "",
           customerPhone: daycare.customerPhone || "",
           petIds: daycare.petIds || [],
-          pets: daycare.pets || [],
+          pets: eligiblePets,
           serviceType: normalizeString(data.serviceType) || "cat_hotel",
           startDate: admin.firestore.Timestamp.fromDate(stayStart),
           endDate: admin.firestore.Timestamp.fromDate(stayEnd),

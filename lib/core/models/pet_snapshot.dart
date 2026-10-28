@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/core/models/pet_snapshot.dart
 // 功能說明：住宿／安親／後台共用的寵物快照欄位映射，避免 breed 與 type 混用。
 
@@ -22,6 +23,7 @@ class PetSnapshot {
     'medicalStatus',
     'vaccine',
     'vaccineStatus',
+    'vaccineTypes',
     'chipNumber',
     'litterType',
     'feedingInstructions',
@@ -66,6 +68,7 @@ class PetSnapshot {
       'canMedicate': _jsonScalar(pet['canMedicate']),
       'medicalStatus': (pet['medicalStatus'] ?? '').toString(),
       'vaccine': (pet['vaccine'] ?? '').toString(),
+      'vaccineTypes': (pet['vaccineTypes'] ?? '').toString(),
       'vaccineStatus': (pet['vaccineStatus'] ?? '').toString(),
       'chipNumber':
           (pet['chipNumber'] ??
@@ -151,7 +154,8 @@ class PetSnapshot {
   }
 
   static String speciesLabel(Map<String, dynamic> pet) {
-    return _firstNonEmpty(<dynamic>[pet['species'], pet['type']]);
+    final species = PetSpecies.of(pet);
+    return species.isEmpty ? '' : PetSpecies.label(species);
   }
 
   static String breedLabel(Map<String, dynamic> pet) {
@@ -195,6 +199,8 @@ class PetSnapshot {
       rows.add(MapEntry<String, String>(label, text));
     }
 
+    add('疫苗類型', pet['vaccineTypes']);
+    add('疫苗狀態', pet['vaccineStatus']);
     add('過敏', pet['allergy']);
     final String legacyVaccine = _displayText(pet['vaccine']);
     if (_vaccinationOnlyValues.contains(legacyVaccine)) {

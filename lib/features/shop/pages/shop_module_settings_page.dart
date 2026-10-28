@@ -91,11 +91,11 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage>
       case ShopModules.catHotel:
         return '目前先接預約管理，之後可擴充房型與附加服務';
       case ShopModules.dogHotel:
-        return '先保留模板，未來可接狗狗住宿 / 安親';
+        return '住宿與安親方案、適應評估、預約及照護紀錄';
       case ShopModules.grooming:
-        return '先保留模板，未來可接美容預約與價目表';
+        return '美容預約、服務價目、美容師班表及服務紀錄';
       case ShopModules.hospital:
-        return '先保留模板，未來可接門診與醫師排班';
+        return '門診預約、科別項目、醫師班表及報到紀錄';
       case ShopModules.store:
         return '先保留模板，未來可接商品與訂單';
       case ShopModules.daycare:

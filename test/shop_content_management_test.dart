@@ -156,8 +156,8 @@ void main() {
     expect(find.text('常見問題暫時無法載入。'), findsOneWidget);
     expect(find.text('重試'), findsOneWidget);
     faqs.add([
-      {'id': 'a', 'question': '已上架問題', 'isPublished': true, 'sortOrder': 1},
-      {'id': 'b', 'question': '未上架問題', 'isPublished': false, 'sortOrder': 2},
+      {'id': 'a', 'question': '已上架問題', 'answer': '測試回答', 'isPublished': true, 'sortOrder': 1},
+      {'id': 'b', 'question': '未上架問題', 'answer': '測試回答', 'isPublished': false, 'sortOrder': 2},
     ]);
     await tester.pumpAndSettle();
     expect(find.text('已上架問題'), findsOneWidget);

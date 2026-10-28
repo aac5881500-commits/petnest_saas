@@ -13,7 +13,7 @@ class ShopReportService {
 
   static final ShopReportService instance = ShopReportService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   static const Set<String> _bookingRevenueStatuses = <String>{
     'confirmed',
@@ -97,6 +97,121 @@ class ShopReportService {
     );
   }
 
+  /// Workbench query: unselected data sources are not queried. Member figures
+  /// are period-based, not advertised as lifetime totals.
+  Future<ShopReportBundle> loadSelected({
+    required String shopId,
+    required ReportRange range,
+    required Set<String> sources,
+    bool includeMoney = true,
+  }) async {
+    final start = range.startDate, end = range.endDate;
+    final wantsBookings =
+        sources.contains('stay') || sources.contains('daycare');
+    final wantsMembers = sources.contains('members');
+    final memberStart = end.subtract(const Duration(days: 90));
+    final queryStart = wantsMembers && memberStart.isBefore(start)
+        ? memberStart
+        : start;
+    final bookings = <String, Map<String, dynamic>>{};
+    final payments = <Map<String, dynamic>>[];
+    final storeOrders = <Map<String, dynamic>>[];
+    final memberRows = <Map<String, dynamic>>[];
+    await Future.wait([
+      if (wantsBookings)
+        () async {
+          final snaps = await Future.wait([
+            _bookingsCreated(shopId, queryStart, end),
+            _bookingsByStartDate(
+              shopId,
+              start.subtract(const Duration(days: 120)),
+              end,
+            ),
+          ]);
+          for (final snap in snaps) {
+            _mergeDocs(bookings, snap);
+          }
+        }(),
+      if (includeMoney && (wantsBookings || sources.contains('store')))
+        () async {
+          payments.addAll(
+            (await _payments(
+              shopId,
+              start.subtract(const Duration(days: 90)),
+              end,
+            )).docs.map(_docMap),
+          );
+        }(),
+      if (sources.contains('store'))
+        () async {
+          storeOrders.addAll(
+            (await _storeOrders(shopId, start, end)).docs.map(_docMap),
+          );
+        }(),
+      if (wantsMembers)
+        () async {
+          memberRows.addAll(
+            (await _db
+                    .collection('shops')
+                    .doc(shopId)
+                    .collection('members')
+                    .get())
+                .docs
+                .map(_docMap),
+          );
+        }(),
+    ]);
+    return buildSelectedData(
+      range: range,
+      sources: sources,
+      bookings: bookings.values.toList(),
+      payments: payments,
+      storeOrders: storeOrders,
+      members: memberRows,
+    );
+  }
+
+  /// Pure calculation entry shared with query selection and regression tests.
+  ShopReportBundle buildSelectedData({
+    required ReportRange range,
+    required Set<String> sources,
+    List<Map<String, dynamic>> bookings = const [],
+    List<Map<String, dynamic>> payments = const [],
+    List<Map<String, dynamic>> storeOrders = const [],
+    List<Map<String, dynamic>> members = const [],
+  }) {
+    final selectedBookings = bookings
+        .where(
+          (booking) => BookingKind.isDaycare(booking)
+              ? sources.contains('daycare')
+              : sources.contains('stay'),
+        )
+        .toList();
+    final ids = selectedBookings.map((booking) => _str(booking['id'])).toSet();
+    final selectedPayments = sources.contains('payments')
+        ? payments.where((pay) {
+            final source = PaymentSourceType.resolve(
+              pay['sourceType'],
+              bookingId: _str(pay['bookingId']),
+            );
+            return source == PaymentSourceType.storeOrder
+                ? sources.contains('store')
+                : ids.contains(_str(pay['bookingId']));
+          }).toList()
+        : <Map<String, dynamic>>[];
+    return _build(
+      range: range,
+      bookings: selectedBookings,
+      lifetimeBookings: selectedBookings,
+      payments: selectedPayments,
+      storeOrders: sources.contains('store') ? storeOrders : [],
+      members: sources.contains('members') ? members : [],
+      includeTrend: false,
+      trendStart: range.startDate,
+      memberAsOf: range.endDate,
+    );
+  }
+
   Future<QuerySnapshot<Map<String, dynamic>>> _bookingsCreated(
     String shopId,
     DateTime start,
@@ -164,6 +279,7 @@ class ShopReportService {
     required bool includeTrend,
     required DateTime trendStart,
     bool summariesReady = true,
+    DateTime? memberAsOf,
   }) {
     final DateTime start = range.startDate;
     final DateTime end = range.endDate;
@@ -275,9 +391,9 @@ class ShopReportService {
           day?.confirmedOrders++;
           day?.pets += pets;
           day?.stayOrderAmount += money.orderAmount;
+          day?.stayRevenue += money.room;
+          stayRoom += money.room;
           if (!BookingKind.isDaycare(booking)) {
-            day?.stayRevenue += money.room;
-            stayRoom += money.room;
             stayNights += nights;
             day?.nights += nights;
           }
@@ -515,6 +631,8 @@ class ShopReportService {
       bookings: lifetimeBookings,
       rangeStart: start,
       rangeEnd: end,
+      asOf: memberAsOf,
+      periodOnly: memberAsOf != null,
     );
 
     final OverviewKpi overview = OverviewKpi(
@@ -586,6 +704,8 @@ class ShopReportService {
     required List<Map<String, dynamic>> bookings,
     required DateTime rangeStart,
     required DateTime rangeEnd,
+    DateTime? asOf,
+    bool periodOnly = false,
   }) {
     final Map<String, _MemAcc> acc = <String, _MemAcc>{};
     for (final Map<String, dynamic> m in members) {
@@ -611,7 +731,7 @@ class ShopReportService {
       );
     }
 
-    final DateTime now = DateTime.now();
+    final DateTime now = asOf ?? DateTime.now();
     final DateTime d30 = now.subtract(const Duration(days: 30));
     final DateTime d90 = now.subtract(const Duration(days: 90));
 
@@ -622,30 +742,35 @@ class ShopReportService {
       }
       final _MemAcc row = acc[uid]!;
       final DateTime? created = _dateOf(booking['createdAt']);
-      if (created != null) {
-        row.firstOrderAt = row.firstOrderAt == null
+      final inPeriod =
+          created != null && _inRange(created, rangeStart, rangeEnd);
+      if (created != null && (!periodOnly || inPeriod)) {
+        row.firstOrderAt =
+            row.firstOrderAt == null || created.isBefore(row.firstOrderAt!)
             ? created
-            : (created.isBefore(row.firstOrderAt!)
-                  ? created
-                  : row.firstOrderAt);
-        row.lastOrderAt = row.lastOrderAt == null
+            : row.firstOrderAt;
+        row.lastOrderAt =
+            row.lastOrderAt == null || created.isAfter(row.lastOrderAt!)
             ? created
-            : (created.isAfter(row.lastOrderAt!) ? created : row.lastOrderAt);
+            : row.lastOrderAt;
       }
       final String status = _str(booking['status']);
       if (_bookingRevenueStatuses.contains(status)) {
-        row.completed++;
-        final int amount = _bookingMoney(booking).orderAmount;
-        row.spend += amount;
-        if (created != null && !created.isBefore(d30)) {
+        if (!periodOnly || inPeriod) {
+          row.completed++;
+          row.spend += _bookingMoney(booking).orderAmount;
+        }
+        if (created != null &&
+            !created.isAfter(now) &&
+            !created.isBefore(d30)) {
           row.spentLast30 = true;
         }
-        if (created != null && !created.isBefore(d90)) {
+        if (created != null &&
+            !created.isAfter(now) &&
+            !created.isBefore(d90)) {
           row.spentLast90 = true;
         }
-        if (created != null && _inRange(created, rangeStart, rangeEnd)) {
-          row.periodOrders++;
-        }
+        if (inPeriod) row.periodOrders++;
       }
     }
 

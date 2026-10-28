@@ -1,3 +1,4 @@
+import 'shop_service_showcase.dart';
 // 功能：完整關於我們頁的內容與外觀；首頁小卡保持獨立，舊欄位仍為介紹單一來源。
 import 'package:flutter/material.dart';
 import 'environment_page_appearance.dart';
@@ -162,6 +163,7 @@ class AboutPageSetting {
         : 'cards',
   );
   static const sectionNames = {
+    'services': '服務項目',
     'highlights': '店家特色',
     'stories': '品牌故事',
     'principles': '照護理念',
@@ -170,6 +172,8 @@ class AboutPageSetting {
     'message': '給毛孩爸媽的話',
     'contact': '店家資訊',
   };
+  ShopServiceShowcase get serviceShowcase =>
+      ShopServiceShowcase.fromMap(_raw['moduleShowcase']);
   String get layout =>
       layouts.containsKey(_raw['layout']) ? '${_raw['layout']}' : 'classic';
   bool get expandable => _raw['expandable'] == true;
@@ -224,7 +228,24 @@ class AboutPageSetting {
       AboutPageSetting(raw: raw is Map ? Map<String, dynamic>.from(raw) : null);
   static AboutPageSetting fromShop(Map<String, dynamic> shop) {
     final home = shop['homeAppearance'];
-    return fromMap(home is Map ? home['aboutPage'] : null);
+    final setting = fromMap(home is Map ? home['aboutPage'] : null);
+    // Carry over the short-lived environment-page preference until the next
+    // About save stores it at its final destination. Never overwrite About data.
+    if (!setting._raw.containsKey('moduleShowcase')) {
+      final intro = shop['environmentIntro'];
+      final presentation = intro is Map
+          ? intro['environmentPresentation']
+          : null;
+      final previous = presentation is Map
+          ? presentation['moduleShowcase']
+          : null;
+      if (previous is Map) {
+        return setting.copyWith({
+          'moduleShowcase': Map<String, dynamic>.from(previous),
+        });
+      }
+    }
+    return setting;
   }
 
   AboutPageSetting withItems(String key, List<AboutContentItem> value) =>

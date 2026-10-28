@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_service_module.dart';
+import 'package:petnest_saas/features/shop/pages/services/shop_pet_service_booking_page.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_entry_page.dart
 // 功能說明：前台預約入口：住宿與安親同時開啟時，先選兩張大型服務卡片
@@ -184,6 +186,11 @@ class ShopBookingEntryPage extends StatelessWidget {
                     BuildContext context,
                     AsyncSnapshot<DaycareSettingsModel> settingSnap,
                   ) {
+                    if (shopSnap.hasError || settingSnap.hasError) {
+                      return const _BookingPausedNotice(
+                        message: '預約服務讀取失敗，請返回後重試',
+                      );
+                    }
                     if (!shopSnap.hasData || !settingSnap.hasData) {
                       return const Scaffold(
                         body: Center(child: CircularProgressIndicator()),
@@ -196,6 +203,100 @@ class ShopBookingEntryPage extends StatelessWidget {
                         stayReady && StayBookingReadiness.requested(shop);
                     final bool daycareOn = DaycareSettingsService.instance
                         .isEnabledForShop(shop: shop, settings: settings);
+                    final extraModules = PetServiceModule.all
+                        .where(
+                          (module) => ShopService.instance.isModuleEnabled(
+                            shop,
+                            module.id,
+                          ),
+                        )
+                        .toList();
+                    if (initialService ==
+                            BookingEntryInitialService.automatic &&
+                        preSelectedRoomType == null &&
+                        extraModules.isNotEmpty) {
+                      return Scaffold(
+                        appBar: AppBar(title: const Text('我要預約')),
+                        body: LayoutBuilder(
+                          builder: (context, box) {
+                            final columns = box.maxWidth >= 1080
+                                ? 3
+                                : box.maxWidth >= 700
+                                ? 2
+                                : 1;
+                            final cards = <Widget>[
+                              if (ShopService.instance.isModuleEnabled(
+                                shop,
+                                'cat_hotel',
+                              ))
+                                BookingEntryServiceCard(
+                                  title: '貓咪住宿',
+                                  subtitle: '安排入住與退房日期',
+                                  imageUrl: '',
+                                  fallbackIcon: Icons.nights_stay,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ShopBookingEntryPage(
+                                        shopId: shopId,
+                                        theme: theme,
+                                        useModernDrawer: useModernDrawer,
+                                        initialService:
+                                            BookingEntryInitialService
+                                                .accommodation,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (daycareOn)
+                                BookingEntryServiceCard(
+                                  title: '貓咪安親',
+                                  subtitle: '選擇當日送達與接回時間',
+                                  imageUrl: '',
+                                  fallbackIcon: Icons.wb_sunny_outlined,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ShopDaycareBookingPage(
+                                        shopId: shopId,
+                                        settings: settings,
+                                        shop: shop,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              for (final module in extraModules)
+                                BookingEntryServiceCard(
+                                  title: module.title,
+                                  subtitle: module.subtitle,
+                                  imageUrl: '',
+                                  fallbackIcon: module.icon,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ShopPetServiceBookingPage(
+                                        shopId: shopId,
+                                        module: module,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ];
+                            return GridView(
+                              padding: const EdgeInsets.all(20),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    mainAxisSpacing: 16,
+                                    crossAxisSpacing: 16,
+                                    mainAxisExtent: 188,
+                                  ),
+                              children: cards,
+                            );
+                          },
+                        ),
+                      );
+                    }
                     if (stayLoading &&
                         initialService != BookingEntryInitialService.daycare) {
                       return const Scaffold(

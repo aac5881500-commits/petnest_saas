@@ -1,12 +1,21 @@
-﻿{
+{
   "indexes": [
     {
       "collectionGroup": "action_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -14,9 +23,18 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -24,10 +42,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "bookingKind", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -35,10 +65,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "bookingKind", "order": "ASCENDING" },
-        { "fieldPath": "serviceDate", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "serviceDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -46,9 +88,18 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "discountCampaignId", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "discountCampaignId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -56,9 +107,18 @@
       "collectionGroup": "room_occupancies",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "roomId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "roomId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -66,9 +126,18 @@
       "collectionGroup": "room_occupancies",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "bookingId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -76,10 +145,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "source", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "source",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -87,10 +168,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "source", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "source",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -98,9 +191,18 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -108,10 +210,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -119,11 +233,26 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "endDate", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -131,10 +260,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -142,11 +283,26 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "ASCENDING" },
-        { "fieldPath": "endDate", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -154,11 +310,26 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "DESCENDING" },
-        { "fieldPath": "endDate", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "endDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -166,10 +337,22 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -177,9 +360,18 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -187,9 +379,18 @@
       "collectionGroup": "policy_acceptances",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "acceptedAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "acceptedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -197,9 +398,18 @@
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -207,10 +417,22 @@
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "audience", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "audience",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -218,10 +440,22 @@
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -229,9 +463,18 @@
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -239,9 +482,18 @@
       "collectionGroup": "reviews",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "shopId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
@@ -249,954 +501,1864 @@
       "collectionGroup": "reviews",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
     {
-  "collectionGroup": "reviews",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "reviews",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "reviews",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "notifications",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "member_point_logs",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "member_point_logs",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "type", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "point_redemptions",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "point_redemptions",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "member_point_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "member_point_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
     {
       "collectionGroup": "point_redemptions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "pickupCode", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
       ],
       "density": "SPARSE_ALL"
     },
-   {
-  "collectionGroup": "daily_care_photos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "roomId", "order": "ASCENDING" },
-    { "fieldPath": "recordDate", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "storeOrderId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "store_orders",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "store_orders",
-  "queryScope": "COLLECTION_GROUP",
-  "fields": [
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "store_orders",
-  "queryScope": "COLLECTION_GROUP",
-  "fields": [
-    { "fieldPath": "userId", "order": "ASCENDING" },
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "store_reservations",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "expireAt", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "chat_threads",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "lastMessageAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "action_logs",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "action_logs",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "targetType", "order": "ASCENDING" },
-    { "fieldPath": "targetId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_photos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "expiresAt", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_photos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "dateKey", "order": "ASCENDING" },
-    { "fieldPath": "sessionIndex", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_photos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "roomId", "order": "ASCENDING" },
-    { "fieldPath": "recordDate", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_photos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "recordDate", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_photos",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_photo_reservations",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "expiresAt", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "depositStatus", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "depositStatus", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "assignStatus", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "scheduledStartAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "scheduledEndAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "startDate", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "startDate", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "endDate", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "endDate", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "customerPhoneLast4", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "customerPhoneLast5", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "bookingCodeNormalized", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "customerNameNormalized", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "petNamesNormalized", "arrayConfig": "CONTAINS" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "startDate", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "startDate", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "endDate", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "scheduledStartAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "bookings",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingKind", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "scheduledEndAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "room_calendar",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "roomId", "order": "ASCENDING" },
-    { "fieldPath": "date", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "isArchived", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "memberSource", "order": "ASCENDING" },
-    { "fieldPath": "isArchived", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "isBlacklisted", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "isVip", "order": "ASCENDING" },
-    { "fieldPath": "isArchived", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "phoneLast4", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "phoneLast5", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "emailNormalized", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_records",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "bookingId", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "daily_care_records",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "recordDate", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "camera_access_requests",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "status", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "countyCode", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "licenseStatus", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "countyCode", "order": "ASCENDING" },
-    { "fieldPath": "licenseStatus", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shop_change_requests",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "requestType", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "nameGrams", "arrayConfig": "CONTAINS" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "licensePrefixes", "arrayConfig": "CONTAINS" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "normalizedLicense", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "contactPhoneDigits", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "businessState", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "linkStatus", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "contactStatus", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "districtKey", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "districtPending", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "validity", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "validity", "order": "ASCENDING" },
-    { "fieldPath": "validDate", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "hasCat", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "hasDog", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "hasBoarding", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "hasSale", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "legal_pet_businesses",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "hasBreeding", "order": "ASCENDING" },
-    { "fieldPath": "govSort", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shop_members",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "uid", "order": "ASCENDING" },
-    { "fieldPath": "role", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "activation_codes",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "salesRepId", "order": "ASCENDING" },
-    { "fieldPath": "normalizedCode", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shop_subscription_payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shops",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "currentSalesRepId", "order": "ASCENDING" },
-    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shops",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
-    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shops",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
-    { "fieldPath": "trialUntil", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "sales_month_summaries",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "month", "order": "ASCENDING" },
-    { "fieldPath": "repId", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "activation_codes",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "nameGrams", "arrayConfig": "CONTAINS" },
-    { "fieldPath": "normalizedCode", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "activation_codes",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "codePrefixes", "arrayConfig": "CONTAINS" },
-    { "fieldPath": "normalizedCode", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "activation_codes",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "salesRepId", "order": "ASCENDING" },
-    { "fieldPath": "normalizedCode", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shops",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
-    { "fieldPath": "trialUntil", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shops",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "entitlementSource", "order": "ASCENDING" },
-    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shop_commercial",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "currentSalesRepId", "order": "ASCENDING" },
-    { "fieldPath": "paidServiceUntil", "order": "ASCENDING" },
-    { "fieldPath": "__name__", "order": "ASCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-},
-{
-  "collectionGroup": "shop_subscription_payments",
-  "queryScope": "COLLECTION",
-  "fields": [
-    { "fieldPath": "shopId", "order": "ASCENDING" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" },
-    { "fieldPath": "__name__", "order": "DESCENDING" }
-  ],
-  "density": "SPARSE_ALL"
-}
-],
-"fieldOverrides": []
+    {
+      "collectionGroup": "point_redemptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "point_redemptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "pickupCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "roomId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "recordDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "storeOrderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "store_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "store_orders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "store_orders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "store_reservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expireAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "chat_threads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "action_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "action_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "targetId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dateKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionIndex",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "roomId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "recordDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "recordDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_photo_reservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "depositStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "depositStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "assignStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledStartAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledEndAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endDate",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "customerPhoneLast4",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "customerPhoneLast5",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingCodeNormalized",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "customerNameNormalized",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "petNamesNormalized",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endDate",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledStartAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingKind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduledEndAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "room_calendar",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "roomId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "memberSource",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isBlacklisted",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isVip",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "phoneLast4",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "phoneLast5",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "emailNormalized",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "bookingId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "daily_care_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "recordDate",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "camera_access_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "countyCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "licenseStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "countyCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "licenseStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_change_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "requestType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "nameGrams",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "licensePrefixes",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "normalizedLicense",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contactPhoneDigits",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "businessState",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "linkStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contactStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "districtKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "districtPending",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "validity",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "validity",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "validDate",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hasCat",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hasDog",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hasBoarding",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hasSale",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "legal_pet_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hasBreeding",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "govSort",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "activation_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "salesRepId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "normalizedCode",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_subscription_payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "currentSalesRepId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paidServiceUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "entitlementSource",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paidServiceUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "entitlementSource",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "trialUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "sales_month_summaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "month",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "repId",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "activation_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "nameGrams",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "normalizedCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "activation_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "codePrefixes",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "normalizedCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "activation_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "salesRepId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "normalizedCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "entitlementSource",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "trialUntil",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "entitlementSource",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paidServiceUntil",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_commercial",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "currentSalesRepId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paidServiceUntil",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "shop_subscription_payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "service_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "module",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "shop_campaigns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
 }

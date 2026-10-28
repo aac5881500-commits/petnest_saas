@@ -1,3 +1,6 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
+import 'package:petnest_saas/features/shop/pages/campaigns/campaign_entry_button.dart';
 // 檔案名稱：lib/features/admin/pages/admin_member_detail_page.dart
 // 功能說明：後台會員詳細頁（改為 shops/{shopId}/members 為主資料來源）
 
@@ -48,6 +51,7 @@ class AdminMemberDetailPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildMemberProfile(),
+                CampaignEntryButton(shopId: shopId, memberId: userId),
                 const SizedBox(height: 12),
                 PointModuleVisibility(
                   shopId: shopId,
@@ -710,10 +714,13 @@ class AdminMemberDetailPage extends StatelessWidget {
     final breedController = TextEditingController(
       text: (pet['breed'] ?? '').toString(),
     );
-    String vaccine = (pet['vaccine'] ?? '').toString().isEmpty
-        ? '無'
-        : (pet['vaccine'] ?? '').toString();
-
+    final vaccineTypesController = TextEditingController(
+      text: (pet['vaccineTypes'] ?? '').toString(),
+    );
+    String species = PetSpecies.of(pet);
+    if (species.isEmpty) species = 'cat';
+    String vaccine = PetSnapshot.medicalStatusText(pet);
+    if (vaccine.isEmpty) vaccine = '無';
     if (vaccine != '無' &&
         vaccine != '慢性腎臟病' &&
         vaccine != '心臟病' &&
@@ -734,7 +741,7 @@ class AdminMemberDetailPage extends StatelessWidget {
     );
     String gender = (pet['gender'] ?? '').toString();
 
-    if (gender != '公貓' && gender != '母貓') {
+    if (!['公貓', '母貓', '公狗', '母狗'].contains(gender)) {
       gender = '母貓';
     }
 
@@ -760,16 +767,37 @@ class AdminMemberDetailPage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: species,
+                      decoration: const InputDecoration(labelText: '寵物種類'),
+                      items: const [
+                        DropdownMenuItem(value: 'cat', child: Text('貓咪')),
+                        DropdownMenuItem(value: 'dog', child: Text('狗狗')),
+                      ],
+                      onChanged: (v) => setDialogState(() {
+                        species = v!;
+                        gender = v == 'dog' ? '母狗' : '母貓';
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: vaccineTypesController,
+                      decoration: const InputDecoration(labelText: '疫苗類型'),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: nameController,
                       decoration: const InputDecoration(labelText: '寵物名字'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+                      key: ValueKey('manual-gender-$species'),
                       value: gender,
                       decoration: const InputDecoration(labelText: '性別'),
                       items: const [
                         DropdownMenuItem(value: '公貓', child: Text('公貓')),
+                        DropdownMenuItem(value: '公狗', child: Text('公狗')),
+                        DropdownMenuItem(value: '母狗', child: Text('母狗')),
                         DropdownMenuItem(value: '母貓', child: Text('母貓')),
                       ],
                       onChanged: (value) {
@@ -817,7 +845,7 @@ class AdminMemberDetailPage extends StatelessWidget {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: vaccine,
-                      decoration: const InputDecoration(labelText: '疫苗 / 醫療狀況'),
+                      decoration: const InputDecoration(labelText: '醫療狀況'),
                       items: const [
                         DropdownMenuItem(value: '無', child: Text('無')),
                         DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
@@ -899,12 +927,16 @@ class AdminMemberDetailPage extends StatelessWidget {
           'age': age,
           'isNeutered': isNeutered,
           'breed': breedController.text.trim(),
-          'vaccine': vaccine,
-          'litterType': litterType,
+          'species': species,
+          'type': species,
+          'vaccineTypes': vaccineTypesController.text.trim(),
+          'medicalStatus': vaccine,
+          'litterType': species == 'dog' ? '' : litterType,
           'note': noteController.text.trim(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
+    vaccineTypesController.dispose();
     nameController.dispose();
     breedController.dispose();
     noteController.dispose();

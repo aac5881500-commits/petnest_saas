@@ -1,3 +1,4 @@
+const {loadEligiblePets} = require("../bookings/pet_species_guard");
 // 檔案名稱：functions/daycare/create_daycare_booking.js
 // 功能說明：建立臨托訂單：後端重算價格、名額與占用，不信任前端金額
 
@@ -974,12 +975,11 @@ async function createDaycareBookingBody(params) {
         policySummary.version : 0;
       const policyTitle = policySummary.title || "安親須知";
 
+      const eligiblePets = await loadEligiblePets(firestore, {
+        userId, shopId, petIds, accepted: ["cat"], staff: source === "admin",
+      });
       const hydratedPets = await hydrateDaycarePets({
-        firestore,
-        userId,
-        shopId,
-        petIds,
-        clientPets: Array.isArray(data.pets) ? data.pets : [],
+        firestore, userId, shopId, petIds, clientPets: eligiblePets,
       });
 
       let requestedRoomTypeName = normalizeString(data.requestedRoomTypeName);

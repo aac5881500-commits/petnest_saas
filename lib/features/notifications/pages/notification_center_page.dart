@@ -1,3 +1,4 @@
+import 'shop_campaign_notice_page.dart';
 // 檔案名稱：lib/features/notifications/pages/notification_center_page.dart
 // 功能說明：通知中心閱讀介面。篩選與日期分組只使用已載入的通知，不另開查詢。
 
@@ -89,6 +90,14 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
         case 'review':
           await Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const MyReviewsPage()),
+          );
+          break;
+        case 'shop_campaign':
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  ShopCampaignNoticePage(notification: notification),
+            ),
           );
           break;
         case 'shop_chat':

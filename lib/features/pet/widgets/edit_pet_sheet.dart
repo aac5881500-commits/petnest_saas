@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
 // 檔案名稱：lib/features/pet/widgets/edit_pet_sheet.dart
 // 功能說明：編輯寵物：接近全螢幕的 Modal Bottom Sheet，與新增寵物共用表單。
 
@@ -63,6 +65,8 @@ class _EditPetSheetState extends State<EditPetSheet> {
   late final TextEditingController _otherMedicalController;
   late final TextEditingController _otherLitterController;
 
+  String? _species;
+  final _vaccineController = TextEditingController();
   String? _gender;
   String? _ageRange;
   String? _neuterStatus;
@@ -89,11 +93,14 @@ class _EditPetSheetState extends State<EditPetSheet> {
       text: (pet['adminNote'] ?? '').toString(),
     );
 
+    _species = PetSpecies.of(pet);
+    if (_species!.isEmpty) _species = null;
+    _vaccineController.text = (pet['vaccineTypes'] ?? '').toString();
     _gender = pet['gender']?.toString();
     _ageRange = pet['age']?.toString();
     _neuterStatus = pet['isNeutered'] == true ? '有結紮' : '未結紮';
 
-    final String vaccine = (pet['vaccine'] ?? '').toString();
+    final String vaccine = PetSnapshot.medicalStatusText(pet);
     if (PetProfileForm.medicalOptions.contains(vaccine) || vaccine.isEmpty) {
       _medicalStatus = vaccine.isEmpty ? null : vaccine;
       _otherMedicalController = TextEditingController();
@@ -114,6 +121,7 @@ class _EditPetSheetState extends State<EditPetSheet> {
 
   @override
   void dispose() {
+    _vaccineController.dispose();
     _nameController.dispose();
     _breedController.dispose();
     _noteController.dispose();
@@ -176,10 +184,15 @@ class _EditPetSheetState extends State<EditPetSheet> {
             'gender': _gender,
             'breed': _breedController.text.trim(),
             'isNeutered': _neuterStatus == '有結紮',
-            'vaccine': _medicalStatus == '其他'
+            'species': _species,
+            'type': _species,
+            'vaccineTypes': _vaccineController.text.trim(),
+            'medicalStatus': _medicalStatus == '其他'
                 ? _otherMedicalController.text.trim()
                 : _medicalStatus,
-            'litterType': _litterType == '其他'
+            'litterType': _species == 'dog'
+                ? ''
+                : _litterType == '其他'
                 ? _otherLitterController.text.trim()
                 : _litterType,
             'note': _noteController.text.trim(),
@@ -275,6 +288,12 @@ class _EditPetSheetState extends State<EditPetSheet> {
                       adminNoteController: widget.isAdminView
                           ? _adminNoteController
                           : null,
+                      species: _species,
+                      vaccineController: _vaccineController,
+                      onSpeciesChanged: (v) => setState(() {
+                        _species = v;
+                        _gender = null;
+                      }),
                       gender: _gender,
                       ageRange: _ageRange,
                       neuterStatus: _neuterStatus,

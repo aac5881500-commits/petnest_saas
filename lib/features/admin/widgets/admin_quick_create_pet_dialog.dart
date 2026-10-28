@@ -17,7 +17,8 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
   final TextEditingController _breedController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  final String _type = 'cat';
+  String _type = 'cat';
+  final _vaccineController = TextEditingController();
   String _gender = '母貓';
   String _age = '未填';
   String _neuterStatus = '未結紮';
@@ -26,6 +27,7 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
 
   @override
   void dispose() {
+    _vaccineController.dispose();
     _nameController.dispose();
     _breedController.dispose();
     _noteController.dispose();
@@ -39,12 +41,15 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
     Navigator.pop(context, {
       'name': name,
       'type': _type,
+      'species': _type,
+      'vaccineTypes': _vaccineController.text.trim(),
+      'medicalStatus': _medicalStatus,
       'breed': _breedController.text.trim(),
       'gender': _gender,
       'age': _age,
       'isNeutered': _neuterStatus == '已結紮',
       'vaccine': _medicalStatus,
-      'litterType': _litterType,
+      'litterType': _type == 'dog' ? '' : _litterType,
       'note': _noteController.text.trim(),
     });
   }
@@ -57,6 +62,27 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            DropdownButtonFormField<String>(
+              initialValue: _type,
+              decoration: const InputDecoration(labelText: '寵物種類'),
+              items: const [
+                DropdownMenuItem(value: 'cat', child: Text('貓咪')),
+                DropdownMenuItem(value: 'dog', child: Text('狗狗')),
+              ],
+              onChanged: (v) => setState(() {
+                _type = v!;
+                _gender = v == 'dog' ? '母狗' : '母貓';
+              }),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _vaccineController,
+              decoration: const InputDecoration(
+                labelText: '疫苗類型',
+                hintText: '依接種紀錄填寫；未接種／不確定可註明',
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -79,6 +105,7 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
             const SizedBox(height: 12),
 
             DropdownButtonFormField<String>(
+              key: ValueKey('quick-gender-$_type'),
               value: _gender,
               decoration: const InputDecoration(
                 labelText: '性別',
@@ -86,6 +113,8 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
               ),
               items: const [
                 DropdownMenuItem(value: '公貓', child: Text('公貓')),
+                DropdownMenuItem(value: '公狗', child: Text('公狗')),
+                DropdownMenuItem(value: '母狗', child: Text('母狗')),
                 DropdownMenuItem(value: '母貓', child: Text('母貓')),
                 DropdownMenuItem(value: '未填', child: Text('未填')),
               ],

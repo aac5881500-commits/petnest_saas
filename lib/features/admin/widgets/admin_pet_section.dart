@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/features/admin/widgets/admin_pet_section.dart
 // 功能說明：顯示會員寵物、勾選寵物、新增寵物（支援暫存會員）
 // 🐾 後台新增訂單：寵物選擇區塊
@@ -41,7 +42,7 @@ class AdminPetSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '第二步：選擇寵物',
+          '第二步：選擇入住貓咪',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
         ),
 
@@ -78,12 +79,14 @@ class AdminPetSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.orange.shade200),
                   ),
-                  child: const Text('此會員目前沒有寵物，請先新增寵物。'),
+                  child: const Text('此會員目前沒有符合種類的貓咪，請先新增或補齊寵物種類。'),
                 );
               }
 
               return Column(
-                children: tempPets.map((pet) {
+                children: tempPets.where((p) => PetSpecies.of(p) == 'cat').map((
+                  pet,
+                ) {
                   final petId = pet['petId'].toString();
 
                   final isSelected = selectedPetIds.contains(petId);
@@ -132,7 +135,13 @@ class AdminPetSection extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final pets = snapshot.data!.docs;
+              final pets = snapshot.data!.docs
+                  .where(
+                    (d) =>
+                        PetSpecies.of(d.data() as Map<String, dynamic>) ==
+                        'cat',
+                  )
+                  .toList();
 
               if (pets.isEmpty) {
                 return Container(
@@ -143,7 +152,7 @@ class AdminPetSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.orange.shade200),
                   ),
-                  child: const Text('此會員目前沒有寵物，請先新增寵物。'),
+                  child: const Text('此會員目前沒有符合種類的貓咪，請先新增或補齊寵物種類。'),
                 );
               }
 

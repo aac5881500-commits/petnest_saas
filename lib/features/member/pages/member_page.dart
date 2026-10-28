@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
+import 'package:petnest_saas/features/pet/widgets/pet_profile_form.dart';
 // 檔案名稱：lib/features/member/pages/member_page.dart
 // 功能說明：會員中心頁（完整版：含電話輸入）
 
@@ -179,9 +181,9 @@ class _MemberPageState extends State<_MemberPageBody> {
               TextField(
                 controller: reasonController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: '刪除原因（可不填）',
-                  border: OutlineInputBorder(),
+                decoration: petProfileInputDecoration(
+                  theme: ShopFrontendTheme.of(context).home,
+                  label: '刪除原因（可不填）',
                 ),
               ),
             ],
@@ -307,7 +309,9 @@ class _MemberPageState extends State<_MemberPageBody> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: ShopFrontendTheme.of(context).home.cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -338,9 +342,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: '飼主姓名',
-                      border: OutlineInputBorder(),
+                    decoration: petProfileInputDecoration(
+                      theme: ShopFrontendTheme.of(context).home,
+                      label: '飼主姓名',
                     ),
                     validator: _validateName,
                   ),
@@ -352,10 +356,10 @@ class _MemberPageState extends State<_MemberPageBody> {
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(10),
                     ],
-                    decoration: const InputDecoration(
-                      labelText: '電話',
-                      hintText: '09xxxxxxxx',
-                      border: OutlineInputBorder(),
+                    decoration: petProfileInputDecoration(
+                      theme: ShopFrontendTheme.of(context).home,
+                      label: '電話',
+                      hint: '09xxxxxxxx',
                     ),
                     validator: _validateTaiwanPhone,
                   ),
@@ -405,7 +409,9 @@ class _MemberPageState extends State<_MemberPageBody> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: ShopFrontendTheme.of(context).home.cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -436,9 +442,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: _city,
-                        decoration: const InputDecoration(
-                          labelText: '縣市',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '縣市',
                         ),
                         items: cityData.keys.map((String city) {
                           return DropdownMenuItem<String>(
@@ -456,9 +462,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _district,
-                        decoration: const InputDecoration(
-                          labelText: '區域',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '區域',
                         ),
                         items: (_city == null ? <String>[] : cityData[_city]!)
                             .map<DropdownMenuItem<String>>((String d) {
@@ -477,9 +483,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _detailAddressController,
-                        decoration: const InputDecoration(
-                          labelText: '詳細地址',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '詳細地址',
                         ),
                         validator: (String? v) =>
                             (v ?? '').trim().isEmpty ? '請輸入地址' : null,
@@ -532,7 +538,9 @@ class _MemberPageState extends State<_MemberPageBody> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: ShopFrontendTheme.of(context).home.cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -563,9 +571,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _emergencyNameController,
-                        decoration: const InputDecoration(
-                          labelText: '緊急聯絡人姓名',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '緊急聯絡人姓名',
                         ),
                         validator: _validateName,
                       ),
@@ -577,19 +585,19 @@ class _MemberPageState extends State<_MemberPageBody> {
                           FilteringTextInputFormatter.digitsOnly,
                           LengthLimitingTextInputFormatter(10),
                         ],
-                        decoration: const InputDecoration(
-                          labelText: '緊急聯絡人電話',
-                          hintText: '09xxxxxxxx',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '緊急聯絡人電話',
+                          hint: '09xxxxxxxx',
                         ),
                         validator: _validateTaiwanPhone,
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _emergencyRelation,
-                        decoration: const InputDecoration(
-                          labelText: '關係',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '關係',
                         ),
                         items: const [
                           DropdownMenuItem(value: '父母', child: Text('父母')),
@@ -634,9 +642,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                       ),
                       TextField(
                         controller: _emergencyAddressController,
-                        decoration: const InputDecoration(
-                          labelText: '地址',
-                          border: OutlineInputBorder(),
+                        decoration: petProfileInputDecoration(
+                          theme: ShopFrontendTheme.of(context).home,
+                          label: '地址',
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -1332,19 +1340,24 @@ class _MemberPageState extends State<_MemberPageBody> {
 
                                   final List<Map<String, dynamic>> pets =
                                       snapshot.data!;
-                                  final List<Widget> cards = <Widget>[
-                                    ...pets.map(_petCard),
-                                    _addPetDashedCard(),
-                                  ];
-                                  return GridView.count(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    crossAxisCount: 2,
-                                    mainAxisSpacing: 8,
-                                    crossAxisSpacing: 8,
-                                    childAspectRatio: 0.88,
-                                    children: cards,
+                                  return Column(
+                                    children: [
+                                      for (final pet in pets)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          child: SizedBox(
+                                            height: 108,
+                                            child: _petCard(pet),
+                                          ),
+                                        ),
+                                      SizedBox(
+                                        height: 64,
+                                        width: double.infinity,
+                                        child: _addPetDashedCard(),
+                                      ),
+                                    ],
                                   );
                                 },
                               ),
@@ -2056,6 +2069,7 @@ class _MemberPageState extends State<_MemberPageBody> {
     final String gender = (pet['gender'] ?? '').toString();
     final String age = (pet['age'] ?? '').toString();
     final String meta = <String>[
+      PetSpecies.label(PetSpecies.of(pet)),
       if (gender.isNotEmpty) gender,
       if (age.isNotEmpty) age,
     ].join('・');
@@ -2079,10 +2093,12 @@ class _MemberPageState extends State<_MemberPageBody> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: theme.cardBorderColor),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Expanded(
+              SizedBox(
+                width: 104,
+                height: 108,
                 child: photoUrl.isEmpty
                     ? ColoredBox(
                         color: theme.primaryColor.withValues(alpha: 0.1),
@@ -2107,32 +2123,35 @@ class _MemberPageState extends State<_MemberPageBody> {
                         },
                       ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: theme.textColor,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textColor,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      meta.isEmpty ? _petTypeLabel(pet) : meta,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.textColor.withValues(alpha: 0.55),
-                        fontSize: 12,
+                      const SizedBox(height: 2),
+                      Text(
+                        meta.isEmpty ? _petTypeLabel(pet) : meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: theme.textColor.withValues(alpha: 0.55),
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

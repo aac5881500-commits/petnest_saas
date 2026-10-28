@@ -37,6 +37,8 @@ class _AddPetPageState extends State<AddPetPage> {
   String? _neuterStatus;
   String? _medicalStatus;
   String? _litterType;
+  String? _species;
+  final _vaccineController = TextEditingController();
   String? _gender;
   Uint8List? _imageBytes;
   bool _loading = false;
@@ -64,10 +66,14 @@ class _AddPetPageState extends State<AddPetPage> {
         breed: _breedController.text.trim(),
         note: _noteController.text.trim(),
         gender: _gender ?? '',
-        litterType: _litterType == '其他'
+        litterType: _species == 'dog'
+            ? ''
+            : _litterType == '其他'
             ? _otherLitterController.text.trim()
             : (_litterType ?? ''),
-        vaccine: _medicalStatus == '其他'
+        species: _species!,
+        vaccineTypes: _vaccineController.text.trim(),
+        medicalStatus: _medicalStatus == '其他'
             ? _otherMedicalController.text.trim()
             : (_medicalStatus ?? ''),
         isNeutered: _neuterStatus?.contains('未結紮') == false,
@@ -106,6 +112,7 @@ class _AddPetPageState extends State<AddPetPage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _vaccineController.dispose();
     _nameController.dispose();
     _breedController.dispose();
     _otherMedicalController.dispose();
@@ -140,6 +147,12 @@ class _AddPetPageState extends State<AddPetPage> {
               otherMedicalController: _otherMedicalController,
               otherLitterController: _otherLitterController,
               noteController: _noteController,
+              species: _species,
+              vaccineController: _vaccineController,
+              onSpeciesChanged: (v) => setState(() {
+                _species = v;
+                _gender = null;
+              }),
               gender: _gender,
               ageRange: _ageRange,
               neuterStatus: _neuterStatus,

@@ -1,3 +1,4 @@
+import 'room_intro_data_stream.dart';
 // 功能：穩定讀取所屬店家的房型內頁外觀，供正式頁與既有編輯預覽共用。
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -47,8 +48,9 @@ class RoomIntroAppearanceHost extends StatefulWidget {
 
 class _RoomIntroAppearanceHostState extends State<RoomIntroAppearanceHost> {
   late Stream<Map<String, dynamic>?> _stream;
-  void _bind() => _stream =
-      widget.shopStream ?? ShopService.instance.streamShop(widget.shopId);
+  void _bind() => _stream = roomIntroInitialLoad(
+    widget.shopStream ?? ShopService.instance.streamShop(widget.shopId),
+  );
   @override
   void initState() {
     super.initState();
@@ -85,7 +87,8 @@ class _RoomIntroAppearanceHostState extends State<RoomIntroAppearanceHost> {
         ready: snapshot.hasData,
         error:
             snapshot.error ??
-            (snapshot.connectionState == ConnectionState.active &&
+            ((snapshot.connectionState == ConnectionState.active ||
+                        snapshot.connectionState == ConnectionState.done) &&
                     !snapshot.hasData
                 ? '找不到店家'
                 : null),

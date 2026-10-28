@@ -19,7 +19,7 @@ class ShopFrontendPreviewPage extends StatelessWidget {
     required String shopId,
     required String shopCode,
   }) {
-    return Navigator.of(context).push<void>(
+    return Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
         builder: (_) =>
             ShopFrontendPreviewPage(shopId: shopId, shopCode: shopCode),
@@ -32,12 +32,17 @@ class ShopFrontendPreviewPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF1B1F27),
       body: SafeArea(
-        child: ShopFrontendPreviewFrame(
-          shopId: shopId,
-          shopCode: shopCode,
-          showExpand: false,
-          scaleToFit: false,
-          onClose: () => Navigator.of(context).maybePop(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: ShopFrontendPreviewFrame(
+              shopId: shopId,
+              shopCode: shopCode,
+              showExpand: false,
+              scaleToFit: true,
+              onClose: () => Navigator.of(context).maybePop(),
+            ),
+          ),
         ),
       ),
     );

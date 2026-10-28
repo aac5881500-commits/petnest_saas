@@ -1049,11 +1049,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           .doc(petId)
           .set({
             'name': result['name'],
-            'type': result['type'],
+
             'breed': result['breed'],
             'gender': result['gender'],
             'age': result['age'],
             'isNeutered': result['isNeutered'],
+            'species': result['species'] ?? result['type'],
+            'type': result['species'] ?? result['type'],
+            'vaccineTypes': result['vaccineTypes'] ?? '',
+            'medicalStatus': result['medicalStatus'] ?? '',
             'vaccine': result['vaccine'],
             'litterType': result['litterType'],
             'note': result['note'],
@@ -1071,11 +1075,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       _pets.add({
         'petId': petId,
         'name': result['name'],
-        'type': result['type'],
+
         'breed': result['breed'],
         'gender': result['gender'],
         'age': result['age'],
         'isNeutered': result['isNeutered'],
+        'species': result['species'] ?? result['type'],
+        'type': result['species'] ?? result['type'],
+        'vaccineTypes': result['vaccineTypes'] ?? '',
+        'medicalStatus': result['medicalStatus'] ?? '',
         'vaccine': result['vaccine'],
         'litterType': result['litterType'],
         'note': result['note'],
@@ -1994,11 +2002,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           final petData = {
             'petId': petId,
             'name': pet['name'] ?? '',
-            'type': pet['type'] ?? '',
+
             'breed': pet['breed'] ?? '',
             'gender': pet['gender'] ?? '',
             'age': pet['age'] ?? '',
             'isNeutered': pet['isNeutered'] ?? false,
+            'species': pet['species'] ?? pet['type'],
+            'type': pet['species'] ?? pet['type'],
+            'vaccineTypes': pet['vaccineTypes'] ?? '',
+            'medicalStatus': pet['medicalStatus'] ?? '',
             'vaccine': pet['vaccine'] ?? '',
             'litterType': pet['litterType'] ?? '',
             'note': pet['note'] ?? '',

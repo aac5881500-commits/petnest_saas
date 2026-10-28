@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/shop_service_showcase.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/models/about_page_setting.dart';
@@ -59,6 +60,12 @@ class ShopIntroContent {
       return true;
     }
     final setting = AboutPageSetting.fromShop(shop);
+    if (setting.visible('services') &&
+        setting.serviceShowcase
+            .visibleModules(serviceShowcaseEnabledModules(shop))
+            .isNotEmpty) {
+      return true;
+    }
     // A cover, layout, contact details or generic section title alone is not an introduction.
     return ['highlights', 'stories', 'principles', 'team', 'credentials'].any(
       (section) => setting

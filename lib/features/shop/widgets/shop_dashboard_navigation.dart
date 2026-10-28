@@ -92,6 +92,10 @@ class ShopDashboardNavigation extends NavigatorObserver with ChangeNotifier {
     return true;
   }
 
+  /// Validate active editors before explicitly leaving the shop dashboard.
+  Future<bool> confirmLeave() async =>
+      !_disposed && await _confirmLeaveDetails();
+
   Future<void> switchTo({
     String? id,
     WidgetBuilder? page,

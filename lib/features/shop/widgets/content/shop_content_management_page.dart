@@ -1,3 +1,7 @@
+import 'package:petnest_saas/core/services/announcement_notification.dart';
+import 'package:petnest_saas/core/services/shop_campaign_service.dart';
+import 'package:petnest_saas/features/shop/pages/campaigns/campaign_entry_button.dart';
+import 'package:petnest_saas/features/shop/pages/campaigns/shop_campaign_center_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_content_order.dart';
@@ -105,13 +109,34 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
     final target = document?.reference ?? items.doc();
     final data = document?.data() ?? <String, dynamic>{};
     num? newSortOrder;
+    ShopContentDraft? savedDraft;
+    bool notificationQueued = false;
+    final notification = AnnouncementNotification(
+      (action, payload) =>
+          ShopCampaignService.instance.call(shopId, action, payload),
+      items.doc().id,
+    );
     setState(() => _dialogOpen = true);
     try {
+      bool canNotify = false;
+      if (!isFaq) {
+        try {
+          final access = await ShopCampaignService.instance.call(
+            shopId,
+            'bootstrap',
+          );
+          canNotify = (access['permissions'] as Map?)?['send'] == true;
+        } catch (_) {
+          // Announcement publishing stays available if notification service is offline.
+        }
+      }
+      if (!mounted) return;
       final saved = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (_) => ShopContentEditorDialog(
           isFaq: isFaq,
+          canNotify: canNotify,
           isNew: document == null,
           initial: ShopContentDraft(
             title: data[isFaq ? 'question' : 'title']?.toString() ?? '',
@@ -145,6 +170,76 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
             } else {
               await target.update(updates);
             }
+            savedDraft = draft;
+            if (!isFaq && draft.notifyMembers) {
+              try {
+                notificationQueued = await notification.submit(
+                  announcementId: target.id,
+                  title: draft.title,
+                  body: draft.body,
+                  type: draft.type,
+                  channel: draft.notificationChannel,
+                  confirm: (preview) async {
+                    if (!mounted) return false;
+                    return await showDialog<bool>(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (dialogContext) => AlertDialog(
+                            scrollable: true,
+                            title: const Text('公告已發布・確認會員通知'),
+                            content: SizedBox(
+                              width: 480,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${preview['title']}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text('${preview['body']}'),
+                                  const Divider(height: 24),
+                                  Text('通知全店符合資格的會員：${preview['count']} 位'),
+                                  Text(
+                                    '排除 ${preview['excluded']} 位未綁定、停用或不符合資格的會員。',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    preview['channel'] == 'push'
+                                        ? 'App 通知＋手機通知列提醒（依會員與裝置設定）'
+                                        : '只放入 App 通知中心',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text('取消通知不會撤下已發布的公告；通知草稿可在推廣中心繼續編輯。'),
+                                ],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, false),
+                                child: const Text('只保留公告與通知草稿'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, true),
+                                child: Text('確認通知 ${preview['count']} 位'),
+                              ),
+                            ],
+                          ),
+                        ) ==
+                        true;
+                  },
+                );
+              } catch (error) {
+                throw AnnouncementNotificationException(
+                  '公告已發布，會員通知尚未確認完成。${error is AnnouncementNotificationException ? error.message : ShopCampaignService.error(error)} 可重試此筆操作；同一通知不會重複發送。',
+                );
+              }
+            }
           },
         ),
       );
@@ -152,7 +247,46 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
           mounted &&
           widget.shopId == shopId &&
           widget.kind == kind) {
-        _message('$_noun已儲存');
+        if (!isFaq && savedDraft?.isPublished == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                notificationQueued
+                    ? '公告已發布，會員通知已排入發送。可到推廣中心查看紀錄。'
+                    : savedDraft!.notifyMembers
+                    ? notification.lastRecipientCount == 0
+                          ? '公告已發布，目前沒有可通知會員；通知草稿已保留。'
+                          : '公告已發布，通知尚未發送；草稿已保留在推廣中心。'
+                    : '公告已發布，未發送會員通知。',
+              ),
+              action: SnackBarAction(
+                label: notificationQueued || savedDraft!.notifyMembers
+                    ? '查看紀錄'
+                    : '通知會員',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ShopCampaignCenterPage(
+                      shopId: shopId,
+                      announcementId:
+                          notificationQueued || savedDraft!.notifyMembers
+                          ? null
+                          : target.id,
+                      filterAnnouncementId:
+                          notificationQueued || savedDraft!.notifyMembers
+                          ? target.id
+                          : null,
+                      initialTitle: savedDraft!.title,
+                      initialBody: savedDraft!.body,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        } else {
+          _message('$_noun已儲存');
+        }
       }
     } finally {
       if (mounted && widget.shopId == shopId && widget.kind == kind) {
@@ -458,6 +592,21 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
                       size: 18,
                     ),
                     label: Text(pinned ? '取消置頂' : '置頂'),
+                  ),
+                if (!_isFaq && published)
+                  CampaignEntryButton(
+                    shopId: widget.shopId,
+                    announcementId: doc.id,
+                    historyOnly: true,
+                    label: '通知紀錄',
+                  ),
+                if (!_isFaq && published)
+                  CampaignEntryButton(
+                    shopId: widget.shopId,
+                    announcementId: doc.id,
+                    title: title,
+                    body: body.length > 2000 ? body.substring(0, 2000) : body,
+                    label: '通知會員',
                   ),
                 TextButton.icon(
                   onPressed: disabled ? null : () => _edit(doc),

@@ -1,3 +1,6 @@
+import 'package:petnest_saas/core/models/shop_service_showcase.dart';
+import 'package:petnest_saas/core/models/environment_intro_style.dart';
+import 'about_service_showcase.dart';
 // 功能：正式關於我們與草稿共用內容 renderer，只使用傳入資料，不建立店家監聽。
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/about_page_setting.dart';
@@ -123,7 +126,21 @@ class AboutIntroView extends StatelessWidget {
                   final sections = <Widget>[];
                   for (final key in sequence) {
                     if (!setting.visible(key)) continue;
-                    if (key == 'message') {
+                    if (key == 'services') {
+                      final showcase = setting.serviceShowcase;
+                      final enabled = serviceShowcaseEnabledModules(shop);
+                      if (showcase.visibleModules(enabled).isNotEmpty) {
+                        sections.add(
+                          AboutServiceShowcaseSection(
+                            value: showcase,
+                            shop: shop,
+                            enabledModules: enabled,
+                            theme: resolved,
+                            style: const EnvironmentIntroStyle(),
+                          ),
+                        );
+                      }
+                    } else if (key == 'message') {
                       final text = '${shop['aboutMessage'] ?? ''}'.trim();
                       if (text.isNotEmpty) {
                         sections.add(

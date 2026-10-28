@@ -46,7 +46,24 @@ class ModernHomeFaqSection extends StatelessWidget {
         phase == HomeInfoSectionPhase.unavailable ||
         phase == HomeInfoSectionPhase.empty ||
         items.isEmpty;
-    if (items.isEmpty) return const SizedBox.shrink();
+    if (items.isEmpty) {
+      if (phase != HomeInfoSectionPhase.empty) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text('僅供外觀預覽：尚無已發布常見問題。', style: TextStyle(fontSize: 12)),
+          ),
+          _entry(
+            const [],
+            wide: setting.layout == HomeFaqLayouts.singleLine,
+            empty: true,
+            imageUrl: imageUrl,
+          ),
+        ],
+      );
+    }
     final List<HomeFaqItem> source = items;
     return switch (HomeFaqLayouts.migrate(setting.layout)) {
       HomeFaqLayouts.singleLine => _entry(source, wide: true, empty: empty),

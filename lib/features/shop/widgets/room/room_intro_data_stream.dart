@@ -37,3 +37,34 @@ class RoomIntroDataStream<T> {
     _events.close();
   }
 }
+
+/// 首筆資料需有明確結果；取得首筆後維持原本即時監聽，不對閒置資料流計時。
+Stream<T> roomIntroInitialLoad<T>(
+  Stream<T> source, {
+  Duration timeout = const Duration(seconds: 20),
+}) => Stream<T>.multi((listener) {
+  var received = false;
+  final timer = Timer(timeout, () {
+    if (!received) listener.addError(TimeoutException('房型資料連線逾時，請檢查網路後重試。'));
+  });
+  final subscription = source.listen(
+    (value) {
+      received = true;
+      timer.cancel();
+      listener.add(value);
+    },
+    onError: (Object error, StackTrace stack) {
+      received = true;
+      timer.cancel();
+      listener.addError(error, stack);
+    },
+    onDone: () {
+      timer.cancel();
+      listener.close();
+    },
+  );
+  listener.onCancel = () {
+    timer.cancel();
+    return subscription.cancel();
+  };
+});

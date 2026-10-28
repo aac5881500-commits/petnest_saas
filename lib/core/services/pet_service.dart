@@ -100,6 +100,9 @@ class PetService {
     required String name,
 
     /// 基本
+    String species = 'cat',
+    String vaccineTypes = '',
+    String medicalStatus = '',
     String gender = '',
     String litterType = '',
 
@@ -116,6 +119,7 @@ class PetService {
     String shopId = '',
     Map<String, dynamic>? customFormAnswers,
   }) async {
+    if (!['cat', 'dog'].contains(species)) throw ArgumentError('請選擇有效寵物種類');
     final user = _auth.currentUser;
     if (user == null) throw Exception('未登入');
 
@@ -138,8 +142,8 @@ class PetService {
 
       /// 基本
       'name': name,
-      'type': 'cat',
-      'species': 'cat',
+      'type': species,
+      'species': species,
       'gender': gender,
       'litterType': litterType,
 
@@ -147,6 +151,8 @@ class PetService {
       'age': age,
       'breed': breed,
       'vaccine': vaccine,
+      'vaccineTypes': vaccineTypes,
+      'medicalStatus': medicalStatus,
       'note': note,
 
       /// 狀態

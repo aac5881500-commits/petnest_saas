@@ -1,3 +1,11 @@
+import '../widgets/shop_frontend_preview_policy.dart';
+import 'package:petnest_saas/features/shop/pages/campaigns/shop_campaign_center_page.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:petnest_saas/features/auth/pages/home_page.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_platform_home_button.dart';
+import 'package:petnest_saas/core/navigation/shop_dashboard_module_access.dart';
+import 'package:petnest_saas/core/models/pet_service_module.dart';
+import 'package:petnest_saas/features/shop/pages/services/shop_service_module_hub.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 import 'dart:async';
@@ -228,6 +236,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   void _onCatNavigationChanged() {
     if (!mounted) return;
     final detail = _catNavigation.hasDetail;
+    _closeConflictingFrontendPreview();
     if (detail == _catDetailWasOpen) return;
     if (detail != _catDetailWasOpen) {
       _catDetailWasOpen = detail;
@@ -241,6 +250,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
 
   void _onBasicNavigationChanged() {
     final detailOpen = _basicNavigation.hasDetail;
+    if (mounted) _closeConflictingFrontendPreview();
     if (!mounted || detailOpen == _basicDetailWasOpen) return;
     _basicDetailWasOpen = detailOpen;
     _dashboardVisit++;
@@ -430,6 +440,14 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     return available;
   }
 
+  bool get _editorHasLivePreview =>
+      ShopFrontendPreviewPolicy.hasLivePreview(_basicNavigation.selected) ||
+      ShopFrontendPreviewPolicy.hasLivePreview(_catNavigation.selected);
+
+  void _closeConflictingFrontendPreview() {
+    if (_editorHasLivePreview) _closeFrontendPanel();
+  }
+
   void _toggleFrontendPanel() {
     final bool next = !_frontendOpenPref;
     setState(() {
@@ -482,7 +500,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     required double pageWidth,
     bool forceOpen = false,
   }) {
-    if (!ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth)) {
+    if (_editorHasLivePreview ||
+        !ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth)) {
+      _closeFrontendPanel();
       _openFullscreenFrontendPreview(shopCode: shopCode);
       return;
     }
@@ -508,6 +528,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       tooltip = '請先完成基本資料';
     } else if (!canUsePublicPage) {
       tooltip = '升級方案解鎖';
+    } else if (_editorHasLivePreview) {
+      tooltip = '開啟獨立全畫面前台預覽（保留目前編輯）';
     } else if (!ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth)) {
       tooltip = '預覽';
     } else {
@@ -712,6 +734,29 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     }
   }
 
+  bool _returningToPlatform = false;
+  Future<void> _returnToPlatformHome() async {
+    if (_returningToPlatform) return;
+    _returningToPlatform = true;
+    try {
+      if (!await _basicNavigation.confirmLeave() ||
+          !await _catNavigation.confirmLeave() ||
+          !mounted) {
+        return;
+      }
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (navigator.canPop()) {
+        navigator.popUntil((route) => route.isFirst);
+      } else {
+        await navigator.pushReplacement<void, void>(
+          MaterialPageRoute<void>(builder: (_) => const HomePage()),
+        );
+      }
+    } finally {
+      _returningToPlatform = false;
+    }
+  }
+
   bool _can(String permissionKey) {
     return ShopService.instance.hasPermission(
       _currentMemberData,
@@ -729,66 +774,12 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     return false;
   }
 
-  List<String> _buildVisibleModules({required List<String> enabledModules}) {
-    final result = <String>[];
-
-    final canSeeBasicInfo =
-        _can(ShopPermissionKeys.editBasicInfo) ||
-        _can(ShopPermissionKeys.editBusinessInfo) ||
-        _can(ShopPermissionKeys.editMedia) ||
-        _can(ShopPermissionKeys.manageFrontendContent) ||
-        _can(ShopPermissionKeys.manageReviews);
-    final canSeeCatHotel =
-        _can(ShopPermissionKeys.manageBookings) ||
-        _can(ShopPermissionKeys.manageBookingSettings) ||
-        _can(ShopPermissionKeys.manageRoomDashboard) ||
-        _can(ShopPermissionKeys.manageRoomTypes) ||
-        _can(ShopPermissionKeys.manageRooms) ||
-        _can(ShopPermissionKeys.managePaymentSettings) ||
-        _can(ShopPermissionKeys.manageAddons) ||
-        _can(ShopPermissionKeys.manageDevices) ||
-        _can(ShopPermissionKeys.managePolicy) ||
-        _can(ShopPermissionKeys.manageChat);
-    final canSeeReports =
-        _currentUserRole == ShopRoles.owner ||
-        _can(ShopPermissionKeys.viewReports) ||
-        _can(ShopPermissionKeys.viewActionLogs);
-    final canSeeInventory =
-        _currentUserRole == ShopRoles.owner ||
-        _can(ShopPermissionKeys.viewInventory) ||
-        _can(ShopPermissionKeys.manageInventory) ||
-        _can(ShopPermissionKeys.receiveInventory) ||
-        _can(ShopPermissionKeys.adjustInventory);
-    final canSeeStore =
-        _currentUserRole == ShopRoles.owner ||
-        _can(ShopPermissionKeys.viewStoreOrders) ||
-        _can(ShopPermissionKeys.manageStoreProducts) ||
-        _can(ShopPermissionKeys.manageStoreOrders) ||
-        _can(ShopPermissionKeys.manageStoreSettings);
-
-    if (enabledModules.contains(ShopModules.basicInfo) &&
-        (canSeeBasicInfo || _currentUserRole == ShopRoles.staff)) {
-      result.add(ShopModules.basicInfo);
-    }
-
-    if (enabledModules.contains(ShopModules.catHotel) && canSeeCatHotel) {
-      result.add(ShopModules.catHotel);
-    }
-
-    if (_currentUserRole == ShopRoles.owner ||
-        (enabledModules.contains(ShopModules.reports) && canSeeReports)) {
-      result.add(ShopModules.reports);
-    }
-
-    if (canSeeInventory) {
-      result.add(ShopModules.inventory);
-    }
-
-    if (canSeeStore) {
-      result.add(ShopModules.store);
-    }
-    return result;
-  }
+  List<String> _buildVisibleModules({required List<String> enabledModules}) =>
+      resolveShopDashboardModules(
+        enabledModules: enabledModules,
+        role: _currentUserRole,
+        can: _can,
+      );
 
   String _moduleLabel(String module) {
     switch (module) {
@@ -818,9 +809,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       case ShopModules.basicInfo:
         return Icons.store;
       case ShopModules.catHotel:
-        return Icons.pets;
+        return FontAwesomeIcons.cat.data;
       case ShopModules.dogHotel:
-        return Icons.cruelty_free;
+        return FontAwesomeIcons.dog.data;
       case ShopModules.grooming:
         return Icons.content_cut;
       case ShopModules.hospital:
@@ -1185,6 +1176,13 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                         child: Scaffold(
                           backgroundColor: _DashboardLayout.pageBg,
                           appBar: AppBar(
+                            automaticallyImplyLeading: false,
+                            leading: sideNavigation
+                                ? null
+                                : ShopPlatformHomeButton(
+                                    compact: true,
+                                    onPressed: _returnToPlatformHome,
+                                  ),
                             backgroundColor: Colors.white,
                             foregroundColor: _DashboardLayout.ink,
                             surfaceTintColor: Colors.transparent,
@@ -1214,6 +1212,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                     canUsePublicPage: canUsePublicPage,
                                     panelOpen:
                                         _frontendOpenPref &&
+                                        !_editorHasLivePreview &&
                                         canOpenFrontend &&
                                         ShopFrontendPreviewFrame.canShowInlinePreview(
                                           currentFrontendWidth,
@@ -1289,6 +1288,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                             children: [
                               if (sideNavigation)
                                 _DashboardSideNavigation(
+                                  onPlatformHome: _returnToPlatformHome,
                                   modules: visibleModules,
                                   controller: tabController,
                                   labelFor: _moduleLabel,
@@ -1421,24 +1421,90 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                                               );
                                                             case ShopModules
                                                                 .dogHotel:
-                                                              return const _ModuleTemplateTab(
-                                                                title: '狗狗旅店',
-                                                                description:
-                                                                    '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
+                                                              return ShopServiceModuleHub(
+                                                                key: ValueKey(
+                                                                  '${widget.shopId}-dog_hotel',
+                                                                ),
+                                                                shopId: widget
+                                                                    .shopId,
+                                                                module:
+                                                                    PetServiceModule.byId(
+                                                                      'dog_hotel',
+                                                                    ),
+                                                                canConfigure:
+                                                                    _currentUserRole ==
+                                                                        ShopRoles
+                                                                            .owner ||
+                                                                    _can(
+                                                                      ShopPermissionKeys
+                                                                          .manageBookingSettings,
+                                                                    ),
+                                                                canManage:
+                                                                    _currentUserRole ==
+                                                                        ShopRoles
+                                                                            .owner ||
+                                                                    _can(
+                                                                      ShopPermissionKeys
+                                                                          .manageBookings,
+                                                                    ),
                                                               );
                                                             case ShopModules
                                                                 .grooming:
-                                                              return const _ModuleTemplateTab(
-                                                                title: '美容功能',
-                                                                description:
-                                                                    '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
+                                                              return ShopServiceModuleHub(
+                                                                key: ValueKey(
+                                                                  '${widget.shopId}-grooming',
+                                                                ),
+                                                                shopId: widget
+                                                                    .shopId,
+                                                                module:
+                                                                    PetServiceModule.byId(
+                                                                      'grooming',
+                                                                    ),
+                                                                canConfigure:
+                                                                    _currentUserRole ==
+                                                                        ShopRoles
+                                                                            .owner ||
+                                                                    _can(
+                                                                      ShopPermissionKeys
+                                                                          .manageBookingSettings,
+                                                                    ),
+                                                                canManage:
+                                                                    _currentUserRole ==
+                                                                        ShopRoles
+                                                                            .owner ||
+                                                                    _can(
+                                                                      ShopPermissionKeys
+                                                                          .manageBookings,
+                                                                    ),
                                                               );
                                                             case ShopModules
                                                                 .hospital:
-                                                              return const _ModuleTemplateTab(
-                                                                title: '動物醫院',
-                                                                description:
-                                                                    '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
+                                                              return ShopServiceModuleHub(
+                                                                key: ValueKey(
+                                                                  '${widget.shopId}-hospital',
+                                                                ),
+                                                                shopId: widget
+                                                                    .shopId,
+                                                                module:
+                                                                    PetServiceModule.byId(
+                                                                      'hospital',
+                                                                    ),
+                                                                canConfigure:
+                                                                    _currentUserRole ==
+                                                                        ShopRoles
+                                                                            .owner ||
+                                                                    _can(
+                                                                      ShopPermissionKeys
+                                                                          .manageBookingSettings,
+                                                                    ),
+                                                                canManage:
+                                                                    _currentUserRole ==
+                                                                        ShopRoles
+                                                                            .owner ||
+                                                                    _can(
+                                                                      ShopPermissionKeys
+                                                                          .manageBookings,
+                                                                    ),
                                                               );
                                                             case ShopModules
                                                                 .store:
@@ -1565,6 +1631,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                                           : dockWidth;
                                                       final frontendWanted =
                                                           _frontendPrefsLoaded &&
+                                                          !_editorHasLivePreview &&
                                                           _frontendOpenPref &&
                                                           canOpenFrontend &&
                                                           ShopFrontendPreviewFrame.canShowInlinePreview(
@@ -1787,6 +1854,7 @@ class _DashboardModuleHostState extends State<_DashboardModuleHost>
 class _DashboardSideNavigation extends StatefulWidget {
   const _DashboardSideNavigation({
     required this.modules,
+    required this.onPlatformHome,
     required this.controller,
     required this.labelFor,
     required this.iconFor,
@@ -1797,6 +1865,7 @@ class _DashboardSideNavigation extends StatefulWidget {
     this.detailModule,
   });
   final List<String> modules;
+  final Future<void> Function() onPlatformHome;
   final TabController controller;
   final String Function(String) labelFor;
   final IconData Function(String) iconFor;
@@ -1946,91 +2015,106 @@ class _DashboardSideNavigationState extends State<_DashboardSideNavigation> {
         color: Colors.white,
         border: Border(right: BorderSide(color: _DashboardLayout.cardBorder)),
       ),
-      child: ListenableBuilder(
-        listenable: Listenable.merge([widget.controller, widget.navigation]),
-        builder: (context, _) => ListView(
-          controller: _scroll,
-          padding: const EdgeInsets.fromLTRB(10, 20, 10, 16),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 18),
-              child: Text(
-                widget.navigation.hasDetail
-                    ? (widget.detailModule == ShopModules.catHotel
-                          ? '貓咪旅店快速選單'
-                          : '基本資訊快速選單')
-                    : '店家後台',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (!widget.navigation.hasDetail)
-              for (var index = 0; index < widget.modules.length; index++)
-                if (const {
-                  ShopModules.basicInfo,
-                  ShopModules.catHotel,
-                  ShopModules.reports,
-                  ShopModules.inventory,
-                }.contains(widget.modules[index]))
-                  item(
-                    widget.labelFor(widget.modules[index]),
-                    widget.iconFor(widget.modules[index]),
-                    widget.controller.index == index,
-                    () => widget.onModuleSelected(index),
-                    id: 'module:${widget.modules[index]}',
-                  ),
-            if (widget.navigation.hasDetail) ...[
-              item(
-                widget.detailModule == ShopModules.catHotel
-                    ? '返回貓咪旅店總覽'
-                    : '返回後台總覽',
-                Icons.arrow_back,
-                false,
-                () {
-                  final index = widget.modules.indexOf(
-                    widget.detailModule ?? ShopModules.basicInfo,
-                  );
-                  if (index >= 0) widget.onModuleSelected(index);
-                },
-              ),
-              for (final section in widget.sections.where(
-                (section) => section.children.isNotEmpty,
-              )) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 6),
-                  child: Text(
-                    section.title ?? '',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: _DashboardLayout.muted,
+      child: Column(
+        children: [
+          Expanded(
+            child: ListenableBuilder(
+              listenable: Listenable.merge([
+                widget.controller,
+                widget.navigation,
+              ]),
+              builder: (context, _) => ListView(
+                controller: _scroll,
+                padding: const EdgeInsets.fromLTRB(10, 20, 10, 16),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 18),
+                    child: Text(
+                      widget.navigation.hasDetail
+                          ? (widget.detailModule == ShopModules.catHotel
+                                ? '貓咪旅店快速選單'
+                                : '基本資訊快速選單')
+                          : '店家後台',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                for (final entry in section.children.whereType<_MenuTile>())
-                  item(
-                    entry.title,
-                    entry.icon,
-                    entry.destinationId != null &&
-                        widget.navigation.selected == entry.destinationId,
-                    !entry.enabled
-                        ? null
-                        : () {
-                            if (entry.destinationId != null) {
-                              widget.onOpen(entry.destinationId!);
-                            } else {
-                              entry.open(context);
-                            }
-                          },
-                    id: entry.destinationId,
-                    child: true,
-                  ),
-              ],
-            ],
-          ],
-        ),
+                  if (!widget.navigation.hasDetail)
+                    for (var index = 0; index < widget.modules.length; index++)
+                      item(
+                        widget.labelFor(widget.modules[index]),
+                        widget.iconFor(widget.modules[index]),
+                        widget.controller.index == index,
+                        () => widget.onModuleSelected(index),
+                        id: 'module:${widget.modules[index]}',
+                      ),
+                  if (widget.navigation.hasDetail) ...[
+                    item(
+                      widget.detailModule == ShopModules.catHotel
+                          ? '返回貓咪旅店總覽'
+                          : '返回後台總覽',
+                      Icons.arrow_back,
+                      false,
+                      () {
+                        final index = widget.modules.indexOf(
+                          widget.detailModule ?? ShopModules.basicInfo,
+                        );
+                        if (index >= 0) widget.onModuleSelected(index);
+                      },
+                    ),
+                    for (final section in widget.sections.where(
+                      (section) => section.children.isNotEmpty,
+                    )) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 8, 6),
+                        child: Text(
+                          section.title ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _DashboardLayout.muted,
+                          ),
+                        ),
+                      ),
+                      for (final entry
+                          in section.children.whereType<_MenuTile>())
+                        item(
+                          entry.title,
+                          entry.icon,
+                          entry.destinationId != null &&
+                              widget.navigation.selected == entry.destinationId,
+                          !entry.enabled
+                              ? null
+                              : () {
+                                  if (entry.destinationId != null) {
+                                    widget.onOpen(entry.destinationId!);
+                                  } else {
+                                    entry.open(context);
+                                  }
+                                },
+                          id: entry.destinationId,
+                          child: true,
+                        ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+              child: ShopPlatformHomeButton(
+                onPressed: () {
+                  widget.onPlatformHome();
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2279,6 +2363,20 @@ class _BasicInfoTab extends StatelessWidget {
                   : '查看會員資料與訂單紀錄',
               destinationId: 'AdminMemberListPage',
               pageBuilder: (_) => AdminMemberListPage(shopId: shopId),
+            ),
+
+          if ([
+            ShopPermissionKeys.manageCampaignDrafts,
+            ShopPermissionKeys.sendMemberCampaigns,
+            ShopPermissionKeys.viewMemberCampaigns,
+          ].any(_can))
+            _MenuTile(
+              title: '會員推廣與通知',
+              subtitle: '會員群發、指定客戶、推廣草稿與發送紀錄',
+              icon: Icons.campaign_outlined,
+              enabled: isProfileComplete,
+              destinationId: 'ShopCampaignCenterPage',
+              pageBuilder: (_) => ShopCampaignCenterPage(shopId: shopId),
             ),
 
           if (_can(ShopPermissionKeys.manageReviews))
@@ -2828,30 +2926,6 @@ class _ReportsTab extends StatelessWidget {
 }
 
 /// ===== 未開發模組模板 =====
-class _ModuleTemplateTab extends StatelessWidget {
-  const _ModuleTemplateTab({required this.title, required this.description});
-
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DashboardResponsiveBody(
-      children: [
-        _DashboardSection(
-          title: title,
-          children: [
-            _TemplateCard(title: title, description: description),
-            const _TemplateCard(
-              title: '功能清單預留',
-              description: '這個模組目前先留位置，不一定顯示，不重做資料結構。',
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
 
 class _ShopPlanStatusCard extends StatelessWidget {
   const _ShopPlanStatusCard({required this.shopId});

@@ -11,6 +11,10 @@
 
 class ShopPermissionKeys {
   /// 👥 會員管理
+  static const manageCampaignDrafts = 'manage_campaign_drafts';
+  static const sendMemberCampaigns = 'send_member_campaigns';
+  static const viewMemberCampaigns = 'view_member_campaigns';
+
   static const manageMembers = 'manage_members';
 
   /// 🏪 修改店家基本資料
@@ -129,6 +133,9 @@ class ShopPermissionKeys {
   /// 🔥 全部權限列表
   static const all = [
     manageMembers,
+    manageCampaignDrafts,
+    sendMemberCampaigns,
+    viewMemberCampaigns,
     editBasicInfo,
     editBusinessInfo,
     editMedia,

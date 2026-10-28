@@ -1,3 +1,4 @@
+const {loadEligiblePets} = require("./pet_species_guard");
 // 檔案名稱：functions/bookings/create_stay_booking.js
 // 功能說明：住宿建單／分房 transaction：共用房型可賣數與未分房保留
 
@@ -467,6 +468,10 @@ exports.createStayBooking = onCall(
           const shopInTx = await transaction.get(
               firestore.collection("shops").doc(shopId),
           );
+          booking.pets = await loadEligiblePets(firestore, {
+            userId, shopId, petIds: booking.petIds || data.petIds || (booking.pets || []).map((p) => p.petId),
+            accepted: ["cat"], staff: isStaff, transaction,
+          });
           const stayAutoCleaning = newStayAutoCleaningSnapshot(
               shopInTx.data() || {},
           );

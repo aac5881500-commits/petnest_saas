@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_sharing_settings.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_business_info_page.dart
 // 功能說明：店家營業資訊設定頁（含時間選擇 + 服務類型）
@@ -269,6 +270,9 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage>
                 ),
               ),
 
+              const SizedBox(height: 24),
+
+              ShopSharingSettings(shopId: widget.shopId),
               const SizedBox(height: 24),
 
               /// 儲存

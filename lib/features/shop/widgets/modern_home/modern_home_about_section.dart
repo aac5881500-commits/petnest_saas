@@ -44,7 +44,7 @@ class ModernHomeAboutSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!setting.showsOnHome || !ShopIntroContent.about(shop)) {
+    if (!setting.showsOnHome || (!preview && !ShopIntroContent.about(shop))) {
       return const SizedBox.shrink();
     }
     final simple = setting.layout == HomeAboutLayouts.simpleEntry;
@@ -57,7 +57,20 @@ class ModernHomeAboutSection extends StatelessWidget {
             : 'icon',
       ),
       enabled: simple || setting.showImage,
-      builder: (context, image) => _body(image.url),
+      builder: (context, image) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (preview && !ShopIntroContent.about(shop))
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                '僅供外觀預覽：尚未設定關於我們內容，正式前台暫不顯示。',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          _body(image.url),
+        ],
+      ),
     );
   }
 

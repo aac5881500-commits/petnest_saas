@@ -1,3 +1,4 @@
+import '../widgets/room/room_intro_data_stream.dart';
 import '../widgets/room/room_intro_typography.dart';
 import '../widgets/room/room_intro_surface.dart';
 import 'shop_room_comparison_page.dart';
@@ -17,7 +18,11 @@ class ShopRoomIntroPage extends StatefulWidget {
     super.key,
     required this.shopId,
     required this.theme,
+    this.roomTypesStream,
+    this.shopStream,
   });
+  final Stream<List<Map<String, dynamic>>>? roomTypesStream;
+  final Stream<Map<String, dynamic>?>? shopStream;
   final String shopId;
   final HomeThemeModel theme;
   @override
@@ -26,7 +31,15 @@ class ShopRoomIntroPage extends StatefulWidget {
 
 class _ShopRoomIntroPageState extends State<ShopRoomIntroPage> {
   late Stream<List<Map<String, dynamic>>> _types;
-  void _bind() => _types = ShopService.instance.streamRoomTypes(widget.shopId);
+  int _attempt = 0;
+  void _bind() => _types = roomIntroInitialLoad(
+    widget.roomTypesStream ??
+        ShopService.instance.streamRoomTypes(widget.shopId),
+  );
+  void _retry() => setState(() {
+    _attempt++;
+    _bind();
+  });
   @override
   void initState() {
     super.initState();
@@ -36,7 +49,10 @@ class _ShopRoomIntroPageState extends State<ShopRoomIntroPage> {
   @override
   void didUpdateWidget(covariant ShopRoomIntroPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.shopId != widget.shopId) _bind();
+    if (oldWidget.shopId != widget.shopId ||
+        oldWidget.roomTypesStream != widget.roomTypesStream) {
+      _bind();
+    }
   }
 
   void _open(Map<String, dynamic> room) => Navigator.of(context).push(
@@ -53,7 +69,9 @@ class _ShopRoomIntroPageState extends State<ShopRoomIntroPage> {
   );
   @override
   Widget build(BuildContext context) => RoomIntroAppearanceHost(
+    key: ValueKey((widget.shopId, _attempt)),
     shopId: widget.shopId,
+    shopStream: widget.shopStream,
     child: Builder(
       builder: (context) {
         final scope = RoomIntroAppearanceScope.maybeOf(context)!;
@@ -72,7 +90,32 @@ class _ShopRoomIntroPageState extends State<ShopRoomIntroPage> {
               stream: _types,
               builder: (context, snapshot) {
                 if (snapshot.hasError || scope.error != null) {
-                  return const Center(child: Text('房型介紹暫時無法載入，請稍後再試。'));
+                  final error = snapshot.error ?? scope.error;
+                  debugPrint(
+                    'Room intro load failed (${widget.shopId}): $error',
+                  );
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_outlined),
+                          const SizedBox(height: 12),
+                          const Text(
+                            '房型介紹暫時無法載入，請確認網路與店家存取狀態。',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _retry,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('重新載入'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
                 if (!scope.ready ||
                     snapshot.connectionState == ConnectionState.waiting &&

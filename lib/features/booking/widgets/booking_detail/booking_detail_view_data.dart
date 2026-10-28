@@ -1366,6 +1366,8 @@ class BookingDetailViewData {
         }
       }
 
+      take('vaccineTypes', '疫苗類型');
+      take('vaccineStatus', '疫苗狀態');
       take('note', '備註');
       take('medicalStatus', '疾病／醫療');
       take('food', '餵食');

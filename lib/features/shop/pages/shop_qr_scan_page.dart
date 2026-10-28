@@ -1,5 +1,6 @@
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/features/shop/pages/shop_qr_scan_page.dart
-// 功能說明：掃描店家代碼或手動輸入店家代碼後，直接進入店家前台
+// 功能說明：掃描店家搜尋碼或手動輸入店家搜尋碼後，直接進入店家前台
 // 📷 掃描店家 QRCode
 
 import 'package:flutter/material.dart';
@@ -16,26 +17,7 @@ class ShopQrScanPage extends StatefulWidget {
 class _ShopQrScanPageState extends State<ShopQrScanPage> {
   bool _handled = false;
 
-  String? _parseShopCode(String value) {
-    final text = value.trim();
-
-    if (text.isEmpty) return null;
-
-    // 支援舊網址格式：https://petnest.tw/s/SHOP0001
-    final uri = Uri.tryParse(text);
-    if (uri != null &&
-        uri.pathSegments.length == 2 &&
-        uri.pathSegments.first == 's') {
-      return uri.pathSegments[1].trim();
-    }
-
-    // 支援純店家代碼：SHOP0001
-    if (text.toUpperCase().startsWith('SHOP')) {
-      return text.toUpperCase();
-    }
-
-    return null;
-  }
+  String? _parseShopCode(String value) => ShopSharingService.parse(value);
 
   void _goShop(String shopCode) {
     if (_handled) return;
@@ -57,14 +39,14 @@ class _ShopQrScanPageState extends State<ShopQrScanPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('輸入店家代碼'),
+          title: const Text('輸入店家搜尋碼'),
           content: TextField(
             controller: controller,
             autofocus: true,
             textCapitalization: TextCapitalization.characters,
             decoration: const InputDecoration(
-              labelText: '店家代碼',
-              hintText: '例如：SHOP0001',
+              labelText: '店家搜尋碼',
+              hintText: '例如：CATSTAY_2026',
               border: OutlineInputBorder(),
             ),
           ),
@@ -95,7 +77,7 @@ class _ShopQrScanPageState extends State<ShopQrScanPage> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('店家代碼格式不正確')));
+      ).showSnackBar(const SnackBar(content: Text('店家搜尋碼格式不正確')));
       return;
     }
 
@@ -143,7 +125,7 @@ class _ShopQrScanPageState extends State<ShopQrScanPage> {
                   child: OutlinedButton.icon(
                     onPressed: _showManualInputDialog,
                     icon: const Icon(Icons.edit),
-                    label: const Text('手動輸入店家代碼'),
+                    label: const Text('手動輸入店家搜尋碼'),
                   ),
                 ),
               ],

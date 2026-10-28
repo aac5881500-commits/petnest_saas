@@ -1,7 +1,8 @@
 // 檔案名稱：lib/features/shop/widgets/shop_frontend_preview_frame.dart
 // 功能說明：後台前台預覽外框與獨立 Navigator，內容重用 ShopPublicPage。
 
-import 'package:flutter/foundation.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
@@ -130,27 +131,34 @@ class ShopFrontendPreviewFrameState extends State<ShopFrontendPreviewFrame> {
     });
   }
 
-  Uri? _publicFrontendUri() {
-    final String code = widget.shopCode.trim();
-    if (code.isEmpty) {
-      return null;
-    }
-    if (kIsWeb) {
-      return Uri.parse('${Uri.base.origin}/s/$code');
-    }
-    return Uri.parse('https://petnest.tw/s/$code');
-  }
-
   Future<void> _openPublicFrontend() async {
-    final Uri? uri = _publicFrontendUri();
-    if (uri == null) {
-      return;
+    try {
+      final settings = await ShopSharingService.instance.manage(widget.shopId);
+      if (!mounted) return;
+      if (settings['enabled'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請先到營業資訊產生專屬 QR Code 並啟用分享')),
+        );
+        return;
+      }
+      await launchUrl(
+        Uri.parse(ShopSharingService.shareLink(settings['qrToken'] as String)),
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_blank',
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is FirebaseFunctionsException
+                  ? (error.message ?? '無法開啟分享入口')
+                  : '無法開啟分享入口，請稍後重試',
+            ),
+          ),
+        );
+      }
     }
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-      webOnlyWindowName: '_blank',
-    );
   }
 
   Widget _liveRoot() {

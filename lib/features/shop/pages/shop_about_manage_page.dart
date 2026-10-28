@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/shop_service_showcase.dart';
+import '../widgets/about/about_service_showcase.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:petnest_saas/core/models/about_page_setting.dart';
@@ -480,6 +482,17 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
           if (e.value != old[e.key]) e.key: e.value,
       };
       updates.addAll(aboutPageUpdates(_savedSetting, savingSetting));
+      final home = _shop['homeAppearance'];
+      final storedAbout = home is Map ? home['aboutPage'] : null;
+      const showcasePath = 'homeAppearance.aboutPage.moduleShowcase';
+      if (!(storedAbout is Map && storedAbout.containsKey('moduleShowcase')) &&
+          savingSetting.toMap().containsKey('moduleShowcase') &&
+          !updates.keys.any(
+            (key) => key == showcasePath || key.startsWith('$showcasePath.'),
+          )) {
+        updates[showcasePath] = savingSetting.serviceShowcase.toMap();
+      }
+
       if (updates.isNotEmpty) {
         if (widget.saveAbout != null) {
           await widget.saveAbout!(updates);
@@ -756,7 +769,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
     editor: IgnorePointer(
       ignoring: _imageBusy,
       child: DefaultTabController(
-        length: 4,
+        length: 5,
         child: Column(
           children: [
             if (_loadError != null)
@@ -781,6 +794,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                 Tab(text: '照片素材'),
                 Tab(text: '理念與團隊'),
                 Tab(text: '排版外觀'),
+                Tab(text: '服務項目'),
               ],
             ),
             Expanded(
@@ -987,6 +1001,18 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                       setting: _setting,
                       theme: _previewTheme,
                       onChanged: _changeSetting,
+                    ),
+                  ]),
+                  _settingsScroll('services', [
+                    _sectionTitle('服務項目展示'),
+                    AboutServiceShowcaseEditor(
+                      value: _setting.serviceShowcase,
+                      shop: _draftShop,
+                      enabledModules: serviceShowcaseEnabledModules(_shop),
+                      busy: _imageBusy,
+                      onChanged: (value) => _changeSetting(
+                        _setting.copyWith({'moduleShowcase': value.toMap()}),
+                      ),
                     ),
                   ]),
                 ],

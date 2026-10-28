@@ -1,6 +1,7 @@
 {
   "name": "firestore-rules-tests",
   "private": true,
+  "scripts": {"test:sharing": "node --test ../../functions/shops/shop_sharing.emulator.test.js"},
   "description": "Loads firestore.rules in the Firestore emulator. Not a substitute string check.",
   "dependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",

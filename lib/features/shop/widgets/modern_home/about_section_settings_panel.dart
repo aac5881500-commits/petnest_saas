@@ -18,6 +18,8 @@ class AboutSectionSettingsPanel extends StatefulWidget {
     required this.imageChoices,
     required this.onChanged,
     this.onManage,
+    this.visible,
+    this.onVisibilityChanged,
     this.shop = const {},
     this.environmentIntro = const {},
     this.displayStyles,
@@ -25,6 +27,8 @@ class AboutSectionSettingsPanel extends StatefulWidget {
   });
 
   final VoidCallback? onManage;
+  final bool? visible;
+  final ValueChanged<bool>? onVisibilityChanged;
   final Map<String, dynamic> shop, environmentIntro;
   final HomeAboutSectionSetting setting;
   final HomeThemeModel theme;
@@ -89,10 +93,12 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('啟用關於我們首頁區塊'),
-              subtitle: const Text('只控制獨立展示，不修改我們的服務入口。'),
-              value: widget.setting.enabled,
-              onChanged: (v) => _update(widget.setting.copyWith(enabled: v)),
+              title: const Text('在首頁顯示關於我們展示'),
+              subtitle: const Text('關閉後隱藏首頁展示，仍保留首頁小卡及關於我們內頁。'),
+              value: widget.visible ?? widget.setting.enabled,
+              onChanged:
+                  widget.onVisibilityChanged ??
+                  (v) => _update(widget.setting.copyWith(enabled: v)),
             ),
           ],
         ),

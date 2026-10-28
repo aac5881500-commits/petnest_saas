@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
+import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/features/pet/pages/pet_detail_page.dart
 // 功能說明：前台寵物詳細頁
 
@@ -119,6 +121,7 @@ class _PetDetailBody extends StatelessWidget {
           title: '基本資料',
           children: <Widget>[
             _infoRow(Icons.badge_outlined, '名稱', name),
+            _infoRow(Icons.pets, '種類', PetSnapshot.speciesLabel(pet)),
             _infoRow(Icons.category_outlined, '品種', breed),
             _infoRow(Icons.wc_outlined, '性別', gender),
             _infoRow(Icons.cake_outlined, '年齡', age),
@@ -134,7 +137,9 @@ class _PetDetailBody extends StatelessWidget {
               '結紮狀況',
               neutered ? '已結紮' : '未結紮',
             ),
-            if (!neutered) ...<Widget>[
+            if (!neutered &&
+                PetSpecies.of(pet) == 'cat' &&
+                gender == '公貓') ...<Widget>[
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -155,9 +160,14 @@ class _PetDetailBody extends StatelessWidget {
               ),
             ],
             _infoRow(
+              Icons.vaccines_outlined,
+              '疫苗類型',
+              _text(pet['vaccineTypes']),
+            ),
+            _infoRow(
               Icons.medical_services_outlined,
               '醫療狀況',
-              _text(pet['vaccine']),
+              _text(PetSnapshot.medicalStatusText(pet)),
             ),
           ],
         ),
@@ -166,11 +176,12 @@ class _PetDetailBody extends StatelessWidget {
           icon: Icons.home_outlined,
           title: '住宿習慣',
           children: <Widget>[
-            _infoRow(
-              Icons.inventory_2_outlined,
-              '貓砂種類',
-              _text(pet['litterType']),
-            ),
+            if (PetSpecies.of(pet) != 'dog')
+              _infoRow(
+                Icons.inventory_2_outlined,
+                '貓砂種類',
+                _text(pet['litterType']),
+              ),
           ],
         ),
         const SizedBox(height: 12),

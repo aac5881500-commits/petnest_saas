@@ -1733,7 +1733,12 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         enabled: _petsSelectionEnabled,
         disabledHint: _petsDisabledHint,
         onPetsLoaded: (List<Map<String, dynamic>> pets) {
-          _pets = pets;
+          setState(() {
+            _pets = pets;
+            _selectedPetIds.removeWhere(
+              (id) => !pets.any((p) => p['petId'] == id),
+            );
+          });
         },
         onTogglePet: (String petId, bool selected) {
           setState(() {

@@ -2,6 +2,7 @@
 // 功能說明：店家服務層（含營業資訊 / Logo / 封面 / 預約設定）
 
 import 'dart:typed_data';
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
@@ -210,13 +211,7 @@ class ShopService {
 
   /// 依 shopCode 取得店家
   Future<Map<String, dynamic>?> getShopByCode(String shopCode) async {
-    final snapshot = await _shops.doc(shopCode).get();
-
-    if (!snapshot.exists) {
-      return null;
-    }
-
-    return snapshot.data();
+    return ShopSharingService.instance.resolve(shopCode);
   }
 
   /// 監聽單一店家

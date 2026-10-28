@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/features/admin/pages/admin_create_daycare_booking_page.dart
 // 功能說明：後台手動新增安親訂單：與住宿同一套階段版型，收費模式沿用店家 pricingMode
 
@@ -896,11 +897,15 @@ class _AdminCreateDaycareBookingPageState
       final Map<String, dynamic> petData = <String, dynamic>{
         'petId': petId,
         'name': pet['name'] ?? '',
-        'type': pet['type'] ?? '',
+
         'breed': pet['breed'] ?? '',
         'gender': pet['gender'] ?? '',
         'age': pet['age'] ?? '',
         'isNeutered': pet['isNeutered'] ?? false,
+        'species': pet['species'] ?? pet['type'],
+        'type': pet['species'] ?? pet['type'],
+        'vaccineTypes': pet['vaccineTypes'] ?? '',
+        'medicalStatus': pet['medicalStatus'] ?? '',
         'vaccine': pet['vaccine'] ?? '',
         'litterType': pet['litterType'] ?? '',
         'note': pet['note'] ?? '',
@@ -1304,7 +1309,9 @@ class _AdminCreateDaycareBookingPageState
                   ),
                 ],
               ),
-              ..._pets.map((Map<String, dynamic> pet) {
+              ..._pets.where((p) => PetSpecies.of(p) == 'cat').map((
+                Map<String, dynamic> pet,
+              ) {
                 final String id = (pet['id'] ?? pet['petId'] ?? '').toString();
                 return CheckboxListTile(
                   contentPadding: EdgeInsets.zero,

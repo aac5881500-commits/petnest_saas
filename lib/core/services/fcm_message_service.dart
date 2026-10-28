@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/notifications/pages/shop_campaign_notice_page.dart';
 // 檔案名稱：lib/core/services/fcm_message_service.dart
 // 功能說明：監聽前景通知、背景通知點擊、App 關閉後通知點擊
 // 🔔 FCM 訊息接收服務
@@ -107,6 +108,8 @@ class FcmMessageService {
 
     final String shopId = (data['shopId'] ?? '').toString();
     final String threadId = (data['threadId'] ?? '').toString();
+    final bool canOpenCampaign =
+        type == 'shop_campaign' && '${data['campaignId'] ?? ''}'.isNotEmpty;
     final bool canOpenReview = type == 'review';
     final bool canOpenChat =
         type == 'shop_chat' && shopId.isNotEmpty && threadId.isNotEmpty;
@@ -127,10 +130,15 @@ class FcmMessageService {
             Text(body),
           ],
         ),
-        action: canOpenBooking || canOpenReview || canOpenChat
+        action:
+            canOpenBooking || canOpenReview || canOpenChat || canOpenCampaign
             ? SnackBarAction(
                 label: '查看',
                 onPressed: () {
+                  if (canOpenCampaign) {
+                    openCampaignNotice('${data['campaignId']}');
+                    return;
+                  }
                   if (canOpenReview) {
                     _openMyReviews();
                     return;
@@ -178,12 +186,31 @@ class FcmMessageService {
         await _openMyReviews();
         return;
 
+      case 'shop_campaign':
+        await openCampaignNotice('${data['campaignId'] ?? ''}');
+        return;
       case 'shop_chat':
         await openShopChat(shopId: shopId, threadId: threadId);
         return;
 
       default:
         debugPrint('➡ 未知通知類型：$type');
+    }
+  }
+
+  Future<void> openCampaignNotice(String campaignId) async {
+    if (_auth.currentUser == null ||
+        campaignId.isEmpty ||
+        campaignId.contains('/')) {
+      return;
+    }
+    final navigator = await _waitForNavigator();
+    if (navigator != null) {
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ShopCampaignNoticePage(campaignId: campaignId),
+        ),
+      );
     }
   }
 

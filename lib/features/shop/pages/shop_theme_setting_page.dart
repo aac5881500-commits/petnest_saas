@@ -216,7 +216,14 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   bool _isSaving = false;
   bool _isLoading = true;
-  bool _appearanceDirty = false;
+  bool _appearanceDirtyValue = false;
+  bool get _appearanceDirty => _appearanceDirtyValue;
+  set _appearanceDirty(bool value) {
+    _appearanceDirtyValue = value;
+    // 任何手動草稿修改都結束範本試看，避免左側仍被範本覆蓋。
+    if (value) _browsingPresetId = null;
+  }
+
   String? _appearancePresetId;
   String? _browsingPresetId;
   bool _showStayServiceStrip = true;
@@ -1506,6 +1513,17 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         : <String, dynamic>{};
     final Widget settings = AboutSectionSettingsPanel(
       setting: _aboutSection,
+      visible:
+          _sectionVisibility.shows(HomeSharedEntrySources.about) &&
+          _aboutSection.enabled,
+      onVisibilityChanged: (value) => setState(() {
+        _sectionVisibility = _sectionVisibility.withValue(
+          HomeSharedEntrySources.about,
+          value,
+        );
+        _aboutSection = _aboutSection.copyWith(enabled: value);
+        _appearanceDirty = true;
+      }),
       displayStyles: _displayStyle,
       onDisplayStyles: (value) => setState(() {
         _displayStyle = value;
@@ -1529,10 +1547,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
-    final Widget aboutSettings = _withSectionDisplay(
-      HomeSharedEntrySources.about,
-      settings,
-    );
+    final Widget aboutSettings = settings;
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),

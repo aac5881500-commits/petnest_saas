@@ -719,33 +719,9 @@ exports.sendCheckInReminder = onSchedule(
     async () => {
       const firestore = admin.firestore();
 
-      const now = new Date();
-
-      const taiwanNow = new Date(
-          now.toLocaleString("en-US", {
-            timeZone: "Asia/Taipei",
-          }),
-      );
-
-      const tomorrowStart = new Date(
-          taiwanNow.getFullYear(),
-          taiwanNow.getMonth(),
-          taiwanNow.getDate() + 1,
-          0,
-          0,
-          0,
-          0,
-      );
-
-      const tomorrowEnd = new Date(
-          taiwanNow.getFullYear(),
-          taiwanNow.getMonth(),
-          taiwanNow.getDate() + 2,
-          0,
-          0,
-          0,
-          0,
-      );
+      const {checkInReminderWindow} =
+        require("./bookings/check_in_reminder_window");
+      const {start: tomorrowStart, end: tomorrowEnd} = checkInReminderWindow();
 
       const tomorrowStartTimestamp =
         admin.firestore.Timestamp.fromDate(tomorrowStart);
@@ -1121,3 +1097,12 @@ exports.applyDueShopPlansDaily = onSchedule({
   } while (cursor);
 });
 exports.salesMonthSummary = sales.salesMonthSummary;
+
+// Member campaigns have isolated server-only drafts, audience resolution and delivery claims.
+Object.assign(exports, require("./campaigns").createCampaignFunctions({
+  admin, customerPushAllowed,
+}));
+
+const shopSharing = require("./shops/shop_sharing");
+exports.manageShopSharing = shopSharing.manageShopSharing;
+exports.resolveShopSharing = shopSharing.resolveShopSharing;

@@ -13,21 +13,25 @@ class RoomIntroTypography extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final font = look.appliedFontFamily;
-    if (font == null) return child;
+    // 跟隨主題與自訂字體都保留相同容器，避免外觀快照到達時卸載資料監聽。
     final theme = Theme.of(context);
     return Theme(
-      data: theme.copyWith(
-        textTheme: theme.textTheme.apply(fontFamily: font),
-        primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: font),
-        appBarTheme: theme.appBarTheme.copyWith(
-          titleTextStyle:
-              (theme.appBarTheme.titleTextStyle ?? theme.textTheme.titleLarge)
-                  ?.copyWith(fontFamily: font),
-          toolbarTextStyle:
-              (theme.appBarTheme.toolbarTextStyle ?? theme.textTheme.bodyMedium)
-                  ?.copyWith(fontFamily: font),
-        ),
-      ),
+      data: font == null
+          ? theme
+          : theme.copyWith(
+              textTheme: theme.textTheme.apply(fontFamily: font),
+              primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: font),
+              appBarTheme: theme.appBarTheme.copyWith(
+                titleTextStyle:
+                    (theme.appBarTheme.titleTextStyle ??
+                            theme.textTheme.titleLarge)
+                        ?.copyWith(fontFamily: font),
+                toolbarTextStyle:
+                    (theme.appBarTheme.toolbarTextStyle ??
+                            theme.textTheme.bodyMedium)
+                        ?.copyWith(fontFamily: font),
+              ),
+            ),
       child: DefaultTextStyle.merge(
         style: TextStyle(fontFamily: font),
         child: child,

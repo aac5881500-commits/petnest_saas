@@ -72,6 +72,7 @@ class ShopPermissionCatalog {
 
   static const Set<String> highRiskKeys = <String>{
     ShopPermissionKeys.manageMemberPoints,
+    ShopPermissionKeys.sendMemberCampaigns,
     ShopPermissionKeys.adjustDaycarePrice,
     ShopPermissionKeys.viewInventoryCost,
     ShopPermissionKeys.adjustInventory,
@@ -102,6 +103,28 @@ class ShopPermissionCatalog {
               key: ShopPermissionKeys.editMedia,
               title: '管理店家圖片',
               description: '修改 Logo 與封面。',
+            ),
+          ],
+        ),
+        ShopPermissionCategory(
+          id: 'campaigns',
+          title: '會員推廣與通知',
+          items: [
+            ShopPermissionItem(
+              key: ShopPermissionKeys.manageCampaignDrafts,
+              title: '建立推廣草稿',
+              description: '撰寫內容、選擇本店會員與預覽；不能正式發送。',
+            ),
+            ShopPermissionItem(
+              key: ShopPermissionKeys.sendMemberCampaigns,
+              title: '發送會員推廣與通知',
+              description: '可正式送出本店會員通知，包含指定會員與群發。',
+              highRisk: true,
+            ),
+            ShopPermissionItem(
+              key: ShopPermissionKeys.viewMemberCampaigns,
+              title: '查看推廣發送紀錄',
+              description: '查看發送內容、對象與處理結果。',
             ),
           ],
         ),

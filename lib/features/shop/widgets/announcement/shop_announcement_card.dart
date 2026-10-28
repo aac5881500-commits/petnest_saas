@@ -170,7 +170,7 @@ class ShopAnnouncementCard extends StatelessWidget {
       case 'promotion':
         return '優惠活動';
       case 'checkin_notice':
-        return '入住提醒';
+        return '入住須知';
       case 'normal':
       default:
         return '一般公告';
