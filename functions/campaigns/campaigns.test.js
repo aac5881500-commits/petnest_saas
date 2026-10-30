@@ -81,7 +81,8 @@ function fixture() {
       pushes.push(args); if (failPush) throw new Error("unknown result");
       return {successCount: args.tokens.length, failureCount: 0, responses: args.tokens.map(() => ({success: true}))};
     }})};
-  const api = createCampaignFunctions({admin, customerPushAllowed: (kind, prefs) => prefs.enabled !== false && prefs[kind.category === "shop_notice" ? "shopNotice" : "shopMarketing"] !== false});
+  const {customerPushAllowed} = require("../notifications/customer_push_policy");
+  const api = createCampaignFunctions({admin, customerPushAllowed});
   store.set("shops/s", {ownerUid: "owner", name: "Test shop"});
   store.set("shops/other", {ownerUid: "other"});
   for (const uid of ["u1", "u2"]) {
@@ -204,4 +205,119 @@ test("recovery preserves an uncertain prior push attempt instead of replaying it
   assert.equal(f.pushes.length, 1);
   assert.equal(f.store.get("shop_campaigns/c").counts.unknown, 1);
   assert.equal(f.store.get("shop_campaigns/c").counts.inbox, 2);
+});
+
+
+test("per-shop category mute still creates inbox; other shop receives push", async () => {
+  const f = fixture();
+  f.store.set("users/u1/notification_settings/global", {shopOverrides: {s: {shopMarketing: false}}});
+  const first = await f.send("local-muted", {audience: "selected", memberIds: ["u1"]});
+  await f.api.deliverShopCampaign.run({data: {after: await first.get()}, params: {campaignId: "local-muted"}});
+  assert.equal(f.pushes.length, 0);
+  assert.equal(f.store.get("shop_campaigns/local-muted/deliveries/u1").push, "opted_out");
+  assert.ok(f.store.has("notifications/campaign_local-muted_u1"));
+  f.store.set("shops/other/members/u1", {userId: "u1", source: "app"});
+  const prepared = await f.request("preview", {campaignId: "other-shop", version: 0, draft: f.draft}, "other", "other");
+  await f.request("send", {campaignId: "other-shop", revision: prepared.preview.revision}, "other", "other");
+  const ref = f.db.collection("shop_campaigns").doc("other-shop");
+  await f.api.deliverShopCampaign.run({data: {after: await ref.get()}, params: {campaignId: "other-shop"}});
+  assert.equal(f.pushes.length, 1);
+});
+
+
+test("account notice requires selected recipients and notice category", () => {
+  const f = fixture();
+  for (const audience of ["all", "vip"]) assert.throws(() => policy.normalize({...f.draft, purpose: "member_account", category: "shop_notice", audience}), {code: "invalid-argument"});
+  assert.throws(() => policy.normalize({...f.draft, purpose: "member_account", audience: "selected", memberIds: ["u1"]}), {code: "invalid-argument"});
+  assert.throws(() => policy.normalize({...f.draft, purpose: "member_account", category: "shop_notice", audience: "selected", memberIds: ["u1"], announcementId: "a"}), {code: "invalid-argument"});
+});
+
+test("explicit account notice reaches blacklisted member with private phone summary", async () => {
+  const f = fixture();
+  f.store.set("shops/s/members/u1", {userId: "u1", source: "app", name: "Test recipient", blacklisted: true, isBlocked: true});
+  const draft = {purpose: "member_account", category: "shop_notice", audience: "selected", memberIds: ["u1"], title: "服務限制原因", body: "這裡是只供客戶閱讀的詳細原因"};
+  const preview = await f.prepare("account-preview", draft);
+  assert.equal(preview.preview.count, 1); assert.equal(preview.preview.restrictedCount, 1);
+  assert.equal(preview.preview.recipients[0].name, "Test recipient");
+  const ref = await f.send("account", draft);
+  await f.api.deliverShopCampaign.run({data: {after: await ref.get()}, params: {campaignId: "account"}});
+  assert.equal(f.pushes.length, 1);
+  assert.ok(!JSON.stringify(f.pushes[0]).includes(draft.body));
+  assert.ok(!f.pushes[0].notification.title.includes(draft.title));
+  assert.equal(f.pushes[0].data.isMandatory, "false");
+  assert.equal(f.store.get("notifications/campaign_account_u1").body, draft.body);
+  assert.equal(f.store.get("shops/s/members/u1").blacklisted, true);
+});
+
+test("blocked member remains excluded from personal notifications and promotions", async () => {
+  const f = fixture();
+  f.store.set("shops/s/members/u1", {userId: "u1", source: "app", blacklisted: true});
+  for (const [purpose, category] of [["personal", "shop_notice"], ["promotion", "shop_marketing"]]) {
+    const result = await f.prepare(`blocked-${purpose}`, {purpose, category, audience: "selected", memberIds: ["u1"]});
+    assert.equal(result.preview.count, 0);
+  }
+});
+
+test("account notice still honors push opt-out and cannot reach disabled accounts or another shop", async () => {
+  const f = fixture();
+  f.store.set("shops/s/members/u1", {userId: "u1", source: "app", status: "suspended"});
+  f.store.set("users/u1/notification_settings/global", {shopOverrides: {s: {shopNotice: false}}});
+  const draft = {purpose: "member_account", category: "shop_notice", audience: "selected", memberIds: ["u1"]};
+  const ref = await f.send("muted-account", draft);
+  await f.api.deliverShopCampaign.run({data: {after: await ref.get()}, params: {campaignId: "muted-account"}});
+  assert.equal(f.pushes.length, 0); assert.ok(f.store.has("notifications/campaign_muted-account_u1"));
+  f.store.set("users/u1", {disabled: true});
+  assert.equal((await f.prepare("disabled-account", draft)).preview.count, 0);
+  await assert.rejects(f.prepare("cross-shop-account", {...draft, memberIds: ["someone-else"]}), {code: "failed-precondition"});
+});
+
+test("recipient metadata exposes service restriction separately from marketing eligibility", async () => {
+  const f = fixture();
+  f.store.set("shops/s/members/u1", {userId: "u1", source: "app", isBlocked: true});
+  const list = (await f.request("members")).members;
+  const row = list.find((member) => member.id === "u1");
+  assert.equal(row.restricted, true); assert.equal(row.reachable, false); assert.equal(row.accountReachable, true);
+  const manual = list.find((member) => member.id === "manual");
+  assert.equal(manual.accountReachable, false);
+});
+
+
+test("LINE preparation only saves public owner data; does not connect or send", async () => {
+  const f = fixture();
+  const first = await f.request("linePreparation");
+  assert.equal(first.canEdit, true); assert.equal(first.ready, false);
+  const saved = await f.request("saveLinePreparation", {version: 0, configuration: {displayName: "Shop LINE", officialAccountId: "@shop", channelId: "1234567890", requestedUses: ["booking", "personal"]}});
+  assert.equal(saved.version, 1); assert.equal(saved.sendingEnabled, false); assert.equal(saved.billingActivated, false);
+  assert.equal(saved.accountDetailsSaved, true); assert.equal(saved.credentialsVerified, false);
+  assert.equal(f.store.get("shop_line_preparations/s").officialAccountId, "@shop");
+  assert.equal(f.pushes.length, 0);
+});
+
+test("staff can view LINE preparation but cannot change owner configuration", async () => {
+  const f = fixture();
+  f.store.set("shop_members/s_staff", {uid: "staff", shopId: "s", role: "staff", permissions: {manage_campaign_drafts: true}});
+  assert.equal((await f.request("linePreparation", {}, "staff")).canEdit, false);
+  await assert.rejects(f.request("saveLinePreparation", {version: 0, configuration: {}}, "staff"), {code: "permission-denied"});
+  await assert.rejects(f.request("linePreparation", {}, "owner", "other"), {code: "permission-denied"});
+});
+
+test("LINE preparation rejects credentials, activation flags and stale edits", async () => {
+  const f = fixture();
+  await assert.rejects(f.request("saveLinePreparation", {version: 0, configuration: {channelAccessToken: "never-store-me"}}), {code: "invalid-argument"});
+  await assert.rejects(f.request("saveLinePreparation", {version: 0, configuration: {enabled: true}}), {code: "invalid-argument"});
+  await f.request("saveLinePreparation", {version: 0, configuration: {displayName: "first"}});
+  await assert.rejects(f.request("saveLinePreparation", {version: 0, configuration: {displayName: "stale"}}), {code: "aborted"});
+  assert.equal(f.store.get("shop_line_preparations/s").displayName, "first");
+});
+
+test("forged prepared flags cannot enable LINE and existing App delivery remains separate", async () => {
+  const f = fixture();
+  f.store.set("shop_line_preparations/s", {ready: true, sendingEnabled: true, billingActivated: true, channelSecret: "not-returned"});
+  const result = await f.request("linePreparation");
+  assert.equal(result.ready, false); assert.equal(result.sendingEnabled, false); assert.equal(result.billingActivated, false);
+  assert.equal(JSON.stringify(result).includes("not-returned"), false);
+  for (const extra of [{channel: "line"}, {sendLine: true}, {channels: ["push", "line"]}]) {
+    await assert.rejects(f.prepare("line-guard", extra), {code: "failed-precondition"});
+  }
+  assert.equal((await f.prepare("still-app")).preview.count, 2);
 });

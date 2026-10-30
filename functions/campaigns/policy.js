@@ -20,6 +20,9 @@ function permissions(shop, member, uid) {
     view: keys.view_member_campaigns === true || keys.manage_campaign_drafts === true || keys.send_member_campaigns === true};
 }
 function normalize(raw) {
+  if (raw.channel === "line" || raw.sendLine === true || Array.isArray(raw.channels) && raw.channels.includes("line")) {
+    require("../line/preparation").assertLineSendingEnabled();
+  }
   const title = String(raw.title || "").trim();
   const body = String(raw.body || "").trim();
   if (!title || title.length > 80 || !body || body.length > 2000) {
@@ -34,13 +37,28 @@ function normalize(raw) {
   if (memberIds.length > LIMIT || raw.audience === "selected" && !memberIds.length) {
     throw new HttpsError("invalid-argument", "請選擇 1 至 5000 位會員。");
   }
-  return {title, body, category: raw.category, channel: raw.channel,
+  const purpose = raw.purpose || (raw.announcementId ? "announcement" : raw.category === "shop_marketing" ? "promotion" : "personal");
+  if (!["personal", "promotion", "member_account", "announcement"].includes(purpose) ||
+      purpose === "member_account" && (raw.category !== "shop_notice" || raw.audience !== "selected" || raw.announcementId) ||
+      purpose === "promotion" && raw.category !== "shop_marketing" ||
+      purpose === "personal" && raw.category !== "shop_notice") {
+    throw new HttpsError("invalid-argument", "權益告知只可使用服務通知並明確指定本店會員，不可全店推廣。");
+  }
+  return {title, body, purpose, category: raw.category, channel: raw.channel,
     audience: raw.audience, memberIds: raw.audience === "selected" ? memberIds : [],
     announcementId: raw.announcementId ? id(raw.announcementId) : ""};
 }
-function memberUid(member, docId) {
+function restricted(member) {
+  return member.isBlacklisted === true || member.blacklisted === true || member.isBlocked === true ||
+    member.isActive === false || ["suspended", "disabled", "blocked"].includes(member.status);
+}
+function accountNotice(draft) {
+  return draft && draft.purpose === "member_account" && draft.category === "shop_notice" &&
+    draft.audience === "selected" && !draft.announcementId;
+}
+function memberUid(member, docId, draft = null) {
   if (member.source === "admin" || member.memberSource === "admin" ||
-      member.isBlacklisted === true || member.blacklisted === true || member.isBlocked === true || member.status === "deleted") return "";
+      restricted(member) && !accountNotice(draft) || ["deleted", "removed"].includes(member.status)) return "";
   const uid = member.userId || member.uid || docId;
   if (typeof uid !== "string" || uid.includes("/") || uid.length > 128 || !uid || uid.startsWith("manual_")) return "";
   return uid;
@@ -52,11 +70,15 @@ function audience(rows, draft) {
   if (draft.audience === "selected" && candidates.length !== chosen.size) {
     throw new HttpsError("failed-precondition", "部分會員已不屬於本店，請重新選擇。");
   }
-  const uids = Array.from(new Set(candidates.map((row) => memberUid(row.data, row.id)).filter(Boolean))).sort();
+  const uids = Array.from(new Set(candidates.map((row) => memberUid(row.data, row.id, draft)).filter(Boolean))).sort();
   if (uids.length > LIMIT) throw new HttpsError("resource-exhausted", "單次最多 5000 位，請縮小對象範圍。");
-  return {uids, selectedCount: candidates.length, excludedCount: candidates.length - uids.length};
+  const reachable = new Set(uids);
+  const recipients = candidates.filter((row) => reachable.has(memberUid(row.data, row.id, draft))).map((row) => ({
+    memberId: row.id, uid: memberUid(row.data, row.id, draft), name: String(row.data.name || "未命名會員"), restricted: restricted(row.data),
+  }));
+  return {uids, recipients, selectedCount: candidates.length, excludedCount: candidates.length - uids.length};
 }
 function revision(draft, resolved) {
   return crypto.createHash("sha256").update(JSON.stringify({draft, uids: resolved.uids})).digest("hex");
 }
-module.exports = {LIMIT, id, permissions, normalize, memberUid, audience, revision};
+module.exports = {LIMIT, id, permissions, normalize, restricted, accountNotice, memberUid, audience, revision};

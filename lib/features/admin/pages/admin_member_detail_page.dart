@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
+import 'package:petnest_saas/features/pet/widgets/pet_catalog_field.dart';
 import 'package:petnest_saas/core/models/pet_species.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/features/shop/pages/campaigns/campaign_entry_button.dart';
@@ -721,30 +723,12 @@ class AdminMemberDetailPage extends StatelessWidget {
     if (species.isEmpty) species = 'cat';
     String vaccine = PetSnapshot.medicalStatusText(pet);
     if (vaccine.isEmpty) vaccine = '無';
-    if (vaccine != '無' &&
-        vaccine != '慢性腎臟病' &&
-        vaccine != '心臟病' &&
-        vaccine != '糖尿病' &&
-        vaccine != '術後照護' &&
-        vaccine != '皮膚疾病') {
-      vaccine = '無';
-    }
-    String litterType = (pet['litterType'] ?? '').toString().isEmpty
-        ? '豆腐砂'
-        : (pet['litterType'] ?? '').toString();
-
-    if (litterType != '豆腐砂' && litterType != '礦砂') {
-      litterType = '豆腐砂';
-    }
+    String litterType = (pet['litterType'] ?? '').toString();
+    final habits = PetProfileCatalog.cleanHabits(pet['careHabits'], species);
     final noteController = TextEditingController(
       text: (pet['note'] ?? '').toString(),
     );
-    String gender = (pet['gender'] ?? '').toString();
-
-    if (!['公貓', '母貓', '公狗', '母狗'].contains(gender)) {
-      gender = '母貓';
-    }
-
+    String gender = PetSpecies.genderLabel(pet['gender']);
     String age = (pet['age'] ?? '').toString();
 
     if (age != '6~12個月' &&
@@ -776,13 +760,23 @@ class AdminMemberDetailPage extends StatelessWidget {
                       ],
                       onChanged: (v) => setDialogState(() {
                         species = v!;
-                        gender = v == 'dog' ? '母狗' : '母貓';
+                        breedController.clear();
+                        vaccineTypesController.clear();
+                        vaccine = '';
+                        litterType = '';
+                        habits.clear();
                       }),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: vaccineTypesController,
-                      decoration: const InputDecoration(labelText: '疫苗類型'),
+                    PetCatalogField(
+                      label: '疫苗類型',
+                      value: vaccineTypesController.text,
+                      options: PetProfileCatalog.vaccines(species),
+                      multiple: true,
+                      exclusiveValues: const {'未接種', '不確定'},
+                      decoration: const InputDecoration(labelText: '疫苗類型（可複選）'),
+                      onChanged: (v) =>
+                          setDialogState(() => vaccineTypesController.text = v),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -795,13 +789,11 @@ class AdminMemberDetailPage extends StatelessWidget {
                       value: gender,
                       decoration: const InputDecoration(labelText: '性別'),
                       items: const [
-                        DropdownMenuItem(value: '公貓', child: Text('公貓')),
-                        DropdownMenuItem(value: '公狗', child: Text('公狗')),
-                        DropdownMenuItem(value: '母狗', child: Text('母狗')),
-                        DropdownMenuItem(value: '母貓', child: Text('母貓')),
+                        DropdownMenuItem(value: '公', child: Text('公')),
+                        DropdownMenuItem(value: '母', child: Text('母')),
                       ],
                       onChanged: (value) {
-                        gender = value ?? '母貓';
+                        gender = value ?? '';
                       },
                     ),
                     const SizedBox(height: 12),
@@ -838,44 +830,46 @@ class AdminMemberDetailPage extends StatelessWidget {
                       },
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: breedController,
-                      decoration: const InputDecoration(labelText: '品種'),
+                    PetCatalogField(
+                      label: '品種',
+                      value: breedController.text,
+                      options: PetProfileCatalog.breeds(species),
+                      decoration: const InputDecoration(labelText: '品種（選填）'),
+                      onChanged: (v) =>
+                          setDialogState(() => breedController.text = v),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
+                    PetCatalogField(
+                      label: '醫療狀況',
                       value: vaccine,
-                      decoration: const InputDecoration(labelText: '醫療狀況'),
-                      items: const [
-                        DropdownMenuItem(value: '無', child: Text('無')),
-                        DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
-                        DropdownMenuItem(value: '心臟病', child: Text('心臟病')),
-                        DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')),
-                        DropdownMenuItem(value: '術後照護', child: Text('術後照護')),
-                        DropdownMenuItem(value: '皮膚疾病', child: Text('皮膚治療')),
-                      ],
-                      onChanged: (value) {
-                        setDialogState(() {
-                          vaccine = value ?? '無';
-                        });
-                      },
+                      options: PetProfileCatalog.medical(species),
+                      multiple: true,
+                      exclusiveValues: const {'無', '不確定'},
+                      decoration: const InputDecoration(labelText: '醫療狀況（可複選）'),
+                      onChanged: (v) => setDialogState(() => vaccine = v),
                     ),
-
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: litterType,
-                      decoration: const InputDecoration(labelText: '貓砂'),
-                      items: const [
-                        DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
-                        DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
-                      ],
-                      onChanged: (value) {
-                        setDialogState(() {
-                          litterType = value ?? '豆腐砂';
-                        });
-                      },
-                    ),
-
+                    if (species == 'cat')
+                      PetCatalogField(
+                        label: '貓砂種類',
+                        value: litterType,
+                        options: PetProfileCatalog.litters,
+                        decoration: const InputDecoration(labelText: '貓砂種類'),
+                        onChanged: (v) => setDialogState(() => litterType = v),
+                      ),
+                    for (final f in PetProfileCatalog.habits(species)) ...[
+                      const SizedBox(height: 12),
+                      PetCatalogField(
+                        label: f.label,
+                        value: habits[f.key] ?? '',
+                        options: f.options,
+                        decoration: InputDecoration(
+                          labelText: '${f.label}（選填）',
+                        ),
+                        onChanged: (v) =>
+                            setDialogState(() => habits[f.key] = v),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     TextField(
                       controller: noteController,
@@ -924,6 +918,7 @@ class AdminMemberDetailPage extends StatelessWidget {
         .set({
           'name': newName,
           'gender': gender,
+          'careHabits': PetProfileCatalog.cleanHabits(habits, species),
           'age': age,
           'isNeutered': isNeutered,
           'breed': breedController.text.trim(),

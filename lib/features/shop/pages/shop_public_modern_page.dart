@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_entry_access_error.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -163,7 +165,7 @@ class ShopPublicModernPage extends StatefulWidget {
 class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   static const Color _backgroundColor = Color(0xFFFFFCF7);
 
-  late final Stream<Map<String, dynamic>?> _shopStream;
+  late Stream<Map<String, dynamic>?> _shopStream;
   StreamSubscription<List<Map<String, dynamic>>>? _roomTypesSub;
   List<Map<String, dynamic>>? _roomTypes;
   bool _roomTypesFailed = false;
@@ -573,7 +575,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required bool embeddedPreview,
   }) {
     final double safeBottom = MediaQuery.paddingOf(context).bottom;
-    final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final current = FirebaseAuth.instance.currentUser;
+    final String userId = isRegisteredMember(current) ? current!.uid : '';
     final bool allowNavigation = !embeddedPreview;
     return ShopMenuButton(
       shopId: widget.shopId,
@@ -667,13 +670,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         }
 
         if (snapshot.hasError) {
-          return Scaffold(
-            backgroundColor: _backgroundColor,
-            body: Center(
-              child: Text(
-                '讀取失敗：${snapshot.error}',
-                style: const TextStyle(fontSize: 13, color: Colors.black54),
-              ),
+          return ShopEntryAccessError(
+            error: snapshot.error,
+            onRetry: () => setState(
+              () =>
+                  _shopStream = ShopService.instance.streamShop(widget.shopId),
             ),
           );
         }
@@ -777,7 +778,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           shop,
           showMemberCenter: modernTheme.drawerSetting.showMemberCenter,
           showShopMenus: modernTheme.drawerSetting.showShopMenus,
-          loggedIn: FirebaseAuth.instance.currentUser != null,
+          loggedIn: isRegisteredMember(FirebaseAuth.instance.currentUser),
         );
         final bool useBottomBar = navigation.usesBottomBar(
           MediaQuery.sizeOf(context).width,

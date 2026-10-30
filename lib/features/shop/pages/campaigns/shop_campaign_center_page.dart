@@ -1,3 +1,4 @@
+import 'shop_line_preparation_page.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_campaign_service.dart';
@@ -72,7 +73,18 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
       if (openInitial &&
           (widget.initialMemberId != null || widget.announcementId != null) &&
           _canDraft) {
-        await _edit();
+        final linked = jobs
+            .where((job) => job['announcementId'] == widget.announcementId)
+            .toList();
+        final drafts = linked
+            .take(1)
+            .where((job) => job['status'] == 'draft')
+            .toList();
+        if (widget.announcementId != null && drafts.isNotEmpty) {
+          await _edit(Map<String, dynamic>.from(drafts.first));
+        } else if (widget.announcementId == null || linked.isEmpty) {
+          await _edit();
+        }
       }
     } catch (error) {
       if (mounted) {
@@ -86,8 +98,59 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
     }
   }
 
+  Future<void> _create() async {
+    final purpose = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  '這次想通知誰？',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('個別客戶通知'),
+                subtitle: const Text('指定一位或幾位客戶，說明服務事項或聯繫進度'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pop(context, 'personal'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.group_outlined),
+                title: const Text('分眾推廣'),
+                subtitle: const Text('選擇 VIP 或部分會員，發送活動與優惠'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pop(context, 'promotion'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings_outlined),
+                title: const Text('會員權益通知'),
+                subtitle: const Text('向指定客戶說明服務限制、停權、黑名單或處理結果'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pop(context, 'member_account'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (purpose != null && mounted) await _edit(null, false, purpose);
+  }
+
   bool get _canDraft => (_data?['permissions'] as Map?)?['draft'] == true;
-  Future<void> _edit([Map<String, dynamic>? draft]) async {
+  Future<void> _edit([
+    Map<String, dynamic>? draft,
+    bool repeat = false,
+    String? purpose,
+  ]) async {
     _timer?.cancel();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -95,7 +158,11 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
           shopId: widget.shopId,
           api: _call,
           canSend: (_data?['permissions'] as Map?)?['send'] == true,
-          draft: draft,
+          draft: repeat && draft != null
+              ? {...draft, 'id': null, 'version': 0, 'status': 'draft'}
+              : draft,
+          isRepeat: repeat,
+          initialPurpose: purpose,
           initialMemberId: draft == null ? widget.initialMemberId : null,
           announcementId: draft == null ? widget.announcementId : null,
           initialTitle: widget.initialTitle,
@@ -194,6 +261,17 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
         title: const Text('會員推廣與通知'),
         actions: [
           IconButton(
+            tooltip: 'LINE 通知前置設定',
+            icon: const Icon(Icons.link_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    ShopLinePreparationPage(shopId: widget.shopId, api: _call),
+              ),
+            ),
+          ),
+          IconButton(
             tooltip: '重新整理',
             onPressed: () => _load(),
             icon: const Icon(Icons.refresh),
@@ -202,9 +280,9 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
       ),
       floatingActionButton: _canDraft
           ? FloatingActionButton.extended(
-              onPressed: () => _edit(),
+              onPressed: _create,
               icon: const Icon(Icons.add),
-              label: const Text('新增推廣／通知'),
+              label: const Text('新增會員消息'),
             )
           : null,
       body: _loading
@@ -233,7 +311,7 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
                   children: [
                     const Text(
-                      '把合適的消息，送給自己的會員',
+                      '會員消息中心',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -241,7 +319,7 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      '公告發布時可同步設定全會員通知；指定個別會員或 VIP 可在這裡建立。訂單與入住提醒由系統自動處理。下方顯示最近 100 筆紀錄。',
+                      '個別聯繫、部分會員推廣與會員權益告知，都從這裡開始。公告會自動帶入通知；這裡不用再重建公告。',
                       style: TextStyle(height: 1.6),
                     ),
                     const SizedBox(height: 16),
@@ -283,24 +361,97 @@ class _ShopCampaignCenterPageState extends State<ShopCampaignCenterPage> {
                       ),
                     for (final job in shown)
                       Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(16),
-                          leading: Icon(
-                            job['category'] == 'shop_notice'
-                                ? Icons.notifications_outlined
-                                : Icons.campaign_outlined,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if ('${job['announcementId'] ?? ''}'.isEmpty)
+                                    Chip(
+                                      label: Text(
+                                        job['purpose'] == 'member_account'
+                                            ? '會員權益通知'
+                                            : job['category'] ==
+                                                  'shop_marketing'
+                                            ? '分眾推廣'
+                                            : '個別通知',
+                                      ),
+                                    ),
+                                  Chip(
+                                    label: Text(
+                                      campaignStatusLabel('${job['status']}'),
+                                    ),
+                                  ),
+                                  if ('${job['announcementId'] ?? ''}'
+                                      .isNotEmpty)
+                                    const Chip(label: Text('公告同步通知')),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${job['title']}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${job['body']}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                job['status'] == 'draft'
+                                    ? (job['recipientCount'] == 0
+                                          ? '尚未發送・目前沒有符合資格的會員，可稍後再試'
+                                          : '尚未發送・內容與對象已保留')
+                                    : '對象 ${job['recipientCount']} 位・App 已建立 ${(job['counts'] as Map?)?['inbox'] ?? 0} 筆',
+                              ),
+                              const SizedBox(height: 14),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (job['status'] == 'draft' && _canDraft)
+                                    FilledButton.icon(
+                                      onPressed: () => _edit(job),
+                                      icon: const Icon(
+                                        Icons.send_outlined,
+                                        size: 18,
+                                      ),
+                                      label: const Text('繼續發送'),
+                                    ),
+                                  if (job['status'] == 'completed' &&
+                                      (_data?['permissions']
+                                              as Map?)?['send'] ==
+                                          true)
+                                    FilledButton.tonalIcon(
+                                      onPressed: () => _edit(job, true),
+                                      icon: const Icon(Icons.refresh, size: 18),
+                                      label: const Text('再次通知'),
+                                    ),
+                                  TextButton.icon(
+                                    onPressed: () => _detail(job),
+                                    icon: const Icon(
+                                      Icons.receipt_long_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const Text('查看紀錄'),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                          title: Text(
-                            '${job['title']}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            '${campaignStatusLabel('${job['status']}')} · ${job['channel'] == 'push' ? '站內＋推播' : '站內通知'}\n${job['status'] == 'draft' ? '尚未送出' : '對象 ${job['recipientCount']} 位 · 站內已建立 ${(job['counts'] as Map?)?['inbox'] ?? 0} 筆'}',
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: job['status'] == 'draft' && _canDraft
-                              ? () => _edit(job)
-                              : () => _detail(job),
                         ),
                       ),
                   ],

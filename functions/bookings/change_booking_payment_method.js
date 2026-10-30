@@ -3,7 +3,7 @@
 // 功能說明：客戶變更住宿／安親付款方式；不改總額、訂金金額與付款期限。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   normalizeString,
   writeActionLog,

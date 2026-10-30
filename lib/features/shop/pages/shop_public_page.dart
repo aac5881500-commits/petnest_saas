@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_entry_access_error.dart';
 import 'dart:async';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_public_page.dart
@@ -171,7 +173,10 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         }
 
         if (snapshot.hasError) {
-          return Scaffold(body: Center(child: Text('讀取失敗：${snapshot.error}')));
+          return ShopEntryAccessError(
+            error: snapshot.error,
+            onRetry: () => setState(() {}),
+          );
         }
 
         final shop = snapshot.data;
@@ -500,7 +505,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             onTap: () async {
                               final user = FirebaseAuth.instance.currentUser;
 
-                              if (user == null) {
+                              if (!isRegisteredMember(user)) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('請先登入')),
                                 );

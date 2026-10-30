@@ -3,7 +3,7 @@
 // 功能說明：調整最終應收、店內確認收退款、補款方式、轉帳核對與鎖單；冪等 requestId。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   hasShopPermission,
   isRootAdmin,

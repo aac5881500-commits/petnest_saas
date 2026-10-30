@@ -11,7 +11,9 @@ import '../../../core/services/auth_service.dart';
 import 'email_verification_page.dart';
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+  const RegisterPage({super.key, this.shopBindingTicket});
+
+  final String? shopBindingTicket;
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -54,6 +56,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       await AuthService.instance.register(
+        shopBindingTicket: widget.shopBindingTicket,
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         displayName: _nameController.text.trim(),

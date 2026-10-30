@@ -3,7 +3,7 @@
 // 功能說明：銀行轉帳等人工確認，依客戶下單時的 deposit／full 寫入同一套付款結果。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   hasShopPermission,
   isRootAdmin,

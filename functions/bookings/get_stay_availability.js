@@ -1,7 +1,7 @@
 // 檔案名稱：functions/bookings/get_stay_availability.js
 // 功能說明：住宿可售聚合。沿用 remainingRoomsFromData 與退房清潔計畫，不回傳房務明細。
 
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   addCalendarDays,
   normalizeString,

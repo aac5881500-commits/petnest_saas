@@ -11,13 +11,23 @@ class ShopServiceShowcase {
     this.imageFit = 'cover',
     this.imagePosition = 'center',
     this.artworkStyle = 'simple',
+    this.cardLayout = 'grid',
+    this.cardSize = 'medium',
   });
   static const artworkStyles = {
-    'simple': '簡約圖示',
-    'storybook': '柔和繪本',
-    'sticker': '卡通貼紙',
-    'postcard': '旅宿手帳',
+    'simple': '簡約',
+    'postcard': '照片',
+    'storybook': '卡通 A・繪本',
+    'sticker': '卡通 B・立體',
   };
+  static const cardLayouts = {
+    'grid': '上下卡片',
+    'list': '左右列表',
+    'horizontal': '橫向滑動',
+  };
+  static const cardSizes = {'small': '小', 'medium': '中', 'large': '大'};
+  final String cardSize;
+  final String cardLayout;
   final String artworkStyle;
   static const layouts = {
     'hidden': '不顯示',
@@ -58,13 +68,33 @@ class ShopServiceShowcase {
   factory ShopServiceShowcase.fromMap(Object? raw) {
     final map = raw is Map ? raw : const {};
     final ids = map['selected'];
+    final modern = cardLayouts.containsKey(map['cardLayout']);
+    final legacyIcons =
+        !layouts.containsKey(map['layout']) ||
+        const ['hidden', 'icons', 'compact'].contains(map['layout']);
+    final legacyArt =
+        const ['storybook', 'sticker', 'postcard'].contains(map['artworkStyle'])
+        ? map['artworkStyle'] as String
+        : legacyIcons
+        ? 'simple'
+        : 'postcard';
     return ShopServiceShowcase(
       layout: layouts.containsKey(map['layout'])
           ? map['layout'] as String
           : 'hidden',
-      artworkStyle: artworkStyles.containsKey(map['artworkStyle'])
-          ? map['artworkStyle'] as String
-          : 'simple',
+      cardLayout: modern
+          ? map['cardLayout'] as String
+          : map['layout'] == 'editorial'
+          ? 'list'
+          : 'grid',
+      cardSize: cardSizes.containsKey(map['cardSize'])
+          ? map['cardSize'] as String
+          : 'medium',
+      artworkStyle: modern
+          ? (artworkStyles.containsKey(map['artworkStyle'])
+                ? map['artworkStyle'] as String
+                : 'simple')
+          : legacyArt,
       images: map['images'] is Map
           ? {
               for (final entry in (map['images'] as Map).entries)
@@ -95,6 +125,8 @@ class ShopServiceShowcase {
     'imageFit': imageFit,
     'imagePosition': imagePosition,
     'artworkStyle': artworkStyle,
+    'cardLayout': cardLayout,
+    'cardSize': cardSize,
   };
   List<String> visibleModules(Iterable<String> enabled) => layout == 'hidden'
       ? []
@@ -109,6 +141,8 @@ class ShopServiceShowcase {
     String? imageFit,
     String? imagePosition,
     String? artworkStyle,
+    String? cardLayout,
+    String? cardSize,
   }) => ShopServiceShowcase(
     layout: layout ?? this.layout,
     selected: selected ?? this.selected,
@@ -117,6 +151,8 @@ class ShopServiceShowcase {
     imageFit: imageFit ?? this.imageFit,
     imagePosition: imagePosition ?? this.imagePosition,
     artworkStyle: artworkStyle ?? this.artworkStyle,
+    cardLayout: cardLayout ?? this.cardLayout,
+    cardSize: cardSize ?? this.cardSize,
   );
 }
 

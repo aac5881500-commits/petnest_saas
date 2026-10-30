@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
+import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/core/services/pet_service.dart
 // 功能說明：PetService（會員寵物完整版）
 // 功能：
@@ -101,6 +103,7 @@ class PetService {
 
     /// 基本
     String species = 'cat',
+    Map<String, String> careHabits = const {},
     String vaccineTypes = '',
     String medicalStatus = '',
     String gender = '',
@@ -144,7 +147,8 @@ class PetService {
       'name': name,
       'type': species,
       'species': species,
-      'gender': gender,
+      'gender': PetSpecies.genderLabel(gender),
+      'careHabits': PetProfileCatalog.cleanHabits(careHabits, species),
       'litterType': litterType,
 
       /// 🔥 新欄位

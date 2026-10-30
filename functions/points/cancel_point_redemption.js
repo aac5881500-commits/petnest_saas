@@ -3,7 +3,7 @@
 // 🎁 取消中央庫存點數實體商品兌換
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   preparePointRedemptionReturn,
   commitPreparedConsumption,

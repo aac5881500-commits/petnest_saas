@@ -72,7 +72,38 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  bool _hasOwnedShop(List<Map<String, dynamic>> shops) {
+    return shops.any((shop) => shop['role'] == ShopRoles.owner);
+  }
+
+  Widget _createShopButton({required bool desktop}) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _shopsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done ||
+            snapshot.hasError ||
+            !snapshot.hasData ||
+            _hasOwnedShop(snapshot.data!)) {
+          return const SizedBox.shrink();
+        }
+        return TextButton.icon(
+          onPressed: _openCreateShopPage,
+          icon: Icon(desktop ? Icons.add_business : Icons.add, size: 18),
+          label: Text(desktop ? '開店' : '新增店家'),
+        );
+      },
+    );
+  }
+
   Future<void> _openCreateShopPage() async {
+    final shopsFuture = _shopsFuture;
+    if (shopsFuture == null) return;
+    try {
+      final shops = await shopsFuture;
+      if (!mounted || _hasOwnedShop(shops)) return;
+    } catch (_) {
+      return;
+    }
     final bool created = await ShopActivationCodePage.open(context);
     if (!mounted || !created) return;
     ScaffoldMessenger.of(
@@ -260,11 +291,7 @@ class _HomePageState extends State<HomePage> {
               icon: const Icon(Icons.search, size: 18),
               label: const Text('找店'),
             ),
-            TextButton.icon(
-              onPressed: _openCreateShopPage,
-              icon: const Icon(Icons.add_business, size: 18),
-              label: const Text('開店'),
-            ),
+            _createShopButton(desktop: true),
             if (kIsWeb && _hasShopIdentity) const ShopDesktopAppNavButton(),
           ],
           _notificationButton(colors),
@@ -502,11 +529,7 @@ class _HomePageState extends State<HomePage> {
                 icon: const Icon(Icons.search, size: 18),
                 label: const Text('找店'),
               ),
-              TextButton.icon(
-                onPressed: _openCreateShopPage,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('新增店家'),
-              ),
+              _createShopButton(desktop: false),
             ],
           ],
         ),

@@ -1,7 +1,7 @@
 // 檔案名稱：functions/daycare/get_daycare_availability.js
 // 功能說明：登入後查詢安親剩餘名額，只回傳聚合數字，不回傳其他顧客訂單。
 
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   isDaycareEnabled,
   normalizeString,

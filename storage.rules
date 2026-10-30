@@ -3,8 +3,44 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function previewGrant() {
+      return firestore.get(/databases/(default)/documents/platform_inspection_previews/$(request.auth.token.inspectionGrant)).data;
+    }
+    function validPreview() {
+      let grant = previewGrant();
+      let session = firestore.get(/databases/(default)/documents/platform_inspection_sessions/$(grant.parentSession)).data;
+      return request.auth.token.get('petnestInspection', false) == true
+        && grant.uid == request.auth.uid && grant.active == true
+        && grant.rootUid == '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
+        && request.time.toMillis() < grant.expiresAt
+        && session.uid == '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
+        && session.verification == 'email_code_v1'
+        && request.time.toMillis() - session.touchedAt < 1800000;
+    }
+    function previewIdentity() {
+      return request.auth != null
+        && request.auth.token.get('petnestInspection', false) == true;
+    }
+    match /shops/{previewShopId}/{previewFile=**} {
+      allow read: if previewIdentity() && validPreview()
+        && previewGrant().shopId == previewShopId;
+    }
+    match /shop_chat/{previewShopId}/{previewUid}/{previewFile=**} {
+      allow read: if previewIdentity() && validPreview()
+        && previewGrant().shopId == previewShopId;
+    }
+    match /daily_care_photos/{previewShopId}/{previewFile=**} {
+      allow read: if previewIdentity() && validPreview()
+        && previewGrant().shopId == previewShopId;
+    }
+    match /pets/{previewUid}/{previewFile} {
+      allow read: if previewIdentity() && validPreview()
+        && previewUid in previewGrant().allowedUserUids;
+    }
+
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && request.auth.token.get('petnestInspection', false) != true;
     }
 
     function isRootAdmin() {

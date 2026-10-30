@@ -2,7 +2,7 @@
 // 功能說明：一次更新平台人員姓名、角色、權限與啟用狀態，並寫入操作紀錄。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("./inspection_write_guard");
 const policy = require("./platform_user_policy");
 
 const ROOT_ADMIN_UID = "7FNrECQeqAca9Vu8lBBzTSdcJcg1";

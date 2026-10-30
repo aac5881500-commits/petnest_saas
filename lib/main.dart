@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/main.dart
 // 功能說明：Flutter 應用程式入口，初始化 Firebase、路由與全域錯誤處理
 
@@ -15,7 +16,6 @@ import 'package:petnest_saas/features/platform/widgets/platform_policy_gate.dart
 import 'package:petnest_saas/core/services/auth_service.dart';
 import 'package:petnest_saas/features/auth/pages/email_verification_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/firebase_options.dart';
@@ -73,10 +73,9 @@ void _dismissWebStartupShell() {
 String _authDecisionKey(User? user) {
   if (user == null) return 'signed-out';
   final bool mustVerify = AuthService.instance.mustVerifyEmail(user);
-  final List<String> providers = user.providerData
-      .map((UserInfo info) => info.providerId)
-      .toList()
-    ..sort();
+  final List<String> providers =
+      user.providerData.map((UserInfo info) => info.providerId).toList()
+        ..sort();
   return '${user.uid}|verify=$mustVerify|providers=${providers.join(',')}';
 }
 
@@ -581,10 +580,7 @@ class _AppEntryPageState extends State<AppEntryPage> {
           .getMyShops()
           .timeout(_entryQueryLimit);
       if (generation != _generation) {
-        return const PetNestStartupStatus(
-          title: 'PetNest',
-          message: '正在準備首頁',
-        );
+        return const PetNestStartupStatus(title: 'PetNest', message: '正在準備首頁');
       }
       if (myShops.isNotEmpty) {
         _startupLog(
@@ -595,15 +591,12 @@ class _AppEntryPageState extends State<AppEntryPage> {
         return const PlatformPolicyGate(child: HomePage());
       }
 
-      final SharedPreferences prefs = await SharedPreferences.getInstance()
-          .timeout(_entryQueryLimit);
       if (generation != _generation) {
-        return const PetNestStartupStatus(
-          title: 'PetNest',
-          message: '正在準備首頁',
-        );
+        return const PetNestStartupStatus(title: 'PetNest', message: '正在準備首頁');
       }
-      final String? lastShopId = prefs.getString('last_customer_shop_id');
+      final String? lastShopId = await ShopSharingService.instance
+          .currentShop()
+          .timeout(_entryQueryLimit);
       _startupLog(
         'Entry page decision',
         'done',
@@ -660,9 +653,7 @@ class _AppEntryPageState extends State<AppEntryPage> {
     if (!_authReady) {
       return PetNestStartupStatus(
         title: 'PetNest',
-        message: _authSlow
-            ? '登入狀態確認時間較長。可以再試一次，不會清除登入資料，也不會進入內頁。'
-            : '正在確認登入狀態',
+        message: _authSlow ? '登入狀態確認時間較長。可以再試一次，不會清除登入資料，也不會進入內頁。' : '正在確認登入狀態',
         busy: true,
         showRetry: _authSlow,
         retryLabel: kIsWeb ? '重新整理' : '再試一次',
@@ -698,9 +689,8 @@ class _AppEntryPageState extends State<AppEntryPage> {
             busy: false,
             showRetry: true,
             retryLabel: '再試一次',
-            onRetry: () => _startDecision(
-              _knownUser ?? FirebaseAuth.instance.currentUser,
-            ),
+            onRetry: () =>
+                _startDecision(_knownUser ?? FirebaseAuth.instance.currentUser),
           );
         }
         return _EntryFrameSubmitted(

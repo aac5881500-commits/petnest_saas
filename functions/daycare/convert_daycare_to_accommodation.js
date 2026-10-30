@@ -3,7 +3,7 @@ const {loadEligiblePets} = require("../bookings/pet_species_guard");
 // 功能說明：臨托轉住宿：新開住宿單並互相連結，不覆蓋原臨托服務種類
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   BOOKING_KIND_ACCOMMODATION,
   BOOKING_KIND_DAYCARE,

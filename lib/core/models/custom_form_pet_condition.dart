@@ -77,7 +77,7 @@ class CustomFormPetCondition {
         if (expected == '有疾病') {
           return PetSnapshot.hasRecordedDisease(pet);
         }
-        return medical == expected;
+        return medical == expected || medical.split('、').contains(expected);
       case CustomFormPetConditionField.allergy:
         final String allergy = (snapshot['allergy'] ?? pet['allergy'] ?? '')
             .toString()

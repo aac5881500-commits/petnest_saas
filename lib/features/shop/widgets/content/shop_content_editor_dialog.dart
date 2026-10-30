@@ -69,7 +69,6 @@ class _ShopContentEditorDialogState extends State<ShopContentEditorDialog>
   late String _type;
   late bool _published;
   bool _notify = false;
-  String _channel = 'push';
   bool _saving = false;
   bool _confirming = false;
   String? _error;
@@ -132,7 +131,7 @@ class _ShopContentEditorDialogState extends State<ShopContentEditorDialog>
       isPublished: _published,
       type: _type,
       notifyMembers: !widget.isFaq && _published && _notify,
-      notificationChannel: _channel,
+      notificationChannel: 'push',
     );
     try {
       await widget.onSave(draft);
@@ -161,7 +160,20 @@ class _ShopContentEditorDialogState extends State<ShopContentEditorDialog>
       child: AlertDialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         scrollable: true,
-        title: Text('${widget.isNew ? '新增' : '編輯'}$noun'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${widget.isNew ? '新增' : '編輯'}$noun'),
+            if (!widget.isFaq)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                  '寫好內容，一次完成發布與會員通知',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.normal),
+                ),
+              ),
+          ],
+        ),
         content: SizedBox(
           width: 520,
           child: Form(
@@ -255,8 +267,8 @@ class _ShopContentEditorDialogState extends State<ShopContentEditorDialog>
                           : !widget.canNotify
                           ? '需有發送會員通知權限；目前可儲存公告。'
                           : _notify
-                          ? '發布後預覽實際收件人數，確認才會發送。'
-                          : '只發布公告，不主動通知會員；之後仍可個別推廣。',
+                          ? '直接沿用這則公告，預覽人數後即可發送。'
+                          : '只發布；之後可從公告直接補發通知。',
                     ),
                     value: _notify && _published,
                     onChanged: !_saving && _published && widget.canNotify
@@ -264,30 +276,26 @@ class _ShopContentEditorDialogState extends State<ShopContentEditorDialog>
                         : null,
                   ),
                   if (_notify && _published) ...[
-                    DropdownButtonFormField<String>(
-                      initialValue: _channel,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: '通知方式',
-                        border: OutlineInputBorder(),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: .3),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'push',
-                          child: Text('App 通知＋手機通知列提醒'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'inbox',
-                          child: Text('只放入 App 通知中心'),
-                        ),
-                      ],
-                      onChanged: _saving
-                          ? null
-                          : (value) => setState(() => _channel = value!),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '手機提醒會出現在鎖定畫面或通知列，依會員與裝置設定顯示。未綁定 App 的手動會員無法收取；不會發送簡訊或 LINE。',
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.notifications_active_outlined, size: 22),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'App 通知＋手機提醒\n內容與全店會員對象自動帶入，不需要另外建立推廣。會員可自行關閉這間店的手機提醒，App 內仍保留通知。',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),

@@ -1,3 +1,9 @@
+import '../widgets/explore_mobile_member_nav.dart';
+import 'package:petnest_saas/core/models/shop_map_location.dart';
+import 'package:petnest_saas/features/platform/models/public_map_shop.dart';
+import 'platform_shop_map_page.dart';
+import 'package:petnest_saas/features/platform/widgets/explore_section_header.dart';
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/features/platform/pages/platform_shop_list_page.dart
 // 功能說明：探索好店。首頁只逛店，會員功能收在左側可收合浮層。
 
@@ -7,12 +13,12 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/platform/widgets/compact_shop_card.dart';
-import 'package:petnest_saas/features/platform/widgets/explore_section_header.dart';
+import 'package:petnest_saas/features/platform/widgets/explore_discovery_header.dart';
+import 'package:petnest_saas/core/widgets/app_state_panel.dart';
 import 'package:petnest_saas/features/platform/widgets/explore_sidebar.dart';
 import 'package:petnest_saas/features/platform/widgets/my_shops_section.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class PlatformShopListPage extends StatefulWidget {
   const PlatformShopListPage({super.key});
@@ -28,7 +34,30 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
     '狗狗旅宿',
     '寵物美容',
     '動物醫院',
+    '寵物賣場',
   ];
+
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _shopStream;
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _publicShops() =>
+      FirebaseFirestore.instance
+          .collection('shops')
+          .where('isPublic', isEqualTo: true)
+          .snapshots();
+
+  @override
+  void initState() {
+    super.initState();
+    _shopStream = _publicShops();
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _search.clear();
+      _category = '全部';
+      _openOnly = false;
+    });
+  }
 
   final TextEditingController _search = TextEditingController();
   final ScrollController _scroll = ScrollController();
@@ -65,7 +94,14 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
     );
   }
 
-  void _openShop(String shopId) {
+  Future<void> _openShop(String shopId) async {
+    try {
+      await ShopSharingService.instance.selectPublicShop(shopId);
+    } catch (_) {
+      if (mounted) _toast('暫時無法切換店家，請稍後重試');
+      return;
+    }
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute<void>(builder: (_) => ShopPublicPage(shopId: shopId)),
@@ -90,74 +126,39 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
     });
   }
 
-  Future<void> _openMapFor(String address) async {
-    if (address.trim().isEmpty) {
-      _toast('這間店還沒有地址');
-      return;
-    }
-    final Uri uri = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
-    );
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  void _showMap(List<_ExploreShop> shops) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: ListView(
-            children: <Widget>[
-              const ListTile(title: Text('地圖找店')),
-              if (shops.isEmpty) const ListTile(title: Text('目前沒有可顯示在地圖的店家')),
-              for (final _ExploreShop shop in shops)
-                ListTile(
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text(
-                    shop.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    shop.area,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _openMapFor(shop.fullAddress);
-                  },
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showFilters() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setSheet) {
-              return SwitchListTile(
-                title: const Text('只看營業中'),
-                value: _openOnly,
-                onChanged: (bool value) {
-                  setState(() {
-                    _openOnly = value;
-                  });
-                  setSheet(() {});
-                },
+  void _showMap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => PlatformShopMapPage(
+          initialSearch: _search.text,
+          initialCategory: _category,
+          initialOpenOnly: _openOnly,
+          onOpenShop: _openShop,
+          shops: _shopStream.map(
+            (snapshot) => snapshot.docs.map((doc) {
+              final shop = _ExploreShop.fromDoc(doc);
+              final data = doc.data();
+              final raw = data['mapLocation'];
+              final point =
+                  raw is Map && raw['addressSnapshot'] == shop.fullAddress
+                  ? ShopMapLocation.fromMap(raw)
+                  : null;
+              return PublicMapShop(
+                id: shop.id,
+                name: shop.name,
+                address: shop.fullAddress,
+                area: shop.area,
+                imageUrl: shop.coverUrl,
+                services: shop.services,
+                isOpen: shop.isOpen,
+                isPublic: data['isPublic'] == true,
+                location: point,
               );
-            },
+            }).toList(),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -233,10 +234,7 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('shops')
-            .where('isPublic', isEqualTo: true)
-            .snapshots(),
+        stream: _shopStream,
         builder:
             (
               BuildContext context,
@@ -245,6 +243,15 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return SafeArea(
+                  child: AppStatePanel(
+                    title: '店家列表暫時無法載入',
+                    message: '請確認網路連線，再重新載入公開店家。',
+                    onRetry: () => setState(() => _shopStream = _publicShops()),
+                  ),
+                );
               }
               final List<_ExploreShop> shops = (snapshot.data?.docs ?? [])
                   .map(_ExploreShop.fromDoc)
@@ -255,7 +262,6 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
                   final bool desktop = width >= 900;
                   final List<_ExploreShop> visible = _visible(shops);
                   final Widget content = _ExploreBody(
-                    screenWidth: width,
                     desktop: desktop,
                     shops: shops,
                     visible: visible,
@@ -272,8 +278,9 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
                     onBack: Navigator.canPop(context)
                         ? () => Navigator.pop(context)
                         : null,
-                    onMap: () => _showMap(visible),
-                    onFilter: _showFilters,
+                    onMap: _showMap,
+                    onMember: _toggleMember,
+                    onReset: _resetFilters,
                     onOpenShop: _openShop,
                     onFavorites: () {
                       _requireLogin(() => _toast('收藏功能準備中'));
@@ -388,7 +395,6 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
 
 class _ExploreBody extends StatelessWidget {
   const _ExploreBody({
-    required this.screenWidth,
     required this.desktop,
     required this.shops,
     required this.visible,
@@ -402,13 +408,13 @@ class _ExploreBody extends StatelessWidget {
     required this.onOpenOnly,
     required this.onBack,
     required this.onMap,
-    required this.onFilter,
+    required this.onMember,
+    required this.onReset,
     required this.onOpenShop,
     required this.onFavorites,
     required this.reviewFuture,
   });
 
-  final double screenWidth;
   final bool desktop;
   final List<_ExploreShop> shops;
   final List<_ExploreShop> visible;
@@ -422,7 +428,8 @@ class _ExploreBody extends StatelessWidget {
   final ValueChanged<bool> onOpenOnly;
   final VoidCallback? onBack;
   final VoidCallback onMap;
-  final VoidCallback onFilter;
+  final VoidCallback onMember;
+  final VoidCallback onReset;
   final ValueChanged<String> onOpenShop;
   final VoidCallback onFavorites;
   final Future<QuerySnapshot<Map<String, dynamic>>> Function(String shopId)
@@ -437,7 +444,9 @@ class _ExploreBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double gridWidth = constraints.maxWidth;
-        final int columns = exploreShopColumns(screenWidth);
+        final int columns = gridWidth >= 900
+            ? 3
+            : exploreShopColumns(gridWidth);
         final double aspect = compactShopCardAspectRatio(
           gridWidth: gridWidth,
           columns: columns,
@@ -445,96 +454,62 @@ class _ExploreBody extends StatelessWidget {
           imageAspect: imageAspect,
           roomy: desktop,
         );
+        Widget cardBuilder(BuildContext context, int index) {
+          final _ExploreShop shop = visible[index];
+          return CompactShopCard(
+            name: shop.name,
+            imageUrl: shop.coverUrl,
+            logoUrl: shop.logoUrl,
+            isOpen: shop.isOpen,
+            hours: shop.hoursLabel,
+            roomy: desktop,
+            mobile: gridWidth < 600 || (desktop && visible.length <= 2),
+            services: compactServiceLine(shop.services),
+            onTap: () => onOpenShop(shop.id),
+            onFavorite: onFavorites,
+            meta: _RatingLine(
+              area: shop.area,
+              future: reviewFuture(shop.id),
+              fontSize: gridWidth < 600 ? 12.5 : (desktop ? 12.5 : 11.5),
+            ),
+          );
+        }
+
         return Column(
           children: <Widget>[
-            if (!desktop)
-              _PhoneHeader(onBack: onBack, onMap: onMap, onFilter: onFilter)
-            else if (onBack != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: onBack,
-                  icon: const Icon(Icons.arrow_back),
-                ),
-              ),
             Expanded(
               child: CustomScrollView(
                 controller: scroll,
                 slivers: <Widget>[
                   SliverPadding(
-                    padding: EdgeInsets.fromLTRB(16, desktop ? 20 : 4, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                     sliver: SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 46,
-                        child: TextField(
-                          controller: search,
-                          onChanged: (_) => onSearch(),
-                          style: text.bodyMedium,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: '搜尋店名、地區或服務',
-                            prefixIcon: const Icon(Icons.search, size: 20),
-                            filled: true,
-                            fillColor: colors.surface,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 0,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: colors.outlineVariant,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: colors.outlineVariant,
-                              ),
-                            ),
-                          ),
-                        ),
+                      child: ExploreDiscoveryHeader(
+                        search: search,
+                        categories: categories,
+                        category: category,
+                        openOnly: openOnly,
+                        onSearch: onSearch,
+                        onCategory: onCategory,
+                        onOpenOnly: onOpenOnly,
+                        onReset: onReset,
+                        onMap: onMap,
+                        onMember: onMember,
+                        onBack: onBack,
                       ),
                     ),
                   ),
                   SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 48,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        itemCount: categories.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (BuildContext context, int index) {
-                          final String label = categories[index];
-                          return _CategoryChip(
-                            label: label,
-                            selected: label == category,
-                            onTap: () => onCategory(label),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 40,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        children: <Widget>[
-                          _CategoryChip(
-                            label: '營業中',
-                            selected: openOnly,
-                            onTap: () => onOpenOnly(!openOnly),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: ExploreSectionHeader(title: '探索更多店家'),
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                      child: ExploreResultsHeading(
+                        count: visible.length,
+                        total: shops.length,
+                        filtered:
+                            search.text.trim().isNotEmpty ||
+                            category != '全部' ||
+                            openOnly,
+                      ),
                     ),
                   ),
                   if (shops.isEmpty)
@@ -563,6 +538,12 @@ class _ExploreBody extends StatelessWidget {
                                 color: colors.onSurfaceVariant,
                               ),
                             ),
+                            const SizedBox(height: 16),
+                            FilledButton.tonalIcon(
+                              onPressed: onReset,
+                              icon: const Icon(Icons.restart_alt),
+                              label: const Text('清除條件，查看全部店家'),
+                            ),
                           ],
                         ),
                       ),
@@ -570,36 +551,27 @@ class _ExploreBody extends StatelessWidget {
                   else
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: aspect,
-                        ),
-                        delegate: SliverChildBuilderDelegate((
-                          BuildContext context,
-                          int index,
-                        ) {
-                          final _ExploreShop shop = visible[index];
-                          return CompactShopCard(
-                            name: shop.name,
-                            imageUrl: shop.coverUrl,
-                            logoUrl: shop.logoUrl,
-                            isOpen: shop.isOpen,
-                            hours: shop.hoursLabel,
-                            roomy: desktop,
-                            services: compactServiceLine(shop.services),
-                            onTap: () => onOpenShop(shop.id),
-                            onFavorite: onFavorites,
-                            meta: _RatingLine(
-                              area: shop.area,
-                              future: reviewFuture(shop.id),
-                              fontSize: desktop ? 12.5 : 11.5,
+                      sliver:
+                          gridWidth < 600 || (desktop && visible.length <= 2)
+                          ? SliverList.separated(
+                              itemCount: visible.length,
+                              itemBuilder: cardBuilder,
+                              separatorBuilder: (_, index) =>
+                                  const SizedBox(height: 12),
+                            )
+                          : SliverGrid(
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10,
+                                    childAspectRatio: aspect,
+                                  ),
+                              delegate: SliverChildBuilderDelegate(
+                                cardBuilder,
+                                childCount: visible.length,
+                              ),
                             ),
-                          );
-                        }, childCount: visible.length),
-                      ),
                     ),
                 ],
               ),
@@ -648,184 +620,91 @@ class _ExploreShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double panelLeft = memberOpen
-        ? (desktop ? 56 : 0)
-        : (desktop ? 56 - panelWidth : -panelWidth);
-    return Stack(
+    final double railWidth = desktop ? 216 : 0;
+    final double panelLeft = memberOpen ? railWidth : (railWidth - panelWidth);
+    return Column(
       children: <Widget>[
-        Padding(
-          padding: EdgeInsets.only(left: desktop ? 56 : 0),
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: content,
-            ),
-          ),
-        ),
-        if (memberOpen)
-          Positioned(
-            left: desktop ? 56 + panelWidth : panelWidth,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onClose,
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: desktop ? 0.04 : 0.16),
+        Expanded(
+          child: Stack(
+            children: <Widget>[
+              Padding(
+                padding: EdgeInsets.only(left: railWidth),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1440),
+                    child: content,
+                  ),
+                ),
               ),
-            ),
-          ),
-        AnimatedPositioned(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          left: panelLeft,
-          top: 0,
-          bottom: 0,
-          width: panelWidth,
-          child: IgnorePointer(
-            ignoring: !memberOpen,
-            child: ExploreMemberPanel(
-              onClose: onClose,
-              onMyStays: onMyStays,
-              onBookings: onBookings,
-              onFavorites: onFavorites,
-              onRecent: onRecent,
-              stays: stays,
-              loggedIn: loggedIn,
-              stayError: stayError,
-              showRecentEmpty: showRecentEmpty,
-              onOpenStay: (ExploreStayShop shop) {
-                onClose();
-                onOpenStay(shop.shopId);
-              },
-            ),
+              if (memberOpen)
+                Positioned(
+                  left: railWidth + panelWidth,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onClose,
+                    child: ColoredBox(
+                      color: Colors.black.withValues(
+                        alpha: desktop ? 0.04 : 0.16,
+                      ),
+                    ),
+                  ),
+                ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                left: panelLeft,
+                top: 0,
+                bottom: 0,
+                width: panelWidth,
+                child: IgnorePointer(
+                  ignoring: !memberOpen,
+                  child: ExploreMemberPanel(
+                    onClose: onClose,
+                    onMyStays: onMyStays,
+                    onBookings: onBookings,
+                    onFavorites: onFavorites,
+                    onRecent: onRecent,
+                    stays: stays,
+                    loggedIn: loggedIn,
+                    stayError: stayError,
+                    showRecentEmpty: showRecentEmpty,
+                    onOpenStay: (ExploreStayShop shop) {
+                      onClose();
+                      onOpenStay(shop.shopId);
+                    },
+                  ),
+                ),
+              ),
+              if (desktop)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: railWidth,
+                  child: ExploreMemberRail(
+                    expanded: true,
+                    onToggle: onToggle,
+                    onMyStays: onMyStays,
+                    onBookings: onBookings,
+                    onFavorites: onFavorites,
+                    onRecent: onRecent,
+                  ),
+                ),
+            ],
           ),
         ),
-        if (desktop)
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 56,
-            child: ExploreMemberRail(
-              onToggle: onToggle,
-              onMyStays: onMyStays,
-              onBookings: onBookings,
-              onFavorites: onFavorites,
-              onRecent: onRecent,
-            ),
-          )
-        else if (!memberOpen)
-          Positioned(
-            left: 0,
-            top: 248,
-            child: ExplorePawHandle(onTap: onToggle),
+        if (!desktop && MediaQuery.viewInsetsOf(context).bottom == 0)
+          ExploreMobileMemberNav(
+            onMyStays: onMyStays,
+            onBookings: onBookings,
+            onFavorites: onFavorites,
+            onRecent: onRecent,
           ),
       ],
-    );
-  }
-}
-
-class _PhoneHeader extends StatelessWidget {
-  const _PhoneHeader({
-    required this.onBack,
-    required this.onMap,
-    required this.onFilter,
-  });
-
-  final VoidCallback? onBack;
-  final VoidCallback onMap;
-  final VoidCallback onFilter;
-
-  @override
-  Widget build(BuildContext context) {
-    final TextTheme text = Theme.of(context).textTheme;
-    return SafeArea(
-      bottom: false,
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          children: <Widget>[
-            if (onBack != null)
-              IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back))
-            else
-              const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                '探索好店',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: text.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: onMap,
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-              ),
-              icon: const Icon(Icons.map_outlined, size: 18),
-              label: const Text('地圖'),
-            ),
-            TextButton.icon(
-              onPressed: onFilter,
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-              ),
-              icon: const Icon(Icons.tune, size: 18),
-              label: const Text('篩選'),
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    return Material(
-      color: selected ? colors.primary : colors.surface,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected ? colors.primary : colors.outlineVariant,
-            ),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            style: TextStyle(
-              color: selected ? colors.onPrimary : colors.onSurface,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -908,7 +787,7 @@ class _RatingLine extends StatelessWidget {
             BuildContext context,
             AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
           ) {
-            String prefix = '尚無評價';
+            String prefix = snapshot.hasError ? '評價暫無法載入' : '尚無評價';
             final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
                 snapshot.data?.docs ??
                 <QueryDocumentSnapshot<Map<String, dynamic>>>[];

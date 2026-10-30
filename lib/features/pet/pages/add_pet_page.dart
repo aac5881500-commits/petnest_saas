@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
 // 檔案名稱：lib/features/pet/pages/add_pet_page.dart
 // 功能說明：新增寵物（與編輯寵物共用表單視覺），僅填寫跨店共用基本資料。
 
@@ -37,6 +39,7 @@ class _AddPetPageState extends State<AddPetPage> {
   String? _neuterStatus;
   String? _medicalStatus;
   String? _litterType;
+  final Map<String, String> _careHabits = {};
   String? _species;
   final _vaccineController = TextEditingController();
   String? _gender;
@@ -52,10 +55,25 @@ class _AddPetPageState extends State<AddPetPage> {
 
   Future<void> _submit() async {
     final bool valid = _formKey.currentState?.validate() == true;
-    if (!valid) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請完成必填欄位')));
+    final missing = PetProfileCatalog.missingRequired(
+      species: _species,
+      name: _nameController.text,
+      gender: _gender,
+      age: _ageRange,
+      neuter: _neuterStatus,
+      medical: _medicalStatus == '其他'
+          ? _otherMedicalController.text
+          : _medicalStatus,
+      litter: _litterType == '其他' ? _otherLitterController.text : _litterType,
+    );
+    if (!valid || missing.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            missing.isEmpty ? '請完成必填欄位' : '請填寫：${missing.join('、')}',
+          ),
+        ),
+      );
       return;
     }
     setState(() => _loading = true);
@@ -65,19 +83,20 @@ class _AddPetPageState extends State<AddPetPage> {
         age: _ageRange ?? '',
         breed: _breedController.text.trim(),
         note: _noteController.text.trim(),
-        gender: _gender ?? '',
+        gender: PetSpecies.genderLabel(_gender),
         litterType: _species == 'dog'
             ? ''
             : _litterType == '其他'
             ? _otherLitterController.text.trim()
             : (_litterType ?? ''),
         species: _species!,
+        careHabits: PetProfileCatalog.cleanHabits(_careHabits, _species),
         vaccineTypes: _vaccineController.text.trim(),
         medicalStatus: _medicalStatus == '其他'
             ? _otherMedicalController.text.trim()
             : (_medicalStatus ?? ''),
         isNeutered: _neuterStatus?.contains('未結紮') == false,
-        canSocial: true,
+        canSocial: _careHabits['dogSocial'] == '可與其他狗互動',
         canMedicate: _medicalStatus != '無',
         shopId: widget.shopId,
       );
@@ -147,11 +166,23 @@ class _AddPetPageState extends State<AddPetPage> {
               otherMedicalController: _otherMedicalController,
               otherLitterController: _otherLitterController,
               noteController: _noteController,
+              careHabits: _careHabits,
+              onCareHabitChanged: (key, value) => setState(() {
+                _careHabits[key] = value;
+              }),
               species: _species,
               vaccineController: _vaccineController,
               onSpeciesChanged: (v) => setState(() {
-                _species = v;
-                _gender = null;
+                if (_species != v) {
+                  _species = v;
+                  _breedController.clear();
+                  _vaccineController.clear();
+                  _medicalStatus = null;
+                  _litterType = null;
+                  _otherMedicalController.clear();
+                  _otherLitterController.clear();
+                  _careHabits.clear();
+                }
               }),
               gender: _gender,
               ageRange: _ageRange,

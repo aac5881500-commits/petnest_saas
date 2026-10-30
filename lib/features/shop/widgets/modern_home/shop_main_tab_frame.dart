@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -46,7 +47,8 @@ class ShopMainTabFrame extends StatelessWidget {
       safeBottom,
     );
     final String shopName = (shop['name'] ?? '店家').toString();
-    final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final user = FirebaseAuth.instance.currentUser;
+    final String userId = isRegisteredMember(user) ? user!.uid : '';
     final bool allowNavigation = !isEmbeddedAdminPreview && !previewOnly;
     return Scaffold(
       extendBody: true,

@@ -3,7 +3,7 @@
 // 一張有效訂單算一次。cancelled 與其他狀態不計，取消後歸還。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const {
   getShopMember,

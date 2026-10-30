@@ -5,7 +5,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class NotificationSettingService {
+abstract class NotificationSettingsStore {
+  Stream<Map<String, dynamic>> settingsDataStream();
+  Future<void> ensureDefaultSettings();
+  Future<void> updateSetting({required String key, required bool value});
+  Future<void> updateShopSetting({
+    required String shopId,
+    required String shopName,
+    required String key,
+    required bool value,
+  });
+}
+
+class NotificationSettingService implements NotificationSettingsStore {
   NotificationSettingService._();
 
   static final NotificationSettingService instance =
@@ -25,10 +37,11 @@ class NotificationSettingService {
     'platformMarketing': true,
   };
 
-  /// 之後若要做每間店開關，可放在同一份 global 文件的 shopOverrides。本輪只使用全域鍵。
+  /// 每店偏好獨立存於 global.shopOverrides[shopId]；全域關閉仍優先。
   static const String shopOverridesField = 'shopOverrides';
 
   static const Set<String> customerToggleKeys = <String>{
+    'enabled',
     'shopMarketing',
     'shopNotice',
     'platformMarketing',
@@ -69,6 +82,7 @@ class NotificationSettingService {
   }
 
   /// 更新單一通知開關
+  @override
   Future<void> updateSetting({required String key, required bool value}) async {
     final DocumentReference<Map<String, dynamic>>? document = _settingDocument;
 
@@ -87,6 +101,7 @@ class NotificationSettingService {
   }
 
   /// 第一次開啟設定頁時建立預設資料
+  @override
   Future<void> ensureDefaultSettings() async {
     final DocumentReference<Map<String, dynamic>>? document = _settingDocument;
 
@@ -94,17 +109,47 @@ class NotificationSettingService {
       return;
     }
 
-    final DocumentSnapshot<Map<String, dynamic>> snapshot = await document
-        .get();
-
-    if (snapshot.exists) {
-      return;
-    }
-
-    await document.set(<String, dynamic>{
-      ...defaultSettings,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(document);
+      if (snapshot.exists) return;
+      transaction.set(document, <String, dynamic>{
+        ...defaultSettings,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
+  }
+
+  @override
+  Stream<Map<String, dynamic>> settingsDataStream() {
+    final document = _settingDocument;
+    if (document == null) return Stream.error(StateError('請先登入後設定通知'));
+    return document.snapshots().map(
+      (snapshot) => {...defaultSettings, ...?snapshot.data()},
+    );
+  }
+
+  @override
+  Future<void> updateShopSetting({
+    required String shopId,
+    required String shopName,
+    required String key,
+    required bool value,
+  }) async {
+    final document = _settingDocument;
+    if (document == null) throw StateError('請先登入');
+    if (shopId.trim().isEmpty ||
+        !{'shopNotice', 'shopMarketing'}.contains(key)) {
+      throw ArgumentError('不支援的店家通知設定');
+    }
+    await document.set({
+      shopOverridesField: {
+        shopId.trim(): {
+          key: value,
+          if (shopName.trim().isNotEmpty) 'shopName': shopName.trim(),
+        },
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }

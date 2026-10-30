@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/core/services/auth_service.dart
 // 功能說明：Firebase Auth 登入、註冊、信箱驗證、密碼重設與 Apple／Google 登入。
 
@@ -70,7 +71,7 @@ class AuthService {
   // =========================================
   // 🔥 Google 登入
   // =========================================
-  Future<UserCredential?> signInWithGoogle() async {
+  Future<UserCredential?> signInWithGoogle({String? shopBindingTicket}) async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
@@ -84,6 +85,7 @@ class AuthService {
       );
 
       final userCredential = await _auth.signInWithCredential(credential);
+      await ShopSharingService.instance.completeMemberLogin(shopBindingTicket);
 
       final user = userCredential.user;
 
@@ -105,7 +107,7 @@ class AuthService {
     }
   }
 
-  Future<UserCredential?> signInWithApple() async {
+  Future<UserCredential?> signInWithApple({String? shopBindingTicket}) async {
     final AppleAuthProvider provider = AppleAuthProvider();
     provider.addScope('email');
     provider.addScope('name');
@@ -115,6 +117,7 @@ class AuthService {
           AuthAccessPolicy.useApplePopup(isWeb: kIsWeb)
           ? await _auth.signInWithPopup(provider)
           : await _auth.signInWithProvider(provider);
+      await ShopSharingService.instance.completeMemberLogin(shopBindingTicket);
       final User? user = credential.user;
       if (user != null) {
         stage = 'member-profile';
@@ -222,12 +225,14 @@ class AuthService {
     required String email,
     required String password,
     String? displayName,
+    String? shopBindingTicket,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password.trim(),
     );
 
+    await ShopSharingService.instance.completeMemberLogin(shopBindingTicket);
     final user = credential.user;
     if (user == null) {
       throw Exception('註冊成功但 user 為 null');
@@ -259,12 +264,14 @@ class AuthService {
   Future<UserCredential> login({
     required String email,
     required String password,
+    String? shopBindingTicket,
   }) async {
     final credential = await _auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password.trim(),
     );
 
+    await ShopSharingService.instance.completeMemberLogin(shopBindingTicket);
     final user = credential.user;
 
     if (user != null) {

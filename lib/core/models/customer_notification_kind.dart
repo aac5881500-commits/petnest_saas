@@ -68,7 +68,7 @@ CustomerNoticePlacement _classifyCustomerNotification(
     return CustomerNoticePlacement(
       lane: CustomerNoticeLane.shop,
       category: resolved,
-      mandatory: notification.isMandatory == true,
+      mandatory: false,
       shopTag: customerShopNoticeTag(notification, resolved),
     );
   }
@@ -135,15 +135,24 @@ bool customerPushAllowed({
   required bool mandatory,
   required String category,
   required Map<String, bool?> settings,
+  Map<String, bool?> shopSettings = const {},
 }) {
-  if (mandatory ||
+  final shopCategory =
+      category == 'shop_marketing' || category == 'shop_notice';
+  if ((mandatory && !shopCategory) ||
       category == 'transactional' ||
       category == 'platform_important') {
     return true;
   }
   if (settings['enabled'] == false) return false;
-  if (category == 'shop_marketing') return settings['shopMarketing'] != false;
-  if (category == 'shop_notice') return settings['shopNotice'] != false;
+  if (category == 'shop_marketing') {
+    return settings['shopMarketing'] != false &&
+        shopSettings['shopMarketing'] != false;
+  }
+  if (category == 'shop_notice') {
+    return settings['shopNotice'] != false &&
+        shopSettings['shopNotice'] != false;
+  }
   if (category == 'platform_marketing') {
     return settings['platformMarketing'] != false;
   }

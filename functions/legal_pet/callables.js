@@ -2,7 +2,7 @@
 // 功能說明：政府業者同步、查核、認證審核與平台名單的 Cloud Functions 出口。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {canViewDirectory} = require("./access");
 const {loadPlatformUser} = require("./staff_access");

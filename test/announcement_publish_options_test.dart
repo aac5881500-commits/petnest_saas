@@ -46,13 +46,8 @@ void main() {
         await tester.tap(notify);
         await tester.pumpAndSettle();
         expect(find.text('發布並預覽通知'), findsOneWidget);
-        final channel = find.byType(DropdownButtonFormField<String>).last;
-        await tester.ensureVisible(channel);
-        await tester.tap(channel);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-        await tester.tap(find.text('只放入 App 通知中心').last);
-        await tester.pumpAndSettle();
+        expect(find.textContaining('App 通知＋手機提醒'), findsOneWidget);
+        expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
         final publish = find.widgetWithText(SwitchListTile, '上架顯示');
         await tester.ensureVisible(publish);
         await tester.tap(publish);

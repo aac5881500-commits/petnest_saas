@@ -105,7 +105,7 @@ class AdminPetSection extends StatelessWidget {
                       secondary: const CircleAvatar(child: Icon(Icons.pets)),
                       title: Text(pet['name'] ?? '未命名寵物'),
                       subtitle: Text(
-                        '${pet['type'] ?? '未填種類'}｜${pet['gender'] ?? '未填性別'}',
+                        '${pet['type'] ?? '未填種類'}｜${PetSpecies.genderLabel(pet['gender'])}',
                       ),
                       onChanged: (value) {
                         onTogglePet(
@@ -176,7 +176,7 @@ class AdminPetSection extends StatelessWidget {
                       secondary: const CircleAvatar(child: Icon(Icons.pets)),
                       title: Text(data['name'] ?? '未命名寵物'),
                       subtitle: Text(
-                        '${data['type'] ?? '未填種類'}｜${data['gender'] ?? '未填性別'}',
+                        '${data['type'] ?? '未填種類'}｜${PetSpecies.genderLabel(data['gender'])}',
                       ),
                       onChanged: (value) {
                         onTogglePet(

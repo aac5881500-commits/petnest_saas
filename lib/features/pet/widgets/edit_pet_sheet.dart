@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
 import 'package:petnest_saas/core/models/pet_species.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 // 檔案名稱：lib/features/pet/widgets/edit_pet_sheet.dart
@@ -65,6 +66,7 @@ class _EditPetSheetState extends State<EditPetSheet> {
   late final TextEditingController _otherMedicalController;
   late final TextEditingController _otherLitterController;
 
+  final Map<String, String> _careHabits = {};
   String? _species;
   final _vaccineController = TextEditingController();
   String? _gender;
@@ -74,7 +76,6 @@ class _EditPetSheetState extends State<EditPetSheet> {
   String? _litterType;
   Uint8List? _imageBytes;
   bool _loading = false;
-  bool _valid = true;
 
   @override
   void initState() {
@@ -96,7 +97,10 @@ class _EditPetSheetState extends State<EditPetSheet> {
     _species = PetSpecies.of(pet);
     if (_species!.isEmpty) _species = null;
     _vaccineController.text = (pet['vaccineTypes'] ?? '').toString();
-    _gender = pet['gender']?.toString();
+    _gender = PetSpecies.genderLabel(pet['gender']);
+    _careHabits.addAll(
+      PetProfileCatalog.cleanHabits(pet['careHabits'], _species),
+    );
     _ageRange = pet['age']?.toString();
     _neuterStatus = pet['isNeutered'] == true ? '有結紮' : '未結紮';
 
@@ -131,13 +135,6 @@ class _EditPetSheetState extends State<EditPetSheet> {
     super.dispose();
   }
 
-  void _refreshValid() {
-    final bool ok = _formKey.currentState?.validate() == true;
-    if (ok != _valid) {
-      setState(() => _valid = ok);
-    }
-  }
-
   Future<void> _pickImage() async {
     try {
       final Uint8List? cropped = await FixedImagePickFlow.pickAndCrop(
@@ -160,8 +157,21 @@ class _EditPetSheetState extends State<EditPetSheet> {
   }
 
   Future<void> _save() async {
-    if (_formKey.currentState?.validate() != true) {
-      setState(() => _valid = false);
+    final missing = PetProfileCatalog.missingRequired(
+      species: _species,
+      name: _nameController.text,
+      gender: _gender,
+      age: _ageRange,
+      neuter: _neuterStatus,
+      medical: _medicalStatus == '其他'
+          ? _otherMedicalController.text
+          : _medicalStatus,
+      litter: _litterType == '其他' ? _otherLitterController.text : _litterType,
+    );
+    if (_formKey.currentState?.validate() != true || missing.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('請完成：${missing.join('、')}')));
       return;
     }
     final User? user = FirebaseAuth.instance.currentUser;
@@ -181,7 +191,8 @@ class _EditPetSheetState extends State<EditPetSheet> {
           .update(<String, dynamic>{
             'name': _nameController.text.trim(),
             'age': _ageRange,
-            'gender': _gender,
+            'gender': PetSpecies.genderLabel(_gender),
+            'careHabits': PetProfileCatalog.cleanHabits(_careHabits, _species),
             'breed': _breedController.text.trim(),
             'isNeutered': _neuterStatus == '有結紮',
             'species': _species,
@@ -288,11 +299,23 @@ class _EditPetSheetState extends State<EditPetSheet> {
                       adminNoteController: widget.isAdminView
                           ? _adminNoteController
                           : null,
+                      careHabits: _careHabits,
+                      onCareHabitChanged: (key, value) => setState(() {
+                        _careHabits[key] = value;
+                      }),
                       species: _species,
                       vaccineController: _vaccineController,
                       onSpeciesChanged: (v) => setState(() {
-                        _species = v;
-                        _gender = null;
+                        if (_species != v) {
+                          _species = v;
+                          _breedController.clear();
+                          _vaccineController.clear();
+                          _medicalStatus = null;
+                          _litterType = null;
+                          _otherMedicalController.clear();
+                          _otherLitterController.clear();
+                          _careHabits.clear();
+                        }
                       }),
                       gender: _gender,
                       ageRange: _ageRange,
@@ -315,7 +338,7 @@ class _EditPetSheetState extends State<EditPetSheet> {
                       onLitterChanged: (String? value) =>
                           setState(() => _litterType = value),
                       onPickPhoto: _pickImage,
-                      onChanged: _refreshValid,
+                      onChanged: () {},
                       extraChildren: const <Widget>[],
                     ),
                   ),
@@ -324,7 +347,7 @@ class _EditPetSheetState extends State<EditPetSheet> {
                     primaryLabel: '儲存',
                     secondaryLabel: '取消',
                     loading: _loading,
-                    primaryEnabled: _valid,
+                    primaryEnabled: !_loading,
                     onPrimary: _save,
                     onSecondary: () => Navigator.pop(context, false),
                   ),

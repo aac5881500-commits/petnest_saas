@@ -2,7 +2,7 @@
 // 功能說明：臨托狀態、延長、超時、改價、取消、No-show
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   BOOKING_KIND_DAYCARE,
   hasShopPermission,

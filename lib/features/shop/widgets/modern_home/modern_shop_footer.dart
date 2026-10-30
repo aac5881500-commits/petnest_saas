@@ -9,6 +9,7 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/shop_modern_logo.
 
 class ModernShopFooter extends StatelessWidget {
   const ModernShopFooter({
+    super.key,
     required this.shopId,
     required this.shop,
     required this.shopName,
@@ -222,171 +223,187 @@ class ModernShopFooter extends StatelessWidget {
         : openTime.isNotEmpty && closeTime.isNotEmpty
         ? '$openTime - $closeTime'
         : '';
-    final String licenseNumber = (shop['licenseNumber'] ?? '').toString().trim();
+    final String licenseNumber = (shop['licenseNumber'] ?? '')
+        .toString()
+        .trim();
     final String taxId = (shop['taxId'] ?? '').toString().trim();
     final bool showTaxId = shop['showTaxId'] == true;
     final String instagramUrl = (shop['igUrl'] ?? '').toString().trim();
     final String facebookUrl = (shop['fbUrl'] ?? '').toString().trim();
     final String lineUrl = (shop['lineUrl'] ?? '').toString().trim();
-    final double sheetWidth = MediaQuery.sizeOf(context).width;
-    final double logoSize = sheetWidth < 370
-        ? 60
-        : sheetWidth < 420
-        ? 64
-        : 66;
-    final double logoTextGap = sheetWidth < 370 ? 12 : 14;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        ShopModernLogo(
-          imageUrl: logoUrl,
-          size: logoSize,
-          borderRadius: 11,
-          primaryColor: primaryColor,
-        ),
-        SizedBox(width: logoTextGap),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            ShopModernLogo(
+              imageUrl: logoUrl,
+              size: 48,
+              borderRadius: 14,
+              primaryColor: primaryColor,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
                 shopName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 14.5,
-                  height: 1.2,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
                   color: darkTextColor,
                 ),
               ),
-              if (businessHours.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 6),
-                _buildCompactInfoRow(
-                  icon: Icons.schedule_rounded,
-                  text: businessHours,
-                ),
-              ],
-              if (phone.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 6),
-                _buildCompactInfoRow(
-                  icon: Icons.phone_outlined,
-                  text: phone,
-                  onTap: () => _callPhone(phone),
-                ),
-              ],
-              if (address.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 6),
-                _buildCompactInfoRow(
-                  icon: Icons.location_on_outlined,
-                  text: address,
-                  onTap: () => _openMap(address),
-                ),
-              ],
-              if (licenseNumber.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 6),
-                _buildCompactInfoRow(
-                  icon: Icons.verified_outlined,
-                  text: '特寵字號：$licenseNumber',
-                ),
-              ],
-              if (showTaxId && taxId.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 6),
-                _buildCompactInfoRow(
-                  icon: Icons.receipt_long_outlined,
-                  text: '統一編號：$taxId',
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 104,
-          child: Column(
-            children: <Widget>[
-              if (onClose != null)
-                Align(
-                  alignment: Alignment.topRight,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: onClose,
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: secondaryTextColor,
-                      ),
-                    ),
-                  ),
-                ),
-              if (onClose != null) const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: <Widget>[
-                  _buildCompactSocialButton(
-                    icon: FontAwesomeIcons.instagram,
-                    tooltip: 'Instagram',
-                    isEnabled: instagramUrl.isNotEmpty,
-                    onTap: instagramUrl.isNotEmpty
-                        ? () => _openUrl(instagramUrl)
-                        : null,
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCompactSocialButton(
-                    icon: FontAwesomeIcons.facebookF,
-                    tooltip: 'Facebook',
-                    isEnabled: facebookUrl.isNotEmpty,
-                    onTap: facebookUrl.isNotEmpty
-                        ? () => _openUrl(facebookUrl)
-                        : null,
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCompactSocialButton(
-                    icon: FontAwesomeIcons.line,
-                    tooltip: 'LINE',
-                    isEnabled: lineUrl.isNotEmpty,
-                    onTap: lineUrl.isNotEmpty ? () => _openUrl(lineUrl) : null,
-                  ),
-                ],
+            ),
+            if (onClose != null)
+              IconButton(
+                tooltip: '關閉店家資訊',
+                onPressed: onClose,
+                icon: Icon(Icons.close_rounded, color: secondaryTextColor),
               ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        if (businessHours.isNotEmpty) ...[
+          _infoDetail(Icons.schedule_rounded, '營業時間', businessHours),
+          const SizedBox(height: 12),
+        ],
+        if (address.isNotEmpty) ...[
+          _infoDetail(Icons.location_on_outlined, '店家地址', address),
+          const SizedBox(height: 12),
+        ],
+        if (phone.isNotEmpty) ...[
+          _infoDetail(Icons.phone_outlined, '聯絡電話', phone),
+          const SizedBox(height: 12),
+        ],
+        if (phone.isNotEmpty ||
+            address.isNotEmpty ||
+            lineUrl.isNotEmpty ||
+            instagramUrl.isNotEmpty ||
+            facebookUrl.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (phone.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _callPhone(phone),
+                  icon: const Icon(Icons.phone_outlined, size: 18),
+                  label: const Text('撥打電話'),
+                ),
+              if (address.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _openMap(address),
+                  icon: const Icon(Icons.near_me_outlined, size: 18),
+                  label: const Text('開啟地圖'),
+                ),
+              if (lineUrl.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _openUrl(lineUrl),
+                  icon: const FaIcon(FontAwesomeIcons.line, size: 18),
+                  label: const Text('LINE'),
+                ),
+              if (instagramUrl.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _openUrl(instagramUrl),
+                  icon: const FaIcon(FontAwesomeIcons.instagram, size: 18),
+                  label: const Text('Instagram'),
+                ),
+              if (facebookUrl.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _openUrl(facebookUrl),
+                  icon: const FaIcon(FontAwesomeIcons.facebookF, size: 18),
+                  label: const Text('Facebook'),
+                ),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+        ],
+        if (licenseNumber.isNotEmpty || (showTaxId && taxId.isNotEmpty)) ...[
+          Divider(color: borderColor, height: 20),
+          if (licenseNumber.isNotEmpty)
+            Text(
+              '特寵字號：$licenseNumber',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.6,
+                color: secondaryTextColor,
+              ),
+            ),
+          if (showTaxId && taxId.isNotEmpty)
+            Text(
+              '統一編號：$taxId',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.6,
+                color: secondaryTextColor,
+              ),
+            ),
+        ],
       ],
     );
   }
+
+  Widget _infoDetail(IconData icon, String label, String value) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18, color: primaryColor),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: secondaryTextColor),
+            ),
+            const SizedBox(height: 2),
+            SelectableText(
+              value,
+              style: TextStyle(fontSize: 14, height: 1.5, color: darkTextColor),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 
   Future<void> showShopInfoSheet(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) {
-        return SafeArea(
-          top: false,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(22),
-              ),
-            ),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.85,
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
+              children: [
                 Container(
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(999),
+                    color: borderColor,
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 16),
                 buildInfoBody(
                   sheetContext,
                   onClose: () => Navigator.pop(sheetContext),
@@ -394,82 +411,6 @@ class ModernShopFooter extends StatelessWidget {
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCompactInfoRow({
-    required IconData icon,
-    required String text,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, size: 15, color: primaryColor),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, height: 1.3, color: darkTextColor),
-            ),
-          ),
-          if (onTap != null)
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 15,
-              color: secondaryTextColor,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactSocialButton({
-    required FaIconData? icon,
-    required String tooltip,
-    required bool isEnabled,
-    required VoidCallback? onTap,
-  }) {
-    final enabledColor = switch (tooltip) {
-      'Instagram' => const Color(0xFFE1306C),
-      'Facebook' => const Color(0xFF1877F2),
-      'LINE' => const Color(0xFF06C755),
-      _ => darkTextColor,
-    };
-
-    final iconColor = isEnabled
-        ? enabledColor
-        : secondaryTextColor.withValues(alpha: 0.35);
-
-    final backgroundColor = isEnabled
-        ? primaryColor.withValues(alpha: 0.10)
-        : cardColor;
-
-    return Tooltip(
-      message: isEnabled ? tooltip : '$tooltip 尚未設定',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: onTap,
-        child: Container(
-          width: 28,
-          height: 28,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(
-              color: isEnabled
-                  ? borderColor
-                  : Colors.black.withValues(alpha: 0.06),
-            ),
-          ),
-          child: FaIcon(icon, size: 14, color: iconColor),
         ),
       ),
     );
@@ -477,7 +418,7 @@ class ModernShopFooter extends StatelessWidget {
 }
 
 /// 底部導覽樣式時放在首頁捲動區最下方的店家資訊。
-/// 標題與箭頭沿用原本固定列，展開內容沿用 [ModernShopFooter.buildInfoBody]。
+/// 收合時顯示資訊摘要，展開與彈出面板共用聯絡內容。
 class ModernShopInfoPanel extends StatefulWidget {
   const ModernShopInfoPanel({super.key, required this.footer});
 
@@ -494,46 +435,82 @@ class _ModernShopInfoPanelState extends State<ModernShopInfoPanel> {
   Widget build(BuildContext context) {
     final ModernShopFooter footer = widget.footer;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Material(
         color: footer.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: footer.borderColor),
+        ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: SizedBox(
-                height: 44,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Icon(
-                      _expanded
-                          ? Icons.keyboard_arrow_down_rounded
-                          : Icons.keyboard_arrow_up_rounded,
-                      size: 18,
-                      color: footer.secondaryTextColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '店家資訊',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: footer.darkTextColor,
+          children: [
+            Semantics(
+              button: true,
+              expanded: _expanded,
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(11),
+                        decoration: BoxDecoration(
+                          color: footer.primaryColor.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          Icons.storefront_outlined,
+                          color: footer.primaryColor,
+                          size: 24,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '店家資訊',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: footer.darkTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '營業時間・地址・聯絡方式',
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.5,
+                                color: footer.secondaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        _expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        color: footer.secondaryTextColor,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            if (_expanded)
+            if (_expanded) ...[
+              Divider(height: 1, color: footer.borderColor),
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                padding: const EdgeInsets.all(18),
                 child: footer.buildInfoBody(context),
               ),
+            ],
           ],
         ),
       ),

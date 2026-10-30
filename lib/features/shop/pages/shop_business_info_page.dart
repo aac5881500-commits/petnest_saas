@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/shop_map_location_settings.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_sharing_settings.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_business_info_page.dart
@@ -272,14 +273,14 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage>
 
               const SizedBox(height: 24),
 
-              ShopSharingSettings(shopId: widget.shopId),
-              const SizedBox(height: 24),
-
-              /// 儲存
               ElevatedButton(
                 onPressed: _saving ? null : _save,
-                child: Text(_saving ? '儲存中...' : '儲存'),
+                child: Text(_saving ? '儲存中...' : '儲存營業資訊'),
               ),
+              const SizedBox(height: 24),
+              ShopMapLocationSettings(shopId: widget.shopId),
+              const SizedBox(height: 24),
+              ShopSharingSettings(shopId: widget.shopId),
             ],
           ),
         ),

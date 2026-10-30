@@ -1,239 +1,147 @@
-// 檔案名稱：lib/features/admin/widgets/admin_quick_create_pet_dialog.dart
-// 功能說明：手動新增訂單時，讓店家快速建立會員寵物資料
-// 🐾 後台快速建立寵物彈窗
-
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/features/pet/widgets/pet_profile_form.dart';
 
+/// Manual bookings use the same species-specific profile inputs as members.
 class AdminQuickCreatePetDialog extends StatefulWidget {
   const AdminQuickCreatePetDialog({super.key});
-
   @override
   State<AdminQuickCreatePetDialog> createState() =>
       _AdminQuickCreatePetDialogState();
 }
 
 class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _breedController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
-
-  String _type = 'cat';
-  final _vaccineController = TextEditingController();
-  String _gender = '母貓';
-  String _age = '未填';
-  String _neuterStatus = '未結紮';
-  String _medicalStatus = '未填';
-  String _litterType = '未填';
-
+  final key = GlobalKey<FormState>();
+  final name = TextEditingController(),
+      breed = TextEditingController(),
+      vaccine = TextEditingController(),
+      medicalOther = TextEditingController(),
+      litterOther = TextEditingController(),
+      note = TextEditingController();
+  String species = 'cat';
+  String? gender, age, neuter, medical, litter;
+  final Map<String, String> habits = {};
   @override
   void dispose() {
-    _vaccineController.dispose();
-    _nameController.dispose();
-    _breedController.dispose();
-    _noteController.dispose();
+    for (final c in [name, breed, vaccine, medicalOther, litterOther, note]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  void _submit() {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return;
-
-    Navigator.pop(context, {
-      'name': name,
-      'type': _type,
-      'species': _type,
-      'vaccineTypes': _vaccineController.text.trim(),
-      'medicalStatus': _medicalStatus,
-      'breed': _breedController.text.trim(),
-      'gender': _gender,
-      'age': _age,
-      'isNeutered': _neuterStatus == '已結紮',
-      'vaccine': _medicalStatus,
-      'litterType': _type == 'dog' ? '' : _litterType,
-      'note': _noteController.text.trim(),
+  void submit() {
+    final missing = PetProfileCatalog.missingRequired(
+      species: species,
+      name: name.text,
+      gender: gender,
+      age: age,
+      neuter: neuter,
+      medical: medical,
+      litter: litter,
+    );
+    if (key.currentState?.validate() != true || missing.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('請完成：${missing.join('、')}')));
+      return;
+    }
+    Navigator.pop(context, <String, dynamic>{
+      'name': name.text.trim(),
+      'type': species,
+      'species': species,
+      'gender': gender,
+      'breed': breed.text.trim(),
+      'age': age,
+      'isNeutered': neuter == '有結紮',
+      'medicalStatus': medical,
+      'vaccineTypes': vaccine.text.trim(),
+      'vaccine': '',
+      'litterType': species == 'cat' ? litter : '',
+      'careHabits': PetProfileCatalog.cleanHabits(habits, species),
+      'note': note.text.trim(),
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('快速建立寵物'),
-      content: SingleChildScrollView(
+    final theme = ShopFrontendTheme.of(context).home;
+    return Dialog(
+      child: SizedBox(
+        width: 560,
+        height: MediaQuery.sizeOf(context).height * 0.84,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            DropdownButtonFormField<String>(
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: '寵物種類'),
-              items: const [
-                DropdownMenuItem(value: 'cat', child: Text('貓咪')),
-                DropdownMenuItem(value: 'dog', child: Text('狗狗')),
-              ],
-              onChanged: (v) => setState(() {
-                _type = v!;
-                _gender = v == 'dog' ? '母狗' : '母貓';
-              }),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _vaccineController,
-              decoration: const InputDecoration(
-                labelText: '疫苗類型',
-                hintText: '依接種紀錄填寫；未接種／不確定可註明',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '快速建立寵物',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '寵物名字',
-                border: OutlineInputBorder(),
+            Expanded(
+              child: PetProfileForm(
+                theme: theme,
+                formKey: key,
+                nameController: name,
+                breedController: breed,
+                otherMedicalController: medicalOther,
+                otherLitterController: litterOther,
+                noteController: note,
+                vaccineController: vaccine,
+                showPhoto: false,
+                species: species,
+                gender: gender,
+                ageRange: age,
+                neuterStatus: neuter,
+                medicalStatus: medical,
+                litterType: litter,
+                careHabits: habits,
+                onSpeciesChanged: (v) => setState(() {
+                  if (v != null && v != species) {
+                    species = v;
+                    breed.clear();
+                    vaccine.clear();
+                    medicalOther.clear();
+                    litterOther.clear();
+                    medical = null;
+                    litter = null;
+                    habits.clear();
+                  }
+                }),
+                onGenderChanged: (v) => setState(() => gender = v),
+                onAgeChanged: (v) => setState(() => age = v),
+                onNeuterChanged: (v) => setState(() => neuter = v),
+                onMedicalChanged: (v) => setState(() => medical = v),
+                onLitterChanged: (v) => setState(() => litter = v),
+                onCareHabitChanged: (k, v) => setState(() => habits[k] = v),
+                onPickPhoto: () {},
+                onChanged: () {},
               ),
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: _breedController,
-              decoration: const InputDecoration(
-                labelText: '品種',
-                hintText: '例如：米克斯、英短、布偶',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              key: ValueKey('quick-gender-$_type'),
-              value: _gender,
-              decoration: const InputDecoration(
-                labelText: '性別',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: '公貓', child: Text('公貓')),
-                DropdownMenuItem(value: '公狗', child: Text('公狗')),
-                DropdownMenuItem(value: '母狗', child: Text('母狗')),
-                DropdownMenuItem(value: '母貓', child: Text('母貓')),
-                DropdownMenuItem(value: '未填', child: Text('未填')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _gender = value ?? '母貓';
-                });
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              value: _age,
-              decoration: const InputDecoration(
-                labelText: '年齡',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: '未填', child: Text('未填')),
-                DropdownMenuItem(value: '1歲以下', child: Text('1歲以下')),
-                DropdownMenuItem(value: '1～3歲', child: Text('1～3歲')),
-                DropdownMenuItem(value: '4～7歲', child: Text('4～7歲')),
-                DropdownMenuItem(value: '8～11歲', child: Text('8～11歲')),
-                DropdownMenuItem(value: '12歲以上', child: Text('12歲以上')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _age = value ?? '未填';
-                });
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              value: _neuterStatus,
-              decoration: const InputDecoration(
-                labelText: '結紮狀況',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: '未結紮', child: Text('未結紮')),
-                DropdownMenuItem(value: '已結紮', child: Text('已結紮')),
-                DropdownMenuItem(value: '未填', child: Text('未填')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _neuterStatus = value ?? '未結紮';
-                });
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              value: _medicalStatus,
-              decoration: const InputDecoration(
-                labelText: '醫療狀況',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: '未填', child: Text('未填')),
-                DropdownMenuItem(value: '健康', child: Text('健康')),
-                DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')),
-                DropdownMenuItem(value: '腎臟病', child: Text('腎臟病')),
-                DropdownMenuItem(value: '需每日餵藥', child: Text('需每日餵藥')),
-                DropdownMenuItem(value: '其他', child: Text('其他')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _medicalStatus = value ?? '未填';
-                });
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              value: _litterType,
-              decoration: const InputDecoration(
-                labelText: '貓砂種類',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: '未填', child: Text('未填')),
-                DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
-                DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
-                DropdownMenuItem(value: '木屑砂', child: Text('木屑砂')),
-                DropdownMenuItem(value: '水晶砂', child: Text('水晶砂')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _litterType = value ?? '未填';
-                });
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: _noteController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: '其他備註',
-                hintText: '例如：怕生、需注意飲食、固定餵藥時間...',
-                border: OutlineInputBorder(),
-              ),
+            PetFormStickyBar(
+              theme: theme,
+              primaryLabel: '建立寵物',
+              secondaryLabel: '取消',
+              onPrimary: submit,
+              onSecondary: () => Navigator.pop(context),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(onPressed: _submit, child: const Text('建立')),
-      ],
     );
   }
 }

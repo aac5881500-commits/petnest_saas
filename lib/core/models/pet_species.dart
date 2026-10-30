@@ -19,6 +19,11 @@ class PetSpecies {
     };
   }
 
+  static String genderLabel(Object? value) => switch ('$value'.trim()) {
+    '公' || '公貓' || '公狗' || 'male' => '公',
+    '母' || '母貓' || '母狗' || 'female' => '母',
+    _ => '',
+  };
   static String label(String species) => switch (species) {
     'cat' => '貓咪',
     'dog' => '狗狗',

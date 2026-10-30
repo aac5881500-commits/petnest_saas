@@ -2,7 +2,7 @@
 
 const crypto = require("node:crypto");
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {ROOT_ADMIN_UID} = require("../legal_pet/access");
 
 const options = {region: "asia-east1"};
@@ -159,7 +159,103 @@ exports.resolveShopSharing = onCall(options, async (request) => {
       version: config.version,
       expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400000),
     });
+    tx.set(db.doc(`shop_customer_bindings/${uid}`), {
+      shopId: target.shopId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
     return {shopId: target.shopId};
+  });
+});
+
+// A code admits new visitors; the current shop binding survives code changes.
+exports.customerShopBinding = onCall(options, async (request) => {
+  const uid = requireAuth(request);
+  const data = request.data || {};
+  const action = data.action || "get";
+  if (!["get", "selectPublic"].includes(action)) {
+    throw new HttpsError("invalid-argument", "不支援的操作");
+  }
+  const db = admin.firestore();
+  return db.runTransaction(async (tx) => {
+    const ref = db.doc(`shop_customer_bindings/${uid}`);
+    const current = (await tx.get(ref)).data();
+    let shopId;
+    if (action === "selectPublic") {
+      shopId = documentId(data.shopId);
+    } else if (current && current.shopId) {
+      shopId = current.shopId;
+    } else if (data.legacyShopId) {
+      shopId = documentId(data.legacyShopId);
+      const legacy = await tx.get(
+          db.doc(`shop_share_access/${shopId}/users/${uid}`));
+      // Legacy documents were created only after a valid entry code.
+      // Their former expiration/version does not revoke an admitted visitor.
+      if (!legacy.exists) return {shopId: null};
+    } else {
+      return {shopId: null};
+    }
+    const shopSnap = await tx.get(db.doc(`shops/${shopId}`));
+    const shop = shopSnap.data();
+    if (!shop || shop.deletionState === "deleting") {
+      if (action === "selectPublic") {
+        throw new HttpsError("permission-denied", "請使用店家提供的進店碼");
+      }
+      return {shopId: null};
+    }
+    if (action === "selectPublic" && shop.isPublic !== true) {
+      throw new HttpsError("permission-denied", "請使用店家提供的進店碼");
+    }
+    if (!current || current.shopId !== shopId) {
+      tx.set(ref, {shopId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()});
+    }
+    return {shopId};
+  });
+});
+
+// Carry only the storefront binding from a guest login, never consent or data.
+exports.transferCustomerShopBinding = onCall(options, async (request) => {
+  const uid = requireAuth(request);
+  const data = request.data || {};
+  const provider = ((request.auth.token || {}).firebase || {})
+      .sign_in_provider;
+  const db = admin.firestore();
+  if (data.action === "issue") {
+    if (provider !== "anonymous") return {ticket: null};
+    const ticket = crypto.randomBytes(24).toString("hex");
+    return db.runTransaction(async (tx) => {
+      const binding = (await tx.get(
+          db.doc(`shop_customer_bindings/${uid}`))).data();
+      if (!binding) return {ticket: null};
+      tx.set(db.doc(`shop_binding_transfers/${hash(ticket)}`), {
+        fromUid: uid, shopId: binding.shopId,
+        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 600000),
+      });
+      return {ticket};
+    });
+  }
+  if (data.action !== "claim" || provider === "anonymous" ||
+      !/^[a-f0-9]{48}$/.test(data.ticket || "")) {
+    throw new HttpsError("permission-denied", "請先正式登入");
+  }
+  return db.runTransaction(async (tx) => {
+    const ref = db.doc(`shop_binding_transfers/${hash(data.ticket)}`);
+    const transfer = (await tx.get(ref)).data();
+    if (!transfer || transfer.expiresAt.toMillis() <= Date.now() ||
+        transfer.fromUid === uid) {
+      throw new HttpsError("failed-precondition", "進店授權已過期，請重新掃碼");
+    }
+    const source = (await tx.get(
+        db.doc(`shop_customer_bindings/${transfer.fromUid}`))).data();
+    if (!source || source.shopId !== transfer.shopId) {
+      throw new HttpsError("failed-precondition", "店家已切換，請重新掃碼");
+    }
+    tx.set(db.doc(`shop_customer_bindings/${uid}`), {
+      shopId: transfer.shopId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.delete(ref);
+    return {shopId: transfer.shopId};
   });
 });
 

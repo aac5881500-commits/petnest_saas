@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
 // 檔案名稱：lib/features/shop/widgets/modern_home/modern_app_drawer.dart
 // 功能說明：保留原本完整選單功能，後續可獨立重新設計，不影響 Classic
 // 🐾 新版首頁專用 Drawer
@@ -61,7 +62,8 @@ class ModernAppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final candidate = FirebaseAuth.instance.currentUser;
+    final user = isRegisteredMember(candidate) ? candidate : null;
 
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.72,

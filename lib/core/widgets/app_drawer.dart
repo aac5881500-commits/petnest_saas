@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
 // 檔案名稱：lib/core/widgets/app_drawer.dart
 // 功能說明：店家前台共用左側選單 Drawer：會員資訊、前台功能、後台入口、系統功能
 
@@ -53,7 +54,8 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final candidate = FirebaseAuth.instance.currentUser;
+    final user = isRegisteredMember(candidate) ? candidate : null;
 
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.78,

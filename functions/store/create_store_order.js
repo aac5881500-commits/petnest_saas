@@ -3,7 +3,7 @@
 // 🛒 建立商城訂單並保留庫存
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 
 const {
   applyReservation,

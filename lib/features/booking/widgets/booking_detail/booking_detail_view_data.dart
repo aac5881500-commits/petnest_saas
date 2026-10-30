@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_view_data.dart
 // 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
 
@@ -1006,9 +1007,7 @@ class BookingDetailViewData {
     if (end == null) {
       return null;
     }
-    return end.add(
-      const Duration(hours: DailyCareReportMode.retentionHours),
-    );
+    return end.add(const Duration(hours: DailyCareReportMode.retentionHours));
   }
 
   /// 文字照護紀錄在服務結束後仍可查看，不受照片下載期限影響。
@@ -1027,10 +1026,7 @@ class BookingDetailViewData {
     return status == 'checked_in' || status == 'completed';
   }
 
-  bool canViewDailyCare({
-    DateTime? now,
-    bool daycareCareEnabled = false,
-  }) {
+  bool canViewDailyCare({DateTime? now, bool daycareCareEnabled = false}) {
     if (DailyCareEntitlement.explicitlyNoReports(raw)) {
       return false;
     }
@@ -1375,6 +1371,9 @@ class BookingDetailViewData {
       take('medication', '用藥');
       take('medicine', '用藥');
       take('litterType', '貓砂');
+      for (final row in PetSnapshot.careRows(pet)) {
+        care.add('${row.key}：${row.value}');
+      }
       return BookingDetailPetInfo(
         name: BookingDetailParse.parseString(pet['name']),
         photoUrl: BookingDetailParse.parseString(

@@ -11,9 +11,19 @@ import 'package:petnest_saas/features/admin/pages/admin_member_detail_page.dart'
 import 'package:petnest_saas/features/admin/pages/admin_member_merge_page.dart';
 
 class AdminMemberListPage extends StatefulWidget {
-  const AdminMemberListPage({super.key, required this.shopId});
+  const AdminMemberListPage({
+    super.key,
+    required this.shopId,
+    this.inspectionLoadPage,
+    this.inspectionShop,
+    this.onInspectionMember,
+  });
 
   final String shopId;
+  final Future<Map<String, dynamic>> Function(String? cursor)?
+  inspectionLoadPage;
+  final Map<String, dynamic>? inspectionShop;
+  final ValueChanged<Map<String, dynamic>>? onInspectionMember;
 
   @override
   State<AdminMemberListPage> createState() => _AdminMemberListPageState();
@@ -33,62 +43,61 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ShopFrontendThemeScope(
-      shopId: widget.shopId,
-      builder: (BuildContext context) {
-        final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
-        return Scaffold(
-          backgroundColor: theme.pageBackgroundColor,
-          appBar: AppBar(title: const Text('會員管理')),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: TextField(
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: '搜尋姓名 / 電話 / Email',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: theme.cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: theme.borderColor),
-                    ),
+    Widget body(BuildContext context) {
+      final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+      return Scaffold(
+        backgroundColor: theme.pageBackgroundColor,
+        appBar: AppBar(title: const Text('會員管理')),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: TextField(
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: '搜尋姓名 / 電話 / Email',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: theme.cardColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.borderColor),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      keyword = value.trim();
-                    });
-                  },
                 ),
+                onChanged: (value) {
+                  setState(() {
+                    keyword = value.trim();
+                  });
+                },
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: memberFilters.map((filter) {
-                            final selected = memberFilter == filter['key'];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(filter['label']!),
-                                selected: selected,
-                                onSelected: (_) {
-                                  setState(() {
-                                    memberFilter = filter['key']!;
-                                  });
-                                },
-                              ),
-                            );
-                          }).toList(),
-                        ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: memberFilters.map((filter) {
+                          final selected = memberFilter == filter['key'];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(filter['label']!),
+                              selected: selected,
+                              onSelected: (_) {
+                                setState(() {
+                                  memberFilter = filter['key']!;
+                                });
+                              },
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
+                  ),
+                  if (widget.inspectionLoadPage == null)
                     IconButton(
                       tooltip: '會員合併',
                       onPressed: () {
@@ -102,21 +111,36 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                       },
                       icon: const Icon(Icons.merge_type),
                     ),
-                  ],
-                ),
+                ],
               ),
-              Expanded(
-                child: _MemberPagedBody(
-                  shopId: widget.shopId,
-                  keyword: keyword,
-                  memberFilter: memberFilter,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+            ),
+            Expanded(
+              child: widget.inspectionLoadPage != null
+                  ? _InspectionMemberBody(
+                      shopId: widget.shopId,
+                      loadPage: widget.inspectionLoadPage!,
+                      keyword: keyword,
+                      memberFilter: memberFilter,
+                      onMember: widget.onInspectionMember,
+                    )
+                  : _MemberPagedBody(
+                      shopId: widget.shopId,
+                      keyword: keyword,
+                      memberFilter: memberFilter,
+                    ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (widget.inspectionLoadPage != null) {
+      return ShopFrontendThemeInherited(
+        theme: ShopFrontendTheme.fromShop(widget.inspectionShop),
+        child: Builder(builder: body),
+      );
+    }
+    return ShopFrontendThemeScope(shopId: widget.shopId, builder: body);
   }
 }
 
@@ -373,10 +397,14 @@ class AdminMemberListCard extends StatelessWidget {
     super.key,
     required this.shopId,
     required this.data,
+    this.onOpen,
+    this.liveAvatar = true,
   });
 
   final String shopId;
   final Map<String, dynamic> data;
+  final VoidCallback? onOpen;
+  final bool liveAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -410,15 +438,17 @@ class AdminMemberListCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  AdminMemberDetailPage(userId: userId, shopId: shopId),
-            ),
-          );
-        },
+        onTap:
+            onOpen ??
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AdminMemberDetailPage(userId: userId, shopId: shopId),
+                ),
+              );
+            },
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
@@ -449,13 +479,20 @@ class AdminMemberListCard extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
                     child: Row(
                       children: [
-                        ShopMemberLiveAvatar(
-                          shopId: shopId,
-                          userId: userId,
-                          name: name,
-                          size: 52,
-                          member: data,
-                        ),
+                        if (!liveAvatar)
+                          MemberAvatar(
+                            name: name,
+                            size: 52,
+                            imageUrl: data['photoUrl'] as String?,
+                          ),
+                        if (liveAvatar)
+                          ShopMemberLiveAvatar(
+                            shopId: shopId,
+                            userId: userId,
+                            name: name,
+                            size: 52,
+                            member: data,
+                          ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -530,6 +567,103 @@ class AdminMemberListCard extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
+    );
+  }
+}
+
+/// Same member list controls and cards; inspection supplies pages and owns all
+/// navigation. This body never obtains a Firestore instance or mutation API.
+class _InspectionMemberBody extends StatefulWidget {
+  const _InspectionMemberBody({
+    required this.shopId,
+    required this.loadPage,
+    required this.keyword,
+    required this.memberFilter,
+    this.onMember,
+  });
+  final String shopId, keyword, memberFilter;
+  final Future<Map<String, dynamic>> Function(String? cursor) loadPage;
+  final ValueChanged<Map<String, dynamic>>? onMember;
+  @override
+  State<_InspectionMemberBody> createState() => _InspectionMemberBodyState();
+}
+
+class _InspectionMemberBodyState extends State<_InspectionMemberBody> {
+  final _records = <Map<String, dynamic>>[];
+  String? _next;
+  String? _error;
+  bool _busy = false;
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final page = await widget.loadPage(_next);
+      if (!mounted) return;
+      setState(() {
+        _records.addAll(
+          (page['records'] as List).map(
+            (r) => Map<String, dynamic>.from(r as Map),
+          ),
+        );
+        _next = page['next'] as String?;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = '會員資料讀取失敗，請重試或重新驗證查核身分。');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  bool _matches(Map<String, dynamic> data) => MemberListQueryService.instance
+      .matchesLoadedMember(data, widget.memberFilter, widget.keyword);
+  @override
+  Widget build(BuildContext context) {
+    final visible = _records
+        .where((r) => _matches(Map<String, dynamic>.from(r['data'] as Map)))
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        const Text(
+          '唯讀查核・搜尋與分類套用已載入會員；更多會員請按載入更多。',
+          style: TextStyle(fontSize: 12),
+        ),
+        const SizedBox(height: 12),
+        for (final record in visible)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: AdminMemberListCard(
+              shopId: widget.shopId,
+              data: {
+                ...Map<String, dynamic>.from(record['data'] as Map),
+                'userId': '${record['path']}'.split('/').last,
+              },
+              liveAvatar: false,
+              onOpen: () => widget.onMember?.call(record),
+            ),
+          ),
+        if (!_busy && visible.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('已載入資料中沒有符合條件的會員'),
+          ),
+        if (_error != null) ...[
+          Text(_error!),
+          TextButton(onPressed: _load, child: const Text('重試')),
+        ],
+        if (_busy) const Center(child: CircularProgressIndicator()),
+        if (!_busy && _next != null)
+          OutlinedButton(onPressed: _load, child: const Text('載入更多')),
+      ],
     );
   }
 }

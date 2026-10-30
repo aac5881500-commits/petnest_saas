@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/features/auth/pages/login_page.dart
 // 功能說明：登入頁 LoginPage
 // 功能：
@@ -34,6 +35,8 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  String? _shopBindingTicket;
+  bool _needsGuestPreparation = false;
   bool _loading = false;
   String? _error;
   bool _rememberEmail = false;
@@ -49,6 +52,26 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loadSavedEmail();
+    _prepareGuestBinding();
+  }
+
+  Future<void> _prepareGuestBinding() async {
+    if (FirebaseAuth.instance.currentUser?.isAnonymous != true) return;
+    setState(() => _loading = true);
+    try {
+      _shopBindingTicket = await ShopSharingService.instance
+          .prepareMemberLogin();
+      if (mounted) setState(() => _needsGuestPreparation = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _needsGuestPreparation = true;
+          _error = '暫時無法保留店家進店狀態，請再按登入重試。';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _loadSavedEmail() async {
@@ -131,6 +154,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
+    if (_needsGuestPreparation) {
+      await _prepareGuestBinding();
+      return;
+    }
+
     final String? emailError = AuthAccessPolicy.emailIssue(
       _emailController.text,
     );
@@ -158,6 +186,7 @@ class _LoginPageState extends State<LoginPage> {
       final UserCredential credential = await AuthService.instance.login(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        shopBindingTicket: _shopBindingTicket,
       );
 
       final prefs = await SharedPreferences.getInstance();
@@ -189,13 +218,20 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _googleLogin() async {
+    if (_needsGuestPreparation) {
+      await _prepareGuestBinding();
+      return;
+    }
+
     try {
       setState(() {
         _loading = true;
         _error = null;
       });
 
-      final result = await AuthService.instance.signInWithGoogle();
+      final result = await AuthService.instance.signInWithGoogle(
+        shopBindingTicket: _shopBindingTicket,
+      );
 
       if (result == null) return;
 
@@ -216,13 +252,19 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _appleLogin() async {
+    if (_needsGuestPreparation) {
+      await _prepareGuestBinding();
+      return;
+    }
+
     try {
       setState(() {
         _loading = true;
         _error = null;
       });
-      final UserCredential? result = await AuthService.instance
-          .signInWithApple();
+      final UserCredential? result = await AuthService.instance.signInWithApple(
+        shopBindingTicket: _shopBindingTicket,
+      );
       if (result == null || !mounted) {
         return;
       }
@@ -592,7 +634,9 @@ class _LoginPageState extends State<LoginPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute<void>(
-                              builder: (_) => const RegisterPage(),
+                              builder: (_) => RegisterPage(
+                                shopBindingTicket: _shopBindingTicket,
+                              ),
                             ),
                           );
                         },

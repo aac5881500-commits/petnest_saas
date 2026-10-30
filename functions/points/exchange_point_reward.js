@@ -4,7 +4,7 @@
 // 僅處理 useCentralInventory == true 的實體商品。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   preparePointRedemptionDeduct,
   commitPreparedConsumption,

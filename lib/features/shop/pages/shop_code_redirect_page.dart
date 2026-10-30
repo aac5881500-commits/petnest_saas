@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/features/shop/pages/shop_code_redirect_page.dart
 // 功能說明：店家短網址轉址頁
 
@@ -21,13 +22,20 @@ class _ShopCodeRedirectPageState extends State<ShopCodeRedirectPage> {
   String get shopCode => widget.shopCode;
 
   Future<Map<String, dynamic>?> _loadAndRememberShop() async {
+    final prefs = await SharedPreferences.getInstance();
+    final previousShop = prefs.getString('last_customer_shop_id');
+    if (prefs.getString('last_customer_shop_code') == shopCode) {
+      final current = await ShopSharingService.instance.currentShop();
+      if (current != null && current == previousShop) {
+        return {'shopId': current};
+      }
+    }
     final shop = await ShopService.instance.getShopByCode(shopCode);
 
     if (shop == null) return null;
 
     final shopId = shop['shopId']?.toString() ?? shopCode;
 
-    final prefs = await SharedPreferences.getInstance();
     await prefs.setString('last_customer_shop_id', shopId);
     await prefs.setString('last_customer_shop_code', shopCode);
 

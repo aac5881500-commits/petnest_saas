@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
 // 檔案名稱：lib/core/services/platform_policy_service.dart
 // 功能說明：平台條款同意紀錄。與店家 users/{uid}/policy_acceptances/{shopId} 分開。
 
@@ -98,24 +99,24 @@ class PlatformPolicyService {
 
   Future<bool> hasAcceptedCurrentUserPolicy() async {
     final User? user = _auth.currentUser;
-    if (user == null) return false;
+    if (!isRegisteredMember(user)) return true;
     final PlatformPolicyAcceptance acceptance = await loadAcceptance(
-      uid: user.uid,
+      uid: user!.uid,
     );
     return !acceptance.mustConfirm;
   }
 
   Future<void> acceptCurrentUserPolicy() async {
     final User? user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('尚未登入');
+    if (!isRegisteredMember(user)) {
+      throw Exception('請先正式登入後再確認平台會員條款');
     }
     final int currentVersion = await getCurrentUserPolicyVersion();
     if (currentVersion <= 0) {
       throw Exception('目前沒有已發布的平台條款');
     }
     final WriteBatch batch = _firestore.batch();
-    batch.set(_firestore.doc(acceptancePath(user.uid)), <String, dynamic>{
+    batch.set(_firestore.doc(acceptancePath(user!.uid)), <String, dynamic>{
       'uid': user.uid,
       'policyId': platformUserPolicyId,
       'type': platformUserPolicyId,

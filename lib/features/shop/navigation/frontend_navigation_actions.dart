@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -124,7 +125,7 @@ class FrontendNavigationLaunch {
           return;
         }
         final User? user = FirebaseAuth.instance.currentUser;
-        if (item.requiresLogin && user == null) {
+        if (item.requiresLogin && !isRegisteredMember(user)) {
           await Navigator.push(
             context,
             MaterialPageRoute<void>(
@@ -172,14 +173,10 @@ class FrontendNavigationLaunch {
           onSelect: (FrontendNavigationItem next) {
             open(routeContext, next);
           },
-          onPlatform: () => open(
-            routeContext,
-            FrontendNavigationRegistry.find('platform')!,
-          ),
-          onAdmin: () => open(
-            routeContext,
-            FrontendNavigationRegistry.find('admin')!,
-          ),
+          onPlatform: () =>
+              open(routeContext, FrontendNavigationRegistry.find('platform')!),
+          onAdmin: () =>
+              open(routeContext, FrontendNavigationRegistry.find('admin')!),
           child: _pageFor(item),
         );
       },

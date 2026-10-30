@@ -1,3 +1,6 @@
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
+import 'package:petnest_saas/core/models/pet_species.dart';
+import 'package:petnest_saas/features/pet/widgets/pet_catalog_field.dart';
 // 檔案名稱：lib/features/pet/widgets/pet_profile_form.dart
 // 功能說明：新增／編輯寵物共用表單視覺與欄位。
 
@@ -330,6 +333,9 @@ class PetProfileForm extends StatelessWidget {
     required this.onLitterChanged,
     required this.onPickPhoto,
     required this.onChanged,
+    this.careHabits = const {},
+    this.onCareHabitChanged,
+    this.showPhoto = true,
     this.species,
     this.onSpeciesChanged,
     this.vaccineController,
@@ -343,6 +349,9 @@ class PetProfileForm extends StatelessWidget {
     this.scrollController,
   });
 
+  final Map<String, String> careHabits;
+  final void Function(String key, String value)? onCareHabitChanged;
+  final bool showPhoto;
   final String? species;
   final ValueChanged<String?>? onSpeciesChanged;
   final TextEditingController? vaccineController;
@@ -374,14 +383,7 @@ class PetProfileForm extends StatelessWidget {
   final List<Widget> extraChildren;
   final ScrollController? scrollController;
 
-  static const List<String> genders = <String>[
-    '公貓',
-    '母貓',
-    '公狗',
-    '母狗',
-    '公',
-    '母',
-  ];
+  static const List<String> genders = ['公', '母'];
   static const List<String> ages = <String>[
     '6~12個月',
     '1~10歲',
@@ -402,11 +404,6 @@ class PetProfileForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final speciesGenders = species == 'dog'
-        ? <String>['公狗', '母狗']
-        : species == 'cat'
-        ? <String>['公貓', '母貓']
-        : genders;
     final TextStyle fieldStyle = TextStyle(
       fontSize: 14,
       color: theme.textColor,
@@ -414,7 +411,7 @@ class PetProfileForm extends StatelessWidget {
 
     return Form(
       key: formKey,
-      autovalidateMode: AutovalidateMode.onUserInteraction,
+      autovalidateMode: AutovalidateMode.disabled,
       onChanged: onChanged,
       child: ListView(
         controller: scrollController,
@@ -426,37 +423,64 @@ class PetProfileForm extends StatelessWidget {
             icon: Icons.pets_outlined,
             title: '基本資料',
             children: <Widget>[
-              Text(
-                '先選擇種類，預約時會依店家服務篩選適合的寵物。',
-                style: TextStyle(
-                  color: theme.textColor.withValues(alpha: 0.6),
-                  fontSize: 13,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: theme.primaryColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '請務必選對寵物種類。貓咪只能訂貓房，狗狗只能訂狗房；選錯種類將無法預訂對應房間。美容依店家接待種類開放。',
+                        style: TextStyle(
+                          color: theme.textColor.withValues(alpha: 0.9),
+                          fontSize: 13,
+                          height: 1.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                key: ValueKey('pet-species-$species'),
-                initialValue: species,
+              PetCatalogField(
+                theme: theme,
+                label: '寵物種類',
+                value: species ?? '',
+                options: const ['cat', 'dog'],
+                optionLabels: const {'cat': '貓咪', 'dog': '狗狗'},
+                allowCustom: false,
+                searchable: false,
+                requiredValue: true,
+                enabled: nameEnabled,
                 decoration: petProfileInputDecoration(
                   theme: theme,
                   label: '寵物種類 *',
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'cat', child: Text('貓咪')),
-                  DropdownMenuItem(value: 'dog', child: Text('狗狗')),
-                ],
-                onChanged: nameEnabled ? onSpeciesChanged : null,
-                validator: (v) => v == null ? '請選擇貓咪或狗狗' : null,
+                hint: '請選擇貓咪或狗狗',
+                onChanged: onSpeciesChanged ?? (_) {},
               ),
               const SizedBox(height: 20),
-              PetPhotoPicker(
-                theme: theme,
-                onTap: onPickPhoto,
-                imageBytes: imageBytes,
-                networkUrl: networkPhotoUrl,
-              ),
+              if (showPhoto)
+                PetPhotoPicker(
+                  theme: theme,
+                  onTap: onPickPhoto,
+                  imageBytes: imageBytes,
+                  networkUrl: networkPhotoUrl,
+                ),
               const SizedBox(height: 14),
               TextFormField(
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 controller: nameController,
                 enabled: nameEnabled,
                 style: fieldStyle,
@@ -472,66 +496,58 @@ class PetProfileForm extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: ValueKey<String>('pet-gender-$species'),
-                initialValue: speciesGenders.contains(gender) ? gender : null,
-                style: fieldStyle,
+              PetCatalogField(
+                theme: theme,
+                label: '性別',
+                value: PetSpecies.genderLabel(gender),
+                options: genders,
+                allowCustom: false,
+                searchable: false,
+                requiredValue: true,
+                enabled: nameEnabled,
                 decoration: petProfileInputDecoration(
                   theme: theme,
                   label: '性別',
                 ),
-                hint: const Text('請選擇性別', style: TextStyle(fontSize: 14)),
-                validator: (String? value) => value == null ? '請選擇性別' : null,
-                items: speciesGenders
-                    .map(
-                      (String item) => DropdownMenuItem<String>(
-                        value: item,
-                        child: Text(item, style: fieldStyle),
-                      ),
-                    )
-                    .toList(),
-                onChanged: nameEnabled ? onGenderChanged : null,
+                hint: '請選擇性別',
+                onChanged: onGenderChanged,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: breedController,
-                style: fieldStyle,
-                decoration: petProfileInputDecoration(
+              ListenableBuilder(
+                listenable: breedController,
+                builder: (context, _) => PetCatalogField(
                   theme: theme,
                   label: '品種',
-                  hint: '選填',
+                  value: breedController.text,
+                  options: PetProfileCatalog.breeds(species),
+                  enabled: nameEnabled && species != null,
+                  decoration: petProfileInputDecoration(
+                    theme: theme,
+                    label: '品種（選填）',
+                  ),
+                  hint: species == null ? '請先選擇寵物種類' : '可留白，或搜尋／選擇其他',
+                  onChanged: (v) {
+                    breedController.text = v;
+                    onChanged();
+                  },
                 ),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: const ValueKey<String>('pet-age'),
-                initialValue: ages.contains(ageRange) ? ageRange : null,
-                style: fieldStyle,
+              PetCatalogField(
+                theme: theme,
+                label: '年齡',
+                value: ageRange ?? '',
+                options: ages,
+                allowCustom: false,
+                searchable: false,
+                requiredValue: true,
+                enabled: nameEnabled,
                 decoration: petProfileInputDecoration(
                   theme: theme,
                   label: '年齡',
                 ),
-                hint: const Text('請選擇年齡', style: TextStyle(fontSize: 14)),
-                validator: (String? value) => value == null ? '請選擇年齡' : null,
-                items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem<String>(
-                    value: '6~12個月',
-                    child: Text('含6~12個月', style: TextStyle(fontSize: 14)),
-                  ),
-                  DropdownMenuItem<String>(
-                    value: '1~10歲',
-                    child: Text('1~10歲', style: TextStyle(fontSize: 14)),
-                  ),
-                  DropdownMenuItem<String>(
-                    value: '10~12歲',
-                    child: Text('10~12歲', style: TextStyle(fontSize: 14)),
-                  ),
-                  DropdownMenuItem<String>(
-                    value: '12歲以上',
-                    child: Text('12歲以上', style: TextStyle(fontSize: 14)),
-                  ),
-                ],
-                onChanged: nameEnabled ? onAgeChanged : null,
+                hint: '請選擇年齡',
+                onChanged: onAgeChanged,
               ),
             ],
           ),
@@ -541,22 +557,39 @@ class PetProfileForm extends StatelessWidget {
             title: '健康資訊',
             children: <Widget>[
               if (vaccineController != null) ...[
-                TextFormField(
-                  controller: vaccineController,
-                  enabled: healthEnabled,
-                  maxLength: 300,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: petProfileInputDecoration(
+                ListenableBuilder(
+                  listenable: vaccineController!,
+                  builder: (context, _) => PetCatalogField(
                     theme: theme,
                     label: '疫苗類型',
-                    hint: '依接種紀錄填寫；未接種／不確定也可註明',
+                    value: vaccineController!.text,
+                    options: PetProfileCatalog.vaccines(species),
+                    multiple: true,
+                    exclusiveValues: const {'未接種', '不確定'},
+                    enabled: healthEnabled && species != null,
+                    decoration: petProfileInputDecoration(
+                      theme: theme,
+                      label: '疫苗類型（可複選）',
+                    ),
+                    hint: species == null ? '請先選擇寵物種類' : '依接種手冊選擇，可填其他',
+                    onChanged: (v) {
+                      vaccineController!.text = v;
+                      onChanged();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '請依接種手冊與獸醫診斷填寫；未列出的疫苗或病症可選「其他」。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textColor.withValues(alpha: 0.65),
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
               if (species == 'cat' &&
-                  gender == '公貓' &&
+                  PetSpecies.genderLabel(gender) == '公' &&
                   neuterStatus == '未結紮') ...<Widget>[
                 Container(
                   width: double.infinity,
@@ -577,72 +610,44 @@ class PetProfileForm extends StatelessWidget {
                   ),
                 ),
               ],
-              DropdownButtonFormField<String>(
-                key: const ValueKey<String>('pet-neuter'),
-                initialValue: neuterOptions.contains(neuterStatus)
-                    ? neuterStatus
-                    : null,
-                style: fieldStyle,
+              PetCatalogField(
+                theme: theme,
+                label: '結紮狀況',
+                value: neuterStatus ?? '',
+                options: neuterOptions,
+                allowCustom: false,
+                searchable: false,
+                requiredValue: true,
+                enabled: healthEnabled,
                 decoration: petProfileInputDecoration(
                   theme: theme,
                   label: '結紮狀況',
                 ),
-                hint: const Text('請選擇結紮狀況', style: TextStyle(fontSize: 14)),
-                validator: (String? value) => value == null ? '請選擇結紮狀況' : null,
-                items: neuterOptions
-                    .map(
-                      (String item) => DropdownMenuItem<String>(
-                        value: item,
-                        child: Text(item, style: fieldStyle),
-                      ),
-                    )
-                    .toList(),
-                onChanged: healthEnabled ? onNeuterChanged : null,
+                hint: '請選擇結紮狀況',
+                onChanged: onNeuterChanged,
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: const ValueKey<String>('pet-medical'),
-                initialValue: medicalOptions.contains(medicalStatus)
-                    ? medicalStatus
-                    : null,
-                style: fieldStyle,
+              PetCatalogField(
+                theme: theme,
+                label: '醫療狀況',
+                value: medicalStatus == '其他'
+                    ? otherMedicalController.text
+                    : (medicalStatus ?? ''),
+                options: PetProfileCatalog.medical(species),
+                multiple: true,
+                requiredValue: true,
+                exclusiveValues: const {'無', '不確定'},
+                enabled: healthEnabled && species != null,
                 decoration: petProfileInputDecoration(
                   theme: theme,
-                  label: '醫療狀況',
+                  label: '醫療狀況（可複選）',
                 ),
-                hint: const Text('請選擇醫療狀況', style: TextStyle(fontSize: 14)),
-                validator: (String? value) => value == null ? '請選擇醫療狀況' : null,
-                items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem<String>(value: '無', child: Text('無')),
-                  DropdownMenuItem<String>(
-                    value: '慢性腎臟病',
-                    child: Text('慢性腎臟病'),
-                  ),
-                  DropdownMenuItem<String>(value: '心臟病', child: Text('心臟病')),
-                  DropdownMenuItem<String>(value: '糖尿病', child: Text('糖尿病')),
-                  DropdownMenuItem<String>(value: '術後照護', child: Text('術後照護')),
-                  DropdownMenuItem<String>(value: '皮膚疾病', child: Text('皮膚治療')),
-                  DropdownMenuItem<String>(value: '其他', child: Text('其他')),
-                ],
-                onChanged: healthEnabled ? onMedicalChanged : null,
+                hint: species == null ? '請先選擇寵物種類' : '無疾病請選「無」，其他可自行填寫',
+                onChanged: (v) {
+                  otherMedicalController.clear();
+                  onMedicalChanged(v);
+                },
               ),
-              if (medicalStatus == '其他') ...<Widget>[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: otherMedicalController,
-                  style: fieldStyle,
-                  decoration: petProfileInputDecoration(
-                    theme: theme,
-                    label: '請填寫醫療內容',
-                  ),
-                  validator: (String? value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '請填寫醫療內容';
-                    }
-                    return null;
-                  },
-                ),
-              ],
             ],
           ),
           PetFormSectionCard(
@@ -650,61 +655,66 @@ class PetProfileForm extends StatelessWidget {
             icon: Icons.home_outlined,
             title: '住宿習慣',
             children: <Widget>[
-              if (species != 'dog')
-                DropdownButtonFormField<String>(
-                  key: const ValueKey<String>('pet-litter'),
-                  initialValue: litterOptions.contains(litterType)
-                      ? litterType
-                      : null,
-                  style: fieldStyle,
+              if (species == null) const Text('請先選擇寵物種類，再填寫對應的住宿習慣。'),
+              if (species == 'cat') ...[
+                PetCatalogField(
+                  theme: theme,
+                  label: '貓砂種類',
+                  value: litterType == '其他'
+                      ? otherLitterController.text
+                      : (litterType ?? ''),
+                  options: PetProfileCatalog.litters,
+                  requiredValue: true,
+                  enabled: healthEnabled,
                   decoration: petProfileInputDecoration(
                     theme: theme,
                     label: '貓砂種類',
                   ),
-                  hint: const Text('請選擇貓砂', style: TextStyle(fontSize: 14)),
-                  validator: (String? value) => value == null ? '請選擇貓砂' : null,
-                  items: litterOptions
-                      .map(
-                        (String item) => DropdownMenuItem<String>(
-                          value: item,
-                          child: Text(item, style: fieldStyle),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: healthEnabled ? onLitterChanged : null,
-                ),
-              if (species != 'dog' && litterType == '其他') ...<Widget>[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: otherLitterController,
-                  style: fieldStyle,
-                  decoration: petProfileInputDecoration(
-                    theme: theme,
-                    label: '請填寫貓砂種類',
-                  ),
-                  validator: (String? value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '請填寫貓砂種類';
-                    }
-                    return null;
+                  hint: '選擇慣用貓砂，其他可自行填寫',
+                  onChanged: (v) {
+                    otherLitterController.clear();
+                    onLitterChanged(v);
                   },
                 ),
+                const SizedBox(height: 12),
+              ],
+              for (final field in PetProfileCatalog.habits(species)) ...[
+                PetCatalogField(
+                  theme: theme,
+                  label: field.label,
+                  value: careHabits[field.key] ?? '',
+                  options: field.options,
+                  enabled: healthEnabled,
+                  decoration: petProfileInputDecoration(
+                    theme: theme,
+                    label: '${field.label}（選填）',
+                  ),
+                  onChanged: (v) {
+                    onCareHabitChanged?.call(field.key, v);
+                    onChanged();
+                  },
+                ),
+                const SizedBox(height: 12),
               ],
               const SizedBox(height: 12),
               TextFormField(
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 controller: noteController,
                 minLines: 3,
                 maxLines: 5,
                 style: fieldStyle,
                 decoration: petProfileInputDecoration(
                   theme: theme,
-                  label: species == 'dog' ? '如廁、散步與其他照護備註' : '其他照護備註',
-                  hint: '選填',
+                  label: species == 'dog' ? '狗狗其他照護備註' : '貓咪其他照護備註',
+                  hint: species == 'dog'
+                      ? '例如：散步時間、牽繩注意事項、安撫方式'
+                      : '例如：餵食份量、躲藏偏好、安撫方式',
                 ),
               ),
               if (adminNoteController != null) ...<Widget>[
                 const SizedBox(height: 12),
                 TextFormField(
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   controller: adminNoteController,
                   minLines: 2,
                   maxLines: 4,

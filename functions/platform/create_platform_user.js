@@ -9,7 +9,7 @@ const admin = require("firebase-admin");
 const {
   onCall,
   HttpsError,
-} = require("firebase-functions/v2/https");
+} = require("./inspection_write_guard");
 
 const policy = require("./platform_user_policy");
 

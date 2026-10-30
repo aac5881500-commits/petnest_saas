@@ -2,7 +2,7 @@
 // 功能說明：店家營運摘要：差額更新，同一事件重送不可重複累加。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 
 function toInt(raw) {
   const n = Number(raw);

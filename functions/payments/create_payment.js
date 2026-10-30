@@ -8,7 +8,7 @@ const admin = require("firebase-admin");
 const {
   onCall,
   HttpsError,
-} = require("firebase-functions/v2/https");
+} = require("../platform/inspection_write_guard");
 
       const {
         normalizeString,

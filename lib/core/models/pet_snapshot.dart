@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
 import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/core/models/pet_snapshot.dart
 // 功能說明：住宿／安親／後台共用的寵物快照欄位映射，避免 breed 與 type 混用。
@@ -26,6 +27,7 @@ class PetSnapshot {
     'vaccineTypes',
     'chipNumber',
     'litterType',
+    'careHabits',
     'feedingInstructions',
     'medication',
     'allergy',
@@ -47,6 +49,7 @@ class PetSnapshot {
       pet['species'],
       pet['type'] == pet['breed'] ? null : pet['type'],
     ]);
+    final String inferredSpecies = PetSpecies.of(pet);
     final String type = _firstNonEmpty(<dynamic>[pet['type'], species]);
     final String breed = (pet['breed'] ?? '').toString().trim();
     final Map<String, dynamic> out = <String, dynamic>{
@@ -54,10 +57,14 @@ class PetSnapshot {
       'name': (pet['name'] ?? '').toString(),
       'photoUrl': (pet['photoUrl'] ?? pet['imageUrl'] ?? '').toString(),
       'imageUrl': (pet['imageUrl'] ?? pet['photoUrl'] ?? '').toString(),
-      'species': species,
+      'species': inferredSpecies.isEmpty ? species : inferredSpecies,
       'type': type,
       'breed': breed,
-      'gender': (pet['gender'] ?? '').toString(),
+      'gender': PetSpecies.genderLabel(pet['gender']),
+      'careHabits': PetProfileCatalog.cleanHabits(
+        pet['careHabits'],
+        PetSpecies.of(pet),
+      ),
       'age': (pet['age'] ?? '').toString(),
       'birthday': _jsonScalar(pet['birthday'])?.toString() ?? '',
       'weight': _jsonScalar(pet['weight']),
@@ -150,7 +157,7 @@ class PetSnapshot {
 
   static bool hasRecordedDisease(Map<String, dynamic> pet) {
     final String medical = medicalStatusText(pet);
-    return medical.isNotEmpty && medical != '無';
+    return medical.isNotEmpty && !{'無', '不確定', '未填'}.contains(medical);
   }
 
   static String speciesLabel(Map<String, dynamic> pet) {
@@ -174,7 +181,7 @@ class PetSnapshot {
 
     add('種類', speciesLabel(pet));
     add('品種', breedLabel(pet));
-    add('性別', pet['gender']);
+    add('性別', PetSpecies.genderLabel(pet['gender']));
     add('年齡', pet['age']);
     add('生日', pet['birthday']);
     if (pet.containsKey('isNeutered') && pet['isNeutered'] != null) {
@@ -182,12 +189,16 @@ class PetSnapshot {
       rows.add(MapEntry<String, String>('結紮', flag ? '已結紮' : '未結紮'));
     }
     add('晶片', pet['chipNumber']);
-    add('貓砂', pet['litterType']);
+    if (PetSpecies.of(pet) != 'dog') add('貓砂', pet['litterType']);
+    rows.addAll(careRows(pet));
     add('體重', pet['weight']);
     add('個性', pet['personality']);
     add('備註', pet['note']);
     return rows;
   }
+
+  static List<MapEntry<String, String>> careRows(Map<String, dynamic> pet) =>
+      PetProfileCatalog.habitRows(pet['careHabits'], PetSpecies.of(pet));
 
   static List<MapEntry<String, String>> safetyRows(Map<String, dynamic> pet) {
     final List<MapEntry<String, String>> rows = <MapEntry<String, String>>[];
@@ -255,6 +266,7 @@ class PetSnapshot {
     if (value == null) {
       return true;
     }
+    if (value is Map) return value.isEmpty;
     if (value is bool || value is num) {
       return false;
     }

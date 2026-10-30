@@ -3,7 +3,7 @@
 // 功能說明：客戶／店家追加付款回傳照片紀錄（不覆蓋既有單張欄位與舊檔）
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   hasShopPermission,
   isRootAdmin,

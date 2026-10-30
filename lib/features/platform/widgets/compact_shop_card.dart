@@ -16,6 +16,7 @@ class CompactShopCard extends StatefulWidget {
     required this.onFavorite,
     this.hours = '',
     this.roomy = false,
+    this.mobile = false,
   });
 
   final String name;
@@ -28,6 +29,7 @@ class CompactShopCard extends StatefulWidget {
   final VoidCallback onFavorite;
   final String hours;
   final bool roomy;
+  final bool mobile;
 
   @override
   State<CompactShopCard> createState() => _CompactShopCardState();
@@ -36,8 +38,146 @@ class CompactShopCard extends StatefulWidget {
 class _CompactShopCardState extends State<CompactShopCard> {
   bool _hover = false;
 
+  Widget _mobileCard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final cover = widget.imageUrl.trim();
+    final logo = widget.logoUrl.trim();
+    final url = cover.isNotEmpty ? cover : logo;
+    return Material(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: widget.roomy
+                          ? 176
+                          : (MediaQuery.sizeOf(context).width < 350 ? 80 : 104),
+                      height: widget.roomy ? 144 : 112,
+                      child: ColoredBox(
+                        color: const Color(0xFFF3EBE3),
+                        child: url.isEmpty
+                            ? Icon(
+                                Icons.storefront_outlined,
+                                size: 32,
+                                color: colors.onSurfaceVariant,
+                              )
+                            : Image.network(
+                                url,
+                                fit: cover.isNotEmpty
+                                    ? BoxFit.cover
+                                    : BoxFit.contain,
+                                errorBuilder: (_, error, stack) => Icon(
+                                  Icons.storefront_outlined,
+                                  size: 32,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          widget.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: widget.roomy ? 21 : 17,
+                            height: 1.3,
+                            fontWeight: FontWeight.w800,
+                            color: colors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        widget.meta,
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            IntrinsicWidth(
+                              child: _StatusBadge(isOpen: widget.isOpen),
+                            ),
+                            if (widget.hours.trim().isNotEmpty)
+                              Text(
+                                widget.hours,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: IconButton(
+                      tooltip: '收藏店家',
+                      onPressed: widget.onFavorite,
+                      icon: const Icon(Icons.favorite_border, size: 22),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Divider(
+                height: 1,
+                color: colors.outlineVariant.withValues(alpha: .6),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: <Widget>[
+                  Icon(Icons.pets_outlined, size: 16, color: colors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.services.trim().isEmpty
+                          ? '查看店家資訊'
+                          : widget.services,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right, size: 22, color: colors.primary),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.mobile) return _mobileCard(context);
     final ColorScheme colors = Theme.of(context).colorScheme;
     final bool roomy = widget.roomy;
     final double nameSize = roomy ? 16 : 14.5;

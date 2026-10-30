@@ -66,7 +66,7 @@ void main() {
               'status': 'queued',
               'title': '公告',
               'body': '內容',
-              'channel': 'inbox',
+              'channel': 'push',
             },
           };
         }

@@ -5,7 +5,7 @@
 // 同一 booking 使用 ba_{bookingId}_deduct，重複呼叫安全 skip。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   roundQuantity,
 } = require("../inventory/inventory_cost");

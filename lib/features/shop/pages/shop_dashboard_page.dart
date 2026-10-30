@@ -72,6 +72,7 @@ import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payout_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_report_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_owner_report_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_device_page.dart';
 import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entry.dart';
 import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
@@ -79,6 +80,109 @@ import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_pa
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_management_hub.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
+
+/// The inspection shell reuses the owner's actual menu widgets without mounting
+/// writable owner pages or their Firestore subscriptions. Data and navigation
+/// are supplied by the authenticated inspection host.
+class ShopDashboardInspectionView extends StatelessWidget {
+  const ShopDashboardInspectionView({
+    super.key,
+    required this.shopId,
+    required this.shop,
+    required this.onOpenEntry,
+    this.onLock,
+    this.onExit,
+  });
+  final VoidCallback? onLock, onExit;
+  final String shopId;
+  final Map<String, dynamic> shop;
+  final ValueChanged<String> onOpenEntry;
+
+  @override
+  Widget build(BuildContext context) => _InspectionMenuScope(
+    onOpenEntry: onOpenEntry,
+    child: DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${shop['name'] ?? '店家'}｜唯讀後台'),
+          leading: onExit == null ? null : BackButton(onPressed: onExit),
+          actions: [
+            if (onLock != null)
+              IconButton(
+                onPressed: onLock,
+                tooltip: '鎖定查核',
+                icon: const Icon(Icons.lock_outline),
+              ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: '基本資訊'),
+              Tab(text: '貓咪旅店'),
+              Tab(text: '表格統計'),
+            ],
+          ),
+        ),
+        body: Column(
+          children: [
+            const Material(
+              color: Color(0xFFFFF4DA),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.visibility_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '最高權限唯讀查核・無法儲存、退款或傳訊\n詳細頁仍逐頁接入中，現有紀錄可透過查核工作台查看。',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _BasicInfoTab(
+                    shopId: shopId,
+                    shop: shop,
+                    currentUserRole: ShopRoles.owner,
+                    memberData: const {'role': ShopRoles.owner},
+                    isProfileComplete: true,
+                    showSetupReminder: false,
+                    onPreviewFrontend: () => onOpenEntry('前台預覽'),
+                  ),
+                  _CatHotelTab(
+                    shopId: shopId,
+                    shop: shop,
+                    isProfileComplete: true,
+                    memberData: const {'role': ShopRoles.owner},
+                    daycareOn: shop['daycareEnabled'] == true,
+                  ),
+                  _ReportsTab(shopId: shopId, currentUserRole: ShopRoles.owner),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Navigation is intercepted before a production editor builder can execute.
+class _InspectionMenuScope extends InheritedWidget {
+  const _InspectionMenuScope({required this.onOpenEntry, required super.child});
+  final ValueChanged<String> onOpenEntry;
+  static _InspectionMenuScope? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_InspectionMenuScope>();
+  @override
+  bool updateShouldNotify(_InspectionMenuScope oldWidget) =>
+      oldWidget.onOpenEntry != onOpenEntry;
+}
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -2175,6 +2279,7 @@ class _BasicInfoTab extends StatelessWidget {
   final bool showSetupReminder;
   final VoidCallback onPreviewFrontend;
   bool _can(String permissionKey) {
+    if (currentUserRole == ShopRoles.owner) return true;
     return ShopService.instance.hasPermission(memberData, permissionKey);
   }
 
@@ -2189,6 +2294,7 @@ class _BasicInfoTab extends StatelessWidget {
     final canUseAboutUs = ShopPlanService.canUseAboutUs(shop);
 
     final openingGuideEligible =
+        _InspectionMenuScope.of(context) == null &&
         currentUserRole == ShopRoles.owner &&
         FirebaseAuth.instance.currentUser != null &&
         ShopService.instance
@@ -2201,7 +2307,8 @@ class _BasicInfoTab extends StatelessWidget {
         ShopAdminWelcome.isNewShop(shop);
 
     final children = <Widget>[
-      _ShopPlanStatusCard(shopId: shopId),
+      if (_InspectionMenuScope.of(context) == null)
+        _ShopPlanStatusCard(shopId: shopId),
       if (openingGuideEligible)
         ShopOpeningProgress(
           shopId: shopId,
@@ -2543,7 +2650,9 @@ class _CatHotelTab extends StatelessWidget {
   final bool isProfileComplete;
   final Map<String, dynamic>? memberData;
   final bool daycareOn;
-  bool _can(String key) => ShopService.instance.hasPermission(memberData, key);
+  bool _can(String key) =>
+      memberData?['role'] == ShopRoles.owner ||
+      ShopService.instance.hasPermission(memberData, key);
 
   // 卡片與快速選單共用入口；只有卡片掛載即時統計元件。
   List<_DashboardSection> menuChildren(BuildContext context) {
@@ -2913,10 +3022,24 @@ class _ReportsTab extends StatelessWidget {
                 );
               },
             ),
-            _TemplateCard(
+            _MenuTile(
               title: '老闆專屬內容',
-              description: _isOwner ? '未來可放金流分析、成本分析與進階統計' : '此區未來只開放 owner 查看',
-              locked: !_isOwner,
+              subtitle: _isOwner ? '每月收入、員工薪資、營運支出與收支結餘' : '僅限老闆查看',
+              icon: Icons.account_balance_wallet_outlined,
+              onTap: () {
+                if (!_isOwner) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('此報表僅限老闆查看')));
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ShopOwnerReportPage(shopId: shopId),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -3156,28 +3279,6 @@ class _ShopPlanStatusCard extends StatelessWidget {
   }
 }
 
-class _TemplateCard extends StatelessWidget {
-  const _TemplateCard({
-    required this.title,
-    required this.description,
-    this.locked = false,
-  });
-
-  final String title;
-  final String description;
-  final bool locked;
-
-  @override
-  Widget build(BuildContext context) {
-    return _MenuTile(
-      title: title,
-      subtitle: description,
-      icon: locked ? Icons.lock : Icons.grid_view_rounded,
-      enabled: !locked,
-    );
-  }
-}
-
 class _RoomDashboardTile extends StatefulWidget {
   const _RoomDashboardTile({
     required this.shopId,
@@ -3383,6 +3484,11 @@ class _MenuTile extends StatelessWidget {
   final bool Function(QueryDocumentSnapshot)? badgeFilter;
   final Widget Function(BuildContext, VoidCallback)? tileBuilder;
   void open(BuildContext context) {
+    final inspection = _InspectionMenuScope.of(context);
+    if (inspection != null) {
+      inspection.onOpenEntry(destinationId ?? title);
+      return;
+    }
     if (!enabled) return;
     final tour = ShopFeatureTourScope.maybeOf(context);
     final scope = ShopDashboardNavigationScope.maybeOf(context);
@@ -3404,8 +3510,11 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (tileBuilder != null) return tileBuilder!(context, () => open(context));
-    if (badgeSource != null) {
+    final inspecting = _InspectionMenuScope.of(context) != null;
+    if (!inspecting && tileBuilder != null) {
+      return tileBuilder!(context, () => open(context));
+    }
+    if (!inspecting && badgeSource != null) {
       return StreamBuilder<QuerySnapshot>(
         stream: badgeSource!(),
         builder: (context, snapshot) {
@@ -3426,7 +3535,8 @@ class _MenuTile extends StatelessWidget {
         },
       );
     }
-    final canOpen = enabled && (onTap != null || pageBuilder != null);
+    final canOpen =
+        inspecting || enabled && (onTap != null || pageBuilder != null);
     final ColorScheme colors = Theme.of(context).colorScheme;
     final wide =
         _BasicInfoWideScope.of(context) || _CatHotelWideScope.of(context);

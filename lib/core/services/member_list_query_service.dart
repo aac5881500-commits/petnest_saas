@@ -154,6 +154,16 @@ class MemberListQueryService {
     );
   }
 
+  /// Apply the same legacy-compatible filters to pages supplied by readonly inspection.
+  /// This method performs no database access.
+  bool matchesLoadedMember(
+    Map<String, dynamic> data,
+    String filter,
+    String keyword,
+  ) =>
+      _matchesFilter(data, filter) &&
+      (keyword.trim().isEmpty || _matchesKeyword(data, keyword.trim()));
+
   bool _matchesFilter(Map<String, dynamic> data, String filter) {
     if (_isMerged(data)) {
       return false;

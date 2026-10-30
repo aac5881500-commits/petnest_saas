@@ -1,3 +1,6 @@
+import 'package:petnest_saas/core/services/member_identity.dart';
+import 'package:petnest_saas/features/member/widgets/member_sign_in_prompt.dart';
+import 'package:petnest_saas/features/platform/widgets/platform_policy_gate.dart';
 import 'package:petnest_saas/core/models/pet_species.dart';
 import 'package:petnest_saas/features/pet/widgets/pet_profile_form.dart';
 // 檔案名稱：lib/features/member/pages/member_page.dart
@@ -43,9 +46,13 @@ class MemberPage extends StatelessWidget {
     super.key,
     required this.shopId,
     this.shopName = '',
+    this.authChanges,
+    this.initialUser,
     this.theme = HomeThemeModel.modernDefault,
   });
 
+  final Stream<User?>? authChanges;
+  final User? initialUser;
   final String shopId;
   final String shopName;
 
@@ -54,10 +61,22 @@ class MemberPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShopFrontendThemeScope(
-      shopId: shopId,
-      builder: (BuildContext context) {
-        return _MemberPageBody(shopId: shopId, shopName: shopName);
+    return StreamBuilder<User?>(
+      stream: authChanges ?? FirebaseAuth.instance.authStateChanges(),
+      initialData: authChanges == null
+          ? FirebaseAuth.instance.currentUser
+          : initialUser,
+      builder: (context, snapshot) {
+        if (!isRegisteredMember(snapshot.data)) {
+          return MemberSignInPrompt(shopId: shopId);
+        }
+        return PlatformPolicyGate(
+          child: ShopFrontendThemeScope(
+            shopId: shopId,
+            builder: (context) =>
+                _MemberPageBody(shopId: shopId, shopName: shopName),
+          ),
+        );
       },
     );
   }
@@ -1596,13 +1615,16 @@ class _MemberPageState extends State<_MemberPageBody> {
                                     icon: Icons.notifications_active_outlined,
                                     iconColor: const Color(0xFF4A9B6E),
                                     title: '通知設定',
-                                    subtitle: '調整訂單、聊天、評價與入住提醒',
+                                    subtitle: '設定此店公告、優惠與手機提醒',
                                     onTap: () {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute<void>(
                                           builder: (_) =>
-                                              const NotificationSettingPage(),
+                                              NotificationSettingPage(
+                                                shopId: widget.shopId,
+                                                shopName: widget.shopName,
+                                              ),
                                         ),
                                       );
                                     },
@@ -2066,7 +2088,7 @@ class _MemberPageState extends State<_MemberPageBody> {
         .toString()
         .trim();
     final String name = (pet['name'] ?? '未命名').toString();
-    final String gender = (pet['gender'] ?? '').toString();
+    final String gender = PetSpecies.genderLabel(pet['gender']);
     final String age = (pet['age'] ?? '').toString();
     final String meta = <String>[
       PetSpecies.label(PetSpecies.of(pet)),

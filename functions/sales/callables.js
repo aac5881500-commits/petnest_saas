@@ -3,7 +3,7 @@
  */
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {loadPlatformUser} = require("../legal_pet/staff_access");
 const {hasPlatformAccess} = require("../legal_pet/access");
 const ops = require("./commercial_ops");

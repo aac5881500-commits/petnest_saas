@@ -904,6 +904,7 @@ class _AdminCreateDaycareBookingPageState
         'isNeutered': pet['isNeutered'] ?? false,
         'species': pet['species'] ?? pet['type'],
         'type': pet['species'] ?? pet['type'],
+        'careHabits': pet['careHabits'] ?? <String, String>{},
         'vaccineTypes': pet['vaccineTypes'] ?? '',
         'medicalStatus': pet['medicalStatus'] ?? '',
         'vaccine': pet['vaccine'] ?? '',

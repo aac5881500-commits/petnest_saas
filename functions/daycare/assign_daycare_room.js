@@ -2,7 +2,7 @@
 // 功能說明：安親分房／換房：確認後選實際房間，Transaction 防超賣，不重新計價
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   BOOKING_KIND_DAYCARE,
   hasShopPermission,

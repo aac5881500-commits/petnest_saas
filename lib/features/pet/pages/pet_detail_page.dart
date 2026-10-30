@@ -98,7 +98,7 @@ class _PetDetailBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final String photoUrl = _text(pet['photoUrl']);
     final String name = _text(pet['name']).isEmpty ? '未命名' : _text(pet['name']);
-    final String gender = _text(pet['gender']);
+    final String gender = PetSpecies.genderLabel(pet['gender']);
     final String age = _text(pet['age']);
     final String breed = _text(pet['breed']);
     final String note = _text(pet['note']);
@@ -139,7 +139,7 @@ class _PetDetailBody extends StatelessWidget {
             ),
             if (!neutered &&
                 PetSpecies.of(pet) == 'cat' &&
-                gender == '公貓') ...<Widget>[
+                gender == '公') ...<Widget>[
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -150,7 +150,7 @@ class _PetDetailBody extends StatelessWidget {
                   border: Border.all(color: const Color(0xFFF5C6C2)),
                 ),
                 child: Text(
-                  '未結紮公貓可能會有噴尿情況，將會額外收費（詳見入住須知）。',
+                  '未結紮公貓如有噴尿習慣，請提前告知店家照護需求。',
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.4,
@@ -182,6 +182,8 @@ class _PetDetailBody extends StatelessWidget {
                 '貓砂種類',
                 _text(pet['litterType']),
               ),
+            for (final row in PetSnapshot.careRows(pet))
+              _infoRow(Icons.checklist_outlined, row.key, row.value),
           ],
         ),
         const SizedBox(height: 12),

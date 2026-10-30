@@ -9,6 +9,7 @@ class CampaignEntryButton extends StatefulWidget {
     super.key,
     required this.shopId,
     this.historyOnly = false,
+    this.onReturn,
     this.memberId,
     this.announcementId,
     this.title,
@@ -17,6 +18,7 @@ class CampaignEntryButton extends StatefulWidget {
   });
   final String shopId, label;
   final bool historyOnly;
+  final VoidCallback? onReturn;
   final String? memberId, announcementId, title, body;
   @override
   State<CampaignEntryButton> createState() => _CampaignEntryButtonState();
@@ -55,23 +57,26 @@ class _CampaignEntryButtonState extends State<CampaignEntryButton> {
     builder: (context, snapshot) => snapshot.data != true
         ? const SizedBox.shrink()
         : TextButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => ShopCampaignCenterPage(
-                  shopId: widget.shopId,
-                  initialMemberId: widget.memberId,
-                  announcementId: widget.historyOnly
-                      ? null
-                      : widget.announcementId,
-                  filterAnnouncementId: widget.historyOnly
-                      ? widget.announcementId
-                      : null,
-                  initialTitle: widget.title,
-                  initialBody: widget.body,
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => ShopCampaignCenterPage(
+                    shopId: widget.shopId,
+                    initialMemberId: widget.memberId,
+                    announcementId: widget.historyOnly
+                        ? null
+                        : widget.announcementId,
+                    filterAnnouncementId: widget.historyOnly
+                        ? widget.announcementId
+                        : null,
+                    initialTitle: widget.title,
+                    initialBody: widget.body,
+                  ),
                 ),
-              ),
-            ),
+              );
+              widget.onReturn?.call();
+            },
             icon: const Icon(Icons.campaign_outlined, size: 18),
             label: Text(widget.label),
           ),

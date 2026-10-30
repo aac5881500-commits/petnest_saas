@@ -1,3 +1,4 @@
+import 'announcement_management_card.dart';
 import 'package:petnest_saas/core/services/announcement_notification.dart';
 import 'package:petnest_saas/core/services/shop_campaign_service.dart';
 import 'package:petnest_saas/features/shop/pages/campaigns/campaign_entry_button.dart';
@@ -32,6 +33,7 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
   late CollectionReference<Map<String, dynamic>> _items;
   late Stream<DocumentSnapshot<Map<String, dynamic>>> _shopStream;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _itemsStream;
+  Future<Map<String, dynamic>>? _campaignOverview;
   bool _busy = false;
   bool _dialogOpen = false;
 
@@ -65,6 +67,18 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
     _items = _shop.collection(_isFaq ? 'faqs' : 'announcements');
     _shopStream = _shop.snapshots();
     _itemsStream = _items.snapshots();
+    _refreshCampaignOverview();
+  }
+
+  void _refreshCampaignOverview() {
+    if (!_isFaq) {
+      _campaignOverview = ShopCampaignService.instance.call(
+        widget.shopId,
+        'bootstrap',
+      );
+      // Publishing remains available even when campaign history cannot load.
+      _campaignOverview!.catchError((Object _) => <String, dynamic>{});
+    }
   }
 
   void _retry() => setState(_connect);
@@ -290,7 +304,10 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
       }
     } finally {
       if (mounted && widget.shopId == shopId && widget.kind == kind) {
-        setState(() => _dialogOpen = false);
+        setState(() {
+          _dialogOpen = false;
+          _refreshCampaignOverview();
+        });
       }
     }
   }
@@ -490,6 +507,82 @@ class _ShopContentManagementPageState extends State<ShopContentManagementPage>
     final type = shopAnnouncementType(data['type']);
     final disabled = _busy || _dialogOpen;
     final colors = Theme.of(context).colorScheme;
+    if (!_isFaq) {
+      return AnnouncementManagementCard(
+        key: ValueKey(doc.id),
+        title: title,
+        body: body,
+        typeLabel: type.label,
+        published: published,
+        pinned: pinned,
+        disabled: disabled,
+        onPublish: (value) => _write(
+          () => doc.reference.update({
+            'isPublished': value,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }),
+          value ? '公告已上架' : '公告已下架',
+        ),
+        onPin: () => _write(
+          () => doc.reference.update({
+            'isPinned': !pinned,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }),
+          pinned ? '已取消置頂' : '公告已置頂',
+        ),
+        onEdit: () => _edit(doc),
+        onDelete: () => _delete(doc),
+        notificationActions: FutureBuilder<Map<String, dynamic>>(
+          future: _campaignOverview,
+          builder: (context, snapshot) {
+            final jobs = (snapshot.data?['campaigns'] as List? ?? [])
+                .whereType<Map>()
+                .where((job) => job['announcementId'] == doc.id)
+                .toList();
+            final latest = jobs.isEmpty ? null : jobs.first;
+            final status = latest?['status'];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  snapshot.hasError
+                      ? '通知紀錄暫時無法讀取'
+                      : latest == null
+                      ? '最近無通知紀錄'
+                      : status == 'draft'
+                      ? '通知待發送・設定已保留'
+                      : status == 'completed'
+                      ? '通知已處理・可再次發送'
+                      : '通知處理中',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                CampaignEntryButton(
+                  shopId: widget.shopId,
+                  announcementId: doc.id,
+                  historyOnly:
+                      !published || latest != null && status != 'draft',
+                  title: title,
+                  body: body,
+                  label: !published
+                      ? '查看通知紀錄'
+                      : status == 'draft'
+                      ? '繼續發送通知'
+                      : latest != null
+                      ? '紀錄與再次通知'
+                      : '通知會員',
+                  onReturn: () {
+                    if (mounted) setState(_refreshCampaignOverview);
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
     return Card(
       key: ValueKey(doc.id),
       margin: const EdgeInsets.only(bottom: 12),

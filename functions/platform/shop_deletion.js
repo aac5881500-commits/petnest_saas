@@ -5,7 +5,7 @@
 
 const crypto = require("crypto");
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("./inspection_write_guard");
 const {defineSecret} = require("firebase-functions/params");
 const policy = require("./shop_deletion_policy");
 const emailCode = require("./shop_deletion_email");

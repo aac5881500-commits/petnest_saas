@@ -1,3 +1,4 @@
+import 'platform_shop_inspection_page.dart';
 // 檔案名稱：lib/features/platform/pages/platform_shop_manage_page.dart
 // 功能說明：平台後台查看所有店家，管理公開狀態、方案、付款期限與店家狀態
 // 🏪 平台店家管理頁
@@ -317,6 +318,21 @@ class _ShopManageScreenState extends State<_ShopManageScreen> {
                 backgroundColor: _kPageBackground,
                 appBar: AppBar(
                   title: Text(mobileShop?.name ?? '店家管理'),
+                  actions: [
+                    if (PlatformRootAdmin.isRoot(
+                      FirebaseAuth.instance.currentUser?.uid,
+                    ))
+                      IconButton(
+                        tooltip: '唯讀查核中心',
+                        icon: const Icon(Icons.policy_outlined),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const PlatformShopInspectionPage(),
+                          ),
+                        ),
+                      ),
+                  ],
                   leading: mobileShop == null
                       ? null
                       : BackButton(

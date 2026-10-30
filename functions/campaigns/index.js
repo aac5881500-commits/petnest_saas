@@ -1,9 +1,10 @@
 /* eslint-disable max-len, require-jsdoc */
 "use strict";
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {onDocumentWritten} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const policy = require("./policy");
+const linePreparation = require("../line/preparation");
 
 function createCampaignFunctions({admin, customerPushAllowed}) {
   const db = admin.firestore();
@@ -46,11 +47,18 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
     }
     resolved.excludedCount += resolved.uids.length - valid.length;
     resolved.uids = valid.sort();
+    const validUids = new Set(resolved.uids);
+    const uniqueRecipients = new Map();
+    for (const row of resolved.recipients) {
+      if (validUids.has(row.uid)) uniqueRecipients.set(row.uid, row);
+    }
+    resolved.recipients = [...uniqueRecipients.values()];
+    resolved.restrictedCount = resolved.recipients.filter((row) => row.restricted).length;
     return resolved;
   }
   const summarize = (doc) => {
     const d = doc.data();
-    return {id: doc.id, title: d.title, body: d.body, category: d.category, channel: d.channel,
+    return {id: doc.id, title: d.title, body: d.body, purpose: d.purpose || "", category: d.category, channel: d.channel,
       audience: d.audience, memberIds: d.memberIds || [], announcementId: d.announcementId || "",
       status: d.status, version: d.version || 0, sentBy: d.sentBy || "", senderName: d.senderName || "",
       createdAt: d.createdAt && d.createdAt.toMillis(), updatedAt: d.updatedAt && d.updatedAt.toMillis(),
@@ -61,6 +69,24 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
     const ctx = await actor(request);
     const data = request.data;
     const action = data.action;
+    if (action === "linePreparation" || action === "saveLinePreparation") {
+      const owner = ctx.shop.ownerUid === ctx.uid;
+      const preparation = db.collection("shop_line_preparations").doc(ctx.shopId);
+      if (action === "saveLinePreparation") {
+        if (!owner) throw new HttpsError("permission-denied", "LINE 串接準備資料僅限店主修改。");
+        const configuration = linePreparation.normalizePreparation(data.configuration);
+        if (!Number.isInteger(data.version) || data.version < 0) throw new HttpsError("invalid-argument", "請重新讀取準備資料。");
+        await db.runTransaction(async (tx) => {
+          const before = await tx.get(preparation);
+          const version = before.exists ? before.data().version || 0 : 0;
+          if (version !== data.version) throw new HttpsError("aborted", "資料已在其他視窗更新，請重新讀取後再儲存。");
+          tx.set(preparation, {...configuration, schemaVersion: 1, phase: "preparation_only",
+            version: version + 1, updatedBy: ctx.uid, updatedAt: stamp()});
+        });
+      }
+      const record = await preparation.get();
+      return {...linePreparation.preparationStatus(record.data() || {}), canEdit: owner};
+    }
     if (action === "bootstrap") {
       const docs = await campaigns.where("shopId", "==", ctx.shopId).orderBy("updatedAt", "desc").limit(100).get();
       return {permissions: ctx.can, recentLimit: 100, campaigns: docs.docs.map(summarize).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
@@ -68,10 +94,11 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
     }
     if (action === "members") {
       if (!ctx.can.draft) throw new HttpsError("permission-denied", "沒有選擇收件對象權限。");
-      return {members: (await members(ctx.shopId)).map((row) => ({id: row.id,
+      return {accountNotices: true, members: (await members(ctx.shopId)).map((row) => ({id: row.id,
         name: String(row.data.name || "未命名會員"), phone: String(row.data.phone || ""),
         vip: Array.isArray(row.data.tags) && row.data.tags.includes("vip"),
-        reachable: !!policy.memberUid(row.data, row.id)}))};
+        reachable: !!policy.memberUid(row.data, row.id), restricted: policy.restricted(row.data),
+        accountReachable: !!policy.memberUid(row.data, row.id, {purpose: "member_account", category: "shop_notice", audience: "selected"})}))};
     }
     const ref = campaigns.doc(policy.id(data.campaignId));
     if (action === "detail") {
@@ -102,7 +129,9 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
       });
       const doc = await ref.get();
       return {campaign: {...summarize(doc), version: doc.data().version},
-        preview: resolved ? {count: resolved.uids.length, excluded: resolved.excludedCount, revision: rev} : null};
+        preview: resolved ? {count: resolved.uids.length, excluded: resolved.excludedCount, revision: rev,
+          recipients: resolved.recipients.slice(0, 20).map(({memberId, name, restricted}) => ({memberId, name, restricted})),
+          restrictedCount: resolved.restrictedCount} : null};
     }
     if (action === "send") {
       if (!ctx.can.send) throw new HttpsError("permission-denied", "沒有正式發送權限，請由店主授權。");
@@ -135,7 +164,7 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
   async function push(uid, campaign) {
     if (campaign.channel !== "push") return {push: "not_requested"};
     const global = await db.collection("users").doc(uid).collection("notification_settings").doc("global").get();
-    if (!customerPushAllowed({category: campaign.category, isMandatory: false}, global.data() || {})) {
+    if (!customerPushAllowed({category: campaign.category, isMandatory: false}, global.data() || {}, campaign.shopId)) {
       return {push: "opted_out"};
     }
     const docs = await db.collection("users").doc(uid).collection("fcm_tokens").get();
@@ -146,7 +175,8 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
     for (let i = 0; i < tokens.length; i += 500) {
       const chunk = tokens.slice(i, i + 500);
       const result = await admin.messaging().sendEachForMulticast({tokens: chunk,
-        notification: {title: campaign.title, body: campaign.body.slice(0, 150)},
+        notification: policy.accountNotice(campaign) ? {title: `${campaign.shopName}・會員服務通知`, body: "您有一則會員服務訊息，請開啟 App 查看完整內容。"} :
+          {title: campaign.title, body: campaign.body.slice(0, 150)},
         data: {type: "shop_campaign", shopId: campaign.shopId, campaignId: campaign.id,
           shopName: campaign.shopName, source: "shop", category: campaign.category,
           isMandatory: "false", noticeKind: campaign.announcementId ? "announcement" : campaign.category === "shop_notice" ? "service_change" : "campaign"}});
@@ -182,12 +212,12 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
           const member = await tx.get(db.collection("shops").doc(claimed.shopId).collection("members").where("userId", "==", uid).limit(1));
           const canonical = await tx.get(db.collection("shops").doc(claimed.shopId).collection("members").doc(uid));
           const data = canonical.exists ? canonical.data() : !member.empty ? member.docs[0].data() : null;
-          if (!data || !policy.memberUid(data, uid)) {
+          if (!data || !policy.memberUid(data, uid, claimed)) {
             tx.create(receipt, {inbox: "skipped", push: "not_requested", reason: "會員已移除或不符合通知資格", createdAt: stamp()});
             return false;
           }
           const payload = {type: "shop_campaign", shopId: claimed.shopId, shopName: claimed.shopName,
-            campaignId: ref.id, announcementId: claimed.announcementId, noticeKind: claimed.announcementId ? "announcement" :
+            campaignId: ref.id, purpose: claimed.purpose || "", announcementId: claimed.announcementId, noticeKind: claimed.announcementId ? "announcement" :
               claimed.category === "shop_notice" ? "service_change" : "campaign"};
           tx.create(note, {userId: uid, title: claimed.title, body: claimed.body, type: "shop_campaign",
             shopId: claimed.shopId, shopName: claimed.shopName, source: "shop", category: claimed.category,

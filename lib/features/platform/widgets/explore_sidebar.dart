@@ -34,6 +34,7 @@ class ExplorePawHandle extends StatelessWidget {
 class ExploreMemberRail extends StatelessWidget {
   const ExploreMemberRail({
     super.key,
+    this.expanded = false,
     required this.onToggle,
     required this.onMyStays,
     required this.onBookings,
@@ -41,6 +42,7 @@ class ExploreMemberRail extends StatelessWidget {
     required this.onRecent,
   });
 
+  final bool expanded;
   final VoidCallback onToggle;
   final VoidCallback onMyStays;
   final VoidCallback onBookings;
@@ -63,27 +65,64 @@ class ExploreMemberRail extends StatelessWidget {
         child: Column(
           children: <Widget>[
             const SizedBox(height: 8),
-            IconButton(
-              tooltip: '我的 PetNest',
-              onPressed: onToggle,
-              icon: Icon(Icons.pets, color: colors.primary),
-            ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                child: Row(
+                  children: <Widget>[
+                    Icon(Icons.pets, color: colors.primary),
+                    const SizedBox(width: 10),
+                    const Flexible(
+                      child: Text(
+                        'PetNest',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                child: FilledButton.tonalIcon(
+                  onPressed: onToggle,
+                  icon: const Icon(Icons.person_outline),
+                  label: const Text('我的 PetNest'),
+                ),
+              )
+            else
+              IconButton(
+                tooltip: '我的 PetNest',
+                onPressed: onToggle,
+                icon: Icon(Icons.pets, color: colors.primary),
+              ),
             _RailButton(
+              expanded: expanded,
               tooltip: '我的旅店',
               icon: Icons.pets_outlined,
               onTap: onMyStays,
             ),
             _RailButton(
+              expanded: expanded,
               tooltip: '我的預約',
               icon: Icons.event_outlined,
               onTap: onBookings,
             ),
             _RailButton(
+              expanded: expanded,
               tooltip: '我的收藏',
               icon: Icons.favorite_border,
               onTap: onFavorites,
             ),
-            _RailButton(tooltip: '最近瀏覽', icon: Icons.history, onTap: onRecent),
+            _RailButton(
+              expanded: expanded,
+              tooltip: '最近瀏覽',
+              icon: Icons.history,
+              onTap: onRecent,
+            ),
           ],
         ),
       ),
@@ -93,17 +132,38 @@ class ExploreMemberRail extends StatelessWidget {
 
 class _RailButton extends StatelessWidget {
   const _RailButton({
+    this.expanded = false,
     required this.tooltip,
     required this.icon,
     required this.onTap,
   });
 
+  final bool expanded;
   final String tooltip;
   final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    if (expanded)
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            onPressed: onTap,
+            icon: Icon(icon, size: 21),
+            label: Text(tooltip),
+            style: TextButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
     return IconButton(
       tooltip: tooltip,
       onPressed: onTap,

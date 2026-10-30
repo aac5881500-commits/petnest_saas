@@ -8,7 +8,7 @@ const admin = require("firebase-admin");
 const {
   onCall,
   HttpsError,
-} = require("firebase-functions/v2/https");
+} = require("../platform/inspection_write_guard");
 
 const REVIEW_PAYMENT_PERMISSION = "review_payment_applications";
 const SUPER_ADMIN_ROLE = "super_admin";

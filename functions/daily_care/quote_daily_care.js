@@ -3,7 +3,7 @@
 // 功能說明：後端重算照護加購報價，供住宿下單與付款前核對。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {normalizeString, parseBool, toInt} =
   require("../daycare/daycare_utils");
 const {resolveDailyCareEntitlement} = require("./daily_care_entitlement");

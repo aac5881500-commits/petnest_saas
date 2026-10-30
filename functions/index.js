@@ -59,7 +59,7 @@ function classifyCustomerNotification(data) {
     return {
       source: "shop",
       category,
-      isMandatory: explicitTrue,
+      isMandatory: false,
     };
   }
 
@@ -83,41 +83,7 @@ function classifyCustomerNotification(data) {
   };
 }
 
-/**
- * 必要通知不受推廣開關影響。選用分類缺少欄位時預設仍發送。
- * @param {{isMandatory: boolean, category: string}} classified 分類結果
- * @param {Object} settings 使用者通知設定
- * @return {boolean}
- */
-function customerPushAllowed(classified, settings) {
-  const setting = settings || {};
-  if (
-    classified.isMandatory ||
-    classified.category === "transactional" ||
-    classified.category === "platform_important"
-  ) {
-    return true;
-  }
-  if (setting.enabled === false) {
-    return false;
-  }
-  if (
-    classified.category === "shop_marketing" &&
-    setting.shopMarketing === false
-  ) {
-    return false;
-  }
-  if (classified.category === "shop_notice" && setting.shopNotice === false) {
-    return false;
-  }
-  if (
-    classified.category === "platform_marketing" &&
-    setting.platformMarketing === false
-  ) {
-    return false;
-  }
-  return true;
-}
+const {customerPushAllowed} = require("./notifications/customer_push_policy");
 
 /**
  * 🗂️ 儲存通知中心資料
@@ -244,7 +210,7 @@ async function sendNotificationToUser({
 
   const notificationSetting = settingSnapshot.data() || {};
 
-  if (!customerPushAllowed(classified, notificationSetting)) {
+  if (!customerPushAllowed(classified, notificationSetting, String(storedData.shopId || ""))) {
     console.log(
         `使用者 ${userId} 的 ${classified.category} 推播已關閉，略過 FCM 發送`,
     );
@@ -1106,3 +1072,14 @@ Object.assign(exports, require("./campaigns").createCampaignFunctions({
 const shopSharing = require("./shops/shop_sharing");
 exports.manageShopSharing = shopSharing.manageShopSharing;
 exports.resolveShopSharing = shopSharing.resolveShopSharing;
+
+exports.customerShopBinding = shopSharing.customerShopBinding;
+
+exports.transferCustomerShopBinding = shopSharing.transferCustomerShopBinding;
+
+exports.inspectShop = require("./platform/shop_inspection").inspectShop;
+
+exports.saveShopMapLocation = require("./shops/shop_map_location")
+    .saveShopMapLocation;
+
+exports.inspectionPreviewHeartbeat = require("./platform/inspection_owner_preview").inspectionPreviewHeartbeat;

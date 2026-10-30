@@ -2,7 +2,7 @@
 // 功能說明：顧客讀取自己房間的攝影機，以及米家分享申請的建立與狀態更新。
 
 const admin = require("firebase-admin");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   hasShopPermission,
   normalizeString,

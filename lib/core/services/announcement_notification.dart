@@ -47,7 +47,7 @@ class AnnouncementNotification {
         if (existing['status'] != 'draft') {
           if (existing['title'] != excerpt(title, 80) ||
               existing['body'] != excerpt(body, 2000) ||
-              existing['channel'] != channel) {
+              existing['channel'] != 'push') {
             throw const AnnouncementNotificationException(
               '這筆通知已排入發送；修改內容後請另外建立通知。',
             );
@@ -69,7 +69,7 @@ class AnnouncementNotification {
         'title': excerpt(title, 80),
         'body': excerpt(body, 2000),
         'category': type == 'promotion' ? 'shop_marketing' : 'shop_notice',
-        'channel': channel,
+        'channel': 'push',
         'audience': 'all',
         'memberIds': <String>[],
       },
@@ -80,7 +80,7 @@ class AnnouncementNotification {
     lastRecipientCount = (preview['count'] as num).toInt();
     preview['title'] = excerpt(title, 80);
     preview['body'] = excerpt(body, 2000);
-    preview['channel'] = channel;
+    preview['channel'] = 'push';
     if ((preview['count'] as num) <= 0 || !await confirm(preview)) return false;
     await api('send', {
       'campaignId': campaignId,

@@ -1,327 +1,227 @@
-import 'package:petnest_saas/features/shop/widgets/about/service_builtin_artwork.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_media.dart';
+// 功能：服務展示整組風格與排版獨立、共用尺寸、既有模組條件及草稿儲存的局部回歸。
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:petnest_saas/core/models/about_page_setting.dart';
 import 'package:petnest_saas/core/models/shop_service_showcase.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_service_showcase.dart';
-import 'package:petnest_saas/features/shop/widgets/about/about_intro_view.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
+import 'package:petnest_saas/features/shop/widgets/about/about_service_showcase.dart';
+import 'package:petnest_saas/features/shop/widgets/about/service_builtin_artwork.dart';
 
 void main() {
-  test('內建風格與個別服務選擇可保存，未知風格回退簡約', () {
-    final value = const ShopServiceShowcase(
-      layout: 'icons',
-      selected: ['cat_hotel'],
-      artworkStyle: 'storybook',
-    ).withImage('cat_hotel', {'source': 'builtin', 'variant': 'sticker'});
-    final saved = ShopServiceShowcase.fromMap(value.toMap());
-    expect(saved.artworkStyle, 'storybook');
-    expect(saved.imageFor('cat_hotel'), {
-      'source': 'builtin',
-      'variant': 'sticker',
-    });
+  test('服務卡片尺寸可讀寫，舊值與未知值回退中尺寸', () {
+    for (final size in ShopServiceShowcase.cardSizes.keys) {
+      final value = const ShopServiceShowcase().copyWith(cardSize: size);
+      expect(ShopServiceShowcase.fromMap(value.toMap()).cardSize, size);
+      expect(value.copyWith(artworkStyle: 'sticker').cardSize, size);
+      expect(value.copyWith(cardLayout: 'list').cardSize, size);
+    }
+    expect(ShopServiceShowcase.fromMap({}).cardSize, 'medium');
+    expect(ShopServiceShowcase.fromMap({'cardSize': 'bad'}).cardSize, 'medium');
+  });
+  test('四風格三排版讀寫獨立，切換不清空舊圖片或服務勾選', () {
+    for (final visual in ShopServiceShowcase.artworkStyles.keys) {
+      for (final layout in ShopServiceShowcase.cardLayouts.keys) {
+        final value = ShopServiceShowcase(
+          layout: 'cards',
+          selected: const ['cat_hotel'],
+          artworkStyle: visual,
+          cardLayout: layout,
+          images: const {
+            'cat_hotel': {'source': 'platform', 'assetId': 'legacy-card'},
+          },
+        );
+        final loaded = ShopServiceShowcase.fromMap(value.toMap());
+        expect(loaded.toMap(), value.toMap());
+        expect(loaded.copyWith(artworkStyle: 'sticker').cardLayout, layout);
+        expect(loaded.copyWith(cardLayout: 'list').artworkStyle, visual);
+        expect(loaded.copyWith(artworkStyle: 'simple').images, value.images);
+      }
+    }
+    expect(ShopServiceShowcase.fromMap({}).layout, 'hidden');
+    expect(ShopServiceShowcase.fromMap({}).artworkStyle, 'simple');
     expect(
-      saved.copyWith(layout: 'overlay').imageFor('cat_hotel'),
-      saved.imageFor('cat_hotel'),
+      ShopServiceShowcase.fromMap({'layout': 'icons'}).artworkStyle,
+      'simple',
     );
     expect(
-      ShopServiceShowcase.fromMap({'artworkStyle': 'unknown'}).artworkStyle,
+      ShopServiceShowcase.fromMap({'layout': 'cards'}).artworkStyle,
+      'postcard',
+    );
+    expect(
+      ShopServiceShowcase.fromMap({'layout': 'editorial'}).cardLayout,
+      'list',
+    );
+    expect(
+      ShopServiceShowcase.fromMap({
+        'layout': 'cards',
+        'cardLayout': 'grid',
+        'artworkStyle': 'bad',
+      }).artworkStyle,
       'simple',
     );
   });
-  testWidgets('服務圖片設定僅提供內建與圖庫，不提供店家照片、相簿與上傳', (tester) async {
+  testWidgets('兩組卡通與照片均已打包且五服務取不同場景', (tester) async {
+    for (final path in ServiceBuiltinArtwork.assets.values) {
+      final image = await tester.runAsync(() async {
+        final bytes = await rootBundle.load(path);
+        final codec = await ui.instantiateImageCodec(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+        );
+        final frame = await codec.getNextFrame();
+        codec.dispose();
+        return frame.image;
+      });
+      expect(image, isNotNull);
+      expect(image!.width / image.height, closeTo(1.5, .01));
+      final rects = <Rect>[];
+      for (final cell in ServiceBuiltinArtwork.serviceCells.values) {
+        final rect = ServiceAtlasPainter(
+          image: image,
+          cell: cell,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+        ).cellRect;
+        expect(rects.any((r) => r.overlaps(rect)), isFalse);
+        rects.add(rect);
+      }
+      image.dispose();
+    }
+  });
+  for (final width in [320.0, 390.0, 1200.0]) {
+    testWidgets('四風格共用三排版尺寸與說明，寬度$width無溢出', (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 1100));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      for (final layout in ShopServiceShowcase.cardLayouts.keys) {
+        Size? originalCard, originalSlot;
+        for (final visual in ShopServiceShowcase.artworkStyles.keys) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: AboutServiceShowcaseSection(
+                    value: ShopServiceShowcase(
+                      layout: 'cards',
+                      selected: ShopServiceShowcase.labels.keys.toList(),
+                      cardLayout: layout,
+                      artworkStyle: visual,
+                      images: const {
+                        'cat_hotel': {
+                          'source': 'builtin',
+                          'variant': 'storybook',
+                        },
+                      },
+                    ),
+                    enabledModules: const [
+                      'cat_hotel',
+                      'grooming',
+                      'hospital',
+                      'store',
+                    ],
+                    theme: HomeThemeModel.modernDefault,
+                    style: const EnvironmentIntroStyle(),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          final card = tester.getSize(
+            find.byKey(const ValueKey('about-service-module-cat_hotel')),
+          );
+          final slot = tester.getSize(
+            find.byKey(const ValueKey('service-image-slot-cat_hotel')),
+          );
+          originalCard ??= card;
+          originalSlot ??= slot;
+          expect(card, originalCard);
+          expect(slot, originalSlot);
+          expect(
+            find.text(ShopServiceShowcase.descriptions['cat_hotel']!),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('about-service-module-dog_hotel')),
+            findsNothing,
+          );
+          final artwork = tester.widgetList<ServiceBuiltinArtwork>(
+            find.byType(ServiceBuiltinArtwork),
+          );
+          expect(artwork.length, 4);
+          expect(artwork.every((w) => w.variant == visual), isTrue);
+          expect(tester.takeException(), isNull);
+        }
+      }
+    });
+  }
+  testWidgets('只有整組四風格和三排版，切換互不影響、沒有單項換圖', (tester) async {
+    var value = const ShopServiceShowcase(
+      layout: 'cards',
+      selected: ['cat_hotel', 'grooming'],
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: AboutServiceShowcaseEditor(
-              value: const ShopServiceShowcase(
-                layout: 'icons',
-                selected: ['cat_hotel'],
+            child: StatefulBuilder(
+              builder: (context, refresh) => AboutServiceShowcaseEditor(
+                value: value,
+                enabledModules: const ['cat_hotel', 'grooming'],
+                onChanged: (next) => refresh(() => value = next),
               ),
-              enabledModules: const ['cat_hotel'],
-              onChanged: (_) {},
             ),
           ),
         ),
       ),
     );
-    final expansion = find.byKey(
-      const PageStorageKey('service-image-cat_hotel'),
-    );
-    await tester.ensureVisible(expansion);
-    await tester.tap(find.text('貓咪旅店：圖片設定'));
-    await tester.pumpAndSettle();
-    expect(find.text('選擇圖庫卡片圖片'), findsOneWidget);
-    expect(find.text('上傳真實照片'), findsNothing);
-    expect(find.text('選擇店家照片'), findsNothing);
-    expect(find.text('使用環境相簿第一張'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-  testWidgets('四組內建風格每種服務均可顯示，個別選擇優先', (tester) async {
-    for (final variant in ShopServiceShowcase.artworkStyles.keys) {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AboutServiceShowcaseSection(
-              value: ShopServiceShowcase(
-                layout: 'icons',
-                selected: ShopServiceShowcase.labels.keys.toList(),
-                artworkStyle: variant,
-              ),
-              enabledModules: ShopServiceShowcase.labels.keys.toList(),
-              theme: HomeThemeModel.modernDefault,
-              style: const EnvironmentIntroStyle(),
-            ),
-          ),
-        ),
-      );
-      final artworks = tester.widgetList<ServiceBuiltinArtwork>(
-        find.byType(ServiceBuiltinArtwork),
-      );
-      expect(artworks.length, 5);
-      expect(artworks.every((a) => a.variant == variant), isTrue);
-      expect(tester.takeException(), isNull);
-    }
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: AboutServiceShowcaseSection(
-            value:
-                const ShopServiceShowcase(
-                  layout: 'icons',
-                  selected: ['cat_hotel'],
-                  artworkStyle: 'storybook',
-                ).withImage('cat_hotel', {
-                  'source': 'builtin',
-                  'variant': 'sticker',
-                }),
-            enabledModules: const ['cat_hotel'],
-            theme: HomeThemeModel.modernDefault,
-            style: const EnvironmentIntroStyle(),
-          ),
-        ),
-      ),
-    );
-    expect(
-      tester
-          .widget<ServiceBuiltinArtwork>(find.byType(ServiceBuiltinArtwork))
-          .variant,
-      'sticker',
-    );
-  });
-
-  testWidgets('完整關於我們正式頁與預覽均傳入相同服務外觀和照片來源', (tester) async {
-    final showcase = const ShopServiceShowcase(
-      layout: 'editorial',
-      selected: ['cat_hotel'],
-      shape: 'soft',
-    ).withImage('cat_hotel', {'source': 'firstGallery'});
-    final shop = <String, dynamic>{
-      'enabledModules': ['cat_hotel'],
-    };
-    for (final preview in [true, false]) {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AboutIntroView(
-              shop: shop,
-              setting: AboutPageSetting.fromMap({
-                'moduleShowcase': showcase.toMap(),
-                'cover': {'source': 'none'},
-              }),
-              theme: HomeThemeModel.modernDefault,
-              preview: preview,
-            ),
-          ),
-        ),
-      );
+    expect(find.byType(ChoiceChip), findsNWidgets(10));
+    expect(find.text('更換圖片'), findsNothing);
+    expect(find.byType(ExpansionTile), findsNothing);
+    final dog = find.byKey(const ValueKey('module-showcase-select-dog_hotel'));
+    expect(tester.widget<CheckboxListTile>(dog).onChanged, isNull);
+    for (final layout in ShopServiceShowcase.cardLayouts.keys) {
+      await tester.tap(find.byKey(ValueKey('service-layout-$layout')));
       await tester.pump();
-      final service = tester.widget<AboutServiceShowcaseSection>(
-        find.byType(AboutServiceShowcaseSection),
-      );
-      expect(service.value.toMap(), showcase.toMap());
-      expect(service.shop, same(shop));
-      expect(tester.takeException(), isNull);
+      for (final visual in ShopServiceShowcase.artworkStyles.keys) {
+        await tester.tap(find.byKey(ValueKey('service-visual-$visual')));
+        await tester.pump();
+        expect(value.cardLayout, layout);
+        expect(value.artworkStyle, visual);
+        expect(value.selected, ['cat_hotel', 'grooming']);
+      }
     }
+    await tester.tap(find.byType(SwitchListTile));
+    await tester.pump();
+    expect(value.layout, 'hidden');
+    expect(value.cardLayout, 'horizontal');
+    expect(value.artworkStyle, 'sticker');
+    await tester.tap(find.byType(SwitchListTile));
+    await tester.pump();
+    expect(value.layout, 'cards');
+    expect(value.cardLayout, 'horizontal');
+    expect(value.artworkStyle, 'sticker');
   });
-
-  test('服務照片與造型讀寫，切換版型保留照片引用且不影響模組限制', () {
-    final draft =
-        const ShopServiceShowcase(
-          layout: 'photoGrid',
-          selected: ['cat_hotel', 'dog_hotel'],
-          shape: 'rounded',
-          imageFit: 'contain',
-          imagePosition: 'top',
-        ).withImage('cat_hotel', {
-          'source': 'platform',
-          'assetId': 'card-123',
-          'url': '',
-        });
-    final restored = ShopServiceShowcase.fromMap(draft.toMap());
-    expect(restored.toMap(), draft.toMap());
-    for (final layout in ShopServiceShowcase.layouts.keys) {
-      final changed = restored.copyWith(layout: layout);
-      expect(changed.imageFor('cat_hotel')['assetId'], 'card-123');
-      expect(changed.shape, 'rounded');
-      expect(
-        changed.visibleModules(['cat_hotel']),
-        layout == 'hidden' ? [] : ['cat_hotel'],
-      );
-    }
-    final bad = ShopServiceShowcase.fromMap({
-      'layout': 'unknown',
-      'shape': 'unknown',
-      'imagePosition': 'bad',
-      'images': {'bad': {}, 'cat_hotel': 1},
-    });
-    expect(bad.layout, 'hidden');
-    expect(bad.shape, 'theme');
-    expect(bad.imagePosition, 'center');
-    expect(bad.images, isEmpty);
-  });
-  testWidgets('服務照片來源與顯示設定傳入共用圖片元件，移除後回復圖示', (tester) async {
-    Future<void> render(ShopServiceShowcase setting) => tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: AboutServiceShowcaseSection(
-            value: setting,
-            enabledModules: const ['cat_hotel'],
-            shop: const {},
-            theme: HomeThemeModel.modernDefault,
-            style: const EnvironmentIntroStyle(),
-          ),
-        ),
-      ),
-    );
-    final value = const ShopServiceShowcase(
-      layout: 'photoGrid',
-      selected: ['cat_hotel'],
-      imageFit: 'contain',
-      imagePosition: 'bottom',
-    ).withImage('cat_hotel', {'source': 'firstGallery'});
-    await render(value);
-    final image = tester.widget<AboutMediaView>(find.byType(AboutMediaView));
-    expect(image.media.source, 'firstGallery');
-    expect(image.fit, BoxFit.contain);
-    expect(image.alignment, Alignment.bottomCenter);
-    await render(value.withImage('cat_hotel', {'source': 'none'}));
-    expect(
-      tester.widget<AboutMediaView>(find.byType(AboutMediaView)).media.source,
-      'none',
-    );
-    expect(tester.takeException(), isNull);
-  });
-
-  test(
-    'previous choices move to About without overwriting its own settings',
-    () {
-      final shop = <String, dynamic>{
-        'enabledModules': ['grooming'],
-        'environmentIntro': {
-          'environmentPresentation': {
-            'moduleShowcase': {
-              'layout': 'cards',
-              'selected': ['grooming'],
-            },
-          },
-        },
-      };
-      expect(AboutPageSetting.fromShop(shop).serviceShowcase.selected, [
-        'grooming',
-      ]);
-      expect(ShopIntroContent.environment(shop), isFalse);
-      expect(ShopIntroContent.about(shop), isTrue);
-      shop['homeAppearance'] = {
-        'aboutPage': {
-          'moduleShowcase': {'layout': 'hidden', 'selected': []},
-        },
-      };
-      expect(AboutPageSetting.fromShop(shop).serviceShowcase.layout, 'hidden');
-      expect(ShopIntroContent.about(shop), isFalse);
-    },
-  );
-  test(
-    'closed modules remain hidden and old shops default to no service display',
-    () {
-      expect(AboutPageSetting.fromShop({}).serviceShowcase.layout, 'hidden');
-      const v = ShopServiceShowcase(
-        layout: 'icons',
-        selected: ['cat_hotel', 'grooming'],
-      );
-      expect(
-        v.visibleModules(
-          serviceShowcaseEnabledModules({
-            'enabledModules': ['cat_hotel'],
-          }),
-        ),
-        ['cat_hotel'],
-      );
-      expect(v.visibleModules(['basic_info', 'reports']), isEmpty);
-    },
-  );
-  for (final width in [320.0, 390.0, 1200.0]) {
-    for (final layout in ShopServiceShowcase.layouts.keys.where(
-      (id) => id != 'hidden',
-    )) {
-      testWidgets('$layout introduction fits $width and omits closed modules', (
-        tester,
-      ) async {
-        await tester.binding.setSurfaceSize(Size(width, 1000));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: AboutServiceShowcaseSection(
-                  value: ShopServiceShowcase(
-                    layout: layout,
-                    selected: ShopServiceShowcase.labels.keys.toList(),
-                  ),
-                  enabledModules: const [
-                    'cat_hotel',
-                    'grooming',
-                    'hospital',
-                    'store',
-                  ],
-                  theme: HomeThemeModel.classicDefault,
-                  style: const EnvironmentIntroStyle(),
-                ),
-              ),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(
-          find.byKey(const ValueKey('about-service-module-cat_hotel')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const ValueKey('about-service-module-dog_hotel')),
-          findsNothing,
-        );
-        expect(find.text('服務項目'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-    }
-  }
-  testWidgets('service choices are edited and saved within About', (
-    tester,
-  ) async {
+  testWidgets('關於我們儲存整組風格與排版，不自動發布草稿', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final writes = <Map<String, dynamic>>[];
     final shop = <String, dynamic>{
       'name': '測試店家',
       'aboutDescription': '店家介紹',
-      'enabledModules': ['cat_hotel', 'grooming'],
+      'enabledModules': ['cat_hotel'],
+      'homeAppearance': {
+        'aboutPage': {
+          'moduleShowcase': {
+            'layout': 'cards',
+            'selected': ['cat_hotel'],
+            'artworkStyle': 'postcard',
+            'cardLayout': 'grid',
+          },
+        },
+      },
     };
     await tester.pumpWidget(
       MaterialApp(
@@ -335,19 +235,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(Tab, '服務項目'));
     await tester.pumpAndSettle();
-    final dog = find.byKey(const ValueKey('module-showcase-select-dog_hotel'));
-    expect(tester.widget<CheckboxListTile>(dog).onChanged, isNull);
-    await tester.tap(
-      find.byKey(const ValueKey('module-showcase-layout-cards')),
-    );
-    await tester.pumpAndSettle();
-    final grooming = find.byKey(
-      const ValueKey('module-showcase-select-grooming'),
-    );
-    await tester.ensureVisible(grooming);
-    await tester.pumpAndSettle();
-    await tester.tap(grooming);
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('service-visual-storybook')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('service-layout-list')));
+    await tester.pump();
     expect(writes, isEmpty);
     final state =
         tester.state(find.byType(ShopAboutManagePage))
@@ -356,29 +247,14 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '儲存').first);
     await tester.pumpAndSettle();
     expect(
-      writes.single['homeAppearance.aboutPage.moduleShowcase.layout'],
-      'cards',
+      writes.single['homeAppearance.aboutPage.moduleShowcase.artworkStyle'],
+      'storybook',
     );
-    expect(writes.single['homeAppearance.aboutPage.moduleShowcase.selected'], [
-      'grooming',
-    ]);
+    expect(
+      writes.single['homeAppearance.aboutPage.moduleShowcase.cardLayout'],
+      'list',
+    );
     expect(state.dashboardHasUnsavedChanges, isFalse);
-    expect(tester.takeException(), isNull);
-  });
-  testWidgets('environment editor no longer exposes a service template tab', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ShopEnvironmentManagePage(
-          shopId: 'fixture',
-          loadShop: () async => {'environmentIntro': {}},
-          saveIntro: (_) async {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.widgetWithText(Tab, '服務項目'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

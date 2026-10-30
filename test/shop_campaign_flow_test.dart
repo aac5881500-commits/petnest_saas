@@ -32,9 +32,11 @@ void main() {
     testWidgets('center loads and fits at $width', (tester) async {
       await show(tester, (action, data) async => bootstrap(), width: width);
       expect(find.text('目前沒有推廣或通知'), findsOneWidget);
-      await tester.tap(find.text('新增推廣／通知'));
+      await tester.tap(find.text('新增會員消息'));
       await tester.pumpAndSettle();
-      expect(find.text('編輯推廣／通知'), findsOneWidget);
+      await tester.tap(find.text('分眾推廣'));
+      await tester.pumpAndSettle();
+      expect(find.text('新增分眾推廣'), findsOneWidget);
       expect(find.text('預覽並發送'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -46,14 +48,16 @@ void main() {
       tester,
       (action, data) async => bootstrap(draft: false, canSend: false),
     );
-    expect(find.text('新增推廣／通知'), findsNothing);
+    expect(find.text('新增會員消息'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await show(
       tester,
       (action, data) async =>
           action == 'members' ? {'members': []} : bootstrap(canSend: false),
     );
-    await tester.tap(find.text('新增推廣／通知'));
+    await tester.tap(find.text('新增會員消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分眾推廣'));
     await tester.pumpAndSettle();
     expect(find.text('預覽並發送'), findsNothing);
     expect(find.text('儲存草稿'), findsOneWidget);
@@ -69,11 +73,12 @@ void main() {
       actions.add(action);
       if (action == 'bootstrap') return bootstrap();
       if (action == 'members') return {'members': []};
-      if (action == 'preview')
+      if (action == 'preview') {
         return {
           'campaign': {'version': ++version},
           'preview': {'count': 2, 'excluded': 1, 'revision': 'rev'},
         };
+      }
       if (action == 'send') {
         sends++;
         expect(data['revision'], 'rev');
@@ -83,7 +88,9 @@ void main() {
       }
       throw StateError(action);
     }, width: 1100);
-    await tester.tap(find.text('新增推廣／通知'));
+    await tester.tap(find.text('新增會員消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分眾推廣'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), '會員活動');
     await tester.enterText(find.byType(TextFormField).at(1), '實際活動內容');
@@ -107,18 +114,21 @@ void main() {
     await show(tester, (action, data) async {
       if (action == 'bootstrap') return bootstrap();
       if (action == 'members') return {'members': []};
-      if (action == 'preview')
+      if (action == 'preview') {
         return {
           'campaign': {'version': 1},
           'preview': {'count': 0, 'excluded': 3, 'revision': 'x'},
         };
+      }
       if (action == 'send') {
         sends++;
         return {};
       }
       return {};
     }, width: 1100);
-    await tester.tap(find.text('新增推廣／通知'));
+    await tester.tap(find.text('新增會員消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分眾推廣'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), '活動');
     await tester.enterText(find.byType(TextFormField).at(1), '說明');
@@ -142,7 +152,9 @@ void main() {
       requests++;
       return {};
     });
-    await tester.tap(find.text('新增推廣／通知'));
+    await tester.tap(find.text('新增會員消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分眾推廣'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('儲存草稿'));
     await tester.pumpAndSettle();

@@ -1,3 +1,4 @@
+import 'notification_setting_page.dart';
 import 'shop_campaign_notice_page.dart';
 // 檔案名稱：lib/features/notifications/pages/notification_center_page.dart
 // 功能說明：通知中心閱讀介面。篩選與日期分組只使用已載入的通知，不另開查詢。
@@ -147,14 +148,31 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
               appBar: AppBar(
                 centerTitle: false,
                 title: const Text('通知中心'),
-                actions: wide
-                    ? const <Widget>[]
-                    : <Widget>[
-                        _MarkAllButton(
-                          busy: _markingAll,
-                          onPressed: unread == 0 ? null : _markAllAsRead,
+                actions: <Widget>[
+                  IconButton(
+                    tooltip: '通知設定',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => NotificationSettingPage(
+                          knownShops: {
+                            for (final item in notifications)
+                              if (item.shopId.isNotEmpty)
+                                item.shopId: item.shopName.isEmpty
+                                    ? item.shopId
+                                    : item.shopName,
+                          },
                         ),
-                      ],
+                      ),
+                    ),
+                  ),
+                  if (!wide)
+                    _MarkAllButton(
+                      busy: _markingAll,
+                      onPressed: unread == 0 ? null : _markAllAsRead,
+                    ),
+                ],
               ),
               body: Align(
                 alignment: Alignment.topCenter,

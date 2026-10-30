@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/features/admin/widgets/admin_booking_pet_card.dart
 // 功能說明：訂單寵物摘要卡：只顯示有值欄位，可展開詳細與該店照護表單
 
@@ -78,7 +79,7 @@ class AdminBookingPetCard extends StatelessWidget {
 
     final Color accent = ShopFrontendTheme.of(context).primaryColor;
     final String breed = (merged['breed'] ?? '').toString().trim();
-    final String gender = (merged['gender'] ?? '').toString().trim();
+    final String gender = PetSpecies.genderLabel(merged['gender']);
     final String type = (merged['species'] ?? merged['type'] ?? '')
         .toString()
         .trim();

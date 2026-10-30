@@ -11,6 +11,8 @@ class ShopCampaignEditorPage extends StatefulWidget {
     required this.shopId,
     required this.api,
     required this.canSend,
+    this.isRepeat = false,
+    this.initialPurpose,
     this.draft,
     this.initialMemberId,
     this.announcementId,
@@ -18,6 +20,8 @@ class ShopCampaignEditorPage extends StatefulWidget {
     this.initialBody,
   });
   final String shopId;
+  final bool isRepeat;
+  final String? initialPurpose;
   final CampaignApi api;
   final bool canSend;
   final Map<String, dynamic>? draft;
@@ -35,9 +39,11 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
   final _form = GlobalKey<FormState>();
   late final TextEditingController _title, _body;
   late final String _id;
-  late String _category, _channel, _audience, _announcement;
+  late String _category, _channel, _audience, _announcement, _purpose;
   int _version = 0;
   final Set<String> _selected = {};
+  bool _accountServiceReady = false;
+  bool _customize = false;
   bool _busy = false,
       _confirming = false,
       _dirty = false,
@@ -72,15 +78,35 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
       ),
     );
     _version = (d['version'] as num?)?.toInt() ?? 0;
-    _category =
-        '${d['category'] ?? (widget.announcementId != null ? 'shop_notice' : 'shop_marketing')}';
-    _channel = '${d['channel'] ?? 'inbox'}';
-    _audience =
-        '${d['audience'] ?? (widget.initialMemberId != null ? 'selected' : 'all')}';
     _announcement = '${d['announcementId'] ?? widget.announcementId ?? ''}';
+    final existingPurpose = '${d['purpose'] ?? ''}';
+    _purpose = existingPurpose.isNotEmpty
+        ? existingPurpose
+        : widget.initialPurpose ??
+              (_announcement.isNotEmpty
+                  ? 'announcement'
+                  : d['category'] == 'shop_marketing'
+                  ? 'promotion'
+                  : 'personal');
+    _category = _purpose == 'promotion'
+        ? 'shop_marketing'
+        : _purpose == 'announcement'
+        ? '${d['category'] ?? 'shop_notice'}'
+        : 'shop_notice';
+    _channel = 'push';
+    _audience =
+        '${d['audience'] ?? (_announcement.isNotEmpty
+                ? 'all'
+                : _purpose == 'promotion' && widget.initialMemberId == null
+                ? 'vip'
+                : 'selected')}';
     _selected.addAll((d['memberIds'] as List? ?? []).map((e) => e.toString()));
     if (widget.initialMemberId != null) _selected.add(widget.initialMemberId!);
-    _loadMembers();
+    if (_audience == 'selected') {
+      _loadMembers();
+    } else {
+      _membersLoading = false;
+    }
   }
 
   @override
@@ -95,6 +121,7 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
       final result = await widget.api('members', {});
       if (mounted) {
         setState(() {
+          _accountServiceReady = result['accountNotices'] == true;
           _members = (result['members'] as List? ?? [])
               .map((e) => Map<String, dynamic>.from(e as Map))
               .toList();
@@ -112,10 +139,73 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
     }
   }
 
+  bool _reachable(Map<String, dynamic> member) => _purpose == 'member_account'
+      ? _accountServiceReady &&
+            (member['accountReachable'] == true || member['reachable'] == true)
+      : member['reachable'] == true;
+
+  void _changePurpose(String value) {
+    setState(() {
+      _purpose = value;
+      _category = value == 'promotion' ? 'shop_marketing' : 'shop_notice';
+      if (value == 'member_account') _audience = 'selected';
+      _selected.removeWhere(
+        (id) => !_members.any((m) => m['id'] == id && _reachable(m)),
+      );
+      _dirty = true;
+    });
+    if (_audience == 'selected' && _members.isEmpty) {
+      setState(() => _membersLoading = true);
+      _loadMembers();
+    }
+  }
+
+  Future<void> _applyTemplate(String kind) async {
+    if (_title.text.isNotEmpty || _body.text.isNotEmpty) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('取代目前訊息？'),
+          content: const Text('套用範本會取代目前的標題與內容。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('保留原文'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('套用範本'),
+            ),
+          ],
+        ),
+      );
+      if (replace != true || !mounted) return;
+    }
+    final templates = <String, List<String>>{
+      'restriction': [
+        '會員服務事項說明',
+        '您好，關於您在本店的服務使用狀態，有事項需要與您說明。請聯絡本店確認相關原因、影響範圍與後續處理方式；如有疑問或希望提出說明，我們會協助處理。',
+      ],
+      'information': [
+        '請協助補充服務資料',
+        '您好，為協助處理您的服務事項，請與本店聯繫確認需要補充的資料與後續處理方式。請勿透過公開公告提供個人資料。',
+      ],
+      'result': [
+        '會員服務事項處理進度',
+        '您好，您先前與本店聯繫的服務事項已有處理進度，請與本店確認詳細結果及後續安排。如有疑問，歡迎聯絡我們。',
+      ],
+    };
+    final content = templates[kind]!;
+    _title.text = content[0];
+    _body.text = content[1];
+    _changed();
+  }
+
   Map<String, dynamic> get _draft => {
     'title': _title.text.trim(),
     'body': _body.text.trim(),
     'category': _category,
+    'purpose': _purpose,
     'channel': _channel,
     'audience': _audience,
     'memberIds': _selected.toList(),
@@ -136,6 +226,14 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
 
   Future<void> _save({bool preview = false}) async {
     if (_busy || _form.currentState?.validate() != true) return;
+    if (_purpose == 'member_account' && !_accountServiceReady) {
+      _message('通知服務尚未支援會員權益告知，請先更新後端；目前不會送出。');
+      return;
+    }
+    if (_title.text.trim().isEmpty || _body.text.trim().isEmpty) {
+      _message('請填寫通知標題與內容。');
+      return;
+    }
     if (_audience == 'selected' && _selected.isEmpty) {
       _message('請至少勾選一位會員。');
       return;
@@ -182,6 +280,17 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
                     '可通知 $count 位會員',
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
+                  for (final raw in (summary['recipients'] as List? ?? []))
+                    Text(
+                      '• ${raw['name']}${raw['restricted'] == true ? '（服務受限會員）' : ''}',
+                    ),
+                  if ((summary['count'] as num) > 20)
+                    const Text('僅列前 20 位；送出範圍以上方人數為準。'),
+                  if (_purpose == 'member_account')
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('此訊息只告知所選客戶，不會變更會員狀態。手機只顯示中性提醒，詳細內容留在 App。'),
+                    ),
                   Text('排除 ${summary['excluded']} 位：手動會員、停用帳號或不符合通知資格。'),
                   const SizedBox(height: 8),
                   Text(
@@ -288,7 +397,19 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F8FB),
-        appBar: AppBar(title: const Text('編輯推廣／通知')),
+        appBar: AppBar(
+          title: Text(
+            widget.isRepeat
+                ? '再次通知會員'
+                : _announcement.isNotEmpty
+                ? '確認公告通知'
+                : _purpose == 'member_account'
+                ? '會員權益通知'
+                : _purpose == 'promotion'
+                ? '新增分眾推廣'
+                : '個別客戶通知',
+          ),
+        ),
         bottomNavigationBar: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -328,215 +449,321 @@ class _ShopCampaignEditorPageState extends State<ShopCampaignEditorPage>
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    if (_announcement.isEmpty)
+                      _section(
+                        _purpose == 'member_account'
+                            ? '只告知指定客戶'
+                            : _purpose == 'promotion'
+                            ? '把優惠送給合適的會員'
+                            : '先選客戶，再寫訊息',
+                        [
+                          Text(
+                            _purpose == 'member_account'
+                                ? '適合服務限制、停權或黑名單相關說明。需明確勾選客戶；手機只顯示中性提醒。'
+                                : _purpose == 'promotion'
+                                ? '預設以 VIP 為對象，也能手動選擇部分會員。一般公告請從公告管理發布。'
+                                : '適合一對一聯繫或通知少數客戶；不會預設推給全店。',
+                          ),
+                        ],
+                      ),
                     if (!widget.canSend)
                       const Padding(
                         padding: EdgeInsets.only(bottom: 12),
                         child: Text('你可編輯草稿；正式發送需由店主或具發送權限的人員執行。'),
                       ),
-                    _section('1. 通知內容', [
-                      if (_announcement.isNotEmpty)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.link),
-                          title: const Text('引用已發布公告'),
-                          subtitle: const Text('發送前會再次檢查上架狀態。通知會保留本次內容快照。'),
-                          trailing: IconButton(
-                            tooltip: '解除公告引用',
-                            onPressed: () {
-                              _announcement = '';
-                              _changed();
-                            },
-                            icon: const Icon(Icons.link_off),
+                    if (_announcement.isNotEmpty && !_customize)
+                      _section(widget.isRepeat ? '再次發送這則公告' : '公告通知已準備好', [
+                        const Text(
+                          '內容已從公告帶入，不必重新設定。',
+                          style: TextStyle(color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _title.text,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _category,
-                        decoration: const InputDecoration(
-                          labelText: '分類',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'shop_marketing',
-                            child: Text('會員推廣／活動優惠'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'shop_notice',
-                            child: Text('店家公告／營業異動'),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          _category = v!;
-                          _changed();
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _title,
-                        maxLength: 80,
-                        decoration: const InputDecoration(
-                          labelText: '通知標題 *',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => _changed(),
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty ? '請輸入標題' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _body,
-                        minLines: 5,
-                        maxLines: 10,
-                        maxLength: 2000,
-                        decoration: const InputDecoration(
-                          labelText: '通知內容 *',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => _changed(),
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty ? '請輸入內容' : null,
-                      ),
-                    ]),
-                    _section('2. 收件對象', [
-                      DropdownButtonFormField<String>(
-                        initialValue: _audience,
-                        decoration: const InputDecoration(
-                          labelText: '本店會員範圍',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('全店會員')),
-                          DropdownMenuItem(
-                            value: 'vip',
-                            child: Text('常客（VIP 標籤）'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'selected',
-                            child: Text('指定會員／個別客戶'),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          _audience = v!;
-                          _changed();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        '手動會員未綁定 App 帳號者、黑名單及停用帳號將被排除。實際可發送人數以伺服器預覽為準；單次最多 5000 位。',
-                      ),
-                      if (_membersLoading) const LinearProgressIndicator(),
-                      if (_membersError != null)
-                        TextButton(
-                          onPressed: _loadMembers,
-                          child: const Text('會員名單讀取失敗，點此重試'),
-                        ),
-                      if (_audience == 'selected') ...[
                         const SizedBox(height: 12),
-                        Text('已選 ${_selected.length} 位'),
+                        Text(_body.text),
+                        const Divider(height: 28),
                         Wrap(
                           spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            TextButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () {
-                                      _selected.addAll(
-                                        filtered
-                                            .where(
-                                              (m) => m['reachable'] == true,
-                                            )
-                                            .map((m) => '${m['id']}'),
-                                      );
-                                      _changed();
-                                    },
-                              child: const Text('勾選搜尋結果'),
+                            Chip(
+                              avatar: const Icon(
+                                Icons.people_outline,
+                                size: 18,
+                              ),
+                              label: Text(
+                                _audience == 'all'
+                                    ? '全店會員'
+                                    : _audience == 'vip'
+                                    ? 'VIP 會員'
+                                    : '指定 ${_selected.length} 位會員',
+                              ),
                             ),
-                            TextButton(
-                              onPressed: _busy || _selected.isEmpty
-                                  ? null
-                                  : () {
-                                      _selected.clear();
-                                      _changed();
-                                    },
-                              child: const Text('清除選取'),
+                            const Chip(
+                              avatar: Icon(
+                                Icons.notifications_outlined,
+                                size: 18,
+                              ),
+                              label: Text('App＋手機提醒'),
                             ),
                           ],
                         ),
-                        if (!_membersLoading &&
-                            _membersError == null &&
-                            filtered.isEmpty)
+                        if (widget.isRepeat)
+                          const Text('這會新增一次發送紀錄，會員可能再次收到相同內容。'),
+                        const SizedBox(height: 8),
+                        const Text('會員關閉這間店的手機提醒後，仍可在 App 查看內容。'),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _customize = true),
+                          icon: const Icon(Icons.tune, size: 18),
+                          label: const Text('需要時再調整內容或對象'),
+                        ),
+                      ])
+                    else ...[
+                      _section('1. 選擇通知對象', [
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('audience_$_purpose'),
+                          initialValue: _audience,
+                          decoration: const InputDecoration(
+                            labelText: '本店會員範圍',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            if (_purpose != 'member_account')
+                              const DropdownMenuItem(
+                                value: 'all',
+                                child: Text('全店會員'),
+                              ),
+                            if (_purpose != 'member_account')
+                              const DropdownMenuItem(
+                                value: 'vip',
+                                child: Text('常客（VIP 標籤）'),
+                              ),
+                            DropdownMenuItem(
+                              value: 'selected',
+                              child: Text('指定會員／個別客戶'),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            _audience = v!;
+                            if (_audience == 'selected' && _members.isEmpty) {
+                              _membersLoading = true;
+                              _loadMembers();
+                            }
+                            _changed();
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '一般通知與推廣會排除服務受限會員；權益通知只限明確選取的客戶。未綁定 App、已刪除或平台停用帳號無法接收，實際人數以預覽為準。',
+                        ),
+                        if (_purpose == 'member_account' &&
+                            !_membersLoading &&
+                            !_accountServiceReady)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text('沒有符合的會員。請調整搜尋，或確認會員已綁定 App 帳號。'),
+                            child: Text('此功能需要新版通知服務，請先更新後端。尚未更新前不會送出權益通知。'),
                           ),
-                        TextField(
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.search),
-                            hintText: '搜尋姓名、電話',
+                        if (_membersLoading) const LinearProgressIndicator(),
+                        if (_membersError != null)
+                          TextButton(
+                            onPressed: _loadMembers,
+                            child: const Text('會員名單讀取失敗，點此重試'),
                           ),
-                          onChanged: (v) => setState(() => _search = v),
-                        ),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 340),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final m = filtered[index];
-                              final reachable = m['reachable'] == true;
-                              return CheckboxListTile(
-                                value: _selected.contains(m['id']),
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                title: Text(
-                                  '${m['name']}${m['vip'] == true ? ' · 常客' : ''}',
-                                ),
-                                subtitle: Text(
-                                  reachable ? '${m['phone']}' : '無法接收 App 通知',
-                                ),
-                                onChanged: !reachable
+                        if (_audience == 'selected') ...[
+                          const SizedBox(height: 12),
+                          Text('已選 ${_selected.length} 位'),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              TextButton(
+                                onPressed: _busy
                                     ? null
-                                    : (v) {
-                                        if (v == true) {
-                                          _selected.add('${m['id']}');
-                                        } else {
-                                          _selected.remove('${m['id']}');
-                                        }
+                                    : () {
+                                        _selected.addAll(
+                                          filtered
+                                              .where((m) => _reachable(m))
+                                              .map((m) => '${m['id']}'),
+                                        );
                                         _changed();
                                       },
-                              );
-                            },
+                                child: const Text('勾選搜尋結果'),
+                              ),
+                              TextButton(
+                                onPressed: _busy || _selected.isEmpty
+                                    ? null
+                                    : () {
+                                        _selected.clear();
+                                        _changed();
+                                      },
+                                child: const Text('清除選取'),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ]),
-                    _section('3. 通知方式', [
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: _channel,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'inbox',
-                            child: Text('只放入 App 通知中心'),
+                          if (!_membersLoading &&
+                              _membersError == null &&
+                              filtered.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Text('沒有符合的會員。請調整搜尋，或確認會員已綁定 App 帳號。'),
+                            ),
+                          TextField(
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.search),
+                              hintText: '搜尋姓名、電話',
+                            ),
+                            onChanged: (v) => setState(() => _search = v),
                           ),
-                          DropdownMenuItem(
-                            value: 'push',
-                            child: Text('App 通知＋手機通知列提醒'),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 340),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final m = filtered[index];
+                                final reachable = _reachable(m);
+                                return CheckboxListTile(
+                                  value: _selected.contains(m['id']),
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                  title: Text(
+                                    '${m['name']}${m['vip'] == true ? ' · 常客' : ''}',
+                                  ),
+                                  subtitle: Text(
+                                    m['restricted'] == true
+                                        ? (_purpose == 'member_account' &&
+                                                  reachable
+                                              ? '${m['phone']}・服務受限，可收權益告知'
+                                              : '服務受限・不接收一般推廣')
+                                        : reachable
+                                        ? '${m['phone']}'
+                                        : '未綁定 App 或無法接收通知',
+                                  ),
+                                  onChanged: !reachable
+                                      ? null
+                                      : (v) {
+                                          if (v == true) {
+                                            _selected.add('${m['id']}');
+                                          } else {
+                                            _selected.remove('${m['id']}');
+                                          }
+                                          _changed();
+                                        },
+                                );
+                              },
+                            ),
                           ),
                         ],
-                        onChanged: (v) {
-                          _channel = v!;
-                          _changed();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'App 通知保留在通知中心「店家」分類。手機提醒出現在鎖定畫面或通知列，需會員允許通知；不包含簡訊或 LINE。訂單狀態與入住提醒由系統自動處理。',
-                      ),
-                    ]),
+                      ]),
+                      _section('2. 撰寫訊息', [
+                        if (_announcement.isNotEmpty)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.link),
+                            title: const Text('引用已發布公告'),
+                            subtitle: const Text('發送前會再次檢查上架狀態。通知會保留本次內容快照。'),
+                            trailing: IconButton(
+                              tooltip: '解除公告引用',
+                              onPressed: () {
+                                _announcement = '';
+                                _changed();
+                              },
+                              icon: const Icon(Icons.link_off),
+                            ),
+                          ),
+                        if (_announcement.isEmpty)
+                          DropdownButtonFormField<String>(
+                            initialValue: _purpose,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: '訊息用途',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'personal',
+                                child: Text('個別客戶通知'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'promotion',
+                                child: Text('分眾推廣／活動優惠'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'member_account',
+                                child: Text('會員權益／服務限制告知'),
+                              ),
+                            ],
+                            onChanged: (value) => _changePurpose(value!),
+                          ),
+                        if (_purpose == 'member_account') ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            '可告知停權、黑名單、服務限制或處理結果；這裡只發送訊息，不執行停權。請使用具體、中性的說明。',
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: _applyTemplate,
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'restriction',
+                                child: Text('服務限制告知範本'),
+                              ),
+                              PopupMenuItem(
+                                value: 'information',
+                                child: Text('資料補充範本'),
+                              ),
+                              PopupMenuItem(
+                                value: 'result',
+                                child: Text('處理進度範本'),
+                              ),
+                            ],
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Text('套用告知範本 ▾'),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _title,
+                          maxLength: 80,
+                          decoration: const InputDecoration(
+                            labelText: '通知標題 *',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (_) => _changed(),
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty ? '請輸入標題' : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _body,
+                          minLines: 5,
+                          maxLines: 10,
+                          maxLength: 2000,
+                          decoration: const InputDecoration(
+                            labelText: '通知內容 *',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (_) => _changed(),
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty ? '請輸入內容' : null,
+                        ),
+                      ]),
+                    ],
+                    if (_announcement.isEmpty || _customize)
+                      _section('通知方式', [
+                        const ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.notifications_active_outlined),
+                          title: Text('App 通知＋手機提醒'),
+                          subtitle: Text('統一發送；手機是否接收，由會員的各店設定與裝置權限決定。'),
+                        ),
+                      ]),
                   ],
                 ),
               ),
