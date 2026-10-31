@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/store_cart_service.dart
 // 功能說明：只保存商品與套裝組數，不扣除 currentStock。
 // 🛒 每店獨立購物車
@@ -40,7 +41,9 @@ class StoreCartService {
   }
 
   Stream<List<StoreCartItem>> streamCart(String shopId) {
-    final String uid = _auth.currentUser?.uid ?? '';
+    final String uid = InspectionOwnerContext.readUid(
+      _auth.currentUser?.uid ?? '',
+    );
     if (uid.isEmpty) {
       return Stream<List<StoreCartItem>>.value(const <StoreCartItem>[]);
     }

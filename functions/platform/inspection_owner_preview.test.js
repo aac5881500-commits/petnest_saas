@@ -26,7 +26,8 @@ function fixture() {
       ]})})}),
     };
   }
-  const db = {doc, collection: (path) => ({doc: (id) => doc(path + "/" + id)}),
+  const db = {doc, collection: (path) => ({doc: (id) => doc(path + "/" + id),
+      where: () => ({select: () => ({get: async () => ({docs: []})})})}),
     runTransaction: async (fn) => fn({get: (ref) => ref.get(),
       update: (ref, data) => ref.update(data)})};
   const original = Module._load;
@@ -79,4 +80,20 @@ test("heartbeat rejects other identities and a removed parent session", async ()
   request.auth.uid = "fresh-anon";
   f.rows.delete("platform_inspection_sessions/parent");
   await assert.rejects(f.preview.inspectionPreviewHeartbeat.run(request), {code: "unauthenticated"});
+});
+
+test("preview polling cannot extend root idle session, and end revokes grant", async () => {
+  const f = fixture();
+  const grant = await f.issue();
+  const parent = f.rows.get("platform_inspection_sessions/parent");
+  parent.touchedAt = Date.now() - 1000;
+  const before = parent.touchedAt;
+  const request = {auth: {uid: "fresh-anon", token: {
+    petnestInspection: true, inspectionGrant: grant.grantId}}, data: {}};
+  await f.preview.inspectionPreviewHeartbeat.run(request);
+  assert.equal(f.rows.get("platform_inspection_sessions/parent").touchedAt, before);
+  request.data.end = true;
+  await f.preview.inspectionPreviewHeartbeat.run(request);
+  assert.equal(f.rows.get("platform_inspection_previews/" + grant.grantId).active, false);
+  assert.equal(f.rows.get("platform_inspection_sessions/parent").touchedAt, before);
 });

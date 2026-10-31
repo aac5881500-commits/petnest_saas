@@ -578,7 +578,11 @@ void main() {
     expect(ModernHomeAppearanceTabs.faq, 7);
     expect(ModernHomeAppearanceTabs.reviews, 8);
     expect(ModernHomeAppearanceTabs.navigation, 9);
-    expect(ModernHomeAppearanceTabs.length, 10);
+    expect(ModernHomeAppearanceTabs.length, 11);
+    expect(
+      ModernHomeAppearanceTabs.sectionTab('footer'),
+      ModernHomeAppearanceTabs.shopInfo,
+    );
     expect(
       ModernHomeAppearanceTabs.sectionTab('policy'),
       ModernHomeAppearanceTabs.policy,

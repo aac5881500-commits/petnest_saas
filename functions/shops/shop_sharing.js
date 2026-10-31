@@ -47,7 +47,8 @@ function documentId(value) {
 }
 
 // Sharing secrets and the lookup index are server-only.
-exports.manageShopSharing = onCall(options, async (request) => {
+exports.manageShopSharing = onCall({...options,
+  inspectionReadActions: ["get"]}, async (request) => {
   const uid = requireAuth(request);
   const data = request.data || {};
   const shopId = documentId(data.shopId);

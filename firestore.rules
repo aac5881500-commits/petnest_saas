@@ -36,8 +36,29 @@ service cloud.firestore {
         && previewCollection in ['bookings', 'payments', 'daily_care_records',
           'daily_care_photos', 'reviews', 'action_logs', 'shop_members',
           'shop_notifications', 'shop_verify_requests', 'shop_change_requests',
-          'platform_contact_requests']
+          'platform_contact_requests', 'daycare_bookings',
+          'shop_member_invites', 'shop_payment_requests', 'member_link_requests',
+          'daily_care_photo_downloads', 'checkout_requests']
         && resource.data.shopId == previewGrant().shopId;
+    }
+    match /{previewCollection}/{previewId}/{previewSub}/{previewDoc}/{previewRest=**} {
+      allow read: if previewIdentity() && validPreview()
+        && previewCollection in ['bookings', 'daycare_bookings', 'payments',
+          'reviews', 'platform_contact_requests', 'shop_verify_requests',
+          'shop_change_requests']
+        && get(/databases/$(database)/documents/$(previewCollection)/$(previewId)).data.shopId == previewGrant().shopId;
+    }
+    match /daily_care_photo_downloads/{previewPhotoId} {
+      // A valid selected-shop photo may legitimately have no download metadata yet.
+      allow get: if previewIdentity() && validPreview() && resource == null
+        && get(/databases/$(database)/documents/daily_care_photos/$(previewPhotoId)).data.shopId == previewGrant().shopId;
+    }
+    match /user_profiles/{previewUid}/{previewRest=**} {
+      allow read: if previewIdentity() && validPreview()
+        && previewUid in previewGrant().allowedUserUids;
+    }
+    match /platform_policies/{previewPolicy} {
+      allow read: if previewIdentity() && validPreview();
     }
     match /users/{previewUid}/{previewRest=**} {
       allow read: if previewIdentity() && validPreview()

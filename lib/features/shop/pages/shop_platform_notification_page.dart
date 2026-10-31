@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/shop/pages/shop_platform_notification_page.dart
 // 功能說明：查看平台主動發給店家的通知，例如方案到期、停權、審核、系統維護
 // 🔔 店主平台通知頁
@@ -209,7 +210,7 @@ class ShopPlatformNotificationPage extends StatelessWidget {
                         ),
                       ),
                       onTap: () async {
-                        if (isUnread) {
+                        if (isUnread && !InspectionOwnerContext.active) {
                           await docs[index].reference.update({
                             'status': 'read',
                             'readAt': FieldValue.serverTimestamp(),

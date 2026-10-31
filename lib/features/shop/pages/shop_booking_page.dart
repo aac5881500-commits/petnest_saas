@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_page.dart
 // 功能說明：前台住宿預約主頁，負責日期、寵物、房型、加值服務、優惠與送單流程。
@@ -173,7 +174,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
     final doc = await FirebaseFirestore.instance
         .collection('user_profiles')
-        .doc(user.uid)
+        .doc(InspectionOwnerContext.readUid(user.uid))
         .get();
 
     final data = doc.data();
@@ -183,7 +184,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         .collection('shops')
         .doc(widget.shopId)
         .collection('members')
-        .doc(user.uid)
+        .doc(InspectionOwnerContext.readUid(user.uid))
         .get();
 
     final shopMemberData = shopMemberDoc.data() ?? {};
@@ -322,7 +323,10 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           await FirebaseFirestore.instance
               .collection('bookings')
               .where('shopId', isEqualTo: widget.shopId)
-              .where('userId', isEqualTo: user.uid)
+              .where(
+                'userId',
+                isEqualTo: InspectionOwnerContext.readUid(user.uid),
+              )
               .get();
 
       final bool hasValidBooking = snapshot.docs.any((
@@ -379,11 +383,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           await Future.wait(<Future<Map<String, int>>>[
             DiscountCampaignService.instance.getMemberCampaignUsage(
               shopId: widget.shopId,
-              userId: user.uid,
+              userId: InspectionOwnerContext.readUid(user.uid),
             ),
             DiscountCampaignService.instance.getMemberCampaignUsedNights(
               shopId: widget.shopId,
-              userId: user.uid,
+              userId: InspectionOwnerContext.readUid(user.uid),
             ),
           ]);
 
@@ -425,7 +429,10 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
     try {
       final List<MemberCouponModel> coupons = await MemberCouponService.instance
-          .getAvailableMemberCoupons(shopId: widget.shopId, userId: user.uid);
+          .getAvailableMemberCoupons(
+            shopId: widget.shopId,
+            userId: InspectionOwnerContext.readUid(user.uid),
+          );
 
       if (!mounted) return;
 

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_dashboard_navigation.dart
 // 功能說明：後台內容區導航、同層切換與共用離開檢查，不變更資料儲存流程。
 import 'package:flutter/material.dart';
@@ -112,6 +113,7 @@ class ShopDashboardNavigation extends NavigatorObserver with ChangeNotifier {
       }
       afterLeave?.call();
       if (page != null) {
+        if (id != null) InspectionOwnerContext.onView?.call(id);
         // The basic-info module may have been offscreen. Let its Navigator
         // mount before opening a destination, without mounting other pages.
         if (navigatorKey.currentState == null) {
@@ -277,11 +279,13 @@ mixin ShopDashboardLeaveAware<T extends StatefulWidget> on State<T> {
   ModalRoute<dynamic>? _route;
   bool get dashboardHasUnsavedChanges;
   bool get dashboardIsBusy;
-  Future<bool> dashboardConfirmLeave() => confirmDashboardDiscard(
-    context,
-    dirty: dashboardHasUnsavedChanges,
-    busy: dashboardIsBusy,
-  );
+  Future<bool> dashboardConfirmLeave() => InspectionOwnerContext.active
+      ? Future.value(true)
+      : confirmDashboardDiscard(
+          context,
+          dirty: dashboardHasUnsavedChanges,
+          busy: dashboardIsBusy,
+        );
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();

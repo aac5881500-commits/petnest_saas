@@ -416,7 +416,7 @@ async function getStayAvailabilityHandler(request, firestore) {
 }
 
 const getStayAvailability = onCall(
-    {region: "asia-east1"},
+    {region: "asia-east1", inspectionRead: true},
     async (request) => {
       const admin = require("firebase-admin");
       return getStayAvailabilityHandler(request, admin.firestore());

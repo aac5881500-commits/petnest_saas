@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
 import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_entry_access_error.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
@@ -618,6 +619,23 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     );
   }
 
+  HomeShopInfoSetting _shopInfoSetting = const HomeShopInfoSetting();
+
+  Widget? _bottomArea({
+    required Widget? navigationBar,
+    required bool useBottomBar,
+    required Map<String, dynamic> shop,
+    required String shopName,
+    required HomeThemeModel theme,
+  }) {
+    return buildShopInfoBottomArea(
+      context: context,
+      footer: _shopFooter(shop: shop, shopName: shopName, theme: theme),
+      useBottomBar: useBottomBar,
+      navigationBar: navigationBar,
+    );
+  }
+
   ModernShopFooter _shopFooter({
     required Map<String, dynamic> shop,
     required String shopName,
@@ -627,6 +645,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       shopId: widget.shopId,
       shop: shop,
       shopName: shopName,
+      setting: _shopInfoSetting,
       primaryColor: theme.primaryColor,
       darkTextColor: theme.textColor,
       secondaryTextColor: theme.secondaryTextColor,
@@ -642,6 +661,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required HomeThemeModel theme,
   }) {
     return ModernShopInfoPanel(
+      alwaysExpanded: _shopInfoSetting.mode == 'scroll',
       footer: _shopFooter(shop: shop, shopName: shopName, theme: theme),
     );
   }
@@ -719,6 +739,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final modernAppearance = rawModernAppearance is Map
             ? Map<String, dynamic>.from(rawModernAppearance)
             : <String, dynamic>{};
+        _shopInfoSetting = HomeShopInfoSetting.fromMap(
+          modernAppearance[HomeShopInfoSetting.mapKey],
+        );
         final modernTheme = HomeThemeModel.fromMap(
           modernAppearance['themeColors'],
           fallback: const HomeThemeModel(
@@ -1019,7 +1042,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         }
 
         return Scaffold(
-          extendBody: useBottomBar,
+          extendBody: useBottomBar && !_shopInfoSetting.isFixed(useBottomBar),
           backgroundColor: modernTheme.backgroundColor,
 
           drawer: useBottomBar
@@ -1030,90 +1053,21 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   navigation: navigation,
                   embeddedPreview: embeddedPreview,
                 ),
-          bottomNavigationBar: useBottomBar
-              ? _bottomBar(
-                  shop: shop,
-                  theme: modernTheme,
-                  navigation: navigation,
-                  shopState: navShop,
-                  embeddedPreview: embeddedPreview,
-                )
-              : SafeArea(
-                  top: false,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      ModernShopFooter(
-                        shopId: widget.shopId,
-                        shop: shop,
-                        shopName: shopName,
-                        primaryColor: modernTheme.primaryColor,
-                        darkTextColor: modernTheme.textColor,
-                        secondaryTextColor: modernTheme.textColor.withValues(
-                          alpha: 0.65,
-                        ),
-                        cardColor: modernTheme.cardColor,
-                        borderColor: modernTheme.cardBorderColor,
-                        isPreview: widget.isPreview,
-                      ).showShopInfoSheet(context);
-                    },
-                    onVerticalDragEnd: (details) {
-                      final velocity = details.primaryVelocity ?? 0;
-
-                      if (velocity < -100) {
-                        ModernShopFooter(
-                          shopId: widget.shopId,
-                          shop: shop,
-                          shopName: shopName,
-                          primaryColor: modernTheme.primaryColor,
-                          darkTextColor: modernTheme.textColor,
-                          secondaryTextColor: modernTheme.textColor.withValues(
-                            alpha: 0.65,
-                          ),
-                          cardColor: modernTheme.cardColor,
-                          borderColor: modernTheme.cardBorderColor,
-                          isPreview: widget.isPreview,
-                        ).showShopInfoSheet(context);
-                      }
-                    },
-                    child: Container(
-                      height: 28,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: modernTheme.backgroundColor,
-                        border: Border(
-                          top: BorderSide(
-                            color: modernTheme.cardBorderColor.withValues(
-                              alpha: 0.7,
-                            ),
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.keyboard_arrow_up_rounded,
-                            size: 15,
-                            color: modernTheme.primaryColor,
-                          ),
-                          SizedBox(width: 3),
-                          Text(
-                            '店家資訊',
-                            style: TextStyle(
-                              fontSize: 9,
-                              height: 1,
-                              fontWeight: FontWeight.w700,
-                              color: modernTheme.textColor.withValues(
-                                alpha: 0.7,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+          bottomNavigationBar: _bottomArea(
+            shop: shop,
+            shopName: shopName,
+            theme: modernTheme,
+            useBottomBar: useBottomBar,
+            navigationBar: useBottomBar
+                ? _bottomBar(
+                    shop: shop,
+                    theme: modernTheme,
+                    navigation: navigation,
+                    shopState: navShop,
+                    embeddedPreview: embeddedPreview,
+                  )
+                : null,
+          ),
 
           body: SafeArea(
             bottom: false,
@@ -1152,14 +1106,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                             return ListView(
                               controller: _homeScroll,
                               primary: false,
-                              physics: canScroll || useBottomBar
+                              physics:
+                                  canScroll ||
+                                      useBottomBar ||
+                                      _shopInfoSetting.enabled
                                   ? const BouncingScrollPhysics()
                                   : const NeverScrollableScrollPhysics(),
                               padding: EdgeInsets.fromLTRB(
                                 12,
                                 5,
                                 12,
-                                useBottomBar
+                                useBottomBar &&
+                                        !_shopInfoSetting.isFixed(useBottomBar)
                                     ? ModernBottomNavigation.contentClearance(
                                         navigation.bottomAppearance,
                                         MediaQuery.paddingOf(context).bottom,
@@ -1173,7 +1131,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                                   gap: constraints.maxWidth < 760 ? 8 : 10,
                                   itemBuilder: sectionBody,
                                 ),
-                                if (useBottomBar) ...<Widget>[
+                                if (_shopInfoSetting.enabled &&
+                                    !_shopInfoSetting.isFixed(
+                                      useBottomBar,
+                                    )) ...<Widget>[
                                   const SizedBox(height: 8),
                                   sectionBody('shopInfo'),
                                 ],
@@ -1190,7 +1151,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   shop: shop,
                   shopId: widget.shopId,
                   isPreview: widget.isPreview || widget.layoutCanvas,
-                  bottomBarHeight: useBottomBar
+                  bottomBarHeight:
+                      useBottomBar && !_shopInfoSetting.isFixed(useBottomBar)
                       ? ModernBottomNavigation.slotHeight(
                           navigation.bottomAppearance,
                           MediaQuery.paddingOf(context).bottom,
@@ -1602,7 +1564,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           actionsAtStart: quickActionsAtStart,
         );
       case 'footer':
-        return _canvasFooter(theme: theme);
+        return _shopFooter(
+          shop: shop,
+          shopName: shopName,
+          theme: theme,
+        ).buildDock(context, pull: true);
       case 'banners':
         return _buildBannerSection(
           shop: shop,
@@ -1800,7 +1766,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required Widget Function(String sectionId) buildSection,
   }) {
     return Scaffold(
-      extendBody: useBottomBar,
+      extendBody: useBottomBar && !_shopInfoSetting.isFixed(useBottomBar),
       backgroundColor: theme.backgroundColor,
       drawer: useBottomBar
           ? null
@@ -1810,15 +1776,21 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               navigation: navigation,
               embeddedPreview: embeddedPreview,
             ),
-      bottomNavigationBar: useBottomBar
-          ? _bottomBar(
-              shop: shop,
-              theme: theme,
-              navigation: navigation,
-              shopState: navShop,
-              embeddedPreview: embeddedPreview,
-            )
-          : null,
+      bottomNavigationBar: _bottomArea(
+        shop: shop,
+        shopName: shopName,
+        theme: theme,
+        useBottomBar: useBottomBar,
+        navigationBar: useBottomBar
+            ? _bottomBar(
+                shop: shop,
+                theme: theme,
+                navigation: navigation,
+                shopState: navShop,
+                embeddedPreview: embeddedPreview,
+              )
+            : null,
+      ),
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
@@ -1828,9 +1800,13 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             sectionIds: visibleSectionIds,
             sectionOrder: sectionOrder,
             spanOf: spanOf,
-            pinFooter: !useBottomBar,
-            shopInfo: useBottomBar ? buildSection('shopInfo') : null,
-            bottomInset: useBottomBar
+            pinFooter: false,
+            shopInfo:
+                _shopInfoSetting.enabled &&
+                    !_shopInfoSetting.isFixed(useBottomBar)
+                ? buildSection('shopInfo')
+                : null,
+            bottomInset: useBottomBar && !_shopInfoSetting.isFixed(useBottomBar)
                 ? ModernBottomNavigation.contentClearance(
                     navigation.bottomAppearance,
                     MediaQuery.paddingOf(context).bottom,
@@ -1859,7 +1835,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             shop: shop,
             shopId: widget.shopId,
             isPreview: true,
-            bottomBarHeight: useBottomBar
+            bottomBarHeight:
+                useBottomBar && !_shopInfoSetting.isFixed(useBottomBar)
                 ? ModernBottomNavigation.slotHeight(
                     navigation.bottomAppearance,
                     MediaQuery.paddingOf(context).bottom,
@@ -1914,43 +1891,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           },
         );
       },
-    );
-  }
-
-  Widget _canvasFooter({required HomeThemeModel theme}) {
-    return ColoredBox(
-      color: theme.backgroundColor,
-      child: Container(
-        height: 28,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: theme.cardBorderColor.withValues(alpha: 0.7),
-            ),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              Icons.keyboard_arrow_up_rounded,
-              size: 15,
-              color: theme.primaryColor,
-            ),
-            const SizedBox(width: 3),
-            Text(
-              '店家資訊',
-              style: TextStyle(
-                fontSize: 9,
-                height: 1,
-                fontWeight: FontWeight.w700,
-                color: theme.textColor.withValues(alpha: 0.7),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

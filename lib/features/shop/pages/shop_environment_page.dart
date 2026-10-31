@@ -29,6 +29,7 @@ class ShopEnvironmentPage extends StatelessWidget {
     this.style,
     this.features,
     this.galleryImages,
+    this.galleryCaptions,
     this.facilityKeys,
     this.presentation,
   });
@@ -46,6 +47,7 @@ class ShopEnvironmentPage extends StatelessWidget {
   final EnvironmentIntroStyle? style;
   final List<Map<String, dynamic>>? features;
   final List<String>? galleryImages;
+  final List<String>? galleryCaptions;
   final List<String>? facilityKeys;
   final EnvironmentPresentation? presentation;
 
@@ -196,6 +198,18 @@ class ShopEnvironmentPage extends StatelessWidget {
                 bannerFrame: resolvedBannerFrame,
                 features: displayFeatures,
                 galleryImages: displayGalleryImages,
+                galleryCaptions:
+                    galleryCaptions ??
+                    displayGalleryImages.map((url) {
+                      final raw = environmentIntro?['galleryImages'];
+                      if (raw is! List) return '';
+                      final matches = raw.whereType<Map>().where(
+                        (item) => item['imageUrl']?.toString().trim() == url,
+                      );
+                      return matches.isEmpty
+                          ? ''
+                          : (matches.first['caption'] ?? '').toString();
+                    }).toList(),
                 careItems: displayCareItems,
                 bottomNote: displayBottomNote,
                 imageBuilder: environmentIntroNetworkImage,

@@ -48,6 +48,61 @@ class AboutAppearanceEditor extends StatelessWidget {
       ],
     ),
   );
+  Widget _layoutOptions(
+    String label,
+    String selected,
+    Map<String, String> choices,
+    String field,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final choice in choices.entries)
+            SizedBox(
+              width: 144,
+              child: Semantics(
+                selected: selected == choice.key,
+                child: OutlinedButton(
+                  onPressed: () => _change({field: choice.key}),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: selected == choice.key
+                        ? theme.primaryColor.withValues(alpha: .1)
+                        : null,
+                    padding: const EdgeInsets.all(10),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 110,
+                        height: 48,
+                        child: CustomPaint(
+                          painter: _BlockLayoutSketch(
+                            '$field:${choice.key}',
+                            theme.primaryColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${selected == choice.key ? '✓ ' : ''}${choice.value}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
   Widget _slider(
     String label,
     String key,
@@ -152,18 +207,31 @@ class AboutAppearanceEditor extends StatelessWidget {
           title: Text('店家資訊固定顯示'),
           subtitle: Text('自動引用店家基本資料與營業資訊；所有版型都會保留。'),
         ),
-        _chips(
+        _layoutOptions(
+          '封面排列',
+          setting.coverLayout,
+          AboutPageSetting.coverLayouts,
+          'coverLayout',
+        ),
+        _layoutOptions(
           '店家資訊呈現',
           setting.contactLayout,
           AboutPageSetting.contactLayouts,
-          (value) => _change({'contactLayout': value}),
+          'contactLayout',
         ),
-        _chips(
+        _layoutOptions(
           '特色展示方式',
           setting.highlightLayout,
           AboutPageSetting.highlightLayouts,
-          (value) => _change({'highlightLayout': value}),
+          'highlightLayout',
         ),
+        _chips(
+          '區塊間距',
+          setting.sectionSpacing,
+          AboutPageSetting.sectionSpacings,
+          (value) => _change({'sectionSpacing': value}),
+        ),
+        const Text('各區塊可獨立調整，切換不會清空內容、照片或顯示設定。'),
         _chips(
           '字體來源',
           '${a['fontSource'] ?? 'theme'}',
@@ -458,4 +526,60 @@ class _AboutLayoutSketch extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AboutLayoutSketch old) =>
       old.layout != layout || old.color != color;
+}
+
+// 專用排列示意，只畫照片與文字位置，不加入裝飾素材。
+class _BlockLayoutSketch extends CustomPainter {
+  const _BlockLayoutSketch(this.mode, this.color);
+  final String mode;
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    void box(double x, double y, double w, double h, [bool image = false]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, w, h),
+          const Radius.circular(3),
+        ),
+        Paint()..color = color.withValues(alpha: image ? .25 : .65),
+      );
+    }
+
+    if (mode.endsWith(':imageLeft') || mode.endsWith(':imageRight')) {
+      final left = mode.endsWith(':imageLeft');
+      box(left ? 0 : 64, 2, 46, 44, true);
+      box(left ? 54 : 0, 12, 46, 5);
+      box(left ? 54 : 0, 24, 46, 4);
+    } else if (mode.endsWith(':stacked') || mode.endsWith(':auto')) {
+      box(0, 0, 110, 28, true);
+      box(0, 34, 70, 4);
+      box(0, 43, 100, 3);
+    } else if (mode.endsWith(':tiles') || mode.endsWith(':cards')) {
+      for (var i = 0; i < 4; i++) {
+        box((i % 2) * 57.0, (i ~/ 2) * 25.0, 50, 20, true);
+      }
+    } else if (mode.endsWith(':brand')) {
+      box(42, 0, 24, 20, true);
+      box(24, 26, 62, 5);
+      box(10, 38, 90, 4);
+    } else if (mode.endsWith(':visit')) {
+      box(0, 0, 40, 48, true);
+      box(50, 7, 60, 6);
+      box(50, 22, 48, 4);
+      box(50, 36, 60, 8, true);
+    } else if (mode.endsWith(':ribbon')) {
+      for (var i = 0; i < 3; i++) {
+        box(i * 38.0, 4, 32, 38, true);
+      }
+    } else {
+      for (var i = 0; i < 3; i++) {
+        box(0, i * 16.0, 10, 10, true);
+        box(18, i * 16.0 + 2, 88, 4);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BlockLayoutSketch old) =>
+      old.mode != mode || old.color != color;
 }

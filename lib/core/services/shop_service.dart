@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/shop_service.dart
 // 功能說明：店家服務層（含營業資訊 / Logo / 封面 / 預約設定）
 
@@ -224,6 +225,7 @@ class ShopService {
     required String shopId,
     required String uid,
   }) async {
+    if (InspectionOwnerContext.forShop(shopId)) return 'owner';
     final snapshot = await _shopMembers
         .where('shopId', isEqualTo: shopId)
         .where('uid', isEqualTo: uid)

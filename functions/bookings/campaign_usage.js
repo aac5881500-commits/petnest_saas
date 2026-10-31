@@ -458,7 +458,7 @@ async function readCampaignForUse(
 }
 
 const getCampaignUsage = onCall(
-    {region: "asia-east1"},
+    {region: "asia-east1", inspectionRead: true},
     async (request) => {
       const shopId = normalizeString((request.data || {}).shopId);
       if (!shopId) {

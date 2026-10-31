@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/shop/widgets/chat/shop_chat_composer.dart
 // 功能說明：聊天輸入列：文字與選圖
 
@@ -32,7 +33,7 @@ class ShopChatComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ShopFrontendTheme? theme = appearance;
-    final bool canUse = enabled && !sending;
+    final bool canUse = enabled && !sending && !InspectionOwnerContext.active;
     return Material(
       color: theme?.cardColor ?? Colors.white,
       child: SafeArea(

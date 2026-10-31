@@ -37,7 +37,8 @@ const syncLegalPetBusinessesDaily = onSchedule(Object.assign({
   await runLegalPetSync(admin.firestore(), "schedule");
 });
 
-const lookupLegalPetLicense = onCall({region: "asia-east1"}, (request) => {
+const lookupLegalPetLicense = onCall({region: "asia-east1",
+  inspectionRead: true}, (request) => {
   return shopOps.lookupLegalPetLicense(request);
 });
 

@@ -30,7 +30,8 @@ async function issueOwnerPreview({db, data, sessionRef, shopId, shop}) {
   if (!ownerUid) throw new HttpsError("failed-precondition", "店家缺少店主識別碼");
   const account = await admin.auth().getUser(target.uid);
   const createdAt = Date.parse(account.metadata.creationTime);
-  if (account.providerData.length !== 0 || !Number.isFinite(createdAt) ||
+  if (account.disabled === true || account.providerData.length !== 0 ||
+      !Number.isFinite(createdAt) ||
       createdAt < Date.now() - 120000) {
     throw new HttpsError("permission-denied", "查核身分必須為本次新建立");
   }
@@ -48,11 +49,37 @@ async function issueOwnerPreview({db, data, sessionRef, shopId, shop}) {
   if (allowedUserUids.size > 10000) {
     throw new HttpsError("resource-exhausted", "關聯會員過多，需分批查核");
   }
+  const allowedBookingIds = new Set();
+  for (const collection of ["bookings", "daycare_bookings"]) {
+    const snap = await db.collection(collection).where("shopId", "==", shopId)
+        .select("shopId", "userId", "customerUid").get();
+    for (const row of snap.docs) {
+      allowedBookingIds.add(row.id);
+      const booking = row.data();
+      for (const uid of [booking.userId, booking.customerUid]) {
+        if (typeof uid === "string" && uid && !uid.includes("/")) {
+          allowedUserUids.add(uid);
+        }
+      }
+    }
+  }
+  const requests = await db.collection("platform_contact_requests")
+      .where("shopId", "==", shopId).select("shopId").get();
+  const allowedRequestIds = requests.docs.map((row) => row.id);
+  if (allowedUserUids.size > 10000 || allowedBookingIds.size > 20000 ||
+      allowedRequestIds.length > 10000) {
+    throw new HttpsError("resource-exhausted", "關聯附件過多，需分批查核");
+  }
   const ref = db.collection("platform_inspection_previews").doc(id);
-  await ref.set({uid: target.uid, rootUid: ROOT, shopId, ownerUid,
+  const grantData = {uid: target.uid, rootUid: ROOT, shopId, ownerUid,
     allowedUserUids: [...allowedUserUids],
+    allowedBookingIds: [...allowedBookingIds], allowedRequestIds,
     parentSession: sessionRef.id, active: true,
-    createdAt: Date.now(), expiresAt: Date.now() + 8 * 60 * 60 * 1000});
+    createdAt: Date.now(), expiresAt: Date.now() + 8 * 60 * 60 * 1000};
+  if (Buffer.byteLength(JSON.stringify(grantData), "utf8") > 900000) {
+    throw new HttpsError("resource-exhausted", "查核關聯資料過大，需分批查核");
+  }
+  await ref.set(grantData);
   try {
     await admin.auth().setCustomUserClaims(target.uid,
         {petnestInspection: true, inspectionGrant: id});
@@ -60,7 +87,7 @@ async function issueOwnerPreview({db, data, sessionRef, shopId, shop}) {
     await ref.update({active: false});
     throw error;
   }
-  return {grantId: id, shopId, ownerUid};
+  return {grantId: id, viewerUid: target.uid, shopId, ownerUid};
 }
 /** Validate grant and parent root session on each preview heartbeat. */
 const inspectionPreviewHeartbeat = onCall({region: "asia-east1"},
@@ -92,9 +119,8 @@ const inspectionPreviewHeartbeat = onCall({region: "asia-east1"},
         }
         if ((request.data || {}).end === true) {
           tx.update(grantRef, {active: false});
-        } else {
-          tx.update(sessionRef, {touchedAt: Date.now()});
         }
+        // Only root-window interaction may extend the parent session.
         return {active: (request.data || {}).end !== true, shopId: grant.shopId,
           ownerUid: grant.ownerUid};
       });

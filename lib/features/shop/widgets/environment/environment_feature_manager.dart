@@ -15,6 +15,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
     required this.onChangeLayout,
     required this.onManageImage,
     this.busy = false,
+    this.showLayoutControl = true,
   });
 
   final List<Map<String, dynamic>> features;
@@ -25,6 +26,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
   final Future<void> Function(int index) onChangeLayout;
   final Future<void> Function(int index) onManageImage;
   final bool busy;
+  final bool showLayoutControl;
 
   IconData _featureIcon(String key) => environmentFeatureIcon(key);
 
@@ -86,78 +88,94 @@ class EnvironmentFeatureManager extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFFF0E0CC)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: SizedBox(
-                        width: 56,
-                        height: 42,
-                        child: imageUrl.isEmpty
-                            ? const ColoredBox(
-                                color: Color(0xFFF0E0CC),
-                                child: Icon(
-                                  Icons.image_outlined,
-                                  size: 20,
-                                  color: Color(0xFFB87535),
-                                ),
-                              )
-                            : Image.network(
-                                imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder:
-                                    (
-                                      BuildContext context,
-                                      Object error,
-                                      StackTrace? stackTrace,
-                                    ) {
-                                      return const ColoredBox(
-                                        color: Color(0xFFF0E0CC),
-                                        child: Icon(
-                                          Icons.broken_image_outlined,
-                                          size: 20,
-                                          color: Color(0xFFB87535),
-                                        ),
-                                      );
-                                    },
-                              ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      _featureIcon(item['icon'] ?? ''),
-                      color: const Color(0xFFB87535),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        item['title'] ?? '未命名特色',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF3A2A1A),
+                    Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 56,
+                            height: 42,
+                            child: imageUrl.isEmpty
+                                ? const ColoredBox(
+                                    color: Color(0xFFF0E0CC),
+                                    child: Icon(
+                                      Icons.image_outlined,
+                                      size: 20,
+                                      color: Color(0xFFB87535),
+                                    ),
+                                  )
+                                : Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (
+                                          BuildContext context,
+                                          Object error,
+                                          StackTrace? stackTrace,
+                                        ) {
+                                          return const ColoredBox(
+                                            color: Color(0xFFF0E0CC),
+                                            child: Icon(
+                                              Icons.broken_image_outlined,
+                                              size: 20,
+                                              color: Color(0xFFB87535),
+                                            ),
+                                          );
+                                        },
+                                  ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          _featureIcon(item['icon'] ?? ''),
+                          color: const Color(0xFFB87535),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            item['title'] ?? '未命名特色',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF3A2A1A),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      onPressed: busy ? null : () => onManageImage(index),
-                      tooltip: '特色圖片',
-                      icon: const Icon(Icons.image_rounded),
-                    ),
-                    IconButton(
-                      onPressed: busy ? null : () => onChangeIcon(index),
-                      icon: const Icon(Icons.apps_rounded),
-                    ),
-                    IconButton(
-                      onPressed: busy ? null : () => onChangeLayout(index),
-                      icon: Icon(
-                        item['layout'] == 'imageLeft'
-                            ? Icons.format_indent_decrease_rounded
-                            : Icons.format_indent_increase_rounded,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: busy ? null : () => onDelete(index),
-                      icon: const Icon(Icons.delete_outline_rounded),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      children: [
+                        IconButton(
+                          onPressed: busy ? null : () => onManageImage(index),
+                          tooltip: '特色圖片',
+                          icon: const Icon(Icons.image_rounded),
+                        ),
+                        IconButton(
+                          tooltip: '更換特色圖示',
+                          onPressed: busy ? null : () => onChangeIcon(index),
+                          icon: const Icon(Icons.apps_rounded),
+                        ),
+                        if (showLayoutControl)
+                          IconButton(
+                            tooltip: '切換圖片左右位置',
+                            onPressed: busy
+                                ? null
+                                : () => onChangeLayout(index),
+                            icon: Icon(
+                              item['layout'] == 'imageLeft'
+                                  ? Icons.format_indent_decrease_rounded
+                                  : Icons.format_indent_increase_rounded,
+                            ),
+                          ),
+                        IconButton(
+                          tooltip: '從草稿移除特色',
+                          onPressed: busy ? null : () => onDelete(index),
+                          icon: const Icon(Icons.delete_outline_rounded),
+                        ),
+                      ],
                     ),
                   ],
                 ),

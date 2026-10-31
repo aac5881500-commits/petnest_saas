@@ -87,7 +87,7 @@ class _EnvironmentServiceSectionState extends State<EnvironmentServiceSection> {
         children: [
           if (equipment.isNotEmpty)
             ..._group(
-              '安心設備',
+              p.sectionTitle('care', '安心設備'),
               equipment,
               p.equipmentLayout,
               _allEquipment,
@@ -95,7 +95,7 @@ class _EnvironmentServiceSectionState extends State<EnvironmentServiceSection> {
             ),
           if (services.isNotEmpty)
             ..._group(
-              '貼心服務',
+              p.sectionTitle('services', '貼心服務'),
               services,
               p.serviceLayout,
               _allServices,
@@ -170,11 +170,15 @@ class _EnvironmentServiceSectionState extends State<EnvironmentServiceSection> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: List.generate(
-                          cols,
+                          math.min(cols, rows.length - start),
                           (index) => Expanded(
                             child: Padding(
                               padding: EdgeInsets.only(
-                                right: index == cols - 1 ? 0 : 10,
+                                right:
+                                    index ==
+                                        math.min(cols, rows.length - start) - 1
+                                    ? 0
+                                    : 10,
                               ),
                               child: start + index >= rows.length
                                   ? const SizedBox.shrink()

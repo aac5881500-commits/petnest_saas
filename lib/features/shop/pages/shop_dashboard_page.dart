@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import '../widgets/shop_frontend_preview_policy.dart';
 import 'package:petnest_saas/features/shop/pages/campaigns/shop_campaign_center_page.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -135,7 +136,7 @@ class ShopDashboardInspectionView extends StatelessWidget {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '最高權限唯讀查核・無法儲存、退款或傳訊\n詳細頁仍逐頁接入中，現有紀錄可透過查核工作台查看。',
+                        '最高權限唯讀查核・無法儲存、退款或傳訊\n查核資料可另外透過工作台彙整與下載。',
                         style: TextStyle(fontSize: 12),
                       ),
                     ),
@@ -421,6 +422,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   Future<void> _updateLastActiveAt() async {
+    if (InspectionOwnerContext.active) return;
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) return;
@@ -690,6 +692,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   void _scheduleAdminWelcome(Map<String, dynamic> shop) {
+    if (InspectionOwnerContext.active) return;
     if (_welcomeScheduled ||
         _basicNavigation.hasDetail ||
         _catNavigation.hasDetail ||
@@ -840,6 +843,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
 
   bool _returningToPlatform = false;
   Future<void> _returnToPlatformHome() async {
+    if (InspectionOwnerContext.active) {
+      InspectionOwnerContext.onExit?.call();
+      return;
+    }
     if (_returningToPlatform) return;
     _returningToPlatform = true;
     try {
@@ -988,7 +995,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         final accountStatus = (shop['accountStatus'] ?? 'normal').toString();
         final shopStatus = (shop['status'] ?? 'active').toString();
 
-        if (accountStatus == 'suspended' || shopStatus == 'suspended') {
+        if (!InspectionOwnerContext.active &&
+            (accountStatus == 'suspended' || shopStatus == 'suspended')) {
           return Scaffold(
             appBar: AppBar(title: const Text('帳號停權')),
             body: Center(
@@ -1040,7 +1048,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
           );
         }
 
-        final isComplete = _isProfileComplete(shop);
+        final isComplete =
+            InspectionOwnerContext.active || _isProfileComplete(shop);
         final remindSetup = ShopAdminWelcome.shouldRemind(
           shop: shop,
           profileComplete: isComplete,
@@ -2295,6 +2304,7 @@ class _BasicInfoTab extends StatelessWidget {
 
     final openingGuideEligible =
         _InspectionMenuScope.of(context) == null &&
+        !InspectionOwnerContext.active &&
         currentUserRole == ShopRoles.owner &&
         FirebaseAuth.instance.currentUser != null &&
         ShopService.instance
@@ -3489,7 +3499,7 @@ class _MenuTile extends StatelessWidget {
       inspection.onOpenEntry(destinationId ?? title);
       return;
     }
-    if (!enabled) return;
+    if (!enabled && !InspectionOwnerContext.active) return;
     final tour = ShopFeatureTourScope.maybeOf(context);
     final scope = ShopDashboardNavigationScope.maybeOf(context);
     if (tour?.active == true &&
@@ -3536,7 +3546,9 @@ class _MenuTile extends StatelessWidget {
       );
     }
     final canOpen =
-        inspecting || enabled && (onTap != null || pageBuilder != null);
+        inspecting ||
+        InspectionOwnerContext.active ||
+        enabled && (onTap != null || pageBuilder != null);
     final ColorScheme colors = Theme.of(context).colorScheme;
     final wide =
         _BasicInfoWideScope.of(context) || _CatHotelWideScope.of(context);

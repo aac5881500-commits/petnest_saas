@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/shop/widgets/shop_frontend_preview_frame.dart
 // 功能說明：後台前台預覽外框與獨立 Navigator，內容重用 ShopPublicPage。
 
@@ -132,6 +133,19 @@ class ShopFrontendPreviewFrameState extends State<ShopFrontendPreviewFrame> {
   }
 
   Future<void> _openPublicFrontend() async {
+    if (InspectionOwnerContext.active) {
+      await Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute(
+          builder: (pageContext) => Scaffold(
+            body: ShopFrontendPreviewFrame.liveRoot(
+              shopId: widget.shopId,
+              onClose: () => Navigator.pop(pageContext),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final settings = await ShopSharingService.instance.manage(widget.shopId);
       if (!mounted) return;
@@ -212,7 +226,9 @@ class ShopFrontendPreviewFrameState extends State<ShopFrontendPreviewFrame> {
                       ),
                     ),
                     Tooltip(
-                      message: '此區為正式前台，操作會建立實際資料',
+                      message: InspectionOwnerContext.active
+                          ? '唯讀查核，不會建立或修改店家資料'
+                          : '此區為正式前台，操作會建立實際資料',
                       child: Icon(
                         Icons.info_outline,
                         size: 18,

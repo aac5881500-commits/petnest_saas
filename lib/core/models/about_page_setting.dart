@@ -133,10 +133,26 @@ class AboutPageSetting {
   };
   static const contactLayouts = {
     'list': '經典清單',
-    'tiles': '資訊方格',
+    'tiles': '雙欄資訊',
     'brand': '品牌名片',
     'visit': '到店指南',
   };
+  static const coverLayouts = {
+    'auto': '沿用整頁版型',
+    'stacked': '上圖下文',
+    'imageLeft': '左圖右文',
+    'imageRight': '左文右圖',
+  };
+  String get coverLayout =>
+      choice('coverLayout', coverLayouts.keys.toList(), 'auto');
+  static const sectionSpacings = {
+    'auto': '沿用原設定',
+    'compact': '緊湊',
+    'standard': '標準',
+    'relaxed': '寬鬆',
+  };
+  String get sectionSpacing =>
+      choice('sectionSpacing', sectionSpacings.keys.toList(), 'auto');
   static const highlightLayouts = {
     'cards': '圖示卡片',
     'ribbon': '橫向亮點',

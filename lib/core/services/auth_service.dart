@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/core/services/auth_service.dart
 // 功能說明：Firebase Auth 登入、註冊、信箱驗證、密碼重設與 Apple／Google 登入。
@@ -10,6 +11,15 @@ import 'package:petnest_saas/core/services/auth_access_policy.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 
 class AuthService {
+  static void _requireNormalSession() {
+    if (InspectionOwnerContext.active) {
+      throw FirebaseAuthException(
+        code: 'inspection-read-only',
+        message: '唯讀查核不能變更登入、建立帳號或寄送帳號通知',
+      );
+    }
+  }
+
   AuthService._();
   static final AuthService instance = AuthService._();
 
@@ -28,6 +38,7 @@ class AuthService {
   }
 
   bool mustVerifyEmail(User user) {
+    if (InspectionOwnerContext.active) return false;
     return AuthAccessPolicy.mustVerifyEmail(
       emailVerified: user.emailVerified,
       providerIds: user.providerData.map((UserInfo info) => info.providerId),
@@ -44,6 +55,7 @@ class AuthService {
   }
 
   Future<void> sendEmailVerification() async {
+    _requireNormalSession();
     final User? user = _auth.currentUser;
     if (user == null) {
       throw FirebaseAuthException(
@@ -60,6 +72,7 @@ class AuthService {
   }
 
   Future<void> sendPasswordResetEmail(String email) async {
+    _requireNormalSession();
     try {
       await _auth.setLanguageCode('zh-TW');
     } catch (error) {
@@ -72,6 +85,7 @@ class AuthService {
   // 🔥 Google 登入
   // =========================================
   Future<UserCredential?> signInWithGoogle({String? shopBindingTicket}) async {
+    _requireNormalSession();
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
@@ -108,6 +122,7 @@ class AuthService {
   }
 
   Future<UserCredential?> signInWithApple({String? shopBindingTicket}) async {
+    _requireNormalSession();
     final AppleAuthProvider provider = AppleAuthProvider();
     provider.addScope('email');
     provider.addScope('name');
@@ -148,6 +163,7 @@ class AuthService {
   // 🧩 確保會員資料存在（🔥核心）
   // =========================================
   Future<void> ensureCurrentUserBaseData([User? targetUser]) async {
+    if (InspectionOwnerContext.active) return;
     final user = targetUser ?? _auth.currentUser;
     if (user == null) return;
 
@@ -227,6 +243,7 @@ class AuthService {
     String? displayName,
     String? shopBindingTicket,
   }) async {
+    _requireNormalSession();
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password.trim(),
@@ -266,6 +283,7 @@ class AuthService {
     required String password,
     String? shopBindingTicket,
   }) async {
+    _requireNormalSession();
     final credential = await _auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password.trim(),
@@ -289,6 +307,10 @@ class AuthService {
   // 🔴 登出
   // =========================================
   Future<void> logout() async {
+    if (InspectionOwnerContext.active) {
+      InspectionOwnerContext.onExit?.call();
+      return;
+    }
     await _auth.signOut();
     await GoogleSignIn().signOut();
   }

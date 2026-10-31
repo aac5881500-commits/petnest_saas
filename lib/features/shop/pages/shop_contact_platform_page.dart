@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_contact_platform_page.dart
 // 功能說明：店主查看自己的聯絡平台案件，並建立新案件後進入聊天室。
@@ -38,10 +39,13 @@ class _ShopContactPlatformPageState extends State<ShopContactPlatformPage> {
       _requests = null;
       return;
     }
-    _requests = FirebaseFirestore.instance
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
         .collection('platform_contact_requests')
-        .where('userId', isEqualTo: uid)
-        .snapshots();
+        .where('userId', isEqualTo: InspectionOwnerContext.readUid(uid));
+    if (InspectionOwnerContext.active) {
+      query = query.where('shopId', isEqualTo: widget.shopId);
+    }
+    _requests = query.snapshots();
   }
 
   void _openCreate() {

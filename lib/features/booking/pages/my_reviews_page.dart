@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/booking/pages/my_reviews_page.dart
 // 功能說明：顯示會員跨店所有評價，並可修改自己的評價內容與照片
 // ⭐ 會員中心：我的評價
@@ -99,12 +100,21 @@ class _MyReviewsPageState extends State<_MyReviewsBody> {
     return MemberPageScaffold(
       title: '我的評價',
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('reviews')
-            .where('userId', isEqualTo: user.uid)
-            .where('status', isEqualTo: 'visible')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
+        stream: () {
+          Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+              .collection('reviews')
+              .where(
+                'userId',
+                isEqualTo: InspectionOwnerContext.readUid(user.uid),
+              )
+              .where('status', isEqualTo: 'visible');
+          if (InspectionOwnerContext.active) {
+            return query
+                .where('shopId', isEqualTo: InspectionOwnerContext.shopId)
+                .snapshots();
+          }
+          return query.orderBy('createdAt', descending: true).snapshots();
+        }(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             MemberUi.logError(snapshot.error!);
@@ -120,7 +130,14 @@ class _MyReviewsPageState extends State<_MyReviewsBody> {
             );
           }
 
-          final docs = snapshot.data!.docs;
+          final docs = snapshot.data!.docs.toList();
+          if (InspectionOwnerContext.active) {
+            int created(QueryDocumentSnapshot<Map<String, dynamic>> row) =>
+                (row.data()['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            docs.sort((a, b) => created(b).compareTo(created(a)));
+          }
 
           if (docs.isEmpty) {
             return _emptyReviews(context);

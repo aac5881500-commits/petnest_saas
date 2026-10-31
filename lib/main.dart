@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/platform/pages/inspection_owner_bootstrap.dart';
 import 'package:petnest_saas/core/services/shop_sharing_service.dart';
 // 檔案名稱：lib/main.dart
 // 功能說明：Flutter 應用程式入口，初始化 Firebase、路由與全域錯誤處理
@@ -89,6 +90,12 @@ void _reloadWebPage() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final inspectionNonce = Uri.base.queryParameters['ownerInspection'];
+  if (kIsWeb && inspectionNonce != null) {
+    _dismissWebStartupShell();
+    runApp(InspectionOwnerBootstrap(nonce: inspectionNonce));
+    return;
+  }
 
   if (kDebugMode) {
     FlutterError.onError = (FlutterErrorDetails details) {

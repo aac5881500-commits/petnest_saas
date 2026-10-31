@@ -87,7 +87,7 @@ class _EnvironmentServicesEditorState extends State<EnvironmentServicesEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。'),
+          const Text('所有修改（含特色、圖片與相簿）都需按儲存後生效；放棄變更會保留原本已儲存內容。'),
           const SizedBox(height: 12),
           EnvironmentLayoutPicker(
             title: '設備卡片版型',
@@ -518,6 +518,7 @@ class _ServiceDialogState extends State<_ServiceDialog> {
                 controller: _title,
                 maxLength: 60,
                 decoration: const InputDecoration(labelText: '名稱'),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 validator: (v) => (v ?? '').trim().isEmpty ? '請填寫名稱' : null,
               ),
               TextFormField(

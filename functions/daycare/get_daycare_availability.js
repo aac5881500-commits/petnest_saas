@@ -261,7 +261,7 @@ async function getDaycareAvailabilityHandler(request, firestore) {
 }
 
 const getDaycareAvailability = onCall(
-    {region: "asia-east1"},
+    {region: "asia-east1", inspectionRead: true},
     async (request) => {
       const admin = require("firebase-admin");
       return getDaycareAvailabilityHandler(request, admin.firestore());

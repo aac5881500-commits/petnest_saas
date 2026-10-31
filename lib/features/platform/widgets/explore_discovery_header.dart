@@ -55,7 +55,13 @@ class ExploreDiscoveryHeader extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (onBack != null)
+                  if (compact)
+                    IconButton(
+                      tooltip: '我的 PetNest／會員選單',
+                      onPressed: onMember,
+                      icon: const Icon(Icons.menu_rounded),
+                    ),
+                  if (onBack != null && !compact)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: IconButton(
@@ -75,17 +81,24 @@ class ExploreDiscoveryHeader extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (compact && onBack != null)
+                    IconButton(
+                      tooltip: '返回',
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back, size: 20),
+                    ),
                   if (compact)
                     IconButton(
                       tooltip: '依店家地址看地圖',
                       onPressed: onMap,
                       icon: const Icon(Icons.map_outlined),
                     ),
-                  IconButton(
-                    tooltip: '我的 PetNest／會員選單',
-                    onPressed: onMember,
-                    icon: const Icon(Icons.person_outline),
-                  ),
+                  if (!compact)
+                    IconButton(
+                      tooltip: '我的 PetNest／會員選單',
+                      onPressed: onMember,
+                      icon: const Icon(Icons.person_outline),
+                    ),
                 ],
               ),
               SizedBox(height: compact ? 2 : 14),

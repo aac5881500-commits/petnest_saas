@@ -358,7 +358,13 @@ class AboutIntroView extends StatelessWidget {
     return value.saved ? value.style : null;
   }
 
-  double get _gap => setting.appearance['cardsSource'] == 'custom'
+  double get _gap => switch (setting.sectionSpacing) {
+    'compact' => 12,
+    'standard' => 24,
+    'relaxed' => 36,
+    _ => _legacyGap,
+  };
+  double get _legacyGap => setting.appearance['cardsSource'] == 'custom'
       ? setting.gap
       : _frontStyle == null
       ? 24
@@ -475,6 +481,41 @@ class AboutIntroView extends StatelessWidget {
           ),
       ],
     );
+    if (setting.coverLayout != 'auto') {
+      final hasCopy = title.trim().isNotEmpty || description.trim().isNotEmpty;
+      final sideBySide =
+          width >= 700 &&
+          hasImage &&
+          hasCopy &&
+          setting.coverLayout != 'stacked';
+      return Padding(
+        key: const ValueKey('about-independent-cover'),
+        padding: const EdgeInsets.all(20),
+        child: sideBySide
+            ? Row(
+                key: const ValueKey('about-cover-row'),
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: setting.coverLayout == 'imageRight' ? copy : image(),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: setting.coverLayout == 'imageRight' ? image() : copy,
+                  ),
+                ],
+              )
+            : Column(
+                key: const ValueKey('about-cover-column'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (hasImage) image(),
+                  if (hasImage && hasCopy) const SizedBox(height: 16),
+                  if (hasCopy) copy,
+                ],
+              ),
+      );
+    }
     if (setting.layout == 'boutique') {
       return Padding(
         padding: const EdgeInsets.all(20),

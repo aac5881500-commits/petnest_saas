@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import 'package:petnest_saas/core/models/pet_service_module.dart';
 import 'package:petnest_saas/features/shop/pages/services/shop_pet_service_booking_page.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
@@ -84,6 +85,7 @@ class ShopBookingEntryPage extends StatelessWidget {
     required String shopId,
     required HomeThemeModel theme,
   }) async {
+    if (InspectionOwnerContext.forShop(shopId)) return true;
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       await Navigator.push<void>(

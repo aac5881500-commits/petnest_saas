@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/store_order_service.dart
 // 功能說明：前台與後台查詢訂單。建立、付款與狀態變更走 Cloud Functions。
 // 🛒 商城訂單讀取 Service
@@ -29,6 +30,13 @@ class StoreOrderService {
   }
 
   Stream<List<StoreOrderModel>> streamMemberOrders({String shopId = ''}) {
+    if (InspectionOwnerContext.active) {
+      return shopOrdersRef(InspectionOwnerContext.shopId)
+          .where('userId', isEqualTo: InspectionOwnerContext.ownerUid)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map(_mapDocs);
+    }
     final String uid = _auth.currentUser?.uid ?? '';
     if (uid.isEmpty) {
       return Stream<List<StoreOrderModel>>.value(const <StoreOrderModel>[]);

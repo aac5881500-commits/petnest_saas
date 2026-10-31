@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/shop/pages/chat/shop_customer_chat_page.dart
 // 功能說明：會員端店家聊天室
 
@@ -43,7 +44,9 @@ class _ShopCustomerChatPageState extends State<ShopCustomerChatPage> {
   Stream<List<ShopChatMessageModel>>? _messagesStream;
   Stream<ShopChatThreadModel?>? _threadStream;
 
-  String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
+  String get _uid => InspectionOwnerContext.readUid(
+    FirebaseAuth.instance.currentUser?.uid ?? '',
+  );
 
   @override
   void initState() {
@@ -52,7 +55,9 @@ class _ShopCustomerChatPageState extends State<ShopCustomerChatPage> {
   }
 
   void _bindStreams() {
-    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final String uid = InspectionOwnerContext.readUid(
+      FirebaseAuth.instance.currentUser?.uid ?? '',
+    );
     final String shopId = widget.shopId.trim();
     print('[CustomerChatPage] STEP 0 start uid=$uid shopId=$shopId');
     if (shopId.isEmpty) {

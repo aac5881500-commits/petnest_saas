@@ -89,9 +89,9 @@ class AboutShopInfoSection extends StatelessWidget {
     final allowLinks = shop['externalLinksEnabled'] != false;
     final accent = actionColor ?? theme.primaryColor;
     final fields = <(IconData, String, String)>[
-      (Icons.schedule_outlined, '營業時間', hours.isEmpty ? '請洽店家確認' : hours),
-      (Icons.call_outlined, '聯絡電話', phone.isEmpty ? '尚未提供' : phone),
-      (Icons.location_on_outlined, '店家地址', address.isEmpty ? '尚未提供' : address),
+      if (hours.isNotEmpty) (Icons.schedule_outlined, '營業時間', hours),
+      if (phone.isNotEmpty) (Icons.call_outlined, '聯絡電話', phone),
+      if (address.isNotEmpty) (Icons.location_on_outlined, '店家地址', address),
       if (license.isNotEmpty) (Icons.badge_outlined, '特寵業許可字號', license),
     ];
     final mapUri = Uri.https('www.google.com', '/maps/search/', {
@@ -260,7 +260,7 @@ class AboutShopInfoSection extends StatelessWidget {
               ),
             const SizedBox(height: 18),
           ],
-          if (layout == 'visit')
+          if (layout == 'visit' && address.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 16),

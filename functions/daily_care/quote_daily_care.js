@@ -30,7 +30,7 @@ async function quoteDailyCare(params) {
 }
 
 exports.quoteDailyCareAddon = onCall(
-    {region: "asia-east1"},
+    {region: "asia-east1", inspectionRead: true},
     async (request) => {
       if (!request.auth) {
         throw new HttpsError("unauthenticated", "請先登入");

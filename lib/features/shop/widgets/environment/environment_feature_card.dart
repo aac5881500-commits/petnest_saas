@@ -18,6 +18,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
     this.style = const EnvironmentIntroStyle(),
     this.reverse = false,
     this.minimal = false,
+    this.maxImageHeight = 280,
   });
 
   final IconData icon;
@@ -26,6 +27,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
   final String imageUrl;
   final bool reverse;
   final bool minimal;
+  final double maxImageHeight;
   final HomeThemeModel theme;
   final EnvironmentIntroStyle style;
   final Widget Function({
@@ -106,9 +108,13 @@ class EnvironmentFeatureCard extends StatelessWidget {
         if (_hasImage) ...<Widget>[
           ClipRRect(
             borderRadius: BorderRadius.circular(style.featureImageRadius),
-            child: AspectRatio(
-              aspectRatio: style.verticalImageAspect,
-              child: imageBuilder(imageUrl: imageUrl, fit: BoxFit.cover),
+            child: LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                width: double.infinity,
+                height: (constraints.maxWidth / style.verticalImageAspect)
+                    .clamp(0, maxImageHeight),
+                child: imageBuilder(imageUrl: imageUrl, fit: BoxFit.cover),
+              ),
             ),
           ),
           SizedBox(height: style.featureTextGap + 4),

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:petnest_saas/features/member/widgets/member_sign_in_prompt.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_policy_gate.dart';
@@ -154,6 +155,7 @@ class _MemberPageState extends State<_MemberPageBody> {
   }
 
   Future<void> _syncMemberByEmail(User user) async {
+    if (InspectionOwnerContext.active) return;
     final result = await FirebaseFirestore.instance
         .collection('user_profiles')
         .where('email', isEqualTo: user.email)
@@ -163,17 +165,17 @@ class _MemberPageState extends State<_MemberPageBody> {
     if (result.docs.isEmpty) return;
 
     final oldDoc = result.docs.first;
-    if (oldDoc.id == user.uid) return;
+    if (oldDoc.id == InspectionOwnerContext.readUid(user.uid)) return;
 
     final oldData = oldDoc.data();
 
     await FirebaseFirestore.instance
         .collection('user_profiles')
-        .doc(user.uid)
+        .doc(InspectionOwnerContext.readUid(user.uid))
         .set({
           ...oldData,
-          'uid': user.uid,
-          'linkedAuthUid': user.uid,
+          'uid': InspectionOwnerContext.readUid(user.uid),
+          'linkedAuthUid': InspectionOwnerContext.readUid(user.uid),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
   }
@@ -228,7 +230,7 @@ class _MemberPageState extends State<_MemberPageBody> {
 
     final existing = await FirebaseFirestore.instance
         .collection('account_delete_requests')
-        .where('uid', isEqualTo: user.uid)
+        .where('uid', isEqualTo: InspectionOwnerContext.readUid(user.uid))
         .where('status', isEqualTo: 'pending')
         .limit(1)
         .get();
@@ -245,7 +247,7 @@ class _MemberPageState extends State<_MemberPageBody> {
     }
 
     await FirebaseFirestore.instance.collection('account_delete_requests').add({
-      'uid': user.uid,
+      'uid': InspectionOwnerContext.readUid(user.uid),
       'email': user.email ?? '',
       'displayName': user.displayName ?? '',
       'reason': reasonController.text.trim(),
@@ -307,7 +309,7 @@ class _MemberPageState extends State<_MemberPageBody> {
   Future<void> _persistMemberProfile(User user) async {
     await FirebaseFirestore.instance
         .collection('user_profiles')
-        .doc(user.uid)
+        .doc(InspectionOwnerContext.readUid(user.uid))
         .set({
           'name': _nameController.text.trim(),
           'phone': _phoneController.text.trim(),
@@ -990,7 +992,10 @@ class _MemberPageState extends State<_MemberPageBody> {
           final QuerySnapshot<Map<String, dynamic>> bookingSnapshot =
               await FirebaseFirestore.instance
                   .collection('bookings')
-                  .where('userId', isEqualTo: user.uid)
+                  .where(
+                    'userId',
+                    isEqualTo: InspectionOwnerContext.readUid(user.uid),
+                  )
                   .orderBy('createdAt', descending: true)
                   .limit(1)
                   .get();
@@ -1154,7 +1159,7 @@ class _MemberPageState extends State<_MemberPageBody> {
                   : StreamBuilder<DocumentSnapshot>(
                       stream: FirebaseFirestore.instance
                           .collection('user_profiles')
-                          .doc(user.uid)
+                          .doc(InspectionOwnerContext.readUid(user.uid))
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
@@ -1480,7 +1485,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                                   ),
                                   MemberPointHistoryVisibility(
                                     shopId: widget.shopId,
-                                    userId: user.uid,
+                                    userId: InspectionOwnerContext.readUid(
+                                      user.uid,
+                                    ),
                                     enabledChild: _buildMyPointsTile(user),
                                     historyChild: _buildMyPointsTile(user),
                                     emptyChild: const SizedBox.shrink(),
@@ -1492,7 +1499,13 @@ class _MemberPageState extends State<_MemberPageBody> {
                                         .collection('shops')
                                         .doc(widget.shopId.trim())
                                         .collection('point_redemptions')
-                                        .where('userId', isEqualTo: user.uid)
+                                        .where(
+                                          'userId',
+                                          isEqualTo:
+                                              InspectionOwnerContext.readUid(
+                                                user.uid,
+                                              ),
+                                        )
                                         .limit(1)
                                         .snapshots(),
                                     builder:
@@ -1509,7 +1522,10 @@ class _MemberPageState extends State<_MemberPageBody> {
 
                                           return MemberPointHistoryVisibility(
                                             shopId: widget.shopId,
-                                            userId: user.uid,
+                                            userId:
+                                                InspectionOwnerContext.readUid(
+                                                  user.uid,
+                                                ),
                                             enabledChild:
                                                 _buildMyPointRedemptionTile(),
                                             historyChild: hasRedemptionHistory
@@ -1561,7 +1577,9 @@ class _MemberPageState extends State<_MemberPageBody> {
                                                             shopId:
                                                                 widget.shopId,
                                                             customerUid:
-                                                                user.uid,
+                                                                InspectionOwnerContext.readUid(
+                                                                  user.uid,
+                                                                ),
                                                             source:
                                                                 'MemberChatBadge',
                                                           )
@@ -1636,7 +1654,12 @@ class _MemberPageState extends State<_MemberPageBody> {
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
                                     .collection('account_delete_requests')
-                                    .where('uid', isEqualTo: user.uid)
+                                    .where(
+                                      'uid',
+                                      isEqualTo: InspectionOwnerContext.readUid(
+                                        user.uid,
+                                      ),
+                                    )
                                     .orderBy('createdAt', descending: true)
                                     .limit(1)
                                     .snapshots(),

@@ -223,6 +223,7 @@ class _EnvironmentAppearanceEditorState
               icon: const Icon(Icons.photo_library_outlined),
               label: const Text('從圖庫選擇'),
             ),
+            const Text('若圖庫顯示暫無圖片，請由平台管理者在對應分類新增並啟用素材；尚未選圖時會使用背景底色。'),
             if (a.backgroundAssetId.isNotEmpty) ...[
               FutureBuilder<PlatformMediaAsset?>(
                 future: _thumbnail,

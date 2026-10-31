@@ -7,7 +7,7 @@ class EnvironmentDraftPreview extends StatefulWidget {
   const EnvironmentDraftPreview({
     super.key,
     required this.contentBuilder,
-    this.notice = '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。',
+    this.notice = '所有修改（含特色、圖片與相簿）都需按儲存後生效；放棄變更會保留原本已儲存內容。',
   });
   final Widget Function(ScrollController controller) contentBuilder;
   final String notice;

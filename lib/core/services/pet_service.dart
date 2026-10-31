@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 import 'package:petnest_saas/core/models/pet_profile_catalog.dart';
 import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/core/services/pet_service.dart
@@ -28,7 +29,7 @@ class PetService {
   String get _uid {
     final user = _auth.currentUser;
     if (user == null) throw Exception('尚未登入');
-    return user.uid;
+    return InspectionOwnerContext.readUid(user.uid);
   }
 
   // ===============================

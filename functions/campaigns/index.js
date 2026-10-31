@@ -65,7 +65,8 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
       recipientCount: d.recipientCount || 0, excludedCount: d.excludedCount || 0,
       counts: d.counts || {}, revision: d.revision || "", error: d.error || ""};
   };
-  const manageShopCampaign = onCall({region: "asia-east1", timeoutSeconds: 120}, async (request) => {
+  const manageShopCampaign = onCall({region: "asia-east1", timeoutSeconds: 120,
+    inspectionReadActions: ["bootstrap", "members", "detail", "linePreparation", "preview"]}, async (request) => {
     const ctx = await actor(request);
     const data = request.data;
     const action = data.action;
@@ -110,6 +111,25 @@ function createCampaignFunctions({admin, customerPushAllowed}) {
       truncated: deliveries.size === 100};
     }
     if (!ctx.can.draft) throw new HttpsError("permission-denied", "沒有建立推廣草稿權限。");
+    // The owner preview screen normally saves its draft while computing a
+    // preview. Inspection computes the same result without any transaction.
+    if (action === "preview" && request.auth.token &&
+        request.auth.token.petnestInspection === true) {
+      const old = await ref.get();
+      if (old.exists && (old.data().shopId !== ctx.shopId ||
+          old.data().status !== "draft")) {
+        throw new HttpsError("permission-denied", "無法預覽此草稿");
+      }
+      const draft = policy.normalize(data.draft || {});
+      const resolved = await resolve(ctx.shopId, draft);
+      const rev = policy.revision(draft, resolved);
+      return {campaign: {id: ref.id, ...draft, status: "draft",
+        version: old.exists ? old.data().version || 0 : 0, revision: rev},
+      preview: {count: resolved.uids.length, excluded: resolved.excludedCount,
+        revision: rev, restrictedCount: resolved.restrictedCount,
+        recipients: resolved.recipients.slice(0, 20)
+            .map(({memberId, name, restricted}) => ({memberId, name, restricted}))}};
+    }
     if (action === "save" || action === "preview") {
       const draft = policy.normalize(data.draft || {});
       const resolved = action === "preview" ? await resolve(ctx.shopId, draft) : null;

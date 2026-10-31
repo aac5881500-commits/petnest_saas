@@ -38,6 +38,26 @@ service firebase.storage {
         && previewUid in previewGrant().allowedUserUids;
     }
 
+    match /booking_images/{previewBookingId}/{previewFile} {
+      allow read: if previewIdentity() && validPreview()
+        && previewBookingId in previewGrant().allowedBookingIds;
+    }
+    match /review_images/{previewBookingId}/{previewFile} {
+      allow read: if previewIdentity() && validPreview()
+        && previewBookingId in previewGrant().allowedBookingIds;
+    }
+    match /booking_extra_charges/{previewBookingId}/{previewFile} {
+      allow read: if previewIdentity() && validPreview()
+        && previewBookingId in previewGrant().allowedBookingIds;
+    }
+    match /platform_contact_requests/{previewRequestId}/{previewFile} {
+      allow read: if previewIdentity() && validPreview()
+        && previewRequestId in previewGrant().allowedRequestIds;
+    }
+    match /shop_verify_requests/{previewShopId}/{previewFile=**} {
+      allow read: if previewIdentity() && validPreview()
+        && previewGrant().shopId == previewShopId;
+    }
     function signedIn() {
       return request.auth != null
         && request.auth.token.get('petnestInspection', false) != true;

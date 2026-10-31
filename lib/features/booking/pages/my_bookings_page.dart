@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/booking/pages/my_bookings_page.dart
 // 功能說明：我的訂單頁
 // 功能：
@@ -148,9 +149,14 @@ class _MyBookingsPageState extends State<_MyBookingsBody> {
         stream: () {
           Query<Map<String, dynamic>> query = FirebaseFirestore.instance
               .collection('bookings')
-              .where('userId', isEqualTo: user.uid);
+              .where(
+                'userId',
+                isEqualTo: InspectionOwnerContext.readUid(user.uid),
+              );
 
-          final String currentShopId = widget.returnShopId?.trim() ?? '';
+          final String currentShopId = InspectionOwnerContext.active
+              ? InspectionOwnerContext.shopId
+              : widget.returnShopId?.trim() ?? '';
 
           if (currentShopId.isNotEmpty) {
             query = query.where('shopId', isEqualTo: currentShopId);

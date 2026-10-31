@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/shop_info_settings_panel.dart';
 import 'shop_about_manage_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
@@ -165,6 +167,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   int _policyFocusToken = 0;
   int _faqFocusToken = 0;
   int _reviewFocusToken = 0;
+  int _shopInfoFocusToken = 0;
+  HomeShopInfoSetting _shopInfo = const HomeShopInfoSetting();
   final GlobalKey _appearanceTabBarKey = GlobalKey();
   String? _selectedRoomTypeId;
   int _roomFocusToken = 0;
@@ -444,6 +448,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         HomeDisplayStyleSetting.mapKey: _displayStyle.toMap(),
       'environmentSection': _environmentSection.toMap(),
       'aboutSection': _aboutSection.toMap(),
+      HomeShopInfoSetting.mapKey: _shopInfo.toMap(),
       'newsSection': _newsSection.toMap(),
       'quickBookingSection': _quickBookingSection.toMap(),
       'informationSections': _informationSections.toMap(),
@@ -757,6 +762,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _aboutSection = HomeAboutSectionSetting.fromMap(
           modernAppearance['aboutSection'],
         );
+        _shopInfo = HomeShopInfoSetting.fromMap(
+          modernAppearance[HomeShopInfoSetting.mapKey],
+        );
         _newsSection = HomeNewsSectionSetting.fromMap(
           modernAppearance['newsSection'],
         );
@@ -970,6 +978,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                   HomeDisplayStyleSetting.mapKey: _displayStyle.toMap(),
                 'environmentSection': _environmentSection.toMap(),
                 'aboutSection': _aboutSection.toMap(),
+                HomeShopInfoSetting.mapKey: _shopInfo.toMap(),
                 'newsSection': _newsSection.toMap(),
                 'quickBookingSection': _quickBookingSection.toMap(),
                 'informationSections': _informationSections.toMap(),
@@ -1073,6 +1082,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                   Tab(icon: Icon(Icons.quiz_outlined), text: '常見問題'),
                   Tab(icon: Icon(Icons.star_outline), text: '顧客評價'),
                   Tab(icon: Icon(Icons.menu_rounded), text: '導覽設定'),
+                  Tab(icon: Icon(Icons.storefront_outlined), text: '店家資訊'),
                 ],
               ),
             ),
@@ -1092,6 +1102,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
             _buildFaqPane(desktopModern),
             _buildReviewPane(desktopModern),
             _buildNavigationPane(desktopModern),
+            _buildShopInfoPane(desktopModern),
           ],
         ),
         bottomNavigationBar: pinSaveOnEditor ? null : _saveBar(),
@@ -2027,6 +2038,85 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildShopInfoPane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return const Center(child: Text('請先在外觀設定改用新版首頁，再設定店家資訊。'));
+    }
+    final intro = _loadedShop['environmentIntro'];
+    final settings = ShopInfoSettingsPanel(
+      setting: _shopInfo,
+      imageChoices: HomeAboutSectionSetting.imageChoices(
+        shop: _loadedShop,
+        environmentIntro: intro is Map
+            ? Map<String, dynamic>.from(intro)
+            : const {},
+      ),
+      onManage: () => _openAppearanceContent(
+        ShopPermissionKeys.manageFrontendContent,
+        (_) => ShopAboutManagePage(shopId: widget.shopId),
+      ),
+      onChanged: (value) => setState(() {
+        _shopInfo = value;
+        _appearanceDirty = true;
+        _shopInfoFocusToken++;
+      }),
+    );
+    Widget preview() => _homeCanvasPreview(
+      showCaption: desktopModern,
+      canvasMode: 'navigationShopInfo',
+      embeddedAdminPreview: false,
+      focusSectionId: 'shopInfo',
+      focusSectionToken: _shopInfoFocusToken,
+    );
+    if (desktopModern) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(width: 452, child: preview()),
+            const SizedBox(width: 16),
+            const VerticalDivider(width: 1),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(child: settings),
+                  _saveBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(
+                value: 0,
+                label: Text('預覽'),
+                icon: Icon(Icons.smartphone_outlined),
+              ),
+              ButtonSegment(
+                value: 1,
+                label: Text('設定'),
+                icon: Icon(Icons.tune),
+              ),
+            ],
+            selected: {_homeCanvasPane},
+            onSelectionChanged: (v) =>
+                setState(() => _homeCanvasPane = v.first),
+          ),
+        ),
+        Expanded(child: _homeCanvasPane == 0 ? preview() : settings),
+      ],
     );
   }
 

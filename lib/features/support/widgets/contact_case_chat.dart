@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/features/support/widgets/contact_case_chat.dart
 // 功能說明：店主與平台共用的聯絡案件聊天室。結案後停止輸入，較舊訊息分批載入。
 
@@ -63,6 +64,7 @@ class _ContactCaseChatState extends State<ContactCaseChat> {
   }
 
   Future<void> _send(String status) async {
+    if (InspectionOwnerContext.active) return;
     final String message = _input.text.trim();
     if (message.isEmpty || _sending || status == 'closed') {
       return;
@@ -145,6 +147,7 @@ class _ContactCaseChatState extends State<ContactCaseChat> {
   }
 
   Future<void> _setStatus(String status) async {
+    if (InspectionOwnerContext.active) return;
     if (status == 'closed') {
       final bool? ok = await showDialog<bool>(
         context: context,
@@ -437,7 +440,10 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool canSend = !sending && controller.text.trim().isNotEmpty;
+    final bool canSend =
+        !InspectionOwnerContext.active &&
+        !sending &&
+        controller.text.trim().isNotEmpty;
     return Material(
       color: Colors.white,
       child: SafeArea(
@@ -490,7 +496,7 @@ class _Composer extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: controller,
-                      enabled: !sending,
+                      enabled: !sending && !InspectionOwnerContext.active,
                       minLines: 1,
                       maxLines: 5,
                       textInputAction: TextInputAction.newline,

@@ -321,3 +321,34 @@ test("forged prepared flags cannot enable LINE and existing App delivery remains
   }
   assert.equal((await f.prepare("still-app")).preview.count, 2);
 });
+
+
+test("inspection preview computes owner view without saving draft or sending", async () => {
+  const f = fixture();
+  const Module = require("node:module");
+  const id = "b".repeat(48);
+  const root = "7FNrECQeqAca9Vu8lBBzTSdcJcg1";
+  f.db.doc = (path) => {
+    const parts = path.split("/");
+    return f.db.collection(parts.slice(0, -1).join("/")).doc(parts.at(-1));
+  };
+  f.store.set("platform_inspection_previews/" + id, {uid: "preview", rootUid: root,
+    shopId: "s", ownerUid: "owner", parentSession: "parent", active: true, expiresAt: Date.now() + 60000});
+  f.store.set("platform_inspection_sessions/parent", {uid: root, verification: "email_code_v1", touchedAt: Date.now()});
+  const before = JSON.stringify([...f.store]);
+  const load = Module._load;
+  let pending;
+  try {
+    Module._load = function(name, ...args) {
+      return name === "firebase-admin" ? {firestore: () => f.db} : load.call(this, name, ...args);
+    };
+    pending = f.api.manageShopCampaign.run({auth: {uid: "preview", token: {
+      petnestInspection: true, inspectionGrant: id}}, data: {
+      action: "preview", shopId: "s", campaignId: "readonly", draft: f.draft, version: 0}});
+  } finally {Module._load = load;}
+  const result = await pending;
+  assert.equal(result.preview.count, 2);
+  assert.equal(f.store.has("shop_campaigns/readonly"), false);
+  assert.equal(JSON.stringify([...f.store]), before);
+  assert.equal(f.pushes.length, 0);
+});

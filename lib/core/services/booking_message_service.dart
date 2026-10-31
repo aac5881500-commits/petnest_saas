@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/booking_message_service.dart
 // 功能說明：讀取訂單留言、送出訂單留言
 // 💬 訂單留言服務
@@ -107,6 +108,7 @@ class BookingMessageService {
     required String bookingId,
     required String readerType, // customer / shop
   }) async {
+    if (InspectionOwnerContext.active) return;
     final user = _auth.currentUser;
 
     if (user == null) {

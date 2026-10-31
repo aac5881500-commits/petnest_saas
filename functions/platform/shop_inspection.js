@@ -106,6 +106,7 @@ async (request) => {
   // Record access before any business data is returned. No business
   // writes exist here.
   await logs.add({uid: ROOT, action, shopId, path,
+    viewPath: String(data.viewPath || "").slice(0, 200),
     customerId: data.customerId || "",
     at: admin.firestore.FieldValue.serverTimestamp()});
   /**

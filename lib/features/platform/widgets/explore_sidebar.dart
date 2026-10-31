@@ -176,6 +176,7 @@ class ExploreMemberPanel extends StatelessWidget {
   const ExploreMemberPanel({
     super.key,
     required this.onClose,
+    this.onMap,
     required this.onMyStays,
     required this.onBookings,
     required this.onFavorites,
@@ -188,6 +189,7 @@ class ExploreMemberPanel extends StatelessWidget {
   });
 
   final VoidCallback onClose;
+  final VoidCallback? onMap;
   final VoidCallback onMyStays;
   final VoidCallback onBookings;
   final VoidCallback onFavorites;
@@ -205,105 +207,157 @@ class ExploreMemberPanel extends StatelessWidget {
     final List<ExploreStayShop> shown = stays.take(3).toList();
     return Material(
       color: colors.surface,
-      elevation: 3,
-      shadowColor: colors.shadow.withValues(alpha: 0.12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-            child: Row(
-              children: <Widget>[
-                Icon(Icons.pets, size: 18, color: colors.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '我的 PetNest',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+      elevation: 12,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 8, 20),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer.withValues(alpha: .5),
+              ),
+              child: Row(
+                children: <Widget>[
+                  CircleAvatar(
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.onPrimary,
+                    child: const Icon(Icons.pets),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          '我的 PetNest',
+                          style: text.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          loggedIn ? '旅店與預約，一處管理' : '探索店家，安排毛孩的日常',
+                          style: text.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: '關閉會員選單',
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 16,
                 ),
-                IconButton(
-                  tooltip: '收起',
-                  onPressed: onClose,
-                  icon: const Icon(Icons.pets, size: 18),
-                ),
-              ],
-            ),
-          ),
-          _PanelTile(
-            icon: Icons.pets_outlined,
-            label: '我的旅店',
-            onTap: onMyStays,
-          ),
-          _PanelTile(
-            icon: Icons.event_outlined,
-            label: '我的預約',
-            onTap: onBookings,
-          ),
-          _PanelTile(
-            icon: Icons.favorite_border,
-            label: '我的收藏',
-            onTap: onFavorites,
-          ),
-          _PanelTile(icon: Icons.history, label: '最近瀏覽', onTap: onRecent),
-          if (showRecentEmpty)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: RecentShopSection(compact: true),
-            ),
-          Divider(
-            height: 20,
-            color: colors.outlineVariant.withValues(alpha: 0.6),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              children: <Widget>[
-                Text(
-                  '最近使用',
-                  style: text.labelLarge?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                if (stayError)
-                  Text(
-                    '暫時讀不到預約紀錄',
-                    style: text.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Text(
+                      '探索與會員',
+                      style: text.labelLarge?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
-                  )
-                else if (!loggedIn)
-                  Text(
-                    '登入後可以看預約過的旅店',
-                    style: text.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
+                  ),
+                  _PanelTile(
+                    icon: Icons.travel_explore,
+                    label: '繼續探索店家',
+                    onTap: onClose,
+                  ),
+                  if (onMap != null)
+                    _PanelTile(
+                      icon: Icons.map_outlined,
+                      label: '地圖找店',
+                      onTap: onMap!,
                     ),
-                  )
-                else if (shown.isEmpty)
-                  Text(
-                    '你還沒有預約過的旅店',
-                    style: text.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
+                  const Divider(height: 24),
+                  _PanelTile(
+                    icon: Icons.pets_outlined,
+                    label: '我的旅店',
+                    onTap: onMyStays,
+                  ),
+                  _PanelTile(
+                    icon: Icons.event_outlined,
+                    label: '我的預約',
+                    onTap: onBookings,
+                  ),
+                  _PanelTile(
+                    icon: Icons.favorite_border,
+                    label: '我的收藏',
+                    onTap: onFavorites,
+                  ),
+                  _PanelTile(
+                    icon: Icons.history,
+                    label: '最近瀏覽',
+                    onTap: onRecent,
+                  ),
+                  if (showRecentEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: RecentShopSection(compact: true),
                     ),
-                  )
-                else
-                  for (final ExploreStayShop shop in shown)
-                    _RecentStayTile(shop: shop, onTap: () => onOpenStay(shop)),
-              ],
+                  const Divider(height: 28),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      '預約過的旅店',
+                      style: text.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (stayError)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('暫時讀不到預約紀錄'),
+                    )
+                  else if (!loggedIn)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text('登入後可查看你的旅店與預約紀錄'),
+                          const SizedBox(height: 10),
+                          FilledButton.tonalIcon(
+                            onPressed: onMyStays,
+                            icon: const Icon(Icons.login),
+                            label: const Text('登入查看'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (shown.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('你還沒有預約過的旅店'),
+                    )
+                  else
+                    for (final shop in shown)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: _RecentStayTile(
+                            shop: shop,
+                            onTap: () => onOpenStay(shop),
+                          ),
+                        ),
+                      ),
+                ],
+              ),
             ),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: onClose,
-              icon: const Icon(Icons.chevron_left),
-              label: const Text('收起'),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -323,15 +377,17 @@ class _PanelTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      dense: true,
-      visualDensity: VisualDensity.compact,
+      minTileHeight: 54,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
       leading: Icon(icon, size: 20),
       title: Text(
         label,
-        maxLines: 1,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w700),
       ),
+      trailing: const Icon(Icons.chevron_right, size: 18),
       onTap: onTap,
     );
   }

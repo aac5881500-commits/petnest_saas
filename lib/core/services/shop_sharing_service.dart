@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -37,6 +38,7 @@ class ShopSharingService {
   }
 
   Future<String?> currentShop() async {
+    if (InspectionOwnerContext.active) return InspectionOwnerContext.shopId;
     await _ensureUser();
     final prefs = await SharedPreferences.getInstance();
     final result = await _functions.httpsCallable('customerShopBinding').call({
@@ -54,6 +56,10 @@ class ShopSharingService {
   }
 
   Future<void> selectPublicShop(String shopId) async {
+    if (InspectionOwnerContext.active) {
+      if (!InspectionOwnerContext.forShop(shopId)) throw StateError("不能切換查核店家");
+      return;
+    }
     await _ensureUser();
     await _functions.httpsCallable('customerShopBinding').call({
       'action': 'selectPublic',

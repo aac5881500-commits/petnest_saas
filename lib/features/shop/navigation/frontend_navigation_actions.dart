@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
 import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -96,6 +97,7 @@ class FrontendNavigationLaunch {
           return;
         }
         ModernShopFooter(
+          setting: HomeShopInfoSetting.fromShop(shop),
           shopId: shopId,
           shop: shop,
           shopName: (shop['name'] ?? '店家').toString(),

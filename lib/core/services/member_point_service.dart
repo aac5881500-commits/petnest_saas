@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/member_point_service.dart
 // 功能說明：讀取、監聽與安全調整會員在指定店家的點數餘額
 // 🪙 會員點數 Service
@@ -224,6 +225,9 @@ class MemberPointService {
     required String shopId,
     required String userId,
   }) async {
+    if (InspectionOwnerContext.active) {
+      return getMemberPoint(shopId: shopId, userId: userId);
+    }
     final String normalizedShopId = shopId.trim();
     final String normalizedUserId = userId.trim();
 

@@ -57,6 +57,70 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  test('獨立封面與間距讀寫，切整頁保留內容及覆寫', () {
+    final before = AboutPageSetting().withItems('stories', [
+      const AboutContentItem(id: 'story', title: '原有故事'),
+    ]);
+    final next = before
+        .withAppearance({
+          'coverLayout': 'imageRight',
+          'sectionSpacing': 'compact',
+        })
+        .copyWith({'layout': 'team'});
+    final loaded = AboutPageSetting.fromMap(next.toMap());
+    expect(loaded.coverLayout, 'imageRight');
+    expect(loaded.sectionSpacing, 'compact');
+    expect(loaded.items('stories').single.title, '原有故事');
+    expect(AboutPageSetting().coverLayout, 'auto');
+    expect(AboutPageSetting().sectionSpacing, 'auto');
+    expect(
+      AboutPageSetting().withAppearance({'coverLayout': 'bad'}).coverLayout,
+      'auto',
+    );
+    expect(
+      aboutPageUpdates(
+        before,
+        next,
+      )['homeAppearance.aboutPage.appearance.coverLayout'],
+      'imageRight',
+    );
+  });
+  for (final cover in ['stacked', 'imageLeft', 'imageRight']) {
+    testWidgets('$cover 封面手機上下、桌機獨立排列', (tester) async {
+      for (final width in [390.0, 1100.0]) {
+        await show(
+          tester,
+          AboutIntroView(
+            shop: const {
+              'aboutTitle': '封面標題',
+              'aboutDescription': '封面簡介',
+              'aboutImageUrl': 'https://example.invalid/cover.jpg',
+            },
+            setting: AboutPageSetting().withAppearance({'coverLayout': cover}),
+            theme: theme,
+            preview: true,
+          ),
+          width: width,
+        );
+        expect(
+          find.byKey(const ValueKey('about-independent-cover')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(
+            ValueKey(
+              width >= 700 && cover != 'stacked'
+                  ? 'about-cover-row'
+                  : 'about-cover-column',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('封面標題'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
   test('contact cannot be hidden, including legacy false visibility', () {
     final setting = AboutPageSetting.fromMap({
       'visibility': {'contact': false},
@@ -126,7 +190,8 @@ void main() {
           ),
         );
         expect(find.text('店家資訊'), findsOneWidget);
-        expect(find.text('請洽店家確認'), findsOneWidget);
+        expect(find.text('請洽店家確認'), findsNothing);
+        expect(find.text('尚未提供'), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );

@@ -50,6 +50,7 @@ class HomeLayoutCanvas extends StatefulWidget {
 class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _flowStackKey = GlobalKey();
+  final GlobalKey _shopInfoAnchor = GlobalKey();
   final Map<String, Rect> _geometry = <String, Rect>{};
   Map<String, Rect>? _dragGeometry;
   MultiDragGestureRecognizer? _recognizer;
@@ -166,6 +167,23 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
 
   void _revealSection(String sectionId) {
     if (!_scrollController.hasClients) {
+      return;
+    }
+    if (sectionId == 'shopInfo' && widget.shopInfo != null) {
+      _scrollController
+          .animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOut,
+          )
+          .then((_) {
+            if (!mounted || _shopInfoAnchor.currentContext == null) return;
+            Scrollable.ensureVisible(
+              _shopInfoAnchor.currentContext!,
+              alignment: 0,
+              duration: const Duration(milliseconds: 160),
+            );
+          });
       return;
     }
     final Rect? rect = _geometry[sectionId];
@@ -482,6 +500,7 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
                       ),
                       if (widget.shopInfo != null)
                         Padding(
+                          key: _shopInfoAnchor,
                           padding: const EdgeInsets.only(top: 8),
                           child: widget.shopInfo,
                         ),

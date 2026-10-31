@@ -1,4 +1,3 @@
-import '../widgets/explore_mobile_member_nav.dart';
 import 'package:petnest_saas/core/models/shop_map_location.dart';
 import 'package:petnest_saas/features/platform/models/public_map_shop.dart';
 import 'platform_shop_map_page.dart';
@@ -289,7 +288,7 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
                   );
                   final double panelWidth = desktop
                       ? 232
-                      : (width * 0.78).clamp(220, 300).toDouble();
+                      : (width * 0.88).clamp(260, 360).toDouble();
                   final Stream<QuerySnapshot<Map<String, dynamic>>>? stays =
                       _memberStays();
                   final Map<String, _ExploreShop> byId = <String, _ExploreShop>{
@@ -307,6 +306,7 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
                             content: content,
                             onToggle: _toggleMember,
                             onClose: _closeMember,
+                            onMap: _showMap,
                             onMyStays: () {
                               _requireLogin(() {
                                 setState(() => _memberOpen = true);
@@ -350,6 +350,7 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
                                     content: content,
                                     onToggle: _toggleMember,
                                     onClose: _closeMember,
+                                    onMap: _showMap,
                                     onMyStays: () {
                                       if (grouped.isEmpty) {
                                         setState(() => _memberOpen = true);
@@ -456,7 +457,7 @@ class _ExploreBody extends StatelessWidget {
         );
         Widget cardBuilder(BuildContext context, int index) {
           final _ExploreShop shop = visible[index];
-          return CompactShopCard(
+          final card = CompactShopCard(
             name: shop.name,
             imageUrl: shop.coverUrl,
             logoUrl: shop.logoUrl,
@@ -473,6 +474,15 @@ class _ExploreBody extends StatelessWidget {
               fontSize: gridWidth < 600 ? 12.5 : (desktop ? 12.5 : 11.5),
             ),
           );
+          return desktop && visible.length <= 2
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 860),
+                    child: card,
+                  ),
+                )
+              : card;
         }
 
         return Column(
@@ -594,6 +604,7 @@ class _ExploreShell extends StatelessWidget {
     required this.content,
     required this.onToggle,
     required this.onClose,
+    required this.onMap,
     required this.onMyStays,
     required this.onBookings,
     required this.onFavorites,
@@ -611,6 +622,7 @@ class _ExploreShell extends StatelessWidget {
   final Widget content;
   final VoidCallback onToggle;
   final VoidCallback onClose;
+  final VoidCallback onMap;
   final VoidCallback onMyStays;
   final VoidCallback onBookings;
   final VoidCallback onFavorites;
@@ -630,9 +642,9 @@ class _ExploreShell extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(left: railWidth),
                 child: Align(
-                  alignment: Alignment.topLeft,
+                  alignment: Alignment.topCenter,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1440),
+                    constraints: const BoxConstraints(maxWidth: 1160),
                     child: content,
                   ),
                 ),
@@ -664,6 +676,10 @@ class _ExploreShell extends StatelessWidget {
                   ignoring: !memberOpen,
                   child: ExploreMemberPanel(
                     onClose: onClose,
+                    onMap: () {
+                      onClose();
+                      onMap();
+                    },
                     onMyStays: onMyStays,
                     onBookings: onBookings,
                     onFavorites: onFavorites,
@@ -697,13 +713,6 @@ class _ExploreShell extends StatelessWidget {
             ],
           ),
         ),
-        if (!desktop && MediaQuery.viewInsetsOf(context).bottom == 0)
-          ExploreMobileMemberNav(
-            onMyStays: onMyStays,
-            onBookings: onBookings,
-            onFavorites: onFavorites,
-            onRecent: onRecent,
-          ),
       ],
     );
   }

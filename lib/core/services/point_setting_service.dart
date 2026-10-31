@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/point_setting_service.dart
 // 功能說明：讀取、監聽與儲存每間店家的點數制度設定
 // 🪙 店家點數設定 Service
@@ -75,6 +76,7 @@ class PointSettingService {
   /// 如果尚未建立，寫入一份預設設定。
   /// 已存在時不覆蓋原本資料。
   Future<PointSettingModel> ensurePointSetting(String shopId) async {
+    if (InspectionOwnerContext.active) return getPointSetting(shopId);
     final String normalizedShopId = shopId.trim();
 
     if (normalizedShopId.isEmpty) {

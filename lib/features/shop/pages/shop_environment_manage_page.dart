@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/shop/widgets/environment/environment_hero_section.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_image_banner.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_environment_manage_page.dart
 // 功能說明：後台環境介紹管理頁
@@ -87,6 +89,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   String? _busyMessage;
 
   List<Map<String, dynamic>> environmentGalleryImages = [];
+  List<Map<String, dynamic>> _galleryTrash = [];
+  String _savedTrashSnapshot = '[]';
   List<Map<String, dynamic>> environmentFeatures = [];
   List<String> selectedFacilityKeys = [];
 
@@ -135,6 +139,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     if (!_loading &&
         (_dataSnapshot(environmentFeatures) != _savedFeaturesSnapshot ||
             _dataSnapshot(_galleryPayload()) != _savedGallerySnapshot ||
+            _dataSnapshot(_galleryTrash) != _savedTrashSnapshot ||
             _presentationSnapshot(_presentation) !=
                 _presentationSnapshot(_savedPresentation) ||
             _dashboardSavedText != _dashboardText ||
@@ -234,6 +239,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         environmentGalleryImages = _parseGalleryItems(
           environmentIntro['galleryImages'],
         );
+        _galleryTrash = _parseGalleryItems(environmentIntro['galleryTrash']);
         environmentFeatures = List<Map<String, dynamic>>.from(
           environmentIntro['features'] ?? [],
         );
@@ -258,6 +264,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       _savedFacilities = List<String>.from(selectedFacilityKeys);
       _savedFeaturesSnapshot = _dataSnapshot(environmentFeatures);
       _savedGallerySnapshot = _dataSnapshot(_galleryPayload());
+      _savedTrashSnapshot = _dataSnapshot(_galleryTrash);
       _pendingUploads.clear();
       _retiredOfficialImages.clear();
 
@@ -312,6 +319,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         }
         items.add(<String, dynamic>{
           'imageUrl': imageUrl,
+          ...item.map((key, value) => MapEntry(key.toString(), value)),
+          'caption': (item['caption'] ?? '').toString(),
           'imageStoragePath': (item['imageStoragePath'] ?? '')
               .toString()
               .trim(),
@@ -333,16 +342,12 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     return environmentGalleryImages
         .map(
           (Map<String, dynamic> item) => <String, dynamic>{
+            ...item,
             'imageUrl': _mapImageUrl(item),
             'imageStoragePath': _mapImagePath(item),
           },
         )
         .toList();
-  }
-
-  bool _isPendingPath(String path) {
-    return path.isNotEmpty &&
-        _pendingUploads.any((_TrackedEnvImage item) => item.path == path);
   }
 
   bool _isOfficialImage(String path, String url) {
@@ -381,7 +386,14 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   }
 
   Future<bool> _deleteTrackedImage(_TrackedEnvImage image) {
-    if (image.slot == 'service') {
+    if (image.slot == 'gallery') {
+      return ShopService.instance.tryDeleteEnvironmentGalleryImage(
+        shopId: widget.shopId,
+        imageStoragePath: image.path,
+        imageUrl: image.url,
+      );
+    }
+    if (image.slot == 'service' || image.slot == 'feature') {
       return ShopService.instance.tryDeleteEnvironmentFeatureImage(
         shopId: widget.shopId,
         imageStoragePath: image.path,
@@ -416,6 +428,16 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     for (final _TrackedEnvImage image in pending) {
       if (image.path == _savedHeroImagePath ||
           image.path == _savedBannerImagePath ||
+          [
+            ...(jsonDecode(_savedFeaturesSnapshot) as List),
+            ...(jsonDecode(_savedGallerySnapshot) as List),
+            ...(jsonDecode(_savedTrashSnapshot) as List),
+          ].whereType<Map>().any(
+            (item) =>
+                (image.path.isNotEmpty &&
+                    item['imageStoragePath'] == image.path) ||
+                (image.url.isNotEmpty && item['imageUrl'] == image.url),
+          ) ||
           _savedPresentation.services.any(
             (service) =>
                 (image.path.isNotEmpty && service.imagePath == image.path) ||
@@ -547,17 +569,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           ? _heroImagePath
           : _bannerImagePath;
 
-      if (_isPendingPath(previousPath)) {
-        final int pendingIndex = _pendingUploads.indexWhere(
-          (_TrackedEnvImage item) => item.path == previousPath,
-        );
-        if (pendingIndex >= 0) {
-          final _TrackedEnvImage replaced = _pendingUploads.removeAt(
-            pendingIndex,
-          );
-          await _cleanupTracked(replaced, reason: 'replaced-pending');
-        }
-      } else if (_isOfficialImage(previousPath, previousUrl)) {
+      if (_isOfficialImage(previousPath, previousUrl)) {
         _trackRetiredOfficial(slot: type, path: previousPath, url: previousUrl);
       }
 
@@ -602,15 +614,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         ? _heroImagePath
         : _bannerImagePath;
 
-    if (_isPendingPath(previousPath)) {
-      final int pendingIndex = _pendingUploads.indexWhere(
-        (_TrackedEnvImage item) => item.path == previousPath,
-      );
-      if (pendingIndex >= 0) {
-        final _TrackedEnvImage pending = _pendingUploads.removeAt(pendingIndex);
-        await _cleanupTracked(pending, reason: 'removed-unsaved');
-      }
-    } else if (_isOfficialImage(previousPath, previousUrl)) {
+    if (_isOfficialImage(previousPath, previousUrl)) {
       _trackRetiredOfficial(slot: type, path: previousPath, url: previousUrl);
     }
 
@@ -693,25 +697,20 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         'imageStoragePath': uploaded.imageStoragePath,
       });
 
-      try {
-        await _persistAuxiliarySections(section: 'galleryImages');
-      } catch (_) {
-        environmentGalleryImages.removeLast();
-        await ShopService.instance.tryDeleteEnvironmentGalleryImage(
-          shopId: widget.shopId,
-          imageStoragePath: uploaded.imageStoragePath,
-          imageUrl: uploaded.imageUrl,
-        );
-        _showImageError('圖片處理失敗，請重新選擇圖片。');
-        return;
-      }
+      _pendingUploads.add(
+        _TrackedEnvImage(
+          slot: 'gallery',
+          path: uploaded.imageStoragePath,
+          url: uploaded.imageUrl,
+        ),
+      );
 
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('環境照片已上傳')));
+      ).showSnackBar(const SnackBar(content: Text('環境照片已加入草稿，儲存後生效')));
     } catch (_) {
       _showImageError('圖片處理失敗，請重新選擇圖片。');
     } finally {
@@ -728,81 +727,89 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     if (_imageBusy || index < 0 || index >= environmentGalleryImages.length) {
       return;
     }
+    setState(() => _galleryTrash.add(environmentGalleryImages.removeAt(index)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('照片已移至回收區，可在下方復原；儲存後才更新前台')));
+  }
 
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('移除環境照片'),
-          content: const Text('確定要移除這張照片嗎？\n移除後前台將不再顯示，伺服器上的圖片檔也會一併刪除。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('移除並刪除'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) {
+  void _moveGallery(int index, int direction) {
+    final target = index + direction;
+    if (_imageBusy ||
+        index < 0 ||
+        index >= environmentGalleryImages.length ||
+        target < 0 ||
+        target >= environmentGalleryImages.length) {
       return;
     }
-
-    final Map<String, dynamic> removed = environmentGalleryImages[index];
-    final List<Map<String, dynamic>> previous = List<Map<String, dynamic>>.from(
-      environmentGalleryImages,
+    setState(
+      () => environmentGalleryImages.insert(
+        target,
+        environmentGalleryImages.removeAt(index),
+      ),
     );
+  }
 
+  void _restoreGallery(int index) {
+    if (_imageBusy || environmentGalleryImages.length >= 12) return;
+    setState(() => environmentGalleryImages.add(_galleryTrash.removeAt(index)));
+  }
+
+  void _setGalleryCover(int index) {
+    if (_imageBusy) return;
+    _trackRetiredOfficial(
+      slot: 'hero',
+      path: _heroImagePath,
+      url: _heroImageUrl,
+    );
     setState(() {
-      _pickingImage = true;
-      _busyMessage = '正在移除照片…';
-      environmentGalleryImages.removeAt(index);
+      _heroImageUrl = _mapImageUrl(environmentGalleryImages[index]);
+      _heroImagePath = _mapImagePath(environmentGalleryImages[index]);
     });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已設為封面草稿，儲存後生效')));
+  }
 
-    try {
-      await _persistAuxiliarySections(section: 'galleryImages');
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          environmentGalleryImages = previous;
-        });
-        _showImageError('儲存失敗，請稍後再試');
-      }
-      return;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _pickingImage = false;
-          _busyMessage = null;
-        });
-      }
-    }
-
-    final bool cleaned = await ShopService.instance
-        .tryDeleteEnvironmentGalleryImage(
-          shopId: widget.shopId,
-          imageStoragePath: _mapImagePath(removed),
-          imageUrl: _mapImageUrl(removed),
-        );
-
-    if (!mounted) {
-      return;
-    }
-    if (!cleaned) {
-      debugPrint(
-        'Environment gallery image leftover after delete: '
-        'path=${_mapImagePath(removed)} url=${_mapImageUrl(removed)}',
+  Future<void> _editGalleryCaption(int index) async {
+    if (_imageBusy) return;
+    final controller = TextEditingController(
+      text: environmentGalleryImages[index]['caption']?.toString() ?? '',
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('照片說明'),
+        content: TextField(
+          controller: controller,
+          maxLength: 120,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: '說明文字'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('套用到草稿'),
+          ),
+        ],
+      ),
+    );
+    if (value != null && mounted) {
+      setState(
+        () => environmentGalleryImages[index] = {
+          ...environmentGalleryImages[index],
+          'caption': value,
+        },
       );
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(cleaned ? '環境照片已刪除' : '照片已移除，但舊圖片清理失敗，請稍後再試。')),
-    );
+    // Wait for the closing route animation before disposing the controller.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.dispose();
   }
 
   Future<void> _editFeature(int index) async {
@@ -852,10 +859,6 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                     'description': descriptionController.text.trim(),
                   };
                 });
-                _persistAuxiliarySections(
-                  section: 'features',
-                  propagateError: false,
-                );
                 Navigator.pop(context);
               },
               child: const Text('儲存'),
@@ -885,10 +888,6 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                 'icon': selectedKey,
               };
             });
-            _persistAuxiliarySections(
-              section: 'features',
-              propagateError: false,
-            );
           },
         );
       },
@@ -970,43 +969,18 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         };
       });
 
-      try {
-        await _persistAuxiliarySections(section: 'features');
-      } catch (_) {
-        if (mounted) {
-          setState(() {
-            environmentFeatures[index] = previous;
-          });
-        }
-        await ShopService.instance.tryDeleteEnvironmentFeatureImage(
-          shopId: widget.shopId,
-          imageStoragePath: uploaded.imageStoragePath,
-          imageUrl: uploaded.imageUrl,
-        );
-        _showImageError('圖片處理失敗，請重新選擇圖片。');
-        return;
-      }
-
-      if (oldUrl.isNotEmpty || oldPath.isNotEmpty) {
-        final bool cleaned = await ShopService.instance
-            .tryDeleteEnvironmentFeatureImage(
-              shopId: widget.shopId,
-              imageStoragePath: oldPath,
-              imageUrl: oldUrl,
-            );
-        if (!cleaned) {
-          debugPrint(
-            'Environment feature image leftover after replace: path=$oldPath url=$oldUrl',
-          );
-        }
-      }
-
-      if (!mounted) {
-        return;
-      }
+      _pendingUploads.add(
+        _TrackedEnvImage(
+          slot: 'feature',
+          path: uploaded.imageStoragePath,
+          url: uploaded.imageUrl,
+        ),
+      );
+      _trackRetiredOfficial(slot: 'feature', path: oldPath, url: oldUrl);
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('特色圖片已上傳')));
+      ).showSnackBar(const SnackBar(content: Text('特色圖片已加入草稿，儲存後生效')));
     } catch (_) {
       _showImageError('圖片處理失敗，請重新選擇圖片。');
     } finally {
@@ -1035,7 +1009,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('移除特色圖片'),
-          content: const Text('移除後前台將不再顯示，伺服器圖片也會同步刪除。'),
+          content: const Text('先從草稿移除，可立即復原；按整頁儲存後才更新前台並清理未使用圖片。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -1044,7 +1018,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, true),
               style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('移除並刪除'),
+              child: const Text('從草稿移除'),
             ),
           ],
         );
@@ -1055,51 +1029,28 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       return;
     }
 
-    final Map<String, dynamic> previous = Map<String, dynamic>.from(
-      environmentFeatures[index],
-    );
-
-    setState(() {
-      _pickingImage = true;
-      _busyMessage = '正在移除圖片…';
-      environmentFeatures[index] = {
-        ...environmentFeatures[index],
-        'imageUrl': '',
-        'imageStoragePath': '',
-      };
-    });
-
-    try {
-      await _persistAuxiliarySections(section: 'features');
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          environmentFeatures[index] = previous;
-        });
-        _showImageError('儲存失敗，請稍後再試');
-      }
-      return;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _pickingImage = false;
-          _busyMessage = null;
-        });
-      }
-    }
-
-    final bool cleaned = await ShopService.instance
-        .tryDeleteEnvironmentFeatureImage(
-          shopId: widget.shopId,
-          imageStoragePath: oldPath,
-          imageUrl: oldUrl,
-        );
-
-    if (!mounted) {
-      return;
-    }
+    final previous = Map<String, dynamic>.of(environmentFeatures[index]);
+    _trackRetiredOfficial(slot: 'feature', path: oldPath, url: oldUrl);
+    final savedSnapshot = _savedFeaturesSnapshot;
+    final cleared = {...previous, 'imageUrl': '', 'imageStoragePath': ''};
+    setState(() => environmentFeatures[index] = cleared);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(cleaned ? '特色圖片已移除' : '設定已儲存，但舊圖片清理失敗，請稍後再試。')),
+      SnackBar(
+        content: const Text('特色圖片已從草稿移除，儲存後生效'),
+        action: SnackBarAction(
+          label: '復原',
+          onPressed: () {
+            final target = environmentFeatures.indexOf(cleared);
+            if (!mounted ||
+                _imageBusy ||
+                target < 0 ||
+                _savedFeaturesSnapshot != savedSnapshot) {
+              return;
+            }
+            setState(() => environmentFeatures[target] = previous);
+          },
+        ),
+      ),
     );
   }
 
@@ -1220,7 +1171,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         return AlertDialog(
           title: const Text('刪除環境特色'),
           content: Text(
-            hasImage ? '刪除後此特色與相關圖片都會移除，且無法復原。' : '確定要刪除這張環境特色嗎？刪除後無法復原。',
+            hasImage
+                ? '先從草稿移除此特色，儲存前可復原；儲存後才更新前台並清理未使用圖片。'
+                : '先從草稿移除此特色，儲存前可復原。',
           ),
           actions: [
             TextButton(
@@ -1241,63 +1194,35 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       return;
     }
 
-    final List<Map<String, dynamic>> previous = environmentFeatures
-        .map((Map<String, dynamic> item) => Map<String, dynamic>.from(item))
-        .toList();
-    final String oldUrl = _mapImageUrl(feature);
-    final String oldPath = _mapImagePath(feature);
-
-    setState(() {
-      _pickingImage = true;
-      _busyMessage = '正在刪除特色…';
-      environmentFeatures.removeAt(index);
-    });
-
-    try {
-      await _persistAuxiliarySections(section: 'features');
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          environmentFeatures = previous;
-        });
-        _showImageError('儲存失敗，請稍後再試');
-      }
-      return;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _pickingImage = false;
-          _busyMessage = null;
-        });
-      }
-    }
-
-    if (oldUrl.isNotEmpty || oldPath.isNotEmpty) {
-      final bool cleaned = await ShopService.instance
-          .tryDeleteEnvironmentFeatureImage(
-            shopId: widget.shopId,
-            imageStoragePath: oldPath,
-            imageUrl: oldUrl,
-          );
-      if (!cleaned) {
-        debugPrint(
-          'Environment feature image leftover after delete card: path=$oldPath url=$oldUrl',
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('設定已儲存，但舊圖片清理失敗，請稍後再試。')),
-          );
-          return;
-        }
-      }
-    }
-
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('環境特色已刪除')));
+    _trackRetiredOfficial(
+      slot: 'feature',
+      path: _mapImagePath(feature),
+      url: _mapImageUrl(feature),
+    );
+    final savedSnapshot = _savedFeaturesSnapshot;
+    setState(() => environmentFeatures.removeAt(index));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('特色已從草稿移除，儲存後生效'),
+        action: SnackBarAction(
+          label: '復原',
+          onPressed: () {
+            if (!mounted ||
+                _imageBusy ||
+                environmentFeatures.contains(feature) ||
+                _savedFeaturesSnapshot != savedSnapshot) {
+              return;
+            }
+            setState(
+              () => environmentFeatures.insert(
+                index.clamp(0, environmentFeatures.length),
+                feature,
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _changeFeatureLayout(int index) async {
@@ -1317,46 +1242,6 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         'layout': nextLayout,
       };
     });
-
-    await _persistAuxiliarySections(section: 'features', propagateError: false);
-  }
-
-  Future<void> _persistAuxiliarySections({
-    required String section,
-    bool propagateError = true,
-  }) async {
-    assert(section == 'features' || section == 'galleryImages');
-    final payload = section == 'features'
-        ? environmentFeatures
-              .map((item) => Map<String, dynamic>.of(item))
-              .toList()
-        : _galleryPayload();
-    final snapshot = _dataSnapshot(payload);
-    try {
-      await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(widget.shopId)
-          .update({
-            'environmentIntro.$section': payload,
-            'environmentIntro.updatedAt': FieldValue.serverTimestamp(),
-          });
-      if (mounted) {
-        setState(() {
-          if (section == 'features') {
-            _savedFeaturesSnapshot = snapshot;
-          } else {
-            _savedGallerySnapshot = snapshot;
-          }
-        });
-      }
-    } catch (_) {
-      if (propagateError) rethrow;
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('局部儲存失敗，草稿已保留，請使用上方儲存重試')));
-      }
-    }
   }
 
   Map<String, dynamic> _environmentIntroPayload() {
@@ -1373,6 +1258,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       ..._bannerFrame.toMap(),
       ..._style.toMap(),
       'galleryImages': _galleryPayload(),
+      'galleryTrash': _galleryTrash,
       'features': environmentFeatures,
       'facilityKeys': selectedFacilityKeys,
       'environmentPresentation': _presentation.toMap(),
@@ -1414,6 +1300,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     final savingGallery = List<Map<String, dynamic>>.from(
       payload['galleryImages'] as List,
     );
+    final savingTrash = List<Map<String, dynamic>>.from(
+      payload['galleryTrash'] as List,
+    );
     final savingFacilities = List<String>.from(payload['facilityKeys'] as List);
     final savingPresentation = EnvironmentPresentation.fromMap(
       payload['environmentPresentation'],
@@ -1441,6 +1330,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         ...savingPresentation.services.map((s) => s.imagePath),
         ...savingFeatures.map(_mapImagePath),
         ...savingGallery.map(_mapImagePath),
+        ...savingTrash.map(_mapImagePath),
+        ..._galleryTrash.map(_mapImagePath),
         // Retain anything also referenced by a later draft edit.
         if (_heroImagePath.isNotEmpty) _heroImagePath,
         if (_bannerImagePath.isNotEmpty) _bannerImagePath,
@@ -1454,6 +1345,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         ...savingPresentation.services.map((s) => s.imageUrl),
         ...savingFeatures.map(_mapImageUrl),
         ...savingGallery.map(_mapImageUrl),
+        ...savingTrash.map(_mapImageUrl),
+        ..._galleryTrash.map(_mapImageUrl),
         if (_heroImageUrl.isNotEmpty) _heroImageUrl,
         if (_bannerImageUrl.isNotEmpty) _bannerImageUrl,
         ..._presentation.services.map((s) => s.imageUrl),
@@ -1493,6 +1386,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         _savedPresentation = savingPresentation;
         _savedFeaturesSnapshot = _dataSnapshot(savingFeatures);
         _savedGallerySnapshot = _dataSnapshot(savingGallery);
+        _savedTrashSnapshot = _dataSnapshot(savingTrash);
         _dashboardSavedText = savingText;
         _savedFacilities = savingFacilities;
         _pendingUploads.removeWhere(savingPending.contains);
@@ -1593,6 +1487,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           presentation: _presentation,
           theme: _previewTheme,
           features: environmentFeatures,
+          galleryCaptions: environmentGalleryImages
+              .map((item) => (item['caption'] ?? '').toString())
+              .toList(),
           galleryImages: environmentGalleryImages
               .map(_mapImageUrl)
               .where((String url) => url.isNotEmpty)
@@ -1802,6 +1699,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         bannerImageUrl: _bannerImageUrl,
         bannerFrame: _bannerFrame,
         features: environmentFeatures,
+        galleryCaptions: environmentGalleryImages
+            .map((item) => (item['caption'] ?? '').toString())
+            .toList(),
         galleryImages: environmentGalleryImages.map(_mapImageUrl).toList(),
         careItems: environmentFacilityOptions
             .where((item) => selectedFacilityKeys.contains(item['key']))
@@ -1930,7 +1830,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                                     const Padding(
                                       padding: EdgeInsets.only(bottom: 12),
                                       child: Text(
-                                        '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。',
+                                        '所有修改（含特色、圖片與相簿）都需按儲存後生效；放棄變更會保留原本已儲存內容。',
                                       ),
                                     ),
                                   if (index == 0) ...[
@@ -2057,6 +1957,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           title: '首頁大圖',
           imageUrl: _heroImageUrl,
           frame: _heroFrame,
+          previewBuilder: (height, width) =>
+              _slotPreview(height, width, hero: true),
           uploading: _uploadingHeroImage,
           busy: _imageBusy,
           overlayTitle: heroTitleController.text,
@@ -2081,6 +1983,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         _locateButton('features'),
         EnvironmentFeatureManager(
           features: environmentFeatures,
+          showLayoutControl:
+              _style.isHorizontalCard && _presentation.preset != 'warm',
           busy: _imageBusy,
           onAdd: () {
             setState(() {
@@ -2093,10 +1997,6 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                 'layout': 'imageRight',
               });
             });
-            _persistAuxiliarySections(
-              section: 'features',
-              propagateError: false,
-            );
           },
           onEdit: _editFeature,
           onManageImage: _openFeatureImageManager,
@@ -2150,6 +2050,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           title: '中間橫幅圖',
           imageUrl: _bannerImageUrl,
           frame: _bannerFrame,
+          previewBuilder: (height, width) =>
+              _slotPreview(height, width, hero: false),
           uploading: _uploadingBannerImage,
           busy: _imageBusy,
           overlayTitle: bannerTitleController.text,
@@ -2167,7 +2069,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     _buildSectionCard(
       settingsTab: 4,
       title: '底部提醒文字',
-      subtitle: '顯示在環境照片牆上方',
+      subtitle: '顯示順序依範本或自訂區塊排序決定',
       children: [
         _buildTextField(
           controller: bottomNoteController,
@@ -2179,7 +2081,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     _buildSectionCard(
       settingsTab: 4,
       title: '環境照片牆',
-      subtitle: '顯示在環境介紹主要內容最下方，最多 12 張',
+      subtitle: '最多 12 張；可排序、移至回收區及復原，儲存後生效',
       children: [
         _locateButton('gallery'),
         EnvironmentGalleryManager(
@@ -2187,6 +2089,14 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           busy: _imageBusy,
           onDelete: _deleteGalleryImage,
           onUpload: _pickAndUploadGalleryImage,
+          onMove: _moveGallery,
+          onSetCover: _setGalleryCover,
+          onEditCaption: _editGalleryCaption,
+          captions: environmentGalleryImages
+              .map((item) => (item['caption'] ?? '').toString())
+              .toList(),
+          trashImages: _galleryTrash.map(_mapImageUrl).toList(),
+          onRestore: _restoreGallery,
         ),
       ],
     ),
@@ -2245,7 +2155,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         border: Border.all(color: const Color(0xFFFFD7A8)),
       ),
       child: const Text(
-        '版型、文案、設備與服務需按儲存後生效；環境特色與相簿操作會立即儲存。大圖、橫幅與自訂服務照片會先上傳暫存，儲存成功後才發布並清理不再使用的舊圖。',
+        '所有修改（含特色、圖片與相簿）都需按儲存後生效；放棄變更會保留原本已儲存內容。大圖、橫幅與自訂服務照片會先上傳暫存，儲存成功後才發布並清理不再使用的舊圖。',
         style: TextStyle(
           height: 1.5,
           color: Color(0xFF6F5A43),
@@ -2320,7 +2230,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
             ) ||
             _presentation.services.any((s) => s.visible),
     };
-    if (!shown) {
+    if (!shown || _presentation.hiddenSections.contains(section)) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('此區塊目前沒有顯示內容')));
@@ -2338,6 +2248,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     title: '整頁外觀',
     subtitle: '只套用環境介紹；儲存後才更新正式內容。',
     children: [
+      _buildResponsiveControls(),
+      _buildSectionControls(),
+      _buildPhotoControls(),
       EnvironmentAppearanceEditor(
         appearance: _presentation.appearance,
         theme: _previewTheme,
@@ -2360,6 +2273,409 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           },
         ),
       ),
+    ],
+  );
+
+  Widget _slotPreview(
+    double height,
+    double width, {
+    required bool hero,
+  }) => DefaultTextStyle.merge(
+    style: TextStyle(fontFamily: _presentation.appearance.fontFamily),
+    child: hero
+        ? EnvironmentHeroSection(
+            imageUrl: _heroImageUrl,
+            title: heroTitleController.text,
+            subtitle: heroSubtitleController.text,
+            height: _presentation.photoHeight(
+              'hero',
+              width,
+              height * _style.heroHeightScale,
+            ),
+            imageFit: _presentation.photoFit('hero', width, _heroFrame.boxFit),
+            imageAlignment: _presentation.photoAlignment(
+              'hero',
+              width,
+              _heroFrame.alignment,
+            ),
+            titleSize: _style.heroTitleSize,
+            subtitleSize: _style.heroSubtitleSize,
+            horizontalMargin: 0,
+            radius: _style.heroRadius,
+            titleColor: _presentation.appearance.color('textColor'),
+            subtitleColor: _presentation.appearance.color('secondaryTextColor'),
+          )
+        : EnvironmentImageBanner(
+            imageUrl: _bannerImageUrl,
+            title: bannerTitleController.text,
+            height: _presentation.photoHeight(
+              'banner',
+              width,
+              height * _style.bannerHeightScale,
+            ),
+            imageFit: _presentation.photoFit(
+              'banner',
+              width,
+              _bannerFrame.boxFit,
+            ),
+            imageAlignment: _presentation.photoAlignment(
+              'banner',
+              width,
+              _bannerFrame.alignment,
+            ),
+            titleSize: _style.bannerTitleSize,
+            horizontalMargin: 0,
+            radius: _style.cardRadius,
+            titleColor: _presentation.appearance.color('textColor'),
+          ),
+  );
+
+  Widget _buildPhotoControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('相簿排列', style: TextStyle(fontWeight: FontWeight.bold)),
+      Wrap(
+        spacing: 8,
+        children: [
+          for (final entry in const {
+            'grid': '照片格線',
+            'single': '單張滿寬',
+            'mosaic': '一大兩小',
+          }.entries)
+            ChoiceChip(
+              label: Text(entry.value),
+              selected: _presentation.galleryLayout == entry.key,
+              onSelected: _imageBusy
+                  ? null
+                  : (_) => _setPresentation(
+                      _presentation.copyWith({'galleryLayout': entry.key}),
+                    ),
+            ),
+        ],
+      ),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text('手機／桌機照片設定與區塊間距'),
+        children: [
+          for (final desktop in [false, true])
+            for (final id in ['hero', 'banner'])
+              Builder(
+                builder: (context) {
+                  final settings = _presentation.photoSetting(id, desktop);
+                  void change(String key, Object? value) => _setPresentation(
+                    _presentation.copyWith({
+                      'photoSettings': {
+                        ..._presentation.photoSettings,
+                        '${desktop ? 'desktop' : 'phone'}_$id': {
+                          ...settings,
+                          key: value,
+                        },
+                      },
+                    }),
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${desktop ? '桌機' : '手機'}・${id == 'hero' ? '封面' : '橫幅'}',
+                      ),
+                      if (settings['aspect'] == null ||
+                          settings['aspect'] == 'auto') ...[
+                        Text(
+                          '圖片高度：${_presentation.photoHeight(id, desktop ? 1200 : 390, id == 'hero' ? 260 : 150).round()}',
+                        ),
+                        Slider(
+                          value: _presentation.photoHeight(
+                            id,
+                            desktop ? 1200 : 390,
+                            id == 'hero' ? 260 : 150,
+                          ),
+                          min: 100,
+                          max: 600,
+                          divisions: 50,
+                          onChanged: _imageBusy
+                              ? null
+                              : (value) => change('height', value),
+                        ),
+                      ],
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            const [
+                              '4:3',
+                              '16:9',
+                              '12:5',
+                            ].contains(settings['aspect'])
+                            ? settings['aspect'] as String
+                            : 'auto',
+                        decoration: const InputDecoration(labelText: '照片比例'),
+                        items: [
+                          for (final entry in const {
+                            'auto': '沿用高度',
+                            '4:3': '4:3',
+                            '16:9': '16:9',
+                            '12:5': '12:5',
+                          }.entries)
+                            DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                        ],
+                        onChanged: _imageBusy
+                            ? null
+                            : (value) => change('aspect', value),
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            const ['cover', 'contain'].contains(settings['fit'])
+                            ? settings['fit'] as String
+                            : 'inherit',
+                        decoration: const InputDecoration(labelText: '圖片顯示方式'),
+                        items: [
+                          for (final entry in const {
+                            'inherit': '沿用圖片設定',
+                            'cover': '填滿',
+                            'contain': '完整顯示',
+                          }.entries)
+                            DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                        ],
+                        onChanged: _imageBusy
+                            ? null
+                            : (value) => change('fit', value),
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            const [
+                              'top',
+                              'center',
+                              'bottom',
+                            ].contains(settings['alignment'])
+                            ? settings['alignment'] as String
+                            : 'inherit',
+                        decoration: const InputDecoration(labelText: '主體位置'),
+                        items: [
+                          for (final entry in const {
+                            'inherit': '沿用圖片設定',
+                            'top': '上',
+                            'center': '中',
+                            'bottom': '下',
+                          }.entries)
+                            DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                        ],
+                        onChanged: _imageBusy
+                            ? null
+                            : (value) => change('alignment', value),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                },
+              ),
+          for (final entry in EnvironmentPresentation.sectionLabels.entries)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${entry.value}上方間距：${_presentation.sectionGap(entry.key, entry.key == 'hero' ? 0 : _style.sectionGap).round()}',
+                ),
+                Slider(
+                  value: _presentation.sectionGap(
+                    entry.key,
+                    entry.key == 'hero' ? 0 : _style.sectionGap,
+                  ),
+                  min: 0,
+                  max: 64,
+                  divisions: 16,
+                  onChanged: _imageBusy
+                      ? null
+                      : (value) => _setPresentation(
+                          _presentation.copyWith({
+                            'sectionGaps': {
+                              ..._presentation.sectionGaps,
+                              entry.key: value,
+                            },
+                          }),
+                        ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    ],
+  );
+
+  Widget _buildSectionControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('區塊順序與顯示', style: TextStyle(fontWeight: FontWeight.bold)),
+      const Text('空白區塊不顯示；隱藏不會刪除文案與照片。'),
+      for (final id in _presentation.sectionOrder)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(EnvironmentPresentation.sectionLabels[id]!),
+          trailing: Wrap(
+            children: [
+              IconButton(
+                tooltip: _presentation.hiddenSections.contains(id)
+                    ? '顯示區塊'
+                    : '隱藏區塊',
+                icon: Icon(
+                  _presentation.hiddenSections.contains(id)
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                ),
+                onPressed: _imageBusy
+                    ? null
+                    : () {
+                        final hidden = _presentation.hiddenSections;
+                        hidden.contains(id)
+                            ? hidden.remove(id)
+                            : hidden.add(id);
+                        _setPresentation(
+                          _presentation.copyWith({'hiddenSections': hidden}),
+                        );
+                      },
+              ),
+              for (final direction in [-1, 1])
+                IconButton(
+                  tooltip: direction < 0 ? '區塊上移' : '區塊下移',
+                  icon: Icon(
+                    direction < 0 ? Icons.arrow_upward : Icons.arrow_downward,
+                  ),
+                  onPressed:
+                      _imageBusy ||
+                          _presentation.sectionOrder.indexOf(id) + direction <
+                              0 ||
+                          _presentation.sectionOrder.indexOf(id) + direction >=
+                              _presentation.sectionOrder.length
+                      ? null
+                      : () {
+                          final order = _presentation.sectionOrder;
+                          final index = order.indexOf(id);
+                          order.removeAt(index);
+                          order.insert(index + direction, id);
+                          _setPresentation(
+                            _presentation.copyWith({'sectionOrder': order}),
+                          );
+                        },
+                ),
+            ],
+          ),
+        ),
+      for (final entry in const {
+        'features': '環境特色標題',
+        'care': '設備區塊標題',
+        'services': '服務區塊標題',
+        'gallery': '相簿標題',
+      }.entries)
+        TextFormField(
+          key: ValueKey('environment-section-title-${entry.key}'),
+          initialValue:
+              _presentation.sectionTitles[entry.key]?.toString() ?? '',
+          enabled: !_imageBusy,
+          maxLength: 40,
+          decoration: InputDecoration(
+            labelText: entry.value,
+            hintText: '留白使用預設標題',
+          ),
+          onChanged: (value) => _setPresentation(
+            _presentation.copyWith({
+              'sectionTitles': {
+                ..._presentation.sectionTitles,
+                entry.key: value,
+              },
+            }),
+          ),
+        ),
+      TextButton(
+        onPressed: _imageBusy
+            ? null
+            : () => _setPresentation(
+                _presentation.copyWith({
+                  'sectionOrder': <String>[],
+                  'hiddenSections': <String>[],
+                }),
+              ),
+        child: const Text('恢復範本順序與顯示'),
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+
+  Widget _buildResponsiveControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('桌機特色卡排列（寬度 800 以上）'),
+      Wrap(
+        spacing: 8,
+        children: [
+          for (final entry in const {
+            'auto': '自動雙欄',
+            'single': '單欄',
+            'double': '雙欄',
+          }.entries)
+            ChoiceChip(
+              label: Text(entry.value),
+              selected: _presentation.desktopColumns == entry.key,
+              onSelected: _imageBusy
+                  ? null
+                  : (_) => _setPresentation(
+                      _presentation.copyWith({'desktopColumns': entry.key}),
+                    ),
+            ),
+        ],
+      ),
+      const Text('桌機特色卡版型'),
+      Wrap(
+        spacing: 8,
+        children: [
+          for (final entry in const {
+            'inherit': '沿用手機',
+            'horizontal': '橫向圖卡',
+            'vertical': '上圖下文',
+            'text': '重點文字卡',
+          }.entries)
+            ChoiceChip(
+              label: Text(entry.value),
+              selected: _presentation.desktopCardLayout == entry.key,
+              onSelected: _imageBusy
+                  ? null
+                  : (_) => _setPresentation(
+                      _presentation.copyWith({'desktopCardLayout': entry.key}),
+                    ),
+            ),
+        ],
+      ),
+      Text('內容最大寬度：${_presentation.contentMaxWidth.round()}'),
+      Slider(
+        value: _presentation.contentMaxWidth,
+        min: 800,
+        max: 1400,
+        divisions: 6,
+        onChanged: _imageBusy
+            ? null
+            : (value) => _setPresentation(
+                _presentation.copyWith({'contentMaxWidth': value}),
+              ),
+      ),
+      Text('特色圖片最大高度：${_presentation.featureImageMaxHeight.round()}'),
+      Slider(
+        value: _presentation.featureImageMaxHeight,
+        min: 160,
+        max: 400,
+        divisions: 12,
+        onChanged: _imageBusy
+            ? null
+            : (value) => _setPresentation(
+                _presentation.copyWith({'featureImageMaxHeight': value}),
+              ),
+      ),
+      const SizedBox(height: 12),
     ],
   );
 

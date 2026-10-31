@@ -18,6 +18,7 @@ class EnvironmentImageUploadBox extends StatelessWidget {
     this.overlayTitle = '',
     this.overlaySubtitle = '',
     this.hint = '',
+    this.previewBuilder,
   });
 
   final String title;
@@ -31,6 +32,7 @@ class EnvironmentImageUploadBox extends StatelessWidget {
   final String overlayTitle;
   final String overlaySubtitle;
   final String hint;
+  final Widget Function(double height, double width)? previewBuilder;
 
   bool get _hasImage => imageUrl.trim().isNotEmpty;
 
@@ -61,6 +63,9 @@ class EnvironmentImageUploadBox extends StatelessWidget {
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final double height = frame.heightForWidth(constraints.maxWidth);
+            if (previewBuilder != null) {
+              return previewBuilder!(height, constraints.maxWidth);
+            }
             return ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: SizedBox(

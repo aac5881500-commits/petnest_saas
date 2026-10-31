@@ -10,7 +10,8 @@ class ModernHomeAppearanceTabs {
   static const int faq = 7;
   static const int reviews = 8;
   static const int navigation = 9;
-  static const int length = 10;
+  static const int shopInfo = 10;
+  static const int length = 11;
 
   static int? sectionTab(String sectionId) {
     return switch (sectionId) {
@@ -22,6 +23,7 @@ class ModernHomeAppearanceTabs {
       'policy' => policy,
       'faq' => faq,
       'reviews' => reviews,
+      'footer' || 'shopInfo' => shopInfo,
       _ => null,
     };
   }

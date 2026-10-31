@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/shop_member_permission_service.dart
 // 功能說明：處理店家成員、邀請、權限設定、成員移除
 // 🔐 店家成員與權限服務
@@ -486,6 +487,7 @@ class ShopMemberPermissionService {
   }
 
   Future<void> syncPendingInvitesForCurrentUser() async {
+    if (InspectionOwnerContext.active) return;
     final user = _currentUser;
     if (user == null) return;
 
@@ -554,6 +556,14 @@ class ShopMemberPermissionService {
     required String shopId,
     required String uid,
   }) async {
+    if (InspectionOwnerContext.forShop(shopId)) {
+      return {
+        'id': '${shopId}_${InspectionOwnerContext.ownerUid}',
+        'uid': InspectionOwnerContext.ownerUid,
+        'shopId': shopId,
+        'role': 'owner',
+      };
+    }
     if (shopId.isEmpty || uid.isEmpty) return null;
 
     final DocumentSnapshot<Map<String, dynamic>> canonical = await _shopMembers
@@ -578,7 +588,9 @@ class ShopMemberPermissionService {
     String bookingShopId = '',
     bool settlementLocked = false,
   }) async {
-    final String uid = _currentUser?.uid ?? '';
+    final String uid = InspectionOwnerContext.forShop(shopId)
+        ? InspectionOwnerContext.ownerUid
+        : _currentUser?.uid ?? '';
     final DocumentSnapshot<Map<String, dynamic>> shopSnap = await _firestore
         .collection('shops')
         .doc(shopId)
@@ -621,6 +633,7 @@ class ShopMemberPermissionService {
 
   /// 目前登入者若已是 shops.ownerUid，補齊規則路徑 shop_members/{shopId}_{uid}。
   Future<void> syncOwnerMembershipForCurrentUser() async {
+    if (InspectionOwnerContext.active) return;
     final User? user = _currentUser;
     if (user == null) return;
 
@@ -638,6 +651,7 @@ class ShopMemberPermissionService {
   }
 
   Future<void> syncOwnerMembershipForShop(String shopId) async {
+    if (InspectionOwnerContext.active) return;
     final User? user = _currentUser;
     if (user == null || shopId.trim().isEmpty) return;
     final DocumentSnapshot<Map<String, dynamic>> shopSnap = await _firestore

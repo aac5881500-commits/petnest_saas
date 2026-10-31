@@ -186,7 +186,8 @@ function slotRef(shopId, bookingId, roomId) {
       .doc(`${bookingId}_${roomId}`);
 }
 
-exports.getCustomerRoomCamera = onCall({region}, async (request) => {
+exports.getCustomerRoomCamera = onCall({region, inspectionRead: true,
+  inspectionCustomer: true}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "請先登入");
   }

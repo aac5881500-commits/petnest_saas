@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/daily_care_photo_download_service.dart
 // 功能說明：讀取退房後可使用的高清照片下載資料
 // 📥 每日照護高清照片下載 Service
@@ -43,20 +44,26 @@ class DailyCarePhotoDownloadService {
       );
     }
 
-    return _collection
-        .where('bookingId', isEqualTo: normalizedBookingId)
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-          return snapshot.docs
-              .map(
-                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-                    DailyCarePhotoDownloadModel.fromMap(
-                      id: doc.id,
-                      map: doc.data(),
-                    ),
-              )
-              .toList();
-        });
+    Query<Map<String, dynamic>> query = _collection.where(
+      'bookingId',
+      isEqualTo: normalizedBookingId,
+    );
+    if (InspectionOwnerContext.active) {
+      query = query.where('shopId', isEqualTo: InspectionOwnerContext.shopId);
+    }
+    return query.snapshots().map((
+      QuerySnapshot<Map<String, dynamic>> snapshot,
+    ) {
+      return snapshot.docs
+          .map(
+            (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                DailyCarePhotoDownloadModel.fromMap(
+                  id: doc.id,
+                  map: doc.data(),
+                ),
+          )
+          .toList();
+    });
   }
 
   /// 取得單張高清下載 metadata。

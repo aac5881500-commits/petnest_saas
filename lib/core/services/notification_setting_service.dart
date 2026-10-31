@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/notification_setting_service.dart
 // 功能說明：讀取與更新會員的全域通知開關
 // 🔔 通知設定 Service
@@ -56,7 +57,7 @@ class NotificationSettingService implements NotificationSettingsStore {
 
     return _firestore
         .collection('users')
-        .doc(user.uid)
+        .doc(InspectionOwnerContext.readUid(user.uid))
         .collection('notification_settings')
         .doc('global');
   }
@@ -103,6 +104,7 @@ class NotificationSettingService implements NotificationSettingsStore {
   /// 第一次開啟設定頁時建立預設資料
   @override
   Future<void> ensureDefaultSettings() async {
+    if (InspectionOwnerContext.active) return;
     final DocumentReference<Map<String, dynamic>>? document = _settingDocument;
 
     if (document == null) {

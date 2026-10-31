@@ -1,5 +1,4 @@
-import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
+import 'package:petnest_saas/core/services/inspection_owner_window.dart';
 import 'package:petnest_saas/features/platform/models/inspection_error_message.dart';
 import 'package:petnest_saas/features/platform/widgets/inspection_email_code_dialog.dart';
 import 'dart:async';
@@ -60,6 +59,7 @@ class _InspectionState extends State<PlatformShopInspectionPage> {
 
   @override
   void dispose() {
+    closeInspectionOwnerWindow();
     _timer?.cancel();
     _auth?.cancel();
     _customer.dispose();
@@ -68,6 +68,7 @@ class _InspectionState extends State<PlatformShopInspectionPage> {
   }
 
   void _lock() {
+    closeInspectionOwnerWindow();
     if (_reportOpen && mounted) {
       Navigator.of(context, rootNavigator: true).pop();
       _reportOpen = false;
@@ -342,82 +343,29 @@ class _InspectionState extends State<PlatformShopInspectionPage> {
   Future<void> _previewOwner(Map<String, dynamic> record) async {
     final shopPath = record['path'] as String;
     final shopId = shopPath.split('/')[1];
-    // Always revalidate server session and audit before opening protected UI.
-    final response = await _call('read', {'shopId': shopId, 'path': shopPath});
-    final rows = response['records'] as List;
-    if (!mounted || _token == null || rows.isEmpty) return;
-    final shop = Map<String, dynamic>.from((rows.first as Map)['data'] as Map);
-    _reportOpen = true;
-    try {
-      await Navigator.of(context, rootNavigator: true).push<void>(
-        MaterialPageRoute(
-          builder: (_) => Navigator(
-            onGenerateRoute: (_) => MaterialPageRoute(
-              builder: (previewContext) => ShopDashboardInspectionView(
-                shopId: shopId,
-                shop: shop,
-                onLock: _lock,
-                onExit: () => Navigator.of(context, rootNavigator: true).pop(),
-                onOpenEntry: (entry) {
-                  if (entry == 'AdminMemberListPage') {
-                    Navigator.of(previewContext).push(
-                      MaterialPageRoute(
-                        builder: (memberContext) => AdminMemberListPage(
-                          shopId: shopId,
-                          inspectionShop: shop,
-                          inspectionLoadPage: (cursor) async {
-                            try {
-                              return await _call('read', {
-                                'shopId': shopId,
-                                'path': '$shopPath/members',
-                                'cursor': ?cursor,
-                              });
-                            } on FirebaseFunctionsException catch (e) {
-                              if (e.code == 'unauthenticated' ||
-                                  e.code == 'permission-denied') {
-                                _lock();
-                              }
-                              rethrow;
-                            }
-                          },
-                          onInspectionMember: (member) => showDialog<void>(
-                            context: memberContext,
-                            useRootNavigator: false,
-                            builder: (dialogContext) => AlertDialog(
-                              title: const Text('會員查核資料（唯讀）'),
-                              content: SingleChildScrollView(
-                                child: SelectableText(
-                                  inspectionValue(member['data']),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(dialogContext),
-                                  child: const Text('關閉'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  // Unconverted production pages must never be instantiated here.
-                  ScaffoldMessenger.of(previewContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('此功能的原畫面唯讀版正在接入，請先從「資料查核與下載」查看紀錄。'),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      );
-    } finally {
-      _reportOpen = false;
-    }
+    // Open synchronously in the user's click gesture; authorize only after the
+    // isolated browser window supplies its own fresh anonymous identity.
+    await openInspectionOwnerWindow(
+      isAlive: () =>
+          mounted &&
+          _root &&
+          _token != null &&
+          _access != null &&
+          DateTime.now().difference(_access!) < const Duration(minutes: 30),
+      authorize: (idToken) =>
+          _call('owner_preview', {'shopId': shopId, 'previewIdToken': idToken}),
+      onTouch: (route) async {
+        await _call('read', {
+          'shopId': shopId,
+          'path': shopPath,
+          'viewPath': route,
+        });
+      },
+      onFailure: (error) {
+        _lock();
+        if (mounted) setState(() => _error = '查核已停止，請重新驗證後開啟。');
+      },
+    );
   }
 
   @override

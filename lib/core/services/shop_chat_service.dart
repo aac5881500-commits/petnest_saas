@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/shop_chat_service.dart
 // 功能說明：店家聊天：一個會員 × 一間店家一個 thread。文字與圖片都走這裡。
 
@@ -507,6 +508,7 @@ class ShopChatService {
     required String shopId,
     required String threadId,
   }) async {
+    if (InspectionOwnerContext.active) return;
     final String path = 'shops/$shopId/chat_threads/$threadId';
     print(
       '[ShopChatService] STEP markCustomerRead start '
@@ -547,6 +549,7 @@ class ShopChatService {
     required String shopId,
     required String threadId,
   }) async {
+    if (InspectionOwnerContext.active) return;
     final DocumentReference<Map<String, dynamic>> ref = _threadRef(
       shopId,
       threadId,

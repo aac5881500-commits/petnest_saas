@@ -1,3 +1,4 @@
+import 'inspection_owner_context.dart';
 // 檔案名稱：lib/core/services/member_service.dart
 // 功能說明：建立 / 更新店家會員快取，並同步會員寵物到店家會員資料
 // 👤 會員服務（跨店會員系統）
@@ -20,6 +21,7 @@ class MemberService {
     String? name,
     String? phone,
   }) async {
+    if (InspectionOwnerContext.active) return;
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -126,6 +128,7 @@ class MemberService {
 
   /// 🐾 同步目前登入會員的寵物到店家會員快取
   Future<void> syncCurrentUserPetsToShopMember({required String shopId}) async {
+    if (InspectionOwnerContext.active) return;
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -161,6 +164,7 @@ class MemberService {
 
   /// 🔥 更新最後登入時間
   Future<void> updateLastLogin({required String shopId}) async {
+    if (InspectionOwnerContext.active) return;
     final user = _auth.currentUser;
     if (user == null) return;
 
