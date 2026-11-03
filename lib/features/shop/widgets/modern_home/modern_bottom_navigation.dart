@@ -210,6 +210,53 @@ class _Slot extends StatelessWidget {
         surface == FrontendNavigationConfig.surfaceTransparent;
     final Color ink = _inkColor(theme, transparent: transparent);
     final Color color = selected ? theme.primaryColor : ink;
+    if (appearance == FrontendNavigationConfig.appearanceUnderline) {
+      return Semantics(
+        button: true,
+        selected: selected,
+        label: item!.label,
+        child: InkWell(
+          onTap: () => onSelect(item!),
+          child: Stack(
+            children: [
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(item!.icon, size: emphasized ? 27 : 23, color: color),
+                    const SizedBox(height: 2),
+                    Text(
+                      item!.shortLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: color,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                Positioned(
+                  bottom: 4,
+                  left: 10,
+                  right: 10,
+                  child: Container(
+                    key: Key('bottom-nav-underline-${item!.id}'),
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     final double iconSize = emphasized ? 26 : 22;
     final bool segmented =
         appearance == FrontendNavigationConfig.appearanceSegmented;

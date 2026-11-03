@@ -175,6 +175,25 @@ class StoreBrandSettingsCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        ChoiceChip(
+          label: const Text('完整品牌圖＋右側標語'),
+          selected: style.markType == 'wordmark',
+          onSelected: (_) => onChanged(style.copyWith(markType: 'wordmark')),
+        ),
+        if (style.markType == 'wordmark')
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final size in ['small', 'medium', 'large'])
+                ChoiceChip(
+                  label: Text(
+                    {'small': '品牌圖小', 'medium': '品牌圖中', 'large': '品牌圖大'}[size]!,
+                  ),
+                  selected: style.logoSize == size,
+                  onSelected: (_) => onChanged(style.copyWith(logoSize: size)),
+                ),
+            ],
+          ),
         const Text('Logo 顯示', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Wrap(
@@ -348,6 +367,50 @@ class StoreBrandSettingsCard extends StatelessWidget {
           },
         ),
         const SizedBox(height: 4),
+        const Text('副標題傾斜角度', style: TextStyle(fontWeight: FontWeight.w700)),
+        Text('${style.subtitleAngle.toStringAsFixed(1)}°（負值向左上傾斜）'),
+        Slider(
+          value: style.subtitleAngle.clamp(-15, 15).toDouble(),
+          min: -15,
+          max: 15,
+          divisions: 60,
+          label: '${style.subtitleAngle.toStringAsFixed(1)}°',
+          onChanged: (value) => onChanged(style.copyWith(subtitleAngle: value)),
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: () => onChanged(style.copyWith(subtitleAngle: 0)),
+              child: const Text('副標水平'),
+            ),
+            TextButton(
+              onPressed: () => onChanged(style.copyWith(subtitleAngle: -4.6)),
+              child: const Text('副標輕微斜角'),
+            ),
+          ],
+        ),
+        DropdownButtonFormField<String>(
+          initialValue: style.subtitleFontFamily,
+          decoration: const InputDecoration(labelText: '副標題字體'),
+          items: const [
+            DropdownMenuItem(value: '', child: Text('沿用預設字體')),
+            DropdownMenuItem(value: 'KleeOne', child: Text('Klee One 手寫體')),
+            DropdownMenuItem(
+              value: 'NotoSansTC',
+              child: Text('Noto Sans TC 現代黑體'),
+            ),
+            DropdownMenuItem(
+              value: 'NotoSerifTC',
+              child: Text('Noto Serif TC 宋體'),
+            ),
+            DropdownMenuItem(value: 'jfOpenHuninn', child: Text('粉圓體')),
+            DropdownMenuItem(value: 'ChironSungHK', child: Text('昭源宋體')),
+          ],
+          onChanged: (value) =>
+              onChanged(style.copyWith(subtitleFontFamily: value)),
+        ),
+        const SizedBox(height: 12),
         const Text('文字對齊', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Wrap(

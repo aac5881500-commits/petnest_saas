@@ -148,7 +148,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('房型列表外觀'), findsOneWidget);
     expect(find.text('房型詳細頁外觀'), findsOneWidget);
-    expect(find.text('預約設定'), findsNothing);
+    expect(find.text('預約設定'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.widgetWithText(TextField, '頁面標題'),
       400,

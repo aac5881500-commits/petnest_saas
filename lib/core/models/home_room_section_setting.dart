@@ -3,12 +3,14 @@
 import 'package:flutter/widgets.dart';
 
 class HomeRoomSectionLayouts {
+  static const String catalog = 'catalog';
   static const String horizontalScroll = 'horizontalScroll';
   static const String cardGrid = 'cardGrid';
   static const String simpleEntry = 'simpleEntry';
   static const String featured = 'featured';
   static const String refinedCards = 'refinedCards';
   static const List<String> all = <String>[
+    catalog,
     horizontalScroll,
     cardGrid,
     simpleEntry,
@@ -18,6 +20,8 @@ class HomeRoomSectionLayouts {
 
   static String label(String value) {
     switch (value) {
+      case catalog:
+        return '圖文標籤橫滑卡';
       case cardGrid:
         return '卡片拼排';
       case simpleEntry:
@@ -34,6 +38,8 @@ class HomeRoomSectionLayouts {
   /// 舊版型只在讀取時轉換，不回寫 Firestore，直到店主再次儲存。
   static String migrate(Object? raw) {
     switch (raw?.toString().trim()) {
+      case catalog:
+        return catalog;
       case horizontalScroll:
       case 'horizontal':
       case 'scroll':
@@ -242,7 +248,7 @@ class HomeRoomCompactSetting {
   final String imageHeight;
   final String allRoomsPlacement;
 
-  int get safeColumns => columns == 1 ? 1 : 2;
+  int get safeColumns => columns.clamp(1, 3);
 
   HomeRoomCompactSetting copyWith({
     int? columns,
@@ -270,7 +276,9 @@ class HomeRoomCompactSetting {
     }
     final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
     return HomeRoomCompactSetting(
-      columns: _columns(map['columns']),
+      columns: map['columns'] is num
+          ? (map['columns'] as num).toInt().clamp(1, 3)
+          : 2,
       imageHeight: _choice(
         map['imageHeight'],
         HomeRoomImageHeights.all,
@@ -756,6 +764,7 @@ class HomeRoomSectionSetting {
       'fallbackCoverAssetId': fallbackCoverAssetId,
       'roomTypeOrder': roomTypeOrder,
       'hiddenRoomTypeIds': hiddenRoomTypeIds,
+      'compact': compact.toMap(),
       'cardGrid': <String, dynamic>{
         ...mixed.toMap(),
         'allRoomsPlacement': compact.allRoomsPlacement,
@@ -1088,16 +1097,6 @@ class HomeRoomSectionSetting {
 String _choice(Object? raw, List<String> allowed, String fallback) {
   final String value = raw?.toString().trim() ?? '';
   return allowed.contains(value) ? value : fallback;
-}
-
-int _columns(Object? raw) {
-  if (raw is num && raw.toInt() == 1) {
-    return 1;
-  }
-  if (raw?.toString().trim() == '1') {
-    return 1;
-  }
-  return 2;
 }
 
 List<String> _stringList(Object? raw) {

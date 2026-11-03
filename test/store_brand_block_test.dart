@@ -651,9 +651,11 @@ void main() {
       expect(name.style?.fontFamily, isNull);
     }
 
-    await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+    await tester.ensureVisible(
+      find.byType(DropdownButtonFormField<String>).first,
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
     expect(find.text('系統預設'), findsWidgets);
     expect(find.text('jf open 粉圓'), findsOneWidget);

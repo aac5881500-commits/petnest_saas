@@ -120,66 +120,44 @@ class HomeFaqLayouts {
 }
 
 class HomeReviewLayouts {
+  // Keep stored IDs compatible with existing appearance documents and presets.
   static const String scoreCompact = 'scoreCompact';
   static const String featured = 'featured';
-  static const String carousel = 'carousel';
   static const String scoreOverview = 'scoreOverview';
   static const String scoreAndLatest = 'scoreAndLatest';
-  static const List<String> all = <String>[
+  static const String carousel = 'carousel';
+  static const String mini = 'mini';
+  static const List<String> all = [
     scoreCompact,
-    carousel,
     featured,
     scoreOverview,
     scoreAndLatest,
+    carousel,
+    mini,
   ];
-
-  static String label(String value) {
-    switch (migrate(value)) {
-      case scoreCompact:
-        return '簡約評分小卡';
-      case featured:
-        return '最新精選評價';
-      case scoreOverview:
-        return '評分總覽';
-      case scoreAndLatest:
-        return '評分＋最新評價';
-      default:
-        return '評價橫向滑動';
-    }
-  }
-
-  static String description(String value) {
-    switch (migrate(value)) {
-      case scoreCompact:
-        return '半格小卡，顯示平均分數、星星與公開評價總數。';
-      case featured:
-        return '整排顯示最新一則公開評價與店家回覆標記。';
-      case scoreOverview:
-        return '平均分與 5 到 1 星的數量分布。';
-      case scoreAndLatest:
-        return '一側顯示總分，另一側顯示最新評價摘要。';
-      default:
-        return '橫向滑動最新公開評價，最後一張進入全部評價。';
-    }
-  }
-
-  static String badge(String value) {
-    switch (migrate(value)) {
-      case scoreCompact:
-        return '半格';
-      case carousel:
-        return '可右滑';
-      case scoreAndLatest:
-        return '推薦';
-      default:
-        return '整排';
-    }
-  }
-
-  static String migrate(Object? raw) {
-    final String value = raw?.toString().trim() ?? '';
-    return all.contains(value) ? value : carousel;
-  }
+  static String migrate(Object? raw) =>
+      all.contains(raw) ? raw as String : carousel;
+  static String label(String value) => switch (migrate(value)) {
+    scoreCompact => 'A｜極簡短評',
+    featured => 'B｜大字主視覺',
+    scoreOverview => 'C｜多則評價牆',
+    scoreAndLatest => 'D｜長文與回覆',
+    mini => 'F｜迷你評分入口',
+    _ => 'E｜照片橫滑',
+  };
+  static String description(String value) => switch (migrate(value)) {
+    scoreCompact => '獨立整排，總評分搭配一則短評。',
+    featured => '大評分、大引言，可搭配顧客上傳的照片。',
+    scoreOverview => '雙欄短評牆，一次呈現多則最新公開評價。',
+    scoreAndLatest => '直向閱讀完整心得，可展開店家回覆。',
+    mini => '小型分數入口，可放海報角落或獨立單行。',
+    _ => '照片搭配住宿心得，左右滑動閱讀。無照片時保留文字評價。',
+  };
+  static String badge(String value) => switch (migrate(value)) {
+    mini => '最小',
+    carousel => '可滑動',
+    _ => '獨立整排',
+  };
 }
 
 class HomePolicySectionSetting {
@@ -437,8 +415,14 @@ class HomeReviewSectionSetting {
     this.showReplyBadge = true,
     this.showViewAll = true,
     this.endEntryStyle = HomeEnvironmentEndEntryStyles.minimal,
+    this.miniPlacement = 'bannerTopRight',
+    this.contentLines = 3,
+    this.textSize = 14,
   });
 
+  final String miniPlacement;
+  final int contentLines;
+  final int textSize;
   final bool showOnHome;
   final HomeCardImageSetting cardImage;
   final String layout;
@@ -453,14 +437,27 @@ class HomeReviewSectionSetting {
   final bool showViewAll;
   final String endEntryStyle;
 
-  bool get isHalf =>
-      HomeReviewLayouts.migrate(layout) == HomeReviewLayouts.scoreCompact;
+  bool get isHalf => false;
+  bool get isMini =>
+      HomeReviewLayouts.migrate(layout) == HomeReviewLayouts.mini;
+  static String placement(Object? raw) =>
+      const ['bannerTopRight', 'bannerBottomRight', 'inline'].contains(raw)
+      ? raw as String
+      : 'bannerTopRight';
+  static int lines(Object? raw) => raw is num ? raw.toInt().clamp(1, 12) : 3;
+  static int fontSize(Object? raw) =>
+      raw is num ? raw.toInt().clamp(12, 18) : 14;
+  bool overlaysBanner(bool available) =>
+      isMini && available && placement(miniPlacement) != 'inline';
 
   String get entryTitle => _fallback(title, '顧客評價');
 
   String get entrySubtitle => _clip(subtitle, 30);
 
   HomeReviewSectionSetting copyWith({
+    String? miniPlacement,
+    int? contentLines,
+    int? textSize,
     bool? showOnHome,
     HomeCardImageSetting? cardImage,
     String? layout,
@@ -476,6 +473,9 @@ class HomeReviewSectionSetting {
     String? endEntryStyle,
   }) {
     return HomeReviewSectionSetting(
+      miniPlacement: miniPlacement ?? this.miniPlacement,
+      contentLines: contentLines ?? this.contentLines,
+      textSize: textSize ?? this.textSize,
       showOnHome: showOnHome ?? this.showOnHome,
       cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
@@ -494,6 +494,9 @@ class HomeReviewSectionSetting {
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
+      'miniPlacement': placement(miniPlacement),
+      'contentLines': lines(contentLines),
+      'textSize': fontSize(textSize),
       'showOnHome': showOnHome,
       'cardImage': cardImage.toMap(),
       'layout': HomeReviewLayouts.migrate(layout),
@@ -517,6 +520,9 @@ class HomeReviewSectionSetting {
     final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
     final String title = _clip(map['title'], 12);
     return HomeReviewSectionSetting(
+      miniPlacement: placement(map['miniPlacement']),
+      contentLines: lines(map['contentLines']),
+      textSize: fontSize(map['textSize']),
       showOnHome: map['showOnHome'] is bool ? map['showOnHome'] as bool : true,
       cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeReviewLayouts.migrate(map['layout']),

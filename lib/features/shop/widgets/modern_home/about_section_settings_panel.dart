@@ -116,6 +116,7 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
                     id: item,
                     title: HomeAboutLayouts.label(item),
                     description: switch (item) {
+                      HomeAboutLayouts.editorial => '區塊標題、照片與介紹，可調整圖片方向',
                       HomeAboutLayouts.imageEntry => '主照片與介紹並排或上下排列',
                       HomeAboutLayouts.brandIntro => '主照片、Logo 與品牌介紹分開呈現',
                       _ => '緊湊入口，可套用圖庫卡片背景',
@@ -140,13 +141,18 @@ class _AboutSectionSettingsPanelState extends State<AboutSectionSettingsPanel> {
     final String layout = HomeAboutLayouts.migrate(setting.layout);
     final String cardSize = HomeAboutCardSizes.migrate(setting.cardSize);
     final bool simple = layout == HomeAboutLayouts.simpleEntry;
-    final bool image = layout == HomeAboutLayouts.imageEntry;
+    final bool image =
+        layout == HomeAboutLayouts.imageEntry ||
+        layout == HomeAboutLayouts.editorial;
     final bool brand = layout == HomeAboutLayouts.brandIntro;
     final bool longCard = simple && cardSize == HomeAboutCardSizes.wide;
     final bool wideCard = simple && cardSize == HomeAboutCardSizes.standard;
     final bool showArrow = image || wideCard || longCard;
     final bool showButton = image || brand || longCard;
-    final bool showLogo = (simple && !setting.cardImage.usesLibrary) || brand;
+    final bool showLogo =
+        (simple && !setting.cardImage.usesLibrary) ||
+        brand ||
+        layout == HomeAboutLayouts.editorial;
     final bool showImage = image || brand;
     final bool hasImage =
         setting.imageSource == 'platformCard' || widget.imageChoices.isNotEmpty;

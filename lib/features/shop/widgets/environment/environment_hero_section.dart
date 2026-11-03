@@ -1,3 +1,4 @@
+import 'environment_photo.dart';
 // 檔案名稱：lib/features/shop/widgets/environment/environment_hero_section.dart
 // 功能說明：環境介紹 Hero 區塊
 // 顯示大圖 Banner + 主標題 + 副標題
@@ -111,37 +112,12 @@ class EnvironmentHeroSection extends StatelessWidget {
                 const ColoredBox(color: Colors.black),
                 imageUrl.trim().isEmpty
                     ? _placeholder()
-                    : Image.network(
-                        imageUrl,
+                    : EnvironmentPhoto(
+                        imageUrl: imageUrl,
                         fit: imageFit,
                         alignment: imageAlignment,
                         width: double.infinity,
                         height: double.infinity,
-                        loadingBuilder:
-                            (
-                              BuildContext context,
-                              Widget child,
-                              ImageChunkEvent? progress,
-                            ) {
-                              if (progress == null) {
-                                return child;
-                              }
-                              return _placeholder();
-                            },
-                        errorBuilder:
-                            (
-                              BuildContext context,
-                              Object error,
-                              StackTrace? stackTrace,
-                            ) {
-                              if (imageBuilder != null) {
-                                return imageBuilder!(
-                                  imageUrl: imageUrl,
-                                  fit: imageFit,
-                                );
-                              }
-                              return _placeholder();
-                            },
                       ),
                 const DecoratedBox(
                   decoration: BoxDecoration(

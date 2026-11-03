@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/shop/widgets/store/store_front_home_settings_section.dart';
+import 'package:petnest_saas/core/models/home_desktop_layout_setting.dart';
 import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/shop_info_settings_panel.dart';
 import 'shop_about_manage_page.dart';
@@ -40,14 +42,12 @@ import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
-import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/core/services/store_home_draft_merge.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
-import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/frontend_navigation_panel.dart';
@@ -87,7 +87,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   @override
   bool get dashboardHasUnsavedChanges => _hasUnsaved;
   @override
-  bool get dashboardIsBusy => _isSaving || _isUploadingModernLogo;
+  bool get dashboardIsBusy =>
+      _isSaving || _isUploadingModernLogo || _isUploadingSectionPhoto;
   @override
   Future<bool> dashboardConfirmLeave() async {
     if (dashboardIsBusy) return false;
@@ -121,7 +122,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       );
   bool _showFeaturedStoreProducts = true;
   bool _showStoreBanner = true;
-  bool _loadedShowStoreBanner = true;
   String _storeCardBackgroundFit = ModernStoreCardFits.cover;
   String _storeCardBackgroundAlignment = ModernStoreCardAlignments.center;
   String _storeCardOverlayPreset = ModernStoreCardOverlays.none;
@@ -132,10 +132,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   String _storeCardContentPosition = ModernStoreCardPositions.centerLeft;
   String _featuredProductLayout = ModernFeaturedProductLayouts.horizontal;
   String _storeEntryLayout = ModernStoreEntryLayouts.banner;
-  String _loadedFeaturedProductLayout = ModernFeaturedProductLayouts.horizontal;
-  String _loadedStoreEntryLayout = ModernStoreEntryLayouts.banner;
   String _committedStoreCardImageUrl = '';
   String _committedStoreCardImagePath = '';
+  String _storeEntrySecondImageUrl = '';
+  String _storeEntrySecondImagePath = '';
   String _selectedLayout = 'classic';
   String _selectedTheme = 'warmOrange';
   String _selectedBackground = 'warmWhite';
@@ -168,6 +168,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   int _faqFocusToken = 0;
   int _reviewFocusToken = 0;
   int _shopInfoFocusToken = 0;
+  HomeDesktopLayoutSetting _desktopLayout = const HomeDesktopLayoutSetting();
   HomeShopInfoSetting _shopInfo = const HomeShopInfoSetting();
   final GlobalKey _appearanceTabBarKey = GlobalKey();
   String? _selectedRoomTypeId;
@@ -219,6 +220,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   };
 
   bool _isSaving = false;
+  bool _isUploadingSectionPhoto = false;
   bool _isLoading = true;
   bool _appearanceDirtyValue = false;
   bool get _appearanceDirty => _appearanceDirtyValue;
@@ -251,6 +253,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   final GlobalKey _bannerSettingsKey = GlobalKey();
   final GlobalKey _sharedEntrySettingsKey = GlobalKey();
   final GlobalKey _storeSettingsKey = GlobalKey();
+  final GlobalKey<StoreFrontHomeSettingsSectionState> _storeEntryEditorKey =
+      GlobalKey<StoreFrontHomeSettingsSectionState>();
+  ModernStoreHomeSetting _loadedStoreHomeSetting =
+      const ModernStoreHomeSetting();
   final GlobalKey _pendingSettingsKey = GlobalKey();
   // ========================
   // 快速聯絡按鈕
@@ -400,15 +406,46 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     });
   }
 
-  Widget _sectionDisplaySwitch(String sourceId) => SwitchListTile(
-    title: Text('在首頁顯示${HomeSharedEntrySources.label(sourceId)}展示'),
-    subtitle: const Text('只控制首頁的獨立展示，不影響首頁小卡及功能內頁。'),
-    value: _sectionVisibility.shows(sourceId),
-    onChanged: (value) => setState(() {
-      _sectionVisibility = _sectionVisibility.withValue(sourceId, value);
-      _appearanceDirty = true;
-    }),
-  );
+  Widget _sectionDisplaySwitch(String sourceId) =>
+      sourceId == HomeSharedEntrySources.reviews
+      ? const ListTile(
+          title: Text('顧客評價固定公開'),
+          subtitle: Text('不想顯示大區塊時，請選擇迷你評分入口。'),
+        )
+      : SwitchListTile(
+          title: Text('在首頁顯示${HomeSharedEntrySources.label(sourceId)}展示'),
+          subtitle: const Text('只控制首頁的獨立展示，不影響首頁小卡及功能內頁。'),
+          value: _sectionVisibility.shows(sourceId),
+          onChanged: (value) => setState(() {
+            _sectionVisibility = _sectionVisibility.withValue(sourceId, value);
+            switch (sourceId) {
+              case HomeSharedEntrySources.policy:
+                _informationSections = _informationSections.copyWith(
+                  policy: _informationSections.policy.copyWith(
+                    showOnHome: value,
+                  ),
+                );
+              case HomeSharedEntrySources.faq:
+                _informationSections = _informationSections.copyWith(
+                  faq: _informationSections.faq.copyWith(showOnHome: value),
+                );
+              case HomeSharedEntrySources.reviews:
+                _informationSections = _informationSections.copyWith(
+                  reviews: _informationSections.reviews.copyWith(
+                    showOnHome: value,
+                  ),
+                );
+              case HomeSharedEntrySources.quickBooking:
+                _quickBookingSection = _quickBookingSection.copyWith(
+                  showOnHome: value,
+                );
+              case HomeSharedEntrySources.about:
+                _aboutSection = _aboutSection.copyWith(enabled: value);
+            }
+
+            _appearanceDirty = true;
+          }),
+        );
 
   Widget _withSectionDisplay(String sourceId, Widget settings) {
     return Column(
@@ -448,6 +485,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         HomeDisplayStyleSetting.mapKey: _displayStyle.toMap(),
       'environmentSection': _environmentSection.toMap(),
       'aboutSection': _aboutSection.toMap(),
+      HomeDesktopLayoutSetting.mapKey: _desktopLayout.toMap(),
       HomeShopInfoSetting.mapKey: _shopInfo.toMap(),
       'newsSection': _newsSection.toMap(),
       'quickBookingSection': _quickBookingSection.toMap(),
@@ -487,14 +525,21 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       storeBannerButtonColorPreset: _storeCardButtonColorPreset,
       storeBannerContentPosition: _storeCardContentPosition,
       storeEntryLayout: _storeEntryLayout,
+      storeEntrySecondImageUrl: _storeEntrySecondImageUrl,
+      storeEntrySecondImageStoragePath: _storeEntrySecondImagePath,
     );
   }
 
   void _adoptStoreHome(ModernStoreHomeSetting setting) {
+    _loadedStoreHomeSetting = setting;
+    _setStoreHomeDraft(setting);
+  }
+
+  void _setStoreHomeDraft(ModernStoreHomeSetting setting) {
     _showFeaturedStoreProducts = setting.showFeaturedProducts;
     _featuredStoreTitleController.text = setting.featuredTitle;
     _showStoreBanner = setting.showStoreBanner;
-    _loadedShowStoreBanner = setting.showStoreBanner;
+
     _storeBannerTitleController.text = setting.storeBannerTitle;
     _storeBannerSubtitleController.text = setting.storeBannerSubtitle;
     _storeBannerButtonTextController.text = setting.storeBannerButtonText;
@@ -508,10 +553,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _storeCardContentPosition = setting.storeBannerContentPosition;
     _featuredProductLayout = setting.featuredProductLayout;
     _storeEntryLayout = setting.storeEntryLayout;
-    _loadedFeaturedProductLayout = setting.featuredProductLayout;
-    _loadedStoreEntryLayout = setting.storeEntryLayout;
+
     _committedStoreCardImageUrl = setting.storeBannerImageUrl;
     _committedStoreCardImagePath = setting.storeBannerImageStoragePath;
+    _storeEntrySecondImageUrl = setting.storeEntrySecondImageUrl;
+    _storeEntrySecondImagePath = setting.storeEntrySecondImageStoragePath;
   }
 
   Future<ModernStoreHomeSetting> _storeHomeSettingForSave() async {
@@ -532,16 +578,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
     return mergeStoreHomeDisplayDraft(
       latest: latest,
-      loaded: ModernStoreHomeSetting(
-        showStoreBanner: _loadedShowStoreBanner,
-        featuredProductLayout: _loadedFeaturedProductLayout,
-        storeEntryLayout: _loadedStoreEntryLayout,
-      ),
-      draft: ModernStoreHomeSetting(
-        showStoreBanner: _showStoreBanner,
-        featuredProductLayout: _featuredProductLayout,
-        storeEntryLayout: _storeEntryLayout,
-      ),
+      loaded: _loadedStoreHomeSetting,
+      draft: _draftStoreHomeSetting,
     );
   }
 
@@ -762,6 +800,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _aboutSection = HomeAboutSectionSetting.fromMap(
           modernAppearance['aboutSection'],
         );
+        _desktopLayout = HomeDesktopLayoutSetting.fromMap(
+          modernAppearance[HomeDesktopLayoutSetting.mapKey],
+        );
         _shopInfo = HomeShopInfoSetting.fromMap(
           modernAppearance[HomeShopInfoSetting.mapKey],
         );
@@ -794,7 +835,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _showFeaturedStoreProducts = storeHomeSetting.showFeaturedProducts;
         _featuredStoreTitleController.text = storeHomeSetting.featuredTitle;
         _showStoreBanner = storeHomeSetting.showStoreBanner;
-        _loadedShowStoreBanner = storeHomeSetting.showStoreBanner;
+        _loadedStoreHomeSetting = storeHomeSetting;
         _storeBannerTitleController.text = storeHomeSetting.storeBannerTitle;
         _storeBannerSubtitleController.text =
             storeHomeSetting.storeBannerSubtitle;
@@ -814,8 +855,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _storeCardContentPosition = storeHomeSetting.storeBannerContentPosition;
         _featuredProductLayout = storeHomeSetting.featuredProductLayout;
         _storeEntryLayout = storeHomeSetting.storeEntryLayout;
-        _loadedFeaturedProductLayout = storeHomeSetting.featuredProductLayout;
-        _loadedStoreEntryLayout = storeHomeSetting.storeEntryLayout;
+        _storeEntrySecondImageUrl = storeHomeSetting.storeEntrySecondImageUrl;
+        _storeEntrySecondImagePath =
+            storeHomeSetting.storeEntrySecondImageStoragePath;
         _committedStoreCardImageUrl = storeHomeSetting.storeBannerImageUrl;
         _committedStoreCardImagePath =
             storeHomeSetting.storeBannerImageStoragePath;
@@ -925,7 +967,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   Future<void> _saveSettings() async {
-    if (_isSaving) return;
+    if (_isSaving || _isUploadingSectionPhoto) return;
 
     setState(() {
       _isSaving = true;
@@ -978,6 +1020,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                   HomeDisplayStyleSetting.mapKey: _displayStyle.toMap(),
                 'environmentSection': _environmentSection.toMap(),
                 'aboutSection': _aboutSection.toMap(),
+                HomeDesktopLayoutSetting.mapKey: _desktopLayout.toMap(),
                 HomeShopInfoSetting.mapKey: _shopInfo.toMap(),
                 'newsSection': _newsSection.toMap(),
                 'quickBookingSection': _quickBookingSection.toMap(),
@@ -1001,6 +1044,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 _floatingButtonType == ShopChatService.floatingTypePetnestChat,
           }, SetOptions(merge: true));
 
+      await _storeEntryEditorKey.currentState?.acceptSaved(storeHomeForSave);
       _adoptStoreHome(storeHomeForSave);
       _savedNavigation = _navigationConfig;
       _appearanceDirty = false;
@@ -1160,6 +1204,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   HomeAppearanceDraft get _appearanceDraft {
     return HomeAppearanceDraft(
       theme: _modernTheme,
+      desktopLayout: _desktopLayout,
+      shopInfo: _shopInfo,
+      sectionVisibility: _sectionVisibility.values,
       sectionOrder: _homeSectionOrder,
       rooms: _roomSection,
       environment: _environmentSection,
@@ -1217,6 +1264,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     return <String, dynamic>{
       ..._draftModernAppearance,
       'themeColors': next.theme.toMap(),
+      HomeDesktopLayoutSetting.mapKey: next.desktopLayout.toMap(),
+      HomeShopInfoSetting.mapKey: next.shopInfo.toMap(),
+      HomeSectionVisibility.mapKey: next.sectionVisibility,
       'homeSectionOrder': next.sectionOrder,
       'roomSection': next.rooms.toMap(),
       'environmentSection': next.environment.toMap(),
@@ -1249,6 +1299,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _applySelectedLayoutSettings();
       }
       _modernTheme = next.theme;
+      _desktopLayout = next.desktopLayout;
+      _shopInfo = next.shopInfo;
+      _sectionVisibility = HomeSectionVisibility(next.sectionVisibility);
       _homeSectionOrder = next.sectionOrder;
       _roomSection = next.rooms;
       _environmentSection = next.environment;
@@ -1279,6 +1332,41 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   Widget _appearancePresetStrip() {
     return HomeAppearancePresetStrip(
       showHeading: false,
+      devicePreviewBuilder: (desktop, enlarged) => LayoutBuilder(
+        builder: (context, constraints) {
+          final width = desktop ? 1280.0 : 390.0;
+          final height = enlarged
+              ? (desktop ? 900.0 : 844.0)
+              : (desktop ? 1600.0 : 1700.0);
+          return FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  size: Size(width, height),
+                  padding: EdgeInsets.zero,
+                  viewPadding: EdgeInsets.zero,
+                  viewInsets: EdgeInsets.zero,
+                  textScaler: TextScaler.noScaling,
+                ),
+                child: ModernHomeEditorPreview(
+                  shopId: widget.shopId,
+                  draftModernAppearance: _previewModernAppearance,
+                  draftLogoUrl: _modernLogoUrl,
+                  draftFloatingContact: _draftFloatingContact,
+                  draftStoreChatEnabled: _chatReady,
+                  showCaption: false,
+                  showPhoneChrome: false,
+                  frameWidth: width,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
       draft: _appearanceDraft,
       presetId: _appearancePresetId,
       previewingId: _browsingPresetId,
@@ -1862,6 +1950,13 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         theme: _modernTheme,
         onChanged: (HomeInformationSectionsSetting value) {
           setState(() {
+            if (_informationSections.policy.showOnHome !=
+                value.policy.showOnHome) {
+              _sectionVisibility = _sectionVisibility.withValue(
+                'policy',
+                value.policy.showOnHome,
+              );
+            }
             _informationSections = value;
             _appearanceDirty = true;
           });
@@ -1892,6 +1987,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         },
         onChanged: (HomeInformationSectionsSetting value) {
           setState(() {
+            if (_informationSections.faq.showOnHome != value.faq.showOnHome) {
+              _sectionVisibility = _sectionVisibility.withValue(
+                'faq',
+                value.faq.showOnHome,
+              );
+            }
             _informationSections = value;
             _appearanceDirty = true;
           });
@@ -1910,6 +2011,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       canvasMode: 'reviews',
       sharedSourceId: HomeSharedEntrySources.reviews,
       settings: ReviewSectionSettingsPanel(
+        bannerAvailable: _enabledHomeBannerCount > 0,
         setting: _informationSections,
         displayStyles: _displayStyle,
         onDisplayStyles: (value) => setState(() {
@@ -1919,6 +2021,13 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         theme: _modernTheme,
         onChanged: (HomeInformationSectionsSetting value) {
           setState(() {
+            if (_informationSections.reviews.showOnHome !=
+                value.reviews.showOnHome) {
+              _sectionVisibility = _sectionVisibility.withValue(
+                'reviews',
+                value.reviews.showOnHome,
+              );
+            }
             _informationSections = value;
             _appearanceDirty = true;
           });
@@ -2047,6 +2156,15 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     }
     final intro = _loadedShop['environmentIntro'];
     final settings = ShopInfoSettingsPanel(
+      shopId: widget.shopId,
+      defaultIntro:
+          (_loadedShop['aboutDescription'] ?? '').toString().trim().isNotEmpty
+          ? _loadedShop['aboutDescription'].toString()
+          : (_loadedShop['description'] ?? _loadedShop['aboutSubtitle'] ?? '')
+                .toString(),
+      onBusyChanged: (busy) {
+        if (mounted) setState(() => _isUploadingSectionPhoto = busy);
+      },
       setting: _shopInfo,
       imageChoices: HomeAboutSectionSetting.imageChoices(
         shop: _loadedShop,
@@ -2402,6 +2520,15 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           const SizedBox(height: 10),
           _buildBackgroundSelector(),
           const SizedBox(height: 24),
+          SwitchListTile(
+            title: const Text('顯示原有服務入口列'),
+            subtitle: const Text('與獨立環境、關於我們展示分開控制。'),
+            value: _showStayServiceStrip,
+            onChanged: (v) => setState(() {
+              _showStayServiceStrip = v;
+              _appearanceDirty = true;
+            }),
+          ),
           _roleActionCards(),
         ],
       ),
@@ -2602,10 +2729,49 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       AppearanceCategories.brand => _brandCategory(),
       AppearanceCategories.cards => _sharedCardCategory(),
       AppearanceCategories.banners => _bannerCategory(),
+      AppearanceCategories.store => _storeEntryCategory(),
       AppearanceCategories.background => _backgroundCategory(),
       _ => _otherAppearanceCategory(),
     };
   }
+
+  List<Widget> _storeEntryCategory() => [
+    KeyedSubtree(
+      key: _storeSettingsKey,
+      child: _editorCard(
+        title: '首頁商城入口',
+        subtitle: '入口卡片在這裡設定；商城內部頁面、商品與接單狀態仍在商城管理。',
+        child: StoreFrontHomeSettingsSection(
+          key: _storeEntryEditorKey,
+          shopId: widget.shopId,
+          canManage: !_isSaving,
+          entryOnly: true,
+          fallbackImageUrl:
+              ((_loadedShop['coverUrl'] ?? '').toString().trim().isNotEmpty
+                      ? _loadedShop['coverUrl']
+                      : _loadedShop['logoUrl'] ?? '')
+                  .toString(),
+          initialSetting: _draftStoreHomeSetting,
+          theme: _modernTheme,
+          onBusyChanged: (busy) {
+            if (mounted) setState(() => _isUploadingSectionPhoto = busy);
+          },
+          onChanged: (value) {
+            setState(() {
+              _setStoreHomeDraft(
+                value.copyWith(
+                  showFeaturedProducts: _showFeaturedStoreProducts,
+                  featuredTitle: _featuredStoreTitleController.text.trim(),
+                  featuredProductLayout: _featuredProductLayout,
+                ),
+              );
+              _appearanceDirty = true;
+            });
+          },
+        ),
+      ),
+    ),
+  ];
 
   List<Widget> _brandCategory() {
     return <Widget>[
@@ -2669,8 +2835,113 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     ];
   }
 
+  void _setDesktopLayout(String preset) => setState(() {
+    _desktopLayout = HomeDesktopLayoutSetting(preset: preset);
+    _appearanceDirty = true;
+  });
+
+  Widget _desktopLayoutCard() => _editorCard(
+    title: '電腦版排版快選',
+    subtitle: '與手機共用照片、文字與房型，只調整寬螢幕排版。',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final entry in HomeDesktopLayoutSetting.labels.entries)
+              ChoiceChip(
+                label: Text(entry.value),
+                selected: _desktopLayout.preset == entry.key,
+                onSelected: (_) => _setDesktopLayout(entry.key),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(HomeDesktopLayoutSetting.descriptions[_desktopLayout.preset]!),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _openDesktopLayoutPreview,
+          icon: const Icon(Icons.desktop_windows_outlined),
+          label: const Text('預覽電腦版'),
+        ),
+      ],
+    ),
+  );
+
+  void _openDesktopLayoutPreview() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog.fullscreen(
+        child: StatefulBuilder(
+          builder: (context, redraw) => Scaffold(
+            appBar: AppBar(
+              leading: const CloseButton(),
+              title: const Text('電腦版排版預覽'),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await _saveSettings();
+                    if (context.mounted) redraw(() {});
+                  },
+                  child: const Text('儲存排版'),
+                ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final entry
+                          in HomeDesktopLayoutSetting.labels.entries)
+                        ChoiceChip(
+                          label: Text(entry.value),
+                          selected: _desktopLayout.preset == entry.key,
+                          onSelected: (_) {
+                            _setDesktopLayout(entry.key);
+                            redraw(() {});
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ModernHomeEditorPreview(
+                    key: ValueKey('desktop-preview-${_desktopLayout.preset}'),
+                    shopId: widget.shopId,
+                    draftModernAppearance: _previewModernAppearance,
+                    draftLogoUrl: _modernLogoUrl,
+                    draftFloatingContact: _draftFloatingContact,
+                    draftStoreChatEnabled: _chatReady,
+                    showCaption: false,
+                    showPhoneChrome: false,
+                    frameWidth: 1600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   List<Widget> _presetCategory() {
-    return <Widget>[_appearancePresetStrip()];
+    return <Widget>[
+      _appearancePresetStrip(),
+      const SizedBox(height: 20),
+      _desktopLayoutCard(),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => _selectHomeSection('shopInfo'),
+        icon: const Icon(Icons.storefront_outlined),
+        label: const Text('設定首頁底部店家資訊（照片、版型、聯絡按鈕）'),
+      ),
+    ];
   }
 
   List<Widget> _backgroundCategory() {
@@ -2697,54 +2968,16 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           style: TextStyle(fontSize: 13, height: 1.4),
         ),
       ),
+      SwitchListTile(
+        title: const Text('顯示原有服務入口列'),
+        subtitle: const Text('與獨立環境、關於我們展示分開控制。'),
+        value: _showStayServiceStrip,
+        onChanged: (v) => setState(() {
+          _showStayServiceStrip = v;
+          _appearanceDirty = true;
+        }),
+      ),
       _roleActionCards(),
-      if (StorefrontAccess.isModuleEnabled(_loadedShop))
-        KeyedSubtree(
-          key: _storeSettingsKey,
-          child: _editorCard(
-            title: '商城',
-            subtitle: '控制首頁「逛逛賣場」入口是否顯示。',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('顯示首頁商城入口'),
-                  subtitle: const Text(
-                    '只控制首頁「逛逛賣場」區塊；不影響商城接單與既有訂單。調整後請儲存外觀設定。',
-                  ),
-                  value: _showStoreBanner,
-                  onChanged: _isSaving
-                      ? null
-                      : (value) => setState(() {
-                          _showStoreBanner = value;
-                          _appearanceDirty = true;
-                        }),
-                ),
-                const Text(
-                  '商品、商城外觀與營業狀態請至商城設定管理。',
-                  style: TextStyle(fontSize: 13, height: 1.4),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ShopStoreSettingsPage(
-                            shopId: widget.shopId,
-                            canManage: true,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Text('前往商城設定 →'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       if (_pendingSectionSelected)
         KeyedSubtree(
           key: _pendingSettingsKey,
@@ -2884,7 +3117,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           border: Border(top: BorderSide(color: Colors.grey.shade200)),
         ),
         child: FilledButton.icon(
-          onPressed: _isSaving ? null : _saveSettings,
+          onPressed: _isSaving || _isUploadingSectionPhoto
+              ? null
+              : _saveSettings,
           icon: _isSaving
               ? const SizedBox(
                   width: 18,
@@ -3260,20 +3495,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
           const Divider(),
 
-          SwitchListTile(
+          const ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('顯示底部店家資訊'),
-            value: _modernTheme.drawerSetting.showFooter,
-            onChanged: (value) {
-              setState(() {
-                _modernTheme = _modernTheme.copyWith(
-                  drawerSetting: _modernTheme.drawerSetting.copyWith(
-                    showFooter: value,
-                  ),
-                );
-                _appearanceDirty = true;
-              });
-            },
+            leading: Icon(Icons.lock_outline),
+            title: Text('店家資訊固定顯示'),
+            subtitle: Text('可到「店家資訊」分頁調整呈現方式與排版。'),
           ),
         ],
       ),

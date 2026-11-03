@@ -388,6 +388,7 @@ class FrontendNavigationConfig {
   static const String styleDrawer = 'drawer';
   static const String styleBottom = 'bottom';
   static const String appearanceAttached = 'attached';
+  static const String appearanceUnderline = 'underline';
   static const String appearanceFloatingPill = 'floatingPill';
   static const String appearanceFloatingMinimal = 'floatingMinimal';
   static const String appearanceFloatingIsland = 'floatingIsland';
@@ -474,6 +475,7 @@ class FrontendNavigationConfig {
 
   static String _cleanAppearance(Object? raw) {
     switch (raw?.toString()) {
+      case appearanceUnderline:
       case appearanceFloatingPill:
       case appearanceFloatingMinimal:
       case appearanceFloatingIsland:

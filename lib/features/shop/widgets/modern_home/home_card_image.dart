@@ -1,3 +1,4 @@
+import '../environment/environment_photo.dart';
 // 功能：七個首頁設定分頁共用卡片圖庫、有限寬縮圖與素材解析。
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -131,12 +132,9 @@ class HomeCardImageSettings extends StatelessWidget {
                         clipBehavior: Clip.antiAlias,
                         child: url.isEmpty
                             ? const Center(child: Icon(Icons.image_outlined))
-                            : Image.network(
-                                url,
+                            : EnvironmentPhoto(
+                                imageUrl: url,
                                 fit: BoxFit.contain,
-                                gaplessPlayback: true,
-                                errorBuilder: (_, error, stack) =>
-                                    const Center(child: Text('圖片暫時無法顯示')),
                               ),
                       ),
                     ),

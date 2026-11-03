@@ -1,3 +1,4 @@
+import 'environment_editorial_widgets.dart';
 // 檔案：lib/features/shop/widgets/environment/environment_service_section.dart
 // 功能：設備與服務分類、獨立版型及展開收合，預覽與前台共用。
 import 'dart:math' as math;
@@ -80,6 +81,30 @@ class _EnvironmentServiceSectionState extends State<EnvironmentServiceSection> {
             },
           ),
     ];
+    if (p.layout.equipmentLayout == 'mediaRow') {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: widget.style.pagePadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (p.layout.showEquipmentHeading)
+              Text(
+                p.sectionTitle('care', '安心設備'),
+                style: TextStyle(
+                  fontSize: widget.style.sectionTitleSize,
+                  color: widget.theme.textColor,
+                ),
+              ),
+            EnvironmentMediaStrip(
+              items: [...equipment, ...services],
+              theme: widget.theme,
+              settings: p.layout,
+              iconOf: widget.iconOf,
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: widget.style.pagePadding),
       child: Column(

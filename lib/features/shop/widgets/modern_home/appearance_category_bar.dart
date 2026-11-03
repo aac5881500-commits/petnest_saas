@@ -26,7 +26,8 @@ abstract final class AppearanceCategories {
   static const int banners = 3;
   static const int background = 4;
   static const int other = 5;
-  static const int length = 6;
+  static const int store = 6;
+  static const int length = 7;
 
   static const List<AppearanceCategoryItem> all = <AppearanceCategoryItem>[
     AppearanceCategoryItem(
@@ -58,6 +59,13 @@ abstract final class AppearanceCategories {
       icon: Icons.view_carousel_outlined,
     ),
     AppearanceCategoryItem(
+      id: store,
+      label: '首頁商城入口',
+      shortLabel: '商城入口',
+      description: '調整首頁進入商城的卡片、背景圖片與文字。',
+      icon: Icons.shopping_bag_outlined,
+    ),
+    AppearanceCategoryItem(
       id: background,
       label: '背景與色彩',
       shortLabel: '背景色彩',
@@ -87,6 +95,7 @@ abstract final class AppearanceCategories {
       'header' => brand,
       'sharedEntries' => cards,
       'banners' => banners,
+      'store' || 'storeEntry' || 'storeEntrance' => store,
       _ => other,
     };
   }

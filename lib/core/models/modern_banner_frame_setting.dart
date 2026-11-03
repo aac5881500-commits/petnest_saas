@@ -35,6 +35,9 @@ class ModernBannerFrameSetting {
     this.activityInset = 8,
     this.activityRadius = radiusStandard,
     this.showDots = true,
+    this.dotsOverlay = false,
+    this.showArrows = true,
+    this.showCounter = true,
     this.dotColorMode = colorTheme,
     this.dotColor = 0xFFA56B45,
   });
@@ -98,7 +101,7 @@ class ModernBannerFrameSetting {
   static const double activityInsetDefault = 8;
   static const double activityHeightShort = 0.45;
   static const double activityHeightTall = 0.67;
-  final bool showDots;
+  final bool showDots, dotsOverlay, showArrows, showCounter;
   final String dotColorMode;
   final int dotColor;
 
@@ -351,6 +354,9 @@ class ModernBannerFrameSetting {
     double? activityInset,
     String? activityRadius,
     bool? showDots,
+    bool? dotsOverlay,
+    bool? showArrows,
+    bool? showCounter,
     String? dotColorMode,
     int? dotColor,
   }) {
@@ -380,6 +386,9 @@ class ModernBannerFrameSetting {
       activityInset: activityInset ?? this.activityInset,
       activityRadius: activityRadius ?? this.activityRadius,
       showDots: showDots ?? this.showDots,
+      dotsOverlay: dotsOverlay ?? this.dotsOverlay,
+      showArrows: showArrows ?? this.showArrows,
+      showCounter: showCounter ?? this.showCounter,
       dotColorMode: dotColorMode ?? this.dotColorMode,
       dotColor: dotColor ?? this.dotColor,
     );
@@ -415,6 +424,9 @@ class ModernBannerFrameSetting {
       'homeBannerActivityInset': activityInsetPx,
       'homeBannerActivityRadius': activityRadius,
       'homeBannerShowDots': showDots,
+      'homeBannerDotsOverlay': dotsOverlay,
+      'homeBannerShowArrows': showArrows,
+      'homeBannerShowCounter': showCounter,
       'homeBannerDotColorMode': dotColorMode,
       'homeBannerDotColor': dotColor,
     };
@@ -496,6 +508,9 @@ class ModernBannerFrameSetting {
         radiusLarge,
       ], radiusStandard),
       showDots: map['homeBannerShowDots'] != false,
+      dotsOverlay: map['homeBannerDotsOverlay'] == true,
+      showArrows: map['homeBannerShowArrows'] != false,
+      showCounter: map['homeBannerShowCounter'] != false,
       dotColorMode: map['homeBannerDotColorMode'] == colorCustom
           ? colorCustom
           : colorTheme,
@@ -595,6 +610,9 @@ class ModernBannerFrameSetting {
         other.activitySpacing == activitySpacing &&
         other.activityInset == activityInset &&
         other.activityRadius == activityRadius &&
+        other.dotsOverlay == dotsOverlay &&
+        other.showArrows == showArrows &&
+        other.showCounter == showCounter &&
         other.showDots == showDots &&
         other.dotColorMode == dotColorMode &&
         other.dotColor == dotColor;
@@ -626,6 +644,9 @@ class ModernBannerFrameSetting {
     activityInset,
     activityRadius,
     showDots,
+    dotsOverlay,
+    showArrows,
+    showCounter,
     dotColorMode,
     dotColor,
   ]);

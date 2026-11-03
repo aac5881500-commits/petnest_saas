@@ -1068,91 +1068,10 @@ async function setSalesIdentity(user, data) {
  */
 async function registerSubscriptionPayment(user, data) {
   assertPermission(user, FINANCE_PERMISSIONS);
-  const shopId = String(data.shopId || "").trim();
-  const requestId = String(data.requestId || "").trim();
-  const plan = String(data.plan || "");
-  const cycle = String(data.cycle || "");
-  if (!shopId) {
-    throw new HttpsError("invalid-argument", "缺少店家");
-  }
-  if (!/^[A-Za-z0-9_-]{8,80}$/.test(requestId)) {
-    throw new HttpsError("invalid-argument", "缺少收款識別碼");
-  }
-  let priced;
-  try {
-    priced = policy.planPaymentAmounts(data);
-  } catch (error) {
-    throw new HttpsError("invalid-argument", error.message);
-  }
-  const paymentDate = String(
-      data.paymentDate || policy.taipeiDateKey(new Date()),
+  throw new HttpsError(
+      "failed-precondition",
+      "平台方案僅接受綠界付款，已停用人工登記收款",
   );
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
-    throw new HttpsError("invalid-argument", "付款日期不正確");
-  }
-  const db = admin.firestore();
-  const shop = await db.collection("shops").doc(shopId).get();
-  if (!shop.exists) {
-    throw new HttpsError("not-found", "找不到店家");
-  }
-  const commercial = await db.collection("shop_commercial").doc(shopId).get();
-  const shopData = shop.data() || {};
-  const commercialData = commercial.exists ? commercial.data() : {};
-  const ref = db.collection("shop_subscription_payments")
-      .doc(`reg_${user.uid}_${requestId}`);
-  const existing = await ref.get();
-  if (existing.exists) {
-    return {
-      paymentId: ref.id,
-      amountDueMinor: existing.get("amountDueMinor"),
-      replayed: true,
-      preview: {
-        serviceStart: existing.get("serviceStart") || "",
-        serviceEnd: existing.get("serviceEnd") || "",
-      },
-    };
-  }
-  const preview = policy.previewPaidPeriod(
-      shopData,
-      paymentDate,
-      cycle === "year" ? 12 : 1,
-  );
-  await ref.set({
-    shopId: shopId,
-    requestId: requestId,
-    plan: plan,
-    cycle: cycle,
-    priceMinor: priced.standardPriceMinor,
-    standardPriceMinor: priced.standardPriceMinor,
-    amountDueMinor: priced.amountDueMinor,
-    amountReceivedMinor: priced.amountReceivedMinor,
-    differenceReason: String(data.differenceReason || "").slice(0, 200),
-    grantFullPeriodDespiteShortfall: priced.shortfall,
-    currency: "TWD",
-    paymentDate: paymentDate,
-    serviceStart: preview.start,
-    serviceEnd: preview.end,
-    method: String(data.method || "transfer").slice(0, 40),
-    reference: String(data.reference || "").slice(0, 80),
-    note: String(data.note || "").slice(0, 500),
-    status: "draft",
-    refundedMinor: 0,
-    refundProgress: "none",
-    originSalesRepId: String(
-        commercialData.originSalesRepId || shopData.originSalesRepId || "",
-    ),
-    currentSalesRepId: String(
-        commercialData.currentSalesRepId || shopData.currentSalesRepId || "",
-    ),
-    createdBy: user.uid,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  return {
-    paymentId: ref.id,
-    amountDueMinor: priced.amountDueMinor,
-    replayed: false,
-    preview: preview,
-  };
 }
 
 /**
@@ -1198,16 +1117,17 @@ async function previewSubscriptionPayment(user, data) {
 /**
  * @param {Object} user 平台使用者
  * @param {Object} data 輸入
+ * @param {Object=} trustedGateway Verified server receipt metadata.
  * @return {Promise<Object>}
  */
-async function confirmSubscriptionPayment(user, data) {
+async function confirmSubscriptionPayment(user, data, trustedGateway = {}) {
   assertPermission(user, FINANCE_PERMISSIONS);
   const paymentId = String(data.paymentId || "").trim();
   if (!paymentId) {
     throw new HttpsError("invalid-argument", "缺少收款編號");
   }
   const db = admin.firestore();
-  const today = policy.taipeiDateKey(new Date());
+  const today = trustedGateway.paymentDate || policy.taipeiDateKey(new Date());
   const paymentRef = db.collection("shop_subscription_payments").doc(paymentId);
   const rulesSnap = await db.collection("commission_rules")
       .where("enabled", "==", true)
@@ -1222,6 +1142,18 @@ async function confirmSubscriptionPayment(user, data) {
       throw new HttpsError("not-found", "找不到收款");
     }
     const payment = Object.assign({id: paymentSnap.id}, paymentSnap.data());
+    if (payment.provider !== "ecpay_platform") {
+      throw new HttpsError(
+          "failed-precondition",
+          "平台方案僅接受綠界付款，不能人工確認現金或轉帳",
+      );
+    }
+    if (payment.provider === "ecpay_platform" &&
+        (trustedGateway.verifiedGateway !== true ||
+         user.uid !== "system_ecpay_platform" ||
+         payment.providerVerified !== true)) {
+      throw new HttpsError("permission-denied", "綠界平台收費只能由已驗證付款通知確認");
+    }
     const shopRef = db.collection("shops").doc(payment.shopId);
     const shopSnap = await tx.get(shopRef);
     if (!shopSnap.exists) {
@@ -1241,6 +1173,8 @@ async function confirmSubscriptionPayment(user, data) {
       rules: rules,
       today: today,
       attribution: attribution,
+      gatewayPeriod: trustedGateway.verifiedGateway ?
+        trustedGateway.servicePeriod : null,
     });
     if (planned.alreadyConfirmed) {
       return {paymentId: paymentId, replayed: true};
@@ -1626,6 +1560,12 @@ async function refundSubscriptionPayment(user, data) {
     }
     if (paymentSnap.get("kind") === "refund") {
       throw new HttpsError("failed-precondition", "不能對退款紀錄再退款");
+    }
+    if (paymentSnap.get("provider") === "ecpay_platform") {
+      throw new HttpsError(
+          "failed-precondition",
+          "綠界平台收款不能用人工退款紀錄假設已退刷；請先由平台處理綠界退款與對帳",
+      );
     }
     let refundPlan;
     try {

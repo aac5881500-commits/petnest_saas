@@ -228,7 +228,12 @@ function planPaymentConfirm(input) {
   }
   const shop = input.shop || {};
   const months = payment.cycle === "year" ? 12 : 1;
-  const period = previewPaidPeriod(shop, input.today, months);
+  const period = input.gatewayPeriod ||
+    previewPaidPeriod(shop, input.today, months);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(period.start) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(period.end) || period.end < period.start) {
+    throw new Error("服務期間不正確");
+  }
   const hadPaid = Boolean(shop.paidServiceUntil);
   const amount = Number(payment.amountReceivedMinor || 0);
   const attribution = input.attribution || salesAttribution(null, shop);

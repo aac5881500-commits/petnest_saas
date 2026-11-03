@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/pages/platform_billing_page.dart';
 import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import '../widgets/shop_frontend_preview_policy.dart';
 import 'package:petnest_saas/features/shop/pages/campaigns/shop_campaign_center_page.dart';
@@ -1020,6 +1021,19 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                     const SizedBox(height: 12),
 
                     const Text('如有疑問請聯絡平台處理', textAlign: TextAlign.center),
+                    if (shop['ownerUid'] ==
+                        FirebaseAuth.instance.currentUser?.uid)
+                      TextButton.icon(
+                        icon: const Icon(Icons.credit_card_off_outlined),
+                        label: const Text('查看平台收費／停止自動續訂'),
+                        onPressed: () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                PlatformBillingPage(shopId: widget.shopId),
+                          ),
+                        ),
+                      ),
 
                     const SizedBox(height: 24),
                     SizedBox(
@@ -2319,6 +2333,14 @@ class _BasicInfoTab extends StatelessWidget {
     final children = <Widget>[
       if (_InspectionMenuScope.of(context) == null)
         _ShopPlanStatusCard(shopId: shopId),
+      if (currentUserRole == ShopRoles.owner)
+        _MenuTile(
+          title: '平台方案與續費',
+          subtitle: '查看平台使用費、付款紀錄與管理自動續訂',
+          icon: Icons.credit_card_outlined,
+          destinationId: 'PlatformBillingPage',
+          pageBuilder: (_) => PlatformBillingPage(shopId: shopId),
+        ),
       if (openingGuideEligible)
         ShopOpeningProgress(
           shopId: shopId,

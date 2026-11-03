@@ -79,7 +79,7 @@ class _InventoryManagementHubState extends State<InventoryManagementHub> {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1120),
+        constraints: const BoxConstraints(maxWidth: 1360),
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
           children: [
@@ -119,7 +119,27 @@ class _InventoryManagementHubState extends State<InventoryManagementHub> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            if (_manage && widget.isProfileComplete) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () =>
+                        _open(ShopInventoryFormPage(shopId: widget.shopId)),
+                    icon: const Icon(Icons.add),
+                    label: const Text('新增庫存品項'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _list(),
+                    icon: const Icon(Icons.inventory_2_outlined),
+                    label: const Text('查看品項／進出庫'),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 24),
             if (!widget.isProfileComplete)
               _panel(const Text('請先完成店家基本資料，再開始管理庫存與耗材。')),
             if (!_view && !_supplies)
@@ -221,25 +241,21 @@ class _InventoryManagementHubState extends State<InventoryManagementHub> {
             if (_view && widget.isProfileComplete) ...[
               const SizedBox(height: 14),
               _panel(
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.only(bottom: 8),
+                  leading: Icon(Icons.help_outline),
+                  title: Text('第一次使用？'),
+                  subtitle: Text('查看建檔、進貨與耗材設定流程'),
                   children: [
-                    Text(
-                      '第一次使用？',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      '1  建立品項與單位，設定安全庫存\n2  進貨登錄實際數量\n3  綁定住宿耗材並設定每次使用量',
-                      style: TextStyle(height: 1.8),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      '進貨增加存量、出庫記錄領用；盤點用於校正實際存量。',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: Color(0xFF667085),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '1  建立品項與單位，設定安全庫存\n'
+                        '2  進貨登錄實際數量\n'
+                        '3  綁定住宿耗材並設定每次使用量\n\n'
+                        '進貨增加存量、出庫記錄領用；盤點用於校正實際存量。',
+                        style: TextStyle(height: 1.8),
                       ),
                     ),
                   ],
@@ -346,16 +362,16 @@ class _InventoryManagementHubState extends State<InventoryManagementHub> {
                   '建立貓砂、飼料或清潔用品，讓補貨與耗材用量有跡可循。',
                   style: TextStyle(height: 1.6),
                 ),
-                if (_manage)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: FilledButton.icon(
-                      onPressed: () =>
-                          _open(ShopInventoryFormPage(shopId: widget.shopId)),
-                      icon: const Icon(Icons.add),
-                      label: const Text('新增庫存品項'),
-                    ),
+                const SizedBox(height: 12),
+                Text(
+                  _manage
+                      ? '點選上方「新增庫存品項」，建立第一筆用品資料。'
+                      : '請聯絡管理員建立品項，即可在此追蹤庫存狀態。',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    height: 1.6,
                   ),
+                ),
               ],
             ),
           )
@@ -438,21 +454,35 @@ class _InventoryManagementHubState extends State<InventoryManagementHub> {
     child: InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 20, color: color),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 20, color: color),
+                ),
+                const Spacer(),
+                if (onTap != null)
+                  Icon(Icons.chevron_right, size: 18, color: color),
+              ],
+            ),
             const SizedBox(height: 10),
             Text(
               '$count',
               style: TextStyle(
-                fontSize: 26,
+                fontSize: 30,
                 fontWeight: FontWeight.w800,
                 color: color,
               ),
             ),
-            Text(label, style: const TextStyle(fontSize: 13)),
+            Text(label, style: const TextStyle(fontSize: 14)),
           ],
         ),
       ),

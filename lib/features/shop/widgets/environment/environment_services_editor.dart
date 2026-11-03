@@ -17,6 +17,7 @@ class EnvironmentServicesEditor extends StatefulWidget {
     required this.onDelete,
     required this.iconOf,
     required this.busy,
+    this.onBuiltinImage,
   });
   final List<String> selectedKeys;
   final EnvironmentPresentation presentation;
@@ -25,6 +26,7 @@ class EnvironmentServicesEditor extends StatefulWidget {
   final ValueChanged<String> onUpload, onRemoveImage, onDelete;
   final IconData Function(String) iconOf;
   final bool busy;
+  final ValueChanged<String>? onBuiltinImage;
   @override
   State<EnvironmentServicesEditor> createState() =>
       _EnvironmentServicesEditorState();
@@ -258,6 +260,12 @@ class _EnvironmentServicesEditorState extends State<EnvironmentServicesEditor> {
                               onPressed: () => _edit(service),
                               child: const Text('編輯'),
                             ),
+                            if (widget.onBuiltinImage != null)
+                              TextButton(
+                                onPressed: () =>
+                                    widget.onBuiltinImage!(service.id),
+                                child: const Text('示意照片'),
+                              ),
                             TextButton(
                               onPressed: () => widget.onUpload(service.id),
                               child: Text(

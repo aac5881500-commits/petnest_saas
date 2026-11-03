@@ -1,3 +1,4 @@
+import 'environment_photo.dart';
 // 檔案名稱：lib/features/shop/widgets/environment/environment_image_upload_box.dart
 // 功能說明：後台環境介紹單張圖片：即時預覽 + 上傳 / 更換 / 移除
 
@@ -76,26 +77,10 @@ class EnvironmentImageUploadBox extends StatelessWidget {
                   children: [
                     const ColoredBox(color: Color(0xFFF5EBDD)),
                     if (_hasImage)
-                      Image.network(
-                        imageUrl,
+                      EnvironmentPhoto(
+                        imageUrl: imageUrl,
                         fit: frame.boxFit,
                         alignment: frame.alignment,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder:
-                            (
-                              BuildContext context,
-                              Object error,
-                              StackTrace? stackTrace,
-                            ) {
-                              return const Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  size: 42,
-                                  color: Color(0xFFB87535),
-                                ),
-                              );
-                            },
                       )
                     else
                       const Center(

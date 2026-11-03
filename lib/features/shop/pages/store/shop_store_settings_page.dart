@@ -27,7 +27,7 @@ class ShopStoreSettingsPage extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          '商城頁面、旅館首頁的商城展示，都在這裡設定。',
+          '設定商城內部頁面與精選商品；旅館首頁的入口卡片請到前台外觀設定。',
           style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
         ),
         const SizedBox(height: 12),
@@ -42,7 +42,7 @@ class ShopStoreSettingsPage extends StatelessWidget {
           context,
           icon: Icons.home_outlined,
           title: '商城首頁',
-          subtitle: '首頁內容、精選商品、商城入口與首頁呈現',
+          subtitle: '首頁內容與精選商品；旅館入口在前台外觀設定',
           page: StoreSettingsHomePage(shopId: shopId, canManage: canManage),
         ),
         _tile(

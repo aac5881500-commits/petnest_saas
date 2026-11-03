@@ -31,6 +31,8 @@ class StoreBrandStyle {
     this.textAlign = 'center',
     this.nameFontSize = 18,
     this.subtitleFontSize = 12,
+    this.subtitleAngle = 0,
+    this.subtitleFontFamily = '',
     this.markType = 'builtinIcon',
     this.logoPlacement = 'leading',
     this.logoSize = 'medium',
@@ -70,6 +72,9 @@ class StoreBrandStyle {
   final String textAlign;
   final double nameFontSize;
   final double subtitleFontSize;
+  final double subtitleAngle;
+  final String subtitleFontFamily;
+  double get subtitleRadians => subtitleAngle * math.pi / 180;
 
   /// logo、builtinIcon、none。與左右位置分開。
   final String markType;
@@ -168,6 +173,8 @@ class StoreBrandStyle {
     String? textAlign,
     double? nameFontSize,
     double? subtitleFontSize,
+    double? subtitleAngle,
+    String? subtitleFontFamily,
     String? markType,
     String? logoPlacement,
     String? logoSize,
@@ -201,6 +208,10 @@ class StoreBrandStyle {
         minSubtitleFont,
         maxSubtitleFont,
       ),
+      subtitleAngle: _font(subtitleAngle ?? this.subtitleAngle, 0, -15, 15),
+      subtitleFontFamily: _nameFontFamily(
+        subtitleFontFamily ?? this.subtitleFontFamily,
+      ),
       markType: markType ?? this.markType,
       logoPlacement: logoPlacement ?? this.logoPlacement,
       logoSize: logoSize ?? this.logoSize,
@@ -232,6 +243,8 @@ class StoreBrandStyle {
         minSubtitleFont,
         maxSubtitleFont,
       ),
+      'homepageBrandSubtitleAngle': _font(subtitleAngle, 0, -15, 15),
+      'homepageBrandSubtitleFontFamily': subtitleFontFamily,
       'homepageBrandMarkType': markType,
       'homepageBrandLogoPlacement': logoPlacement,
       'homepageBrandLogoSize': logoSize,
@@ -271,6 +284,16 @@ class StoreBrandStyle {
         12,
         minSubtitleFont,
         maxSubtitleFont,
+      ),
+      subtitleAngle: _font(
+        map['homepageBrandSubtitleAngle'],
+        map['homepageBrandMarkType'] == 'wordmark' ? -4.6 : 0,
+        -15,
+        15,
+      ),
+      subtitleFontFamily: _nameFontFamily(
+        map['homepageBrandSubtitleFontFamily'] ??
+            (map['homepageBrandMarkType'] == 'wordmark' ? 'KleeOne' : ''),
       ),
       markType: _markType(map, logoUrl),
       logoPlacement: _placement(map),
@@ -347,7 +370,10 @@ class StoreBrandStyle {
 
   static String _markType(Map<String, dynamic> map, String logoUrl) {
     final String raw = (map['homepageBrandMarkType'] ?? '').toString();
-    if (raw == 'logo' || raw == 'builtinIcon' || raw == 'none') {
+    if (raw == 'wordmark' ||
+        raw == 'logo' ||
+        raw == 'builtinIcon' ||
+        raw == 'none') {
       return raw;
     }
     final String placement = (map['homepageBrandLogoPlacement'] ?? '')

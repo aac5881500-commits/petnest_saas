@@ -36,5 +36,6 @@
   "functions\\shops\\shop_map_location.js",
   "functions\\shops\\shop_sharing.js",
   "functions\\store\\create_store_order.js",
-  "functions\\store\\update_store_order_status.js"
+  "functions\\store\\update_store_order_status.js",
+  "functions\\platform_billing\\index.js"
 ]

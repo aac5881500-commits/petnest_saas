@@ -68,6 +68,12 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/template_previews/
+    - assets/images/booking_demo_ginger_chibi_v1.png
+    - assets/images/booking_demo_tabby_chibi_v1.png
+    - assets/images/booking_demo_ginger_v1.jpg
+    - assets/images/booking_demo_tabby_v1.jpg
+    - assets/images/booking_cream_hero_v1.png
     - assets/images/
     - assets/images/service_showcase_postcard_v2.png
     - assets/images/service_showcase_sticker_v2.png

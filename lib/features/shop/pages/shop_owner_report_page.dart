@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'package:petnest_saas/core/services/owner_report_workspace.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -21,10 +23,20 @@ class ShopOwnerReportPage extends StatefulWidget {
     required this.shopId,
     this.reportLoader,
     this.ledgerLoader,
+    this.moduleLoader,
+    this.workspaceLoader,
+    this.initialDemo = false,
   });
   final Future<ShopReportBundle> Function(ReportRange)? reportLoader;
   final Stream<QuerySnapshot<Map<String, dynamic>>> Function(String)?
   ledgerLoader;
+  final Future<Set<String>> Function()? moduleLoader;
+  final Future<Map<String, ShopReportBundle>> Function(
+    ReportRange,
+    Set<String>,
+  )?
+  workspaceLoader;
+  final bool initialDemo;
   final String shopId;
   @override
   State<ShopOwnerReportPage> createState() => _ShopOwnerReportPageState();
@@ -32,6 +44,107 @@ class ShopOwnerReportPage extends StatefulWidget {
 
 class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     with SingleTickerProviderStateMixin {
+  bool _demo = false, _modulesReady = false;
+  Object? _moduleError;
+  Set<String> _enabledModules = {};
+  String _scope = 'all';
+  int _demoSequence = 0;
+  final Map<String, List<OwnerLedgerEntry>> _demoLedger = {};
+  late Future<Map<String, ShopReportBundle>> _workspace;
+  Set<String> get _activeModules =>
+      _demo ? OwnerReportDemo.modules : _enabledModules;
+  Set<String> get _sources =>
+      OwnerReportWorkspace.sources(_activeModules, _scope);
+  bool get _scopeReady =>
+      (_demo || (_modulesReady && _moduleError == null)) && _sources.isNotEmpty;
+  bool get _wholeShop => _scope == 'all';
+  bool get _canCalculateBalance =>
+      OwnerReportWorkspace.isComplete(_activeModules, _scope);
+  Future<void> _loadModules({bool reloadLedger = false}) async {
+    try {
+      final modules = widget.moduleLoader != null
+          ? await widget.moduleLoader!()
+          : ShopService.instance
+                .effectiveEnabledModules(
+                  (await FirebaseFirestore.instance
+                              .collection('shops')
+                              .doc(widget.shopId)
+                              .get())
+                          .data() ??
+                      {},
+                )
+                .toSet();
+      if (!mounted) return;
+      setState(() {
+        _enabledModules = modules;
+        if (_scope != 'all' &&
+            !OwnerReportWorkspace.available(
+              modules,
+            ).any((source) => source.id == _scope)) {
+          _scope = 'all';
+        }
+        _modulesReady = true;
+        _moduleError = null;
+        _load(reloadLedger: reloadLedger);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _moduleError = e;
+          _modulesReady = true;
+          _load(reloadLedger: false);
+        });
+      }
+    }
+  }
+
+  void _setDemo(bool value) {
+    setState(() {
+      _demo = value;
+      _scope = 'all';
+      _query = '';
+      _kind = 'all';
+      _load();
+    });
+    if (!value && !_modulesReady) _loadModules();
+  }
+
+  void _setScope(String scope) {
+    if (_pageScroll.hasClients) _pageScroll.jumpTo(0);
+    setState(() {
+      _scope = scope;
+      _load(reloadLedger: false);
+    });
+  }
+
+  Future<Map<String, ShopReportBundle>> _fetchWorkspace(ReportRange range) {
+    final selectedSources = _sources;
+    if (_demo) {
+      return Future.value(OwnerReportDemo.reports(range, selectedSources));
+    }
+    if (!_scopeReady) {
+      return Future.value(
+        OwnerReportWorkspace.build(range: range, sources: {}),
+      );
+    }
+    if (widget.workspaceLoader != null) {
+      return widget.workspaceLoader!(range, selectedSources);
+    }
+    if (widget.reportLoader != null) {
+      return widget.reportLoader!(range).then(
+        (report) => {
+          'all': report,
+          for (final source in selectedSources) source: report,
+        },
+      );
+    }
+    return ShopReportService.instance.loadOwnerModules(
+      shopId: widget.shopId,
+      range: range,
+      sources: selectedSources,
+    );
+  }
+
   late final TabController _tabs;
   final _pageScroll = ScrollController(keepScrollOffset: false);
   int _tab = 0;
@@ -65,8 +178,14 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
 
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   late Future<ShopReportBundle> _report;
-  late Stream<QuerySnapshot<Map<String, dynamic>>> _ledger;
+  late Stream<List<OwnerLedgerEntry>> _ledger;
+  static const _panelGroups = <String, List<String>>{
+    '彙總與圖表': ['modules', 'summary', 'charts', 'comparison'],
+    '營運明細': ['operations', 'daily', 'ranking'],
+    '成本與記帳': ['salary', 'costs', 'ledger'],
+  };
   static const _panels = <String, String>{
+    'modules': '各業務收入比較',
     'summary': '收入與結餘摘要',
     'charts': '收入／成本圓環圖',
     'operations': '訂單與營運指標',
@@ -78,6 +197,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     'ledger': '收支記帳明細',
   };
   final Set<String> _sections = {
+    'modules',
     'summary',
     'charts',
     'operations',
@@ -102,8 +222,10 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
   void initState() {
     super.initState();
     _tabs = TabController(length: 5, vsync: this);
+    _demo = widget.initialDemo;
     _load();
     _restorePanels();
+    if (!_demo) _loadModules();
   }
 
   Future<void> _restorePanels() async {
@@ -155,10 +277,11 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
       startDate: start,
       endDate: _month.subtract(const Duration(milliseconds: 1)),
     );
+    final scope = _scope;
     setState(() {
-      _previous =
-          widget.reportLoader?.call(range) ??
-          ShopReportService.instance.load(shopId: widget.shopId, range: range);
+      _previous = _fetchWorkspace(
+        range,
+      ).then((reports) => reports[scope] ?? reports['all']!);
     });
     _previous!.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
   }
@@ -185,15 +308,61 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                 Expanded(
                   child: ListView(
                     children: [
-                      for (final panel in _panels.entries)
-                        SwitchListTile(
-                          title: Text(panel.value),
-                          value: _sections.contains(panel.key),
-                          onChanged: (value) {
-                            _togglePanel(panel.key, value);
-                            update(() {});
-                          },
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          '資料來源・依已開啟模板',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('整店'),
+                              selected: _scope == 'all',
+                              onSelected: (_) {
+                                _setScope('all');
+                                update(() {});
+                              },
+                            ),
+                            for (final source in OwnerReportWorkspace.available(
+                              _activeModules,
+                            ))
+                              ChoiceChip(
+                                label: Text(
+                                  '${source.label}${source.ready ? '' : '・待串接'}',
+                                ),
+                                selected: _scope == source.id,
+                                onSelected: (_) {
+                                  _setScope(source.id);
+                                  update(() {});
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                      for (final group in _panelGroups.entries) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+                          child: Text(
+                            group.key,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        for (final key in group.value)
+                          SwitchListTile(
+                            title: Text(_panels[key]!),
+                            value: _sections.contains(key),
+                            onChanged: (value) {
+                              _togglePanel(key, value);
+                              update(() {});
+                            },
+                          ),
+                      ],
                     ],
                   ),
                 ),
@@ -208,6 +377,8 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
   Future<void> _export(List<Map<String, dynamic>> entries) async {
     final month = _monthKey;
     final currentReport = _report;
+    final demoExport = _demo, fullShop = _canCalculateBalance;
+    final sourceLabel = OwnerReportWorkspace.label(_scope);
     setState(() => _exporting = true);
     try {
       ShopReportBundle? report;
@@ -220,10 +391,14 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
         month: month,
         entries: entries,
         report: report,
+        isDemo: demoExport,
+        sourceLabel: sourceLabel,
+        includeBalance: fullShop,
       );
       await downloader.downloadExcelFile(
         bytes: bytes,
-        fileName: 'PetNest_老闆月報_$month.xlsx',
+        fileName:
+            '${demoExport ? '示範_' : ''}PetNest_${sourceLabel}_老闆月報_$month.xlsx',
       );
     } catch (_) {
       if (mounted) {
@@ -294,8 +469,20 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
       ],
     ),
   );
-  void _load() {
-    _ledger = widget.ledgerLoader?.call(_monthKey) ?? _entries.snapshots();
+  void _load({bool reloadLedger = true}) {
+    if (reloadLedger) {
+      _ledger = _demo
+          ? Stream.value(
+              _demoLedger.putIfAbsent(
+                _monthKey,
+                () => OwnerReportDemo.ledger(_month),
+              ),
+            )
+          : (widget.ledgerLoader?.call(_monthKey) ?? _entries.snapshots()).map(
+              (snapshot) =>
+                  snapshot.docs.map(OwnerLedgerEntry.fromDoc).toList(),
+            );
+    }
     final range = ReportRange(
       type: ReportRangeType.custom,
       startDate: _month,
@@ -307,9 +494,10 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     );
     _previous = null;
     if (_needsComparison) _loadPrevious();
-    _report =
-        widget.reportLoader?.call(range) ??
-        ShopReportService.instance.load(shopId: widget.shopId, range: range);
+    final scope = _scope;
+    _workspace = _fetchWorkspace(range);
+    _report = _workspace.then((reports) => reports[scope] ?? reports['all']!);
+    _report.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
   }
 
   void _changeMonth(int delta) => setState(() {
@@ -342,10 +530,12 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
   }
 
   Future<void> _edit([
-    QueryDocumentSnapshot<Map<String, dynamic>>? doc,
+    OwnerLedgerEntry? doc,
     String initialKind = 'salary',
   ]) async {
-    final collection = _entries;
+    final demoEdit = _demo;
+    final monthKey = _monthKey;
+    final collection = demoEdit ? null : _entries;
     final data = doc?.data() ?? {};
     final name = TextEditingController(text: data['name'] as String? ?? '');
     final amount = TextEditingController(
@@ -366,7 +556,9 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
         builder: (context, update) => PopScope(
           canPop: !saving,
           child: AlertDialog(
-            title: Text('${doc == null ? '新增' : '編輯'} $_monthKey 收支'),
+            title: Text(
+              '${demoEdit ? '示範・' : ''}${doc == null ? '新增' : '編輯'} $_monthKey 收支',
+            ),
             content: SizedBox(
               width: 420,
               child: Form(
@@ -548,16 +740,36 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                         if (!form.currentState!.validate()) return;
                         update(() => saving = true);
                         try {
-                          await (doc == null
-                                  ? collection.doc()
-                                  : collection.doc(doc.id))
-                              .set({
-                                'kind': kind,
-                                'name': name.text.trim(),
-                                'amount': int.parse(amount.text),
-                                'note': note.text.trim(),
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              });
+                          final value = <String, dynamic>{
+                            'kind': kind,
+                            'name': name.text.trim(),
+                            'amount': int.parse(amount.text),
+                            'note': note.text.trim(),
+                            'updatedAt': demoEdit
+                                ? Timestamp.now()
+                                : FieldValue.serverTimestamp(),
+                          };
+                          if (demoEdit) {
+                            final rows = _demoLedger[monthKey]!;
+                            final entry = OwnerLedgerEntry(
+                              id: doc?.id ?? 'demo-new-${_demoSequence++}',
+                              value: value,
+                            );
+                            final index = rows.indexWhere(
+                              (e) => e.id == doc?.id,
+                            );
+                            if (index < 0) {
+                              rows.add(entry);
+                            } else {
+                              rows[index] = entry;
+                            }
+                            if (mounted) setState(_load);
+                          } else {
+                            await (doc == null
+                                    ? collection!.doc()
+                                    : collection!.doc(doc.id))
+                                .set(value);
+                          }
                           if (dialogContext.mounted) {
                             Navigator.pop(dialogContext);
                           }
@@ -585,7 +797,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     }
   }
 
-  Future<void> _delete(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+  Future<void> _delete(OwnerLedgerEntry doc) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -605,7 +817,12 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     );
     if (confirmed == true) {
       try {
-        await doc.reference.delete();
+        if (_demo) {
+          _demoLedger[_monthKey]!.removeWhere((entry) => entry.id == doc.id);
+          if (mounted) setState(_load);
+        } else {
+          await doc.reference!.delete();
+        }
       } catch (e) {
         _error(e);
       }
@@ -641,9 +858,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
       ),
     ),
   );
-  Widget _salarySummary(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-  ) {
+  Widget _salarySummary(List<OwnerLedgerEntry> docs) {
     final groups = ownerGroupAmounts(
       docs.map((d) => d.data()).toList(),
       'salary',
@@ -682,10 +897,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     );
   }
 
-  Widget _entryList(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-    bool ready,
-  ) {
+  Widget _entryList(List<OwnerLedgerEntry> docs, bool ready) {
     final scope = docs
         .where(
           (d) => _tab == 1
@@ -803,73 +1015,254 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
           ),
         ),
       );
+  Widget _workspaceControls() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Wrap(
+        spacing: 16,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                label: Text('正式資料'),
+                icon: Icon(Icons.cloud_outlined),
+              ),
+              ButtonSegment(
+                value: true,
+                label: Text('示範資料'),
+                icon: Icon(Icons.science_outlined),
+              ),
+            ],
+            selected: {_demo},
+            onSelectionChanged: (values) => _setDemo(values.single),
+          ),
+          SizedBox(
+            width: 310,
+            child: DropdownButtonFormField<String>(
+              key: ValueKey(
+                'business-$_demo-$_modulesReady-${_activeModules.join(',')}',
+              ),
+              initialValue: _scope,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: '系統收入來源',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'all',
+                  child: Text(OwnerReportWorkspace.label('all')),
+                ),
+                for (final source in OwnerReportWorkspace.available(
+                  _activeModules,
+                ))
+                  DropdownMenuItem(
+                    value: source.id,
+                    child: Text(
+                      '${source.label}${source.ready ? '' : '（待串接）'}',
+                    ),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) _setScope(value);
+              },
+            ),
+          ),
+          Text(
+            _tab == 1 || _tab == 2 ? '薪資／手動收支維持整店記帳' : '已啟用模板分開統計，待串接不列入合計',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+      if (_demo)
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xfffff2cf),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Text('示範模式：全部為虛構資料。可試填薪資與收支，只暫存本畫面；匯出也會標示示範，不寫入正式資料。'),
+        ),
+    ],
+  );
+  Widget _businessComparison() => FutureBuilder<Map<String, ShopReportBundle>>(
+    future: _workspace,
+    builder: (context, snapshot) {
+      if (!snapshot.hasData ||
+          snapshot.hasError ||
+          snapshot.connectionState == ConnectionState.waiting) {
+        return const SizedBox.shrink();
+      }
+      final reports = snapshot.data!,
+          sources = OwnerReportWorkspace.available(_activeModules);
+      return OwnerReportSection(
+        title: '各業務收入比較',
+        subtitle: '只彙總已啟用且串接完成的系統訂單及收款。待串接模板不當作 0 元；整店薪資與共用成本尚未分攤。',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_tab == 0 || _sections.contains('charts'))
+              OwnerDonut(
+                title: '各業務淨實收占比',
+                caption: '可點圖例查看不同業務，不含手動其他收入。',
+                values: {
+                  for (final source in sources)
+                    if (reports[source.id] != null)
+                      source.label: reports[source.id]!.revenueKpi.paidAmount,
+                },
+              ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('業務模組')),
+                  DataColumn(label: Text('串接狀態')),
+                  DataColumn(label: Text('訂單金額')),
+                  DataColumn(label: Text('淨實收')),
+                  DataColumn(label: Text('未收款')),
+                ],
+                rows: sources.map((source) {
+                  final report = reports[source.id];
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(source.label)),
+                      DataCell(Text(source.ready ? '已串接' : '待串接・已預留')),
+                      DataCell(
+                        Text(
+                          report == null
+                              ? '—'
+                              : ownerMoney(report.revenueKpi.orderAmount),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          report == null
+                              ? '—'
+                              : ownerMoney(report.revenueKpi.paidAmount),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          report == null
+                              ? '—'
+                              : ownerMoney(report.revenueKpi.unpaidAmount),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
   Widget _reportContent(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    List<OwnerLedgerEntry> docs,
     bool ready,
     int salary,
     int expense,
     int income,
-  ) => FutureBuilder<ShopReportBundle>(
-    key: ValueKey('report-$_monthKey-$_tab'),
-    future: _report,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) {
-        return const OwnerReportSection(
-          title: '系統營收暫時無法載入',
-          subtitle: '請按右上角重新載入。',
-          child: Text('未將未知收入當成 0 元；薪資與手動記帳可獨立使用。'),
+  ) => !_scopeReady
+      ? OwnerReportSection(
+          title: _modulesReady || _demo ? '此業務尚無可用的統計來源' : '正在讀取店家模板',
+          subtitle: _moduleError != null
+              ? '模板設定讀取失敗，請重試或切換示範資料。'
+              : '尚未串接的業務不當作 0 元，也不合併進其他業務。',
+          child: _moduleError != null
+              ? TextButton(onPressed: _loadModules, child: const Text('重新讀取模板'))
+              : Text(
+                  _scope == 'all'
+                      ? '整店只彙總已啟用且完成串接的業務。'
+                      : '${OwnerReportWorkspace.label(_scope)}報表已預留，待訂單與付款資料串接。',
+                ),
+        )
+      : FutureBuilder<ShopReportBundle>(
+          key: ValueKey('report-$_monthKey-$_tab'),
+          future: _report,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const OwnerReportSection(
+                title: '系統營收暫時無法載入',
+                subtitle: '請按右上角重新載入。',
+                child: Text('未將未知收入當成 0 元；薪資與手動記帳可獨立使用。'),
+              );
+            }
+            if (!snapshot.hasData ||
+                snapshot.connectionState == ConnectionState.waiting) {
+              return const LinearProgressIndicator();
+            }
+            final report = snapshot.data!, k = report.revenueKpi;
+            final panels = _tab == 0
+                ? <String>{'charts'}
+                : _tab == 3
+                ? <String>{'operations', 'daily', 'ranking', 'costs'}
+                : _sections;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_tab == 0 || (_tab == 4 && _sections.contains('summary')))
+                  OwnerReportSection(
+                    title: '${OwnerReportWorkspace.label(_scope)}・本月成果',
+                    subtitle: '系統淨實收已反映退款；未載入的私人收支不列入結餘計算。',
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _metric('系統訂單金額', k.orderAmount),
+                        _metric('系統淨實收（已反映退款）', k.paidAmount),
+                        _metric('系統退款', k.refundAmount),
+                        _metric('系統未收款', k.unpaidAmount),
+                        if (ready && _canCalculateBalance)
+                          _metric('總淨收入（淨實收＋其他收入）', k.paidAmount + income),
+                        if (ready && _canCalculateBalance)
+                          _metric(
+                            '收支結餘',
+                            k.paidAmount + income - salary - expense,
+                          ),
+                      ],
+                    ),
+                  ),
+                if (_tab == 3 ||
+                    (_tab == 4 && _sections.contains('comparison')))
+                  _comparison(report),
+                if ((_tab == 0 || panels.contains('modules')) && _wholeShop)
+                  _businessComparison(),
+                if (_wholeShop && !_canCalculateBalance)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('尚有已啟用模板待串接，目前只提供已串接收入與整店已填支出，暫不計算完整結餘。'),
+                  ),
+                if (!_wholeShop)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('薪資與手動收支為整店共用，尚未分攤；此頁只看選定業務的系統收入，不計算業務結餘。'),
+                  ),
+                OwnerFinanceInsights(
+                  report: report,
+                  entries: docs.map((d) => d.data()).toList(),
+                  ledgerReady: ready,
+                  sections: panels,
+                  wholeShop: _wholeShop,
+                  revenueComplete: _canCalculateBalance,
+                ),
+                if (_tab == 4)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      '統計口徑：訂單依建立日、淨實收依付款日。結餘＝系統淨實收＋其他收入－薪資－其他支出；未填成本不自動估算，結餘非會計淨利。其他收入勿重複登記系統已有收入。',
+                    ),
+                  ),
+              ],
+            );
+          },
         );
-      }
-      if (!snapshot.hasData ||
-          snapshot.connectionState == ConnectionState.waiting) {
-        return const LinearProgressIndicator();
-      }
-      final report = snapshot.data!, k = report.revenueKpi;
-      final panels = _tab == 0
-          ? <String>{'charts'}
-          : _tab == 3
-          ? <String>{'operations', 'daily', 'ranking', 'costs'}
-          : _sections;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_tab == 0 || (_tab == 4 && _sections.contains('summary')))
-            OwnerReportSection(
-              title: '本月經營成果',
-              subtitle: '系統淨實收已反映退款；未載入的私人收支不列入結餘計算。',
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _metric('系統訂單金額', k.orderAmount),
-                  _metric('系統淨實收（已反映退款）', k.paidAmount),
-                  _metric('系統退款', k.refundAmount),
-                  _metric('系統未收款', k.unpaidAmount),
-                  if (ready) _metric('總淨收入（淨實收＋其他收入）', k.paidAmount + income),
-                  if (ready)
-                    _metric('收支結餘', k.paidAmount + income - salary - expense),
-                ],
-              ),
-            ),
-          if (_tab == 3 || (_tab == 4 && _sections.contains('comparison')))
-            _comparison(report),
-          OwnerFinanceInsights(
-            report: report,
-            entries: docs.map((d) => d.data()).toList(),
-            ledgerReady: ready,
-            sections: panels,
-          ),
-          if (_tab == 4)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                '統計口徑：訂單依建立日、淨實收依付款日。結餘＝系統淨實收＋其他收入－薪資－其他支出；未填成本不自動估算，結餘非會計淨利。其他收入勿重複登記系統已有收入。',
-              ),
-            ),
-        ],
-      );
-    },
-  );
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -882,7 +1275,13 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
         ),
         IconButton(
           tooltip: '重新載入營收',
-          onPressed: () => setState(_load),
+          onPressed: () {
+            if (_demo) {
+              setState(_load);
+            } else {
+              _loadModules(reloadLedger: true);
+            }
+          },
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -918,6 +1317,10 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                 ),
               ],
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: _workspaceControls(),
+            ),
             TabBar(
               controller: _tabs,
               isScrollable: true,
@@ -926,8 +1329,8 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
               tabs: [for (final name in _tabNames) Tab(text: name)],
             ),
             Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                key: ValueKey(_monthKey),
+              child: StreamBuilder<List<OwnerLedgerEntry>>(
+                key: ValueKey('$_monthKey-$_demo'),
                 stream: _ledger,
                 builder: (context, ledger) {
                   final ready =
@@ -935,8 +1338,8 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                       !ledger.hasError &&
                       ledger.connectionState != ConnectionState.waiting;
                   final docs = ready
-                      ? ledger.data!.docs.toList()
-                      : <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                      ? ledger.data!.toList()
+                      : <OwnerLedgerEntry>[];
                   int total(String kind) => docs
                       .where((d) => d.data()['kind'] == kind)
                       .fold<int>(
@@ -1019,7 +1422,8 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                                   ),
                                   if (kIsWeb)
                                     FilledButton.icon(
-                                      onPressed: ready && !_exporting
+                                      onPressed:
+                                          ready && _scopeReady && !_exporting
                                           ? () => _export(
                                               docs
                                                   .map((d) => d.data())
@@ -1106,7 +1510,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                                     ? '本月薪資摘要'
                                     : _tab == 2
                                     ? '本月手動收支'
-                                    : '本月已填收支',
+                                    : '整店已填收支（未分攤）',
                                 subtitle: '依已填寫資料合計；未填成本不會自動估算。',
                                 child: Wrap(
                                   spacing: 8,

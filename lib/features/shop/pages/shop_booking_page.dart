@@ -1,3 +1,8 @@
+import 'package:petnest_saas/features/shop/widgets/booking/booking_background_surface.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_arrival_layout.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_inline_calendar.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_appearance_scope.dart';
+import 'package:petnest_saas/core/models/booking_page_appearance.dart';
 import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 檔案名稱：lib/features/shop/pages/shop_booking_page.dart
@@ -753,38 +758,78 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               );
             }
 
-            return Column(
-              children: <Widget>[
-                BookingStepIndicator(
-                  currentStep: _currentStep,
-                  theme: widget.theme,
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    key: PageStorageKey<String>(
-                      'shop_booking_scroll_$_currentStep',
+            final activeTheme = _currentStep == 1
+                ? BookingArrivalLayout.themeFor(
+                    BookingPageAppearance.fromShop(shop).style,
+                    appearance: BookingPageAppearance.fromShop(shop),
+                    originalTheme: BookingPageAppearance.frontendThemeFromShop(
+                      shop,
+                      fallback: widget.theme,
                     ),
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 760),
-                        child: _buildStepContent(
-                          shop: shop,
-                          bookingEnabled: bookingEnabled,
+                  )
+                : BookingPageAppearance.fromShop(shop).look.followFrontend
+                ? BookingPageAppearance.fromShop(shop).applyLook(
+                    widget.theme,
+                    frontendTheme: BookingPageAppearance.frontendThemeFromShop(
+                      shop,
+                      fallback: widget.theme,
+                    ),
+                  )
+                : widget.theme.copyWith(
+                    appBackgroundMode: ShopAppBackground.modeColor,
+                  );
+            return BookingAppearanceScope(
+              appearance: BookingPageAppearance.fromShop(shop),
+              frontendTheme: BookingPageAppearance.frontendThemeFromShop(
+                shop,
+                fallback: widget.theme,
+              ),
+              child: BookingBackgroundSurface(
+                theme: activeTheme,
+                child: Column(
+                  children: <Widget>[
+                    BookingStepIndicator(
+                      currentStep: _currentStep,
+                      theme: activeTheme,
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        key: PageStorageKey<String>(
+                          'shop_booking_scroll_$_currentStep',
+                        ),
+                        controller: _scrollController,
+                        padding: EdgeInsets.fromLTRB(
+                          BookingPageAppearance.fromShop(shop).compact ? 8 : 16,
+                          8,
+                          BookingPageAppearance.fromShop(shop).compact ? 8 : 16,
+                          16,
+                        ),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth:
+                                  BookingPageAppearance.fromShop(shop).narrow
+                                  ? 600
+                                  : 760,
+                            ),
+                            child: _buildStepContent(
+                              shop: shop,
+                              bookingEnabled: bookingEnabled,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    BookingStickyBar(
+                      theme: activeTheme,
+                      child: _buildStepBottomBar(
+                        shop: shop,
+                        serviceTypes: serviceTypes,
+                      ),
+                    ),
+                  ],
                 ),
-                BookingStickyBar(
-                  theme: widget.theme,
-                  child: _buildStepBottomBar(
-                    shop: shop,
-                    serviceTypes: serviceTypes,
-                  ),
-                ),
-              ],
+              ),
             );
           },
         ),
@@ -797,95 +842,142 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     required bool bookingEnabled,
   }) {
     if (_currentStep == 1) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          BookingDateSection(
-            shopName: shop['name'] ?? '未命名店家',
-            bookingEnabled: bookingEnabled,
-            theme: widget.theme,
-            startDate: _startDate,
-            endDate: _endDate,
-            nights: _nights,
-            onOpenCalendar: () async {
-              await _openCalendarDialog(shop);
-            },
+      final appearance = BookingPageAppearance.fromShop(shop);
+      final layoutTheme = BookingArrivalLayout.themeFor(
+        appearance.style,
+        appearance: appearance,
+        originalTheme: BookingPageAppearance.frontendThemeFromShop(
+          shop,
+          fallback: widget.theme,
+        ),
+      );
+      return BookingArrivalLayout(
+        key: ValueKey('booking-arrival-${widget.shopId}'),
+        style: appearance.style,
+        shopName: shop['name']?.toString() ?? '貓咪旅店',
+        coverUrl: shop['coverUrl']?.toString() ?? '',
+        hasDates: _startDate != null && _endDate != null,
+        petCount: _selectedPetIds.length,
+        dateLabel: _startDate != null && _endDate != null
+            ? '${_formatDate(_startDate!)} → ${_formatDate(_endDate!)}・$_nights 晚'
+            : '尚未選擇入住與退房日',
+        calendar: BookingInlineCalendar(
+          key: ValueKey('inline-calendar-${widget.shopId}'),
+          enabled: bookingEnabled,
+          today: _dateOnly(DateTime.now()),
+          maxDays: _toInt(shop['maxAdvanceBookingDays'], fallback: 30),
+          startDate: _startDate,
+          endDate: _endDate,
+          loadMonth: (month) => _buildFrontCalendarPayload(
+            shop: shop,
+            firstDate: month,
+            lastDate: DateTime(month.year, month.month + 1, 0),
           ),
-          CustomerBookingCampaignTeaser(
-            theme: widget.theme,
-            loading: _campaignsLoading,
-            hasError: _campaignsError,
-            campaigns: _enabledCampaigns,
-            snapshot: _campaignBookingSnapshot(shop),
-            onOpen: () => _openCampaignsPage(shop),
-            onRetry: () {
-              setState(() {
-                _campaignsLoading = true;
-                _campaignsError = false;
-              });
-              _listenPublicCampaigns();
-            },
-          ),
-          if (_startDate == null || _endDate == null)
-            BookingThemedCard(
-              theme: widget.theme,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    '預約前提醒',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: widget.theme.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '訂房安全提醒',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: widget.theme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '本平台僅提供預約系統服務，實際住宿與照護內容由店家負責。',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.45,
-                      color: widget.theme.textColor.withValues(alpha: 0.75),
-                    ),
-                  ),
-                ],
+          onApply: (start, end) => setState(() {
+            _startDate = start;
+            _endDate = end;
+            _selectedRoomType = null;
+            _selectedDailyCareAddonId = null;
+            _rangeChecked = true;
+            _rangeBookable = true;
+            _rangeMessage = '';
+          }),
+        ),
+        dateSection: BookingDateSection(
+          shopName: shop['name'] ?? '未命名店家',
+          bookingEnabled: bookingEnabled,
+          theme: layoutTheme,
+          startDate: _startDate,
+          endDate: _endDate,
+          nights: _nights,
+          onOpenCalendar: () async {
+            await _openCalendarDialog(shop);
+          },
+        ),
+        campaign: CustomerBookingCampaignTeaser(
+          theme: layoutTheme,
+          loading: _campaignsLoading,
+          hasError: _campaignsError,
+          campaigns: _enabledCampaigns,
+          snapshot: _campaignBookingSnapshot(shop),
+          onOpen: () => _openCampaignsPage(shop),
+          onRetry: () {
+            setState(() {
+              _campaignsLoading = true;
+              _campaignsError = false;
+            });
+            _listenPublicCampaigns();
+          },
+        ),
+        reminder: BookingThemedCard(
+          theme: layoutTheme,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                BookingPageAppearance.fromShop(shop).reminderTitle,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: layoutTheme.textColor,
+                ),
               ),
-            ),
-          BookingPetSection(
-            shopId: widget.shopId,
-            selectedPetIds: _selectedPetIds,
-            theme: widget.theme,
-            onPetsLoaded: (pets) {
-              setState(() {
-                _pets = pets;
-                _selectedPetIds.removeWhere(
-                  (id) => !pets.any((p) => p['petId'] == id),
-                );
-              });
-            },
-            onTogglePet: (petId, value) {
-              setState(() {
-                if (value) {
-                  _selectedPetIds.add(petId);
-                } else {
-                  _selectedPetIds.remove(petId);
-                }
-                _selectedRoomType = null;
-                _selectedDailyCareAddonId = null;
-              });
-            },
+              const SizedBox(height: 8),
+              Text(
+                '訂房安全提醒',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: layoutTheme.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '本平台僅提供預約系統服務，實際住宿與照護內容由店家負責。',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.45,
+                  color: layoutTheme.textColor.withValues(alpha: 0.75),
+                ),
+              ),
+              if (BookingPageAppearance.fromShop(shop).note.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  BookingPageAppearance.fromShop(shop).note,
+                  style: TextStyle(
+                    color: layoutTheme.textColor,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ],
           ),
-        ],
+        ),
+        petsSection: BookingPetSection(
+          shopId: widget.shopId,
+          selectedPetIds: _selectedPetIds,
+          theme: layoutTheme,
+          onPetsLoaded: (pets) {
+            setState(() {
+              _pets = pets;
+              _selectedPetIds.removeWhere(
+                (id) => !pets.any((p) => p['petId'] == id),
+              );
+            });
+          },
+          onTogglePet: (petId, value) {
+            setState(() {
+              if (value) {
+                _selectedPetIds.add(petId);
+              } else {
+                _selectedPetIds.remove(petId);
+              }
+              _selectedRoomType = null;
+              _selectedDailyCareAddonId = null;
+            });
+          },
+        ),
       );
     }
 
@@ -1054,10 +1146,18 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     required List<String> serviceTypes,
   }) {
     if (_currentStep == 1) {
-      final String? hint = _step1Hint;
+      final hint = _step1Hint;
+      final stepTheme = BookingArrivalLayout.themeFor(
+        BookingPageAppearance.fromShop(shop).style,
+        appearance: BookingPageAppearance.fromShop(shop),
+        originalTheme: BookingPageAppearance.frontendThemeFromShop(
+          shop,
+          fallback: widget.theme,
+        ),
+      );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
+        children: [
           if (hint != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -1065,12 +1165,12 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                 hint,
                 style: TextStyle(
                   fontSize: 12,
-                  color: widget.theme.textColor.withValues(alpha: 0.7),
+                  color: stepTheme.textColor.withValues(alpha: .7),
                 ),
               ),
             ),
           BookingPrimaryButton(
-            theme: widget.theme,
+            theme: stepTheme,
             label: '下一步',
             onPressed: hint == null ? () => _goToStep(2) : null,
           ),

@@ -1,7 +1,9 @@
+import 'home_desktop_layout_setting.dart';
 // 檔案名稱：lib/core/models/home_appearance_preset.dart
 // 功能說明：新版前台外觀的快速模板。只改排版與視覺，不改店家內容。
 
 import 'dart:convert';
+import 'home_shop_info_setting.dart';
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
@@ -33,6 +35,9 @@ class HomeAppearanceDraft {
     required this.information,
     required this.navigation,
     required this.bannerFrame,
+    this.desktopLayout = const HomeDesktopLayoutSetting(),
+    this.shopInfo = const HomeShopInfoSetting(),
+    this.sectionVisibility = const <String, bool>{},
     this.sharedEntry = const HomeSharedEntrySectionSetting(),
     this.displayStyle = HomeDisplayStyleSetting.unset,
     this.bannerButtonColorValue = 0xFF8B6548,
@@ -44,6 +49,9 @@ class HomeAppearanceDraft {
     this.storeEntryLayout = ModernStoreEntryLayouts.banner,
   });
 
+  final HomeDesktopLayoutSetting desktopLayout;
+  final HomeShopInfoSetting shopInfo;
+  final Map<String, bool> sectionVisibility;
   final HomeThemeModel theme;
   final List<String> sectionOrder;
   final HomeRoomSectionSetting rooms;
@@ -65,6 +73,9 @@ class HomeAppearanceDraft {
   final String storeEntryLayout;
 
   HomeAppearanceDraft copyWith({
+    HomeDesktopLayoutSetting? desktopLayout,
+    HomeShopInfoSetting? shopInfo,
+    Map<String, bool>? sectionVisibility,
     HomeThemeModel? theme,
     List<String>? sectionOrder,
     HomeRoomSectionSetting? rooms,
@@ -86,6 +97,9 @@ class HomeAppearanceDraft {
     int? bannerButtonTextColorValue,
   }) {
     return HomeAppearanceDraft(
+      desktopLayout: desktopLayout ?? this.desktopLayout,
+      shopInfo: shopInfo ?? this.shopInfo,
+      sectionVisibility: sectionVisibility ?? this.sectionVisibility,
       theme: theme ?? this.theme,
       sectionOrder: sectionOrder ?? this.sectionOrder,
       rooms: rooms ?? this.rooms,
@@ -138,48 +152,63 @@ const String homeAppearancePresetIdKey = 'appearancePresetId';
 
 const List<HomeAppearancePreset> homeAppearancePresets = <HomeAppearancePreset>[
   HomeAppearancePreset(
-    id: 'classic',
-    name: '經典完整',
-    description: '資訊完整，主內容、次要資訊與工具入口分開。',
+    id: 'creamOrange',
+    name: '奶油暖橘',
+    description: '品牌抬頭、三欄環境特色、圖文房型與照片式店家資訊。',
     navigationLabel: '底部選單',
-    apply: _applyClassic,
-  ),
-  HomeAppearancePreset(
-    id: 'minimal',
-    name: '奶油極簡',
-    description: '奶油白留白、精簡入口與左側選單。',
-    navigationLabel: '左側導覽',
-    apply: _applyMinimal,
-  ),
-  HomeAppearancePreset(
-    id: 'booking',
-    name: '預約優先',
-    description: '進站就看到住宿與安親兩張大按鈕。',
-    navigationLabel: '底部懸浮選單',
-    apply: _applyBooking,
-  ),
-  HomeAppearancePreset(
-    id: 'brand',
-    name: '精品旅宿',
-    description: '超大房型圖片，像精品旅館官網。',
-    navigationLabel: '左側導覽',
-    apply: _applyBrand,
-  ),
-  HomeAppearancePreset(
-    id: 'warm',
-    name: '溫暖日常',
-    description: '米杏底色、柔和綠意與圖文交錯。',
-    navigationLabel: '底部選單',
-    apply: _applyWarm,
+    apply: _applyCreamOrange,
   ),
 ];
+
+// 舊設定仍可辨識來源，不再列於快速套用選單。
+const List<HomeAppearancePreset> legacyHomeAppearancePresets =
+    <HomeAppearancePreset>[
+      HomeAppearancePreset(
+        id: 'classic',
+        name: '經典完整',
+        description: '資訊完整，主內容、次要資訊與工具入口分開。',
+        navigationLabel: '底部選單',
+        apply: _applyClassic,
+      ),
+      HomeAppearancePreset(
+        id: 'minimal',
+        name: '奶油極簡',
+        description: '奶油白留白、精簡入口與左側選單。',
+        navigationLabel: '左側導覽',
+        apply: _applyMinimal,
+      ),
+      HomeAppearancePreset(
+        id: 'booking',
+        name: '預約優先',
+        description: '進站就看到住宿與安親兩張大按鈕。',
+        navigationLabel: '底部懸浮選單',
+        apply: _applyBooking,
+      ),
+      HomeAppearancePreset(
+        id: 'brand',
+        name: '精品旅宿',
+        description: '超大房型圖片，像精品旅館官網。',
+        navigationLabel: '左側導覽',
+        apply: _applyBrand,
+      ),
+      HomeAppearancePreset(
+        id: 'warm',
+        name: '溫暖日常',
+        description: '米杏底色、柔和綠意與圖文交錯。',
+        navigationLabel: '底部選單',
+        apply: _applyWarm,
+      ),
+    ];
 
 HomeAppearancePreset? homeAppearancePresetById(String? id) {
   final String key = id?.trim() ?? '';
   if (key.isEmpty) {
     return null;
   }
-  for (final HomeAppearancePreset preset in homeAppearancePresets) {
+  for (final HomeAppearancePreset preset in [
+    ...homeAppearancePresets,
+    ...legacyHomeAppearancePresets,
+  ]) {
     if (preset.id == key) {
       return preset;
     }
@@ -204,6 +233,9 @@ String homeAppearancePresetStatus({
 
 String homeAppearanceDraftSignature(HomeAppearanceDraft draft) {
   return jsonEncode(<String, Object?>{
+    'desktopLayout': draft.desktopLayout.toMap(),
+    'shopInfo': draft.shopInfo.toMap(),
+    'sectionVisibility': draft.sectionVisibility,
     'theme': draft.theme.toMap(),
     'order': draft.sectionOrder,
     'rooms': draft.rooms.toMap(),
@@ -1018,5 +1050,132 @@ FrontendNavigationConfig _bottomFloating(FrontendNavigationConfig navigation) {
     style: FrontendNavigationConfig.styleBottom,
     bottomAppearance: FrontendNavigationConfig.appearanceFloatingPill,
     bottomSurface: FrontendNavigationConfig.surfaceTranslucent,
+  );
+}
+
+/// Only combines ordinary module settings. It never owns shop content or a renderer.
+HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
+  const front = ['banners', 'facilities', 'rooms', 'about'];
+  return current.copyWith(
+    desktopLayout: const HomeDesktopLayoutSetting(),
+    theme: current.theme.copyWith(
+      backgroundColorValue: 0xFFFFF9F0,
+      cardColorValue: 0xFFFFF9F0,
+      cardBorderColorValue: 0xFFFFD4AE,
+      primaryColorValue: 0xFFFF8B23,
+      textColorValue: 0xFF56321F,
+      secondaryTextColorValue: 0xFF725643,
+      appBackgroundMode: 'color',
+      buttonBackgroundColorValue: 0xFFFF8B23,
+      buttonTextMode: 'light',
+      buttonTextColorValue: 0xFFFFFFFF,
+    ),
+    sectionOrder: [
+      ...front,
+      ...HomeSectionOrder.defaultOrder.where((id) => !front.contains(id)),
+    ],
+    sectionVisibility: {
+      ...current.sectionVisibility,
+      for (final id in HomeSharedEntrySources.joinable)
+        id: const ['rooms', 'facilities', 'about'].contains(id),
+    },
+    rooms: current.rooms.copyWith(
+      layout: HomeRoomSectionLayouts.catalog,
+      showPrice: true,
+      fontFamily: 'NotoSansTC',
+      compact: current.rooms.compact.copyWith(
+        columns: 2,
+        imageHeight: HomeRoomImageHeights.standard,
+      ),
+    ),
+    environment: current.environment.copyWith(
+      layout: HomeEnvironmentLayouts.featureCards,
+      facilityLimit: 3,
+      showTitle: false,
+      showSubtitle: false,
+      showDescription: false,
+      simpleSurface: 'outlined',
+    ),
+    about: current.about.copyWith(
+      enabled: true,
+      layout: HomeAboutLayouts.editorial,
+      summarySource: 'shop',
+      imageSource: 'aboutCover',
+      showImage: true,
+      imagePosition: HomeAboutImagePositions.left,
+      imageFit: HomeAboutImageFits.cover,
+      showButton: true,
+      showLogo: true,
+      showSubtitle: true,
+      surfaceStyle: HomeAboutSurfaces.transparent,
+    ),
+    news: current.news.copyWith(layout: HomeNewsLayouts.multiLine),
+    quickBooking: current.quickBooking.copyWith(showOnHome: false),
+    information: current.information.copyWith(
+      policy: current.information.policy.copyWith(showOnHome: false),
+      faq: current.information.faq.copyWith(showOnHome: false),
+      reviews: current.information.reviews.copyWith(showOnHome: false),
+    ),
+    sharedEntry: current.sharedEntry.copyWith(enabled: false),
+    showStayServiceStrip: false,
+    navigation: _bottomAttached(current.navigation).copyWith(
+      bottomAppearance: FrontendNavigationConfig.appearanceUnderline,
+      left1: 'booking',
+      left2: 'rooms',
+      right1: 'orders',
+      right2: 'member',
+    ),
+    bannerFrame: current.bannerFrame.copyWith(
+      displayMode: ModernBannerFrameSetting.modeClassic,
+      widthPreset: HomeBannerWidthPreset.full,
+      heightPreset: HomeBannerHeightPreset.short,
+      showSectionTitle: false,
+      showDots: true,
+      dotsOverlay: true,
+      showArrows: false,
+      showCounter: false,
+    ),
+    brandStyle: current.brandStyle.copyWith(
+      subtitleAngle: -4.6,
+      subtitleFontFamily: 'KleeOne',
+      markType: 'wordmark',
+      logoSize: 'large',
+      textAlign: 'left',
+      x: .5,
+      widthRatio: 1,
+      nameFontFamily: 'NotoSansTC',
+      nameColorValue: 0xFF56321F,
+      subtitleColorValue: 0xFF725643,
+      headerBackgroundColorValue: null,
+      subtitleFontSize: 12,
+    ),
+    quickActions: current.quickActions.copyWith(
+      iconSize: HomeQuickActionSetting.sizeLarge,
+      containerStyle: HomeQuickActionSetting.containerPlain,
+      slotOne: '',
+      slotTwo: '',
+      slotsStored: true,
+      iconColorMode: HomeQuickActionSetting.iconTheme,
+    ),
+    shopInfo: current.shopInfo.copyWith(
+      enabled: true,
+      mode: 'scroll',
+      layout: 'photoContact',
+      actionPresentation: 'standard',
+      photoShape: 'rounded',
+      decoration: 'none',
+      followTheme: true,
+      imageSource: 'photo',
+      photoFraction: .36,
+      showName: false,
+      showIntro: false,
+      showActions: true,
+      fields: const ['hours', 'address'],
+      actionIds: const ['phone', 'map', 'line'],
+      actionLayout: 'threeColumns',
+      buttonStyle: 'mixed',
+    ),
+    bannerButtonColorValue: 0xFFFF8B23,
+    bannerButtonTextColorValue: 0xFFFFFFFF,
   );
 }

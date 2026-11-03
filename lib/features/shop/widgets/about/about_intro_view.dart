@@ -1,3 +1,4 @@
+import '../modern_home/modern_shop_footer.dart';
 import 'package:petnest_saas/core/models/shop_service_showcase.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'about_service_showcase.dart';
@@ -23,16 +24,22 @@ class AboutIntroView extends StatelessWidget {
     this.scrollController,
     this.preview = false,
     this.contactKey,
+    this.fullContent = false,
+    this.onEditSection,
   });
   final Map<String, dynamic> shop;
   final AboutPageSetting setting;
   final HomeThemeModel theme;
   final ScrollController? scrollController;
   final bool preview;
+  final bool fullContent;
+  final ValueChanged<String>? onEditSection;
   final GlobalKey? contactKey;
   static const icons = {
     'pets': Icons.pets,
     'heart': Icons.favorite_outline,
+    'leaf': Icons.eco_outlined,
+    'people': Icons.groups_outlined,
     'home': Icons.home_outlined,
     'care': Icons.health_and_safety_outlined,
     'clean': Icons.cleaning_services_outlined,
@@ -100,8 +107,8 @@ class AboutIntroView extends StatelessWidget {
               MediaQuery.textScalerOf(context).scale(1) * setting.textScale,
             ),
           ),
-          child: ShopAppBackdrop.behind(
-            theme: backdrop,
+          child: _backdrop(
+            backdrop,
             child: HomeCardImage(
               setting: image,
               enabled: a['cardsSource'] == 'custom',
@@ -110,7 +117,18 @@ class AboutIntroView extends StatelessWidget {
                   final width = c.maxWidth.clamp(0.0, 1240.0);
                   final order = setting.sectionOrder;
                   final raw = setting.toMap();
-                  final priority = setting.layout == 'boutique'
+                  final priority = setting.layout == 'daylight'
+                      ? [
+                          'principles',
+                          'stories',
+                          'highlights',
+                          'services',
+                          'team',
+                          'credentials',
+                          'message',
+                          'contact',
+                        ]
+                      : setting.layout == 'boutique'
                       ? ['contact', 'highlights']
                       : setting.layout == 'highlights'
                       ? ['highlights', 'principles']
@@ -124,8 +142,18 @@ class AboutIntroView extends StatelessWidget {
                       ? order
                       : {...priority, ...order}.toList();
                   final sections = <Widget>[];
+                  final pageTheme = resolved.copyWith(
+                    backgroundColorValue: _background.toARGB32(),
+                  );
                   for (final key in sequence) {
+                    final sectionColor = setting.sectionBackground(key);
+                    final resolved = sectionColor == null
+                        ? pageTheme
+                        : pageTheme.copyWith(
+                            backgroundColorValue: sectionColor.toARGB32(),
+                          );
                     if (!setting.visible(key)) continue;
+                    final before = sections.length;
                     if (key == 'services') {
                       final showcase = setting.serviceShowcase;
                       final enabled = serviceShowcaseEnabledModules(shop);
@@ -166,6 +194,35 @@ class AboutIntroView extends StatelessWidget {
                           ),
                         );
                       }
+                    } else if (key == 'contact' &&
+                        setting.contactLayout == 'footer') {
+                      sections.add(
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Builder(
+                            builder: (context) {
+                              final footer = setting.contactFooter.copyWith(
+                                showActions:
+                                    shop['externalLinksEnabled'] == false
+                                    ? false
+                                    : setting.contactFooter.showActions,
+                              );
+                              return ModernShopFooter(
+                                shopId: '',
+                                shop: shop,
+                                shopName: '${shop['name'] ?? ''}',
+                                primaryColor: resolved.primaryColor,
+                                darkTextColor: resolved.textColor,
+                                secondaryTextColor: resolved.secondaryTextColor,
+                                cardColor: resolved.cardColor,
+                                borderColor: resolved.cardBorderColor,
+                                isPreview: preview,
+                                setting: footer,
+                              ).buildInfoBody(context);
+                            },
+                          ),
+                        ),
+                      );
                     } else if (key == 'contact') {
                       sections.add(
                         KeyedSubtree(
@@ -242,7 +299,10 @@ class AboutIntroView extends StatelessWidget {
                                               'team',
                                               'credentials',
                                             ].contains(key) &&
-                                            item.image.source == 'platform'))),
+                                            const [
+                                              'platform',
+                                              'builtin',
+                                            ].contains(item.image.source)))),
                           )
                           .toList();
                       final license = '${shop['licenseNumber'] ?? ''}'.trim();
@@ -256,14 +316,25 @@ class AboutIntroView extends StatelessWidget {
                           ),
                         );
                       }
-                      if (items.isEmpty) continue;
+                      if (items.isEmpty) {
+                        if (preview &&
+                            onEditSection != null &&
+                            const ['principles', 'stories'].contains(key)) {
+                          sections.add(_emptyTarget(key));
+                        }
+                        continue;
+                      }
                       final grid =
                           (key == 'principles' &&
-                              setting.layout == 'principles') ||
+                              (setting.layout == 'principles' ||
+                                  setting.principleLayout == 'photoSide')) ||
                           (key == 'team' && setting.layout == 'team');
                       final count =
                           grid &&
-                              width >= 640 &&
+                              width >=
+                                  (setting.principleLayout == 'photoSide'
+                                      ? 900
+                                      : 640) &&
                               MediaQuery.textScalerOf(context).scale(1) <= 1.3
                           ? (width / 320).floor().clamp(2, 3)
                           : 1;
@@ -291,47 +362,77 @@ class AboutIntroView extends StatelessWidget {
                       );
                       sections.add(
                         _block(
-                          AboutPageSetting.sectionNames[key]!,
+                          key == 'stories'
+                              ? setting.storiesTitle
+                              : AboutPageSetting.sectionNames[key]!,
                           content,
                           resolved,
                         ),
                       );
+                    }
+                    if (sections.length > before) {
+                      sections[sections.length - 1] = _editTarget(
+                        key,
+                        sections.last,
+                      );
+                    } else if (preview &&
+                        onEditSection != null &&
+                        key == 'highlights') {
+                      sections.add(_emptyTarget(key));
                     }
                   }
                   final hasHeader =
                       '${shop['aboutTitle'] ?? ''}'.trim().isNotEmpty ||
                       '${shop['aboutDescription'] ?? ''}'.trim().isNotEmpty ||
                       _hasImage(setting.cover);
-                  return SingleChildScrollView(
-                    controller: scrollController,
-                    key: const PageStorageKey<String>(
-                      'about-intro-content-scroll',
-                    ),
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: SizedBox(
-                        width: width,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (hasHeader) _hero(resolved, width),
-                            for (final section in sections)
-                              Padding(
-                                padding: EdgeInsets.only(top: _gap),
-                                child: section,
+                  final content = Align(
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      width: width,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (hasHeader)
+                            _editTarget(
+                              'cover',
+                              _hero(
+                                setting.sectionBackground('cover') == null
+                                    ? resolved
+                                    : resolved.copyWith(
+                                        backgroundColorValue: setting
+                                            .sectionBackground('cover')!
+                                            .toARGB32(),
+                                      ),
+                                width,
                               ),
-                            if (preview && !hasHeader && sections.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Text('尚未填寫內容，請在右側開始介紹你的店家。'),
-                              ),
-                            if (hasHeader || sections.isNotEmpty)
-                              SizedBox(height: _gap),
-                          ],
-                        ),
+                            )
+                          else if (preview && onEditSection != null)
+                            _emptyTarget('cover'),
+                          for (final section in sections)
+                            Padding(
+                              padding: EdgeInsets.only(top: _gap),
+                              child: section,
+                            ),
+                          if (preview && !hasHeader && sections.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text('尚未填寫內容，請在右側開始介紹你的店家。'),
+                            ),
+                          if (hasHeader || sections.isNotEmpty)
+                            SizedBox(height: _gap),
+                        ],
                       ),
                     ),
                   );
+                  return fullContent
+                      ? content
+                      : SingleChildScrollView(
+                          controller: scrollController,
+                          key: const PageStorageKey<String>(
+                            'about-intro-content-scroll',
+                          ),
+                          child: content,
+                        );
                 },
               ),
             ),
@@ -341,7 +442,68 @@ class AboutIntroView extends StatelessWidget {
     );
   }
 
-  bool _hasImage(AboutMedia media) => media.source == 'platform'
+  Widget _editTarget(String id, Widget child) {
+    final background = setting.sectionBackground(id);
+    if (background != null) {
+      child = Container(
+        key: ValueKey('about-section-background-$id'),
+        color: background,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: child,
+      );
+    }
+    return preview && onEditSection != null
+        ? Semantics(
+            button: true,
+            label:
+                '編輯${id == 'cover' ? '封面與介紹' : AboutPageSetting.sectionNames[id] ?? id}',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onEditSection!(id),
+              child: child,
+            ),
+          )
+        : child;
+  }
+
+  Widget _emptyTarget(String id) => _editTarget(
+    id,
+    Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xffcbd0df)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.add_circle_outline, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              id == 'cover'
+                  ? '加入封面照片與介紹'
+                  : '新增${AboutPageSetting.sectionNames[id]}',
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _backdrop(HomeThemeModel backdrop, {required Widget child}) =>
+      fullContent
+      ? Stack(
+          children: [
+            Positioned.fill(child: ShopAppBackdrop(theme: backdrop)),
+            child,
+          ],
+        )
+      : ShopAppBackdrop.behind(theme: backdrop, child: child);
+
+  bool _hasImage(AboutMedia media) =>
+      const ['platform', 'builtin'].contains(media.source)
       ? media.assetId.isNotEmpty
       : media.resolveShop(shop).isNotEmpty;
   Color get _background =>
@@ -385,7 +547,7 @@ class AboutIntroView extends StatelessWidget {
   Color _surface(HomeThemeModel t, {bool image = false}) =>
       image && setting.appearance['cardsSource'] == 'custom'
       ? setting.color('cardColor', t.cardColor)
-      : Color.alphaBlend(_cardFill(t), _background);
+      : Color.alphaBlend(_cardFill(t), t.backgroundColor);
   double get _aspect =>
       setting.choice('imageRatio', [
             'square',
@@ -423,7 +585,9 @@ class AboutIntroView extends StatelessWidget {
   }) => Text(
     text,
     style: TextStyle(
-      fontSize: title ? 22 : 15,
+      fontSize: setting.layout == 'daylight'
+          ? (title ? 18 : 14)
+          : (title ? 22 : 15),
       height: 1.65,
       fontWeight: title ? FontWeight.w800 : FontWeight.normal,
       color: _color(
@@ -473,14 +637,107 @@ class AboutIntroView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (title.trim().isNotEmpty)
-          _text(title, t, title: true, surface: _background),
+          _text(title, t, title: true, surface: t.backgroundColor),
         if (description.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: _text(description, t, secondary: true, surface: _background),
+            child: _text(
+              description,
+              t,
+              secondary: true,
+              surface: t.backgroundColor,
+            ),
           ),
       ],
     );
+    if (setting.coverLayout == 'centered') {
+      return Column(
+        key: const ValueKey('about-daylight-cover'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (hasImage)
+            AspectRatio(
+              aspectRatio: width >= 700 ? 3.4 : 1.8,
+              child: AboutMediaView(
+                media: setting.cover,
+                shop: shop,
+                fit: frame.boxFit,
+                alignment: frame.alignment,
+              ),
+            ),
+          if (title.trim().isNotEmpty ||
+              description.trim().isNotEmpty ||
+              setting.coverSubtitle.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: width >= 700 ? 28 : 22,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Column(
+                    children: [
+                      if (title.trim().isNotEmpty)
+                        Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: width >= 700 ? 30 : 24,
+                            fontWeight: FontWeight.w700,
+                            color: _color(
+                              'titleColor',
+                              t.textColor,
+                              t.backgroundColor,
+                            ),
+                          ),
+                        ),
+                      if (title.trim().isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 10),
+                          width: 28,
+                          height: 2,
+                          color: t.primaryColor,
+                        ),
+                      if (setting.coverSubtitle.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            setting.coverSubtitle,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: _color(
+                                'titleColor',
+                                t.textColor,
+                                t.backgroundColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (description.trim().isNotEmpty)
+                        Text(
+                          description,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.7,
+                            color: _color(
+                              'secondaryTextColor',
+                              t.secondaryTextColor,
+                              t.backgroundColor,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
     if (setting.coverLayout != 'auto') {
       final hasCopy = title.trim().isNotEmpty || description.trim().isNotEmpty;
       final sideBySide =
@@ -715,7 +972,17 @@ class AboutIntroView extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _text(title, t, title: true, surface: _background),
+        _text(title, t, title: true, surface: t.backgroundColor),
+        if (setting.layout == 'daylight')
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              width: 24,
+              height: 2,
+              margin: const EdgeInsets.only(top: 6),
+              color: t.primaryColor,
+            ),
+          ),
         const SizedBox(height: 12),
         content,
       ],
@@ -725,7 +992,10 @@ class AboutIntroView extends StatelessWidget {
     final custom = setting.appearance['cardsSource'] == 'custom';
     final fill = _cardFill(t);
     final inherited = _frontStyle;
-    final borderWidth = custom
+    final quiet = setting.layout == 'daylight' && !custom;
+    final borderWidth = quiet
+        ? 0.0
+        : custom
         ? setting.number('borderWidth', 1, min: 0, max: 5)
         : inherited?.cardBorder == false
         ? 0.0
@@ -735,7 +1005,9 @@ class AboutIntroView extends StatelessWidget {
       decoration: BoxDecoration(
         color: fill,
         borderRadius: BorderRadius.circular(
-          custom
+          quiet
+              ? 12
+              : custom
               ? setting.number('radius', 24, min: 0, max: 40)
               : inherited == null
               ? 26
@@ -752,7 +1024,9 @@ class AboutIntroView extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
-              alpha: custom
+              alpha: quiet
+                  ? 0
+                  : custom
                   ? setting.number('shadow', .04, min: 0, max: .25)
                   : inherited == null
                   ? 0.04
@@ -789,7 +1063,9 @@ class AboutIntroView extends StatelessWidget {
             ),
           Padding(
             padding: EdgeInsets.all(
-              custom
+              quiet
+                  ? 16
+                  : custom
                   ? setting.number('padding', 20, min: 8, max: 36)
                   : inherited == null
                   ? 22
@@ -813,6 +1089,157 @@ class AboutIntroView extends StatelessWidget {
     );
   }
 
+  Widget _photoPrinciple(
+    AboutContentItem item,
+    HomeThemeModel t,
+    String backgroundImage,
+    double pageWidth,
+  ) => LayoutBuilder(
+    builder: (context, c) {
+      final compact = pageWidth < 700;
+      final hasPhoto = _hasImage(item.image),
+          custom = setting.appearance['cardsSource'] == 'custom';
+      final frame = setting.coverFrame(shop),
+          surface = _surface(t, image: backgroundImage.isNotEmpty);
+      final padding = custom
+          ? setting.number('padding', 12, min: 8, max: 36)
+          : compact
+          ? 12.0
+          : 16.0;
+      final contentWidth = (c.maxWidth * (hasPhoto ? .62 : 1) - padding * 2)
+          .clamp(0.0, double.infinity);
+      final icon = Container(
+        padding: EdgeInsets.all(compact ? 6 : 9),
+        decoration: BoxDecoration(
+          color: t.primaryColor.withValues(alpha: .1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icons[item.icon] ?? Icons.pets,
+          size: compact ? 18 : 22,
+          color: _color('iconColor', t.primaryColor, surface),
+        ),
+      );
+      final words = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (item.title.trim().isNotEmpty)
+            Text(
+              item.title,
+              style: TextStyle(
+                fontSize: compact ? 14 : 16,
+                fontWeight: FontWeight.w600,
+                color: _color('titleColor', t.textColor, surface),
+              ),
+            ),
+          if (item.title.trim().isNotEmpty && item.text.trim().isNotEmpty)
+            const SizedBox(height: 4),
+          if (item.text.trim().isNotEmpty)
+            Text(
+              item.text,
+              style: TextStyle(
+                fontSize: compact ? 12 : 13,
+                height: 1.5,
+                color: _color(
+                  'secondaryTextColor',
+                  t.secondaryTextColor,
+                  surface,
+                ),
+              ),
+            ),
+        ],
+      );
+      return Container(
+        key: ValueKey('about-principle-side-${item.id}'),
+        constraints: BoxConstraints(minHeight: compact ? 88 : 140),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: _cardFill(t),
+          borderRadius: BorderRadius.circular(
+            custom ? setting.number('radius', 12, min: 0, max: 40) : 12,
+          ),
+          border: custom && setting.number('borderWidth', 0, min: 0, max: 5) > 0
+              ? Border.all(
+                  color: setting.color('borderColor', t.cardBorderColor),
+                  width: setting.number('borderWidth', 0, min: 0, max: 5),
+                )
+              : null,
+          boxShadow: custom
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: setting.number('shadow', 0, min: 0, max: .25),
+                    ),
+                    blurRadius: 16,
+                  ),
+                ]
+              : null,
+        ),
+        child: Stack(
+          children: [
+            if (custom && backgroundImage.isNotEmpty)
+              Positioned.fill(
+                child: Image.network(
+                  backgroundImage,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, error, stack) => const SizedBox.shrink(),
+                ),
+              ),
+            if (custom && backgroundImage.isNotEmpty)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: setting
+                      .color('cardColor', t.cardColor)
+                      .withValues(
+                        alpha: setting.number(
+                          'cardMask',
+                          .85,
+                          min: .65,
+                          max: 1,
+                        ),
+                      ),
+                ),
+              ),
+            if (hasPhoto)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 0,
+                width: c.maxWidth * .38,
+                child: AboutMediaView(
+                  media: item.image,
+                  shop: shop,
+                  fit: frame.boxFit,
+                  alignment: frame.alignment,
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.all(padding),
+              child: SizedBox(
+                width: contentWidth,
+                child: compact && contentWidth >= 140
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          icon,
+                          const SizedBox(width: 8),
+                          Expanded(child: words),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [icon, const SizedBox(height: 8), words],
+                      ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
   Widget _item(
     AboutContentItem item,
     String section,
@@ -821,15 +1248,23 @@ class AboutIntroView extends StatelessWidget {
     HomeThemeModel t,
     String image,
   ) {
+    if (section == 'principles' && setting.principleLayout == 'photoSide') {
+      return _photoPrinciple(item, t, image, width);
+    }
     final frame = setting.coverFrame(shop);
     final photo =
         _hasImage(item.image) &&
             !(const ['team', 'credentials'].contains(section) &&
-                item.image.source == 'platform')
+                const ['platform', 'builtin'].contains(item.image.source))
         ? ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: AspectRatio(
-              aspectRatio: _aspect,
+              aspectRatio:
+                  section == 'stories' &&
+                      setting.layout == 'daylight' &&
+                      !setting.appearance.containsKey('imageRatio')
+                  ? 16 / 9
+                  : _aspect,
               child: AboutMediaView(
                 media: item.image,
                 shop: shop,
@@ -870,35 +1305,40 @@ class AboutIntroView extends StatelessWidget {
           ),
       ],
     );
-    final alternating =
+    final storyMode = setting.storyLayout;
+    final sideStory =
         section == 'stories' &&
-        setting.layout == 'alternating' &&
-        width >= 700 &&
-        photo != null;
+        photo != null &&
+        (storyMode == 'imageLeft' ||
+            storyMode == 'alternating' ||
+            (storyMode == 'auto' && setting.layout == 'alternating'));
+    if (sideStory && (width >= 700 || setting.layout == 'daylight')) {
+      final content = Row(
+        key: ValueKey('about-story-side-${item.id}'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (storyMode != 'alternating' || index.isEven)
+            Expanded(flex: width >= 700 ? 5 : 3, child: photo),
+          if (storyMode != 'alternating' || index.isEven)
+            const SizedBox(width: 18),
+          Expanded(flex: width >= 700 ? 7 : 7, child: copy),
+          if (storyMode == 'alternating' && index.isOdd)
+            const SizedBox(width: 18),
+          if (storyMode == 'alternating' && index.isOdd)
+            Expanded(flex: width >= 700 ? 5 : 3, child: photo),
+        ],
+      );
+      return setting.layout == 'daylight' ? content : _card(t, content, image);
+    }
     return _card(
       t,
-      alternating
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: index.isEven
-                  ? [
-                      Expanded(child: photo),
-                      const SizedBox(width: 20),
-                      Expanded(child: copy),
-                    ]
-                  : [
-                      Expanded(child: copy),
-                      const SizedBox(width: 20),
-                      Expanded(child: photo),
-                    ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (photo != null) ...[photo, const SizedBox(height: 14)],
-                copy,
-              ],
-            ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (photo != null) ...[photo, const SizedBox(height: 14)],
+          copy,
+        ],
+      ),
       image,
     );
   }

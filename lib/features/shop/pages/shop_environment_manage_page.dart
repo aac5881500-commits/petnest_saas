@@ -1,3 +1,10 @@
+import '../widgets/shop_room_type_workspace.dart';
+import '../widgets/environment/environment_quick_template_card.dart';
+import 'package:petnest_saas/core/models/environment_layout_settings.dart';
+import 'package:petnest_saas/core/models/environment_quick_layout.dart';
+import '../widgets/environment/environment_layout_editor.dart';
+import '../widgets/environment/environment_photo.dart';
+import '../widgets/environment/environment_editorial_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_hero_section.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_image_banner.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
@@ -59,6 +66,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   String _dataSnapshot(Object? value) =>
       jsonEncode(value, toEncodable: (value) => value.toString());
   bool _inlinePreviewVisible = false;
+  bool _showWorkspacePreview = false;
   final _previewKey = GlobalKey<EnvironmentDraftPreviewState>();
   final Map<String, GlobalKey> _previewSections = {
     for (final id in ['features', 'care', 'gallery']) id: GlobalKey(),
@@ -169,7 +177,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   @override
   void initState() {
     super.initState();
-    _settingsTabs = TabController(length: 5, vsync: this);
+    _settingsTabs = TabController(length: 6, vsync: this);
     heroTitleController.addListener(_onPreviewTextChanged);
     heroSubtitleController.addListener(_onPreviewTextChanged);
     bannerTitleController.addListener(_onPreviewTextChanged);
@@ -386,6 +394,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   }
 
   Future<bool> _deleteTrackedImage(_TrackedEnvImage image) {
+    if (EnvironmentBuiltinPhotos.id(image.url) != null) {
+      return Future.value(true);
+    }
     if (image.slot == 'gallery') {
       return ShopService.instance.tryDeleteEnvironmentGalleryImage(
         shopId: widget.shopId,
@@ -821,6 +832,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     final TextEditingController titleController = TextEditingController(
       text: item['title'] ?? '',
     );
+    final subtitleController = TextEditingController(
+      text: (item['subtitle'] ?? '').toString(),
+    );
     final TextEditingController descriptionController = TextEditingController(
       text: item['description'] ?? '',
     );
@@ -836,6 +850,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
               TextField(
                 controller: titleController,
                 decoration: const InputDecoration(labelText: '特色標題'),
+              ),
+              TextField(
+                controller: subtitleController,
+                decoration: const InputDecoration(labelText: '特色副標題'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -856,6 +874,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                   environmentFeatures[index] = {
                     ...environmentFeatures[index],
                     'title': titleController.text.trim(),
+                    'subtitle': subtitleController.text.trim(),
                     'description': descriptionController.text.trim(),
                   };
                 });
@@ -868,7 +887,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       },
     );
 
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     titleController.dispose();
+    subtitleController.dispose();
     descriptionController.dispose();
   }
 
@@ -1570,17 +1591,6 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
               backgroundColor: const Color(0xFFFFFCF7),
               appBar: AppBar(
                 title: const Text('環境介紹管理'),
-                bottom: desktop && !_loading
-                    ? PreferredSize(
-                        preferredSize: const Size.fromHeight(36),
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            _hasUnsavedImageChanges ? '有未儲存變更' : '已儲存',
-                          ),
-                        ),
-                      )
-                    : null,
                 backgroundColor: const Color(0xFFFFFCF7),
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
@@ -1607,12 +1617,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
                   ? const Center(child: CircularProgressIndicator())
                   : _loadError != null
                   ? _buildLoadError()
-                  : desktop
-                  ? _buildDesktopWorkspace()
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: _buildManagementChildren(),
-                    ),
+                  : _buildDesktopWorkspace(),
             ),
             _buildBusyOverlay(),
           ],
@@ -1759,106 +1764,80 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
         .toList();
     return LayoutBuilder(
       builder: (context, constraints) {
-        final split = constraints.maxWidth >= 1100;
-        _inlinePreviewVisible = split;
-        final contentWidth = constraints.maxWidth.clamp(0.0, 1680.0);
-        final previewWidth = (contentWidth - 68).clamp(600.0, 1680.0) * .4;
-        return Align(
-          alignment: Alignment.topCenter,
-          child: SizedBox(
-            width: contentWidth,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Keep the preview mounted when chat temporarily reduces available width.
-                  SizedBox(
-                    width: split ? previewWidth : 0,
-                    child: Offstage(
-                      offstage: !split,
-                      child: OverflowBox(
-                        alignment: Alignment.topLeft,
-                        minWidth: previewWidth,
-                        maxWidth: previewWidth,
-                        child: EnvironmentDraftPreview(
-                          key: _previewKey,
-                          contentBuilder: _draftContent,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: split ? 20 : 0),
-                  Expanded(
-                    child: Column(
+        _inlinePreviewVisible =
+            constraints.maxWidth >= 1100 || _showWorkspacePreview;
+        return ShopRoomTypeWorkspace(
+          showPreview: _showWorkspacePreview,
+          onPreviewChanged: (value) =>
+              setState(() => _showWorkspacePreview = value),
+          editLabel: '編輯',
+          previewLabel: '預覽',
+          preview: EnvironmentDraftPreview(
+            key: _previewKey,
+            contentBuilder: _draftContent,
+          ),
+          editor: Column(
+            children: [
+              TabBar(
+                controller: _settingsTabs,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: const [
+                  Tab(text: '版型範本'),
+                  Tab(text: '封面與文案'),
+                  Tab(text: '環境特色'),
+                  Tab(text: '設備與服務'),
+                  Tab(text: '相簿與提醒'),
+                  Tab(text: '進階外觀'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: TabBarView(
+                  controller: _settingsTabs,
+                  children: List.generate(
+                    6,
+                    (index) => ListView(
+                      key: PageStorageKey('environment-settings-$index'),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       children: [
-                        if (!split)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: OutlinedButton.icon(
-                              onPressed: _imageBusy ? null : _openDraftPreview,
-                              icon: const Icon(Icons.preview_outlined),
-                              label: const Text('查看即時預覽'),
+                        if (index == 1) _buildTipCard(),
+                        if (index == 2 || index == 4)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              '所有修改（含特色、圖片與相簿）都需按儲存後生效；放棄變更會保留原本已儲存內容。',
                             ),
                           ),
-                        TabBar(
-                          controller: _settingsTabs,
-                          isScrollable: true,
-                          tabAlignment: TabAlignment.start,
-                          tabs: const [
-                            Tab(text: '版型與樣式'),
-                            Tab(text: '封面與文案'),
-                            Tab(text: '環境特色'),
-                            Tab(text: '設備與服務'),
-                            Tab(text: '相簿與提醒'),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: TabBarView(
-                            controller: _settingsTabs,
-                            children: List.generate(
-                              5,
-                              (index) => ListView(
-                                key: PageStorageKey(
-                                  'environment-settings-$index',
-                                ),
-                                padding: EdgeInsets.zero,
-                                children: [
-                                  if (index == 1) _buildTipCard(),
-                                  if (index == 2 || index == 4)
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 12),
-                                      child: Text(
-                                        '所有修改（含特色、圖片與相簿）都需按儲存後生效；放棄變更會保留原本已儲存內容。',
-                                      ),
-                                    ),
-                                  if (index == 0) ...[
-                                    sections.firstWhere(
-                                      (section) => section.tab == 0,
-                                    ),
-                                    sections
-                                        .where((section) => section.tab == 0)
-                                        .elementAt(1),
-                                    _groupLabel('進階調整'),
-                                    ...sections
-                                        .where((section) => section.tab == 0)
-                                        .skip(2),
-                                  ] else
-                                    ...sections.where(
-                                      (section) => section.tab == index,
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                        ...sections.where((section) => section.tab == index),
                       ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _hasUnsavedImageChanges ? '有未儲存變更' : '已儲存',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed:
+                          _imageBusy ||
+                              !_canUseDraft ||
+                              !_hasUnsavedImageChanges
+                          ? null
+                          : _save,
+                      child: Text(_saving ? '儲存中' : '儲存'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -1871,7 +1850,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     _buildAppearanceSection(),
     _groupLabel('進階調整'),
     _buildSectionCard(
-      settingsTab: 0,
+      settingsTab: 5,
       title: '整體顯示尺寸',
       subtitle: '調整卡片間距、圖片區塊與設備卡大小',
       children: [
@@ -1892,7 +1871,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       ],
     ),
     _buildSectionCard(
-      settingsTab: 0,
+      settingsTab: 5,
       title: '環境特色卡片版型',
       subtitle: '所有特色卡使用同一種版型',
       children: [
@@ -1913,7 +1892,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       ],
     ),
     _buildSectionCard(
-      settingsTab: 0,
+      settingsTab: 5,
       title: '環境特色卡片高度',
       subtitle: '調整內距與圖片大小，文字多時卡片仍會長高',
       children: [
@@ -1953,6 +1932,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       title: '首頁大圖',
       subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
       children: [
+        TextButton.icon(
+          onPressed: _imageBusy ? null : () => _pickBuiltinSlot('hero'),
+          icon: const Icon(Icons.photo_library_outlined),
+          label: const Text('選擇封面示意照片'),
+        ),
         EnvironmentImageUploadBox(
           title: '首頁大圖',
           imageUrl: _heroImageUrl,
@@ -2000,6 +1984,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           },
           onEdit: _editFeature,
           onManageImage: _openFeatureImageManager,
+          onBuiltinImage: _pickBuiltinFeature,
           onChangeIcon: _changeFeatureIcon,
           onChangeLayout: _changeFeatureLayout,
           onDelete: _deleteFeatureAt,
@@ -2023,6 +2008,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
           }),
           onChanged: _setPresentation,
           onUpload: _uploadServiceImage,
+          onBuiltinImage: _pickBuiltinService,
           onRemoveImage: _removeServiceImage,
           onDelete: _deleteService,
         ),
@@ -2046,6 +2032,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       title: '中間橫幅圖片',
       subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
       children: [
+        TextButton.icon(
+          onPressed: _imageBusy ? null : () => _pickBuiltinSlot('banner'),
+          icon: const Icon(Icons.photo_library_outlined),
+          label: const Text('選擇橫幅示意照片'),
+        ),
         EnvironmentImageUploadBox(
           title: '中間橫幅圖',
           imageUrl: _bannerImageUrl,
@@ -2244,11 +2235,17 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
   }
 
   Widget _buildAppearanceSection() => _buildSectionCard(
-    settingsTab: 0,
+    settingsTab: 5,
     title: '整頁外觀',
     subtitle: '只套用環境介紹；儲存後才更新正式內容。',
     children: [
-      _buildResponsiveControls(),
+      EnvironmentLayoutEditor(
+        value: _presentation.layout,
+        busy: _imageBusy,
+        onChanged: (value) => _setPresentation(
+          _presentation.copyWith({'layoutSettings': value.toMap()}),
+        ),
+      ),
       _buildSectionControls(),
       _buildPhotoControls(),
       EnvironmentAppearanceEditor(
@@ -2282,7 +2279,21 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     required bool hero,
   }) => DefaultTextStyle.merge(
     style: TextStyle(fontFamily: _presentation.appearance.fontFamily),
-    child: hero
+    child:
+        (hero
+                ? _presentation.layout.heroLayout
+                : _presentation.layout.bannerLayout) ==
+            'split'
+        ? EnvironmentSplitPhoto(
+            imageUrl: hero ? _heroImageUrl : _bannerImageUrl,
+            title: hero ? heroTitleController.text : bannerTitleController.text,
+            subtitle: hero
+                ? heroSubtitleController.text
+                : _presentation.layout.text('bannerSubtitle'),
+            settings: _presentation.layout,
+            hero: hero,
+          )
+        : hero
         ? EnvironmentHeroSection(
             imageUrl: _heroImageUrl,
             title: heroTitleController.text,
@@ -2355,9 +2366,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
       ),
       ExpansionTile(
         tilePadding: EdgeInsets.zero,
-        title: const Text('手機／桌機照片設定與區塊間距'),
+        title: const Text('照片設定與區塊間距'),
         children: [
-          for (final desktop in [false, true])
+          for (final desktop in [false])
             for (final id in ['hero', 'banner'])
               Builder(
                 builder: (context) {
@@ -2607,142 +2618,128 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage>
     ],
   );
 
-  Widget _buildResponsiveControls() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text('桌機特色卡排列（寬度 800 以上）'),
-      Wrap(
-        spacing: 8,
-        children: [
-          for (final entry in const {
-            'auto': '自動雙欄',
-            'single': '單欄',
-            'double': '雙欄',
-          }.entries)
-            ChoiceChip(
-              label: Text(entry.value),
-              selected: _presentation.desktopColumns == entry.key,
-              onSelected: _imageBusy
-                  ? null
-                  : (_) => _setPresentation(
-                      _presentation.copyWith({'desktopColumns': entry.key}),
-                    ),
+  Future<void> _applyReferenceLayout(bool sample) async {
+    if (_imageBusy) return;
+    if (sample) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('套用完整示範到草稿？'),
+          content: const Text(
+            '將替換環境介紹文案、特色與設備服務為參考圖示範。原照片會保留於相簿回收區；尚未儲存前可離開放棄變更。AI 圖片不代表店家實景。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
             ),
-        ],
-      ),
-      const Text('桌機特色卡版型'),
-      Wrap(
-        spacing: 8,
-        children: [
-          for (final entry in const {
-            'inherit': '沿用手機',
-            'horizontal': '橫向圖卡',
-            'vertical': '上圖下文',
-            'text': '重點文字卡',
-          }.entries)
-            ChoiceChip(
-              label: Text(entry.value),
-              selected: _presentation.desktopCardLayout == entry.key,
-              onSelected: _imageBusy
-                  ? null
-                  : (_) => _setPresentation(
-                      _presentation.copyWith({'desktopCardLayout': entry.key}),
-                    ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('套用到草稿'),
             ),
-        ],
-      ),
-      Text('內容最大寬度：${_presentation.contentMaxWidth.round()}'),
-      Slider(
-        value: _presentation.contentMaxWidth,
-        min: 800,
-        max: 1400,
-        divisions: 6,
-        onChanged: _imageBusy
-            ? null
-            : (value) => _setPresentation(
-                _presentation.copyWith({'contentMaxWidth': value}),
-              ),
-      ),
-      Text('特色圖片最大高度：${_presentation.featureImageMaxHeight.round()}'),
-      Slider(
-        value: _presentation.featureImageMaxHeight,
-        min: 160,
-        max: 400,
-        divisions: 12,
-        onChanged: _imageBusy
-            ? null
-            : (value) => _setPresentation(
-                _presentation.copyWith({'featureImageMaxHeight': value}),
-              ),
-      ),
-      const SizedBox(height: 12),
-    ],
-  );
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    setState(() {
+      _presentation = EnvironmentQuickLayout.presentation(_presentation);
+      _style = _style.copyWith(
+        cardLayout: 'horizontal',
+        displaySize: 'standard',
+        cardDensity: 'standard',
+        fontSize: 'standard',
+      );
+      if (!sample) return;
+      // Keep all former photos recoverable and never delete storage for a recipe.
+      for (final item in [
+        ...environmentGalleryImages,
+        ...environmentFeatures,
+        ..._savedPresentation.services.map((s) => s.toMap()),
+        {'imageUrl': _heroImageUrl, 'imageStoragePath': _heroImagePath},
+        {'imageUrl': _bannerImageUrl, 'imageStoragePath': _bannerImagePath},
+      ]) {
+        if (_mapImageUrl(item).isNotEmpty &&
+            !_galleryTrash.any(
+              (old) => _mapImageUrl(old) == _mapImageUrl(item),
+            )) {
+          _galleryTrash.add(Map<String, dynamic>.of(item));
+        }
+      }
+      final data = EnvironmentQuickLayout.sampleIntro();
+      heroTitleController.text = data['heroTitle'] as String;
+      heroSubtitleController.text = data['heroSubtitle'] as String;
+      bannerTitleController.text = data['bannerTitle'] as String;
+      bottomNoteController.text = data['bottomNote'] as String;
+      _heroImageUrl = data['heroImageUrl'] as String;
+      _heroImagePath = '';
+      _bannerImageUrl = data['bannerImageUrl'] as String;
+      _bannerImagePath = '';
+      environmentFeatures = List<Map<String, dynamic>>.from(
+        data['features'] as List,
+      );
+      environmentGalleryImages = List<Map<String, dynamic>>.from(
+        data['galleryImages'] as List,
+      );
+      selectedFacilityKeys = [];
+      _presentation = _presentation.copyWith({
+        'customServices': EnvironmentQuickLayout.sampleServices(),
+        'hiddenFacilityKeys': <String>[],
+        'groupFacilities': true,
+      });
+    });
+  }
 
-  Widget _buildTemplateSelector() => _buildSectionCard(
-    settingsTab: 0,
-    title: '整頁快速範本',
-    subtitle: _presentation.preset.isEmpty
-        ? '目前沿用原有版面；選擇範本不會變更文案或照片。'
-        : '${EnvironmentPresentation.presets[_presentation.preset]}${_presentation.customized ? '・已自訂' : ''}（儲存後生效）',
-    children: [
-      LayoutBuilder(
-        builder: (context, constraints) {
-          // Keep two usable cards on common phone widths instead of leaving half
-          // of the section empty. Very narrow containers keep a single column.
-          final available = constraints.maxWidth;
-          final cardWidth =
-              (available >= 250 ? (available - 10) / 2 : available)
-                  .clamp(0.0, 150.0)
-                  .toDouble();
-          return Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final preset in EnvironmentPresentation.presets.entries)
-                SizedBox(
-                  width: cardWidth,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.all(10),
-                      side: BorderSide(
-                        color: _presentation.preset == preset.key
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    onPressed: _imageBusy
-                        ? null
-                        : () => setState(() {
-                            _presentation = _presentation.applyPreset(
-                              preset.key,
-                            );
-                            _style = _style.copyWith(
-                              displaySize: preset.key == 'minimal'
-                                  ? 'compact'
-                                  : 'standard',
-                              cardLayout: preset.key == 'photo'
-                                  ? 'vertical'
-                                  : 'horizontal',
-                              cardDensity: preset.key == 'minimal'
-                                  ? 'compact'
-                                  : 'comfortable',
-                            );
-                          }),
-                    child: Column(
-                      children: [
-                        EnvironmentTemplateThumbnail(preset: preset.key),
-                        const SizedBox(height: 6),
-                        Text(preset.value),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    ],
+  Future<void> _pickBuiltinSlot(String slot) async {
+    final url = await pickEnvironmentBuiltinPhoto(context);
+    if (url == null || !mounted) return;
+    setState(() {
+      if (slot == 'hero') {
+        _heroImageUrl = url;
+        _heroImagePath = '';
+      } else {
+        _bannerImageUrl = url;
+        _bannerImagePath = '';
+      }
+    });
+  }
+
+  Future<void> _pickBuiltinFeature(int index) async {
+    final url = await pickEnvironmentBuiltinPhoto(context);
+    if (url == null || !mounted) return;
+    setState(
+      () => environmentFeatures[index] = {
+        ...environmentFeatures[index],
+        'imageUrl': url,
+        'imageStoragePath': '',
+      },
+    );
+  }
+
+  Future<void> _pickBuiltinService(String id) async {
+    final url = await pickEnvironmentBuiltinPhoto(context);
+    if (url == null || !mounted) return;
+    final services = _presentation.services
+        .map(
+          (s) => s.id == id
+              ? s.copyWith({'imageUrl': url, 'imageStoragePath': ''})
+              : s,
+        )
+        .toList();
+    _setPresentation(
+      _presentation.copyWith({
+        'customServices': services.map((s) => s.toMap()).toList(),
+      }),
+    );
+  }
+
+  Widget _buildTemplateSelector() => _EnvironmentSettingSection(
+    tab: 0,
+    child: EnvironmentQuickTemplateCard(
+      theme: _previewTheme,
+      busy: _imageBusy,
+      onApply: _applyReferenceLayout,
+    ),
   );
 
   void _retireServicePhoto(EnvironmentServiceCard service) {

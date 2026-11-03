@@ -16,6 +16,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
     required this.onRestore,
     this.previewingId,
     this.showHeading = true,
+    this.devicePreviewBuilder,
   });
 
   final HomeAppearanceDraft draft;
@@ -26,6 +27,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
   final ValueChanged<HomeAppearancePreset> onApply;
   final VoidCallback onRestore;
   final bool showHeading;
+  final Widget Function(bool desktop, bool enlarged)? devicePreviewBuilder;
 
   @override
   State<HomeAppearancePresetStrip> createState() =>
@@ -103,10 +105,15 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
               children: <Widget>[
                 for (final HomeAppearancePreset preset in homeAppearancePresets)
                   SizedBox(
-                    width: width,
-                    height: 300,
+                    width: preset.id == 'creamOrange'
+                        ? constraints.maxWidth
+                        : width,
+                    height: preset.id == 'creamOrange'
+                        ? (constraints.maxWidth >= 420 ? 560 : 920)
+                        : 300,
                     child: _PresetCard(
                       preset: preset,
+                      devicePreviewBuilder: widget.devicePreviewBuilder,
                       draft: widget.draft,
                       accent: widget.accent,
                       selected: preset.id == selectedId,
@@ -169,8 +176,10 @@ class _PresetCard extends StatelessWidget {
     required this.previewing,
     required this.onPreview,
     required this.onApply,
+    this.devicePreviewBuilder,
   });
 
+  final Widget Function(bool desktop, bool enlarged)? devicePreviewBuilder;
   final HomeAppearancePreset preset;
   final HomeAppearanceDraft draft;
   final Color accent;
@@ -179,6 +188,93 @@ class _PresetCard extends StatelessWidget {
   final bool previewing;
   final VoidCallback onPreview;
   final VoidCallback onApply;
+
+  void _openExample(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (context) => Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('奶油暖橘・排版範例'),
+          leading: CloseButton(onPressed: () => Navigator.pop(context)),
+        ),
+        body: LayoutBuilder(
+          builder: (context, c) => InteractiveViewer(
+            minScale: 1,
+            maxScale: 4,
+            child: SingleChildScrollView(
+              child: Center(
+                child: SizedBox(
+                  width: c.maxWidth.clamp(0, 840),
+                  child: Image.asset(
+                    'assets/template_previews/cream_orange.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        bottomNavigationBar: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Text(
+            '可捲動查看完整排版、雙指縮放。範例照片與房型不會匯入店家。',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _deviceExample(BuildContext context, bool desktop) {
+    final label = desktop ? '電腦版預覽' : '手機版預覽';
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        InkWell(
+          key: ValueKey('home-example-${desktop ? "desktop" : "phone"}'),
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (dialogContext) => Dialog.fullscreen(
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Text(label),
+                  leading: CloseButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                ),
+                body: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(child: devicePreviewBuilder!(desktop, true)),
+                ),
+              ),
+            ),
+          ),
+          child: Container(
+            height: 360,
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4E7EC)),
+            ),
+            padding: const EdgeInsets.all(8),
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: devicePreviewBuilder!(desktop, false),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '點擊放大查看',
+          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,12 +305,43 @@ class _PresetCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                SizedBox(
-                  height: 164,
-                  child: _MiniHome(
-                    presetId: preset.id,
-                    appearance: preset.apply(draft),
+                if (preset.id == 'creamOrange' && devicePreviewBuilder != null)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final desktop = _deviceExample(context, true);
+                      final phone = _deviceExample(context, false);
+                      return constraints.maxWidth >= 400
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 3, child: desktop),
+                                const SizedBox(width: 16),
+                                Expanded(flex: 2, child: phone),
+                              ],
+                            )
+                          : Column(
+                              children: [
+                                desktop,
+                                const SizedBox(height: 12),
+                                phone,
+                              ],
+                            );
+                    },
+                  )
+                else
+                  SizedBox(
+                    height: 264,
+                    child: InkWell(
+                      onTap: () => _openExample(context),
+                      child: _MiniHome(
+                        presetId: preset.id,
+                        appearance: preset.apply(draft),
+                      ),
+                    ),
                   ),
+                const Text(
+                  '與店家目前的圖片、房型及草稿同步，點擊可放大查看。',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
                 const SizedBox(height: 8),
                 Row(

@@ -13,10 +13,12 @@ class EnvironmentGalleryGrid extends StatelessWidget {
     this.columnsBuilder,
     this.captions = const [],
     this.layout = 'grid',
+    this.aspectRatio = 4 / 3,
   });
 
   final List<String> images, captions;
   final String layout;
+  final double aspectRatio;
   final double horizontalPadding;
   final double spacing;
   final int Function(double width)? columnsBuilder;
@@ -148,7 +150,7 @@ class EnvironmentGalleryGrid extends StatelessWidget {
               childAspectRatio: layout == 'single'
                   ? constraints.maxWidth /
                         (constraints.maxWidth / (4 / 3)).clamp(100.0, 400.0)
-                  : 4 / 3,
+                  : aspectRatio,
             ),
             itemBuilder: (context, index) => tile(index),
           );

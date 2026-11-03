@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 // 檔案名稱：lib/features/shop/widgets/store/store_banner_view.dart
 // 功能說明：商城海報 renderer：後台 Preview 與前台共用，效果只 overlay、不改原圖。
 
@@ -572,46 +573,66 @@ class _BannerImage extends StatelessWidget {
         : (composeSource ? banner.imageUrl.trim() : banner.frontImageUrl);
     return ColoredBox(
       color: theme.cardColor,
-      child: ClipRect(
-        child: Transform.scale(
-          scale: useRendered || fullFrame || frameFit != null
-              ? 1
-              : banner.imageScale.clamp(1.0, 2.5),
-          alignment: resolvedAlignment,
-          child: Image.network(
-            url,
-            fit: resolvedFit,
-            alignment: resolvedAlignment,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            loadingBuilder:
-                (
-                  BuildContext context,
-                  Widget child,
-                  ImageChunkEvent? progress,
-                ) {
-                  if (progress == null) {
-                    return child;
-                  }
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (frameFit == BoxFit.scaleDown)
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Opacity(
+                opacity: .16,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ClipRect(
+            child: Transform.scale(
+              scale: useRendered || fullFrame || frameFit != null
+                  ? 1
+                  : banner.imageScale.clamp(1.0, 2.5),
+              alignment: resolvedAlignment,
+              child: Image.network(
+                url,
+                fit: resolvedFit,
+                alignment: resolvedAlignment,
+                width: double.infinity,
+                height: double.infinity,
+                gaplessPlayback: true,
+                loadingBuilder:
+                    (
+                      BuildContext context,
+                      Widget child,
+                      ImageChunkEvent? progress,
+                    ) {
+                      if (progress == null) {
+                        return child;
+                      }
+                      return ColoredBox(
+                        color: theme.cardColor,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.primaryColor,
+                          ),
+                        ),
+                      );
+                    },
+                errorBuilder: (_, _, _) {
                   return ColoredBox(
                     color: theme.cardColor,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.primaryColor,
-                      ),
+                    child: Icon(
+                      Icons.image_outlined,
+                      color: theme.primaryColor,
                     ),
                   );
                 },
-            errorBuilder: (_, _, _) {
-              return ColoredBox(
-                color: theme.cardColor,
-                child: Icon(Icons.image_outlined, color: theme.primaryColor),
-              );
-            },
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

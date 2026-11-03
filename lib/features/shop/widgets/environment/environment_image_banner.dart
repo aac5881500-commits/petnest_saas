@@ -1,3 +1,4 @@
+import 'environment_photo.dart';
 // 檔案名稱：lib/features/shop/widgets/environment/environment_image_banner.dart
 // 功能說明：環境介紹中間橫幅圖
 // 顯示一張大圖 + 覆蓋文字
@@ -81,37 +82,12 @@ class EnvironmentImageBanner extends StatelessWidget {
                 const ColoredBox(color: Colors.black),
                 imageUrl.trim().isEmpty
                     ? _placeholder()
-                    : Image.network(
-                        imageUrl,
+                    : EnvironmentPhoto(
+                        imageUrl: imageUrl,
                         fit: imageFit,
                         alignment: imageAlignment,
                         width: double.infinity,
                         height: double.infinity,
-                        loadingBuilder:
-                            (
-                              BuildContext context,
-                              Widget child,
-                              ImageChunkEvent? progress,
-                            ) {
-                              if (progress == null) {
-                                return child;
-                              }
-                              return _placeholder();
-                            },
-                        errorBuilder:
-                            (
-                              BuildContext context,
-                              Object error,
-                              StackTrace? stackTrace,
-                            ) {
-                              if (imageBuilder != null) {
-                                return imageBuilder!(
-                                  imageUrl: imageUrl,
-                                  fit: imageFit,
-                                );
-                              }
-                              return _placeholder();
-                            },
                       ),
                 ColoredBox(color: Colors.black.withValues(alpha: 0.28)),
                 Positioned(

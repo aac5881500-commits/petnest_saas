@@ -1,3 +1,4 @@
+import 'environment_editorial_widgets.dart';
 // 檔案名稱：lib/features/shop/widgets/environment/environment_intro_view.dart
 // 功能說明：環境介紹前台 Renderer：預覽與正式頁共用，避免兩套排版。
 
@@ -39,10 +40,12 @@ class EnvironmentIntroView extends StatelessWidget {
     this.sectionKeys,
     this.emptyState,
     this.galleryCaptions = const [],
+    this.fullContent = false,
   });
 
   /// Editor-only guidance; customer pages keep their existing empty behavior.
   final Widget? emptyState;
+  final bool fullContent;
   final EnvironmentPresentation? presentation;
   final Map<String, GlobalKey>? sectionKeys;
   final EnvironmentIntroStyle style;
@@ -80,6 +83,7 @@ class EnvironmentIntroView extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = presentation ?? EnvironmentPresentation();
     return EnvironmentAppearanceSurface(
+      fullContent: fullContent,
       appearance: p.appearance,
       baseTheme: theme,
       actionTextSize: style.bottomNoteSize,
@@ -97,6 +101,15 @@ class EnvironmentIntroView extends StatelessWidget {
             if (_showHero)
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
+                  if (p.layout.heroLayout == 'split') {
+                    return EnvironmentSplitPhoto(
+                      imageUrl: heroImageUrl,
+                      title: heroTitle,
+                      subtitle: heroSubtitle,
+                      settings: p.layout,
+                      hero: true,
+                    );
+                  }
                   return EnvironmentHeroSection(
                     imageUrl: heroImageUrl,
                     title: heroTitle,
@@ -130,31 +143,51 @@ class EnvironmentIntroView extends StatelessWidget {
           ],
           'features': [
             if (features.isNotEmpty) ...<Widget>[
-              EnvironmentSectionTitle(
-                icon: Icons.pets,
-                title: p.sectionTitle('features', '我們的環境特色'),
-                theme: theme,
-                fontSize: style.sectionTitleSize,
-                iconSize: style.sectionIconSize,
-                horizontalPadding: style.pagePadding,
-              ),
-              SizedBox(height: style.itemGap),
+              if (p.layout.showFeatureHeading)
+                EnvironmentSectionTitle(
+                  icon: Icons.pets,
+                  title: p.sectionTitle('features', '我們的環境特色'),
+                  theme: theme,
+                  fontSize: style.sectionTitleSize,
+                  iconSize: style.sectionIconSize,
+                  horizontalPadding: style.pagePadding,
+                ),
+              if (p.layout.showFeatureHeading) SizedBox(height: style.itemGap),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final desktop = constraints.maxWidth >= 800;
+                  final photoSide = p.layout.featureLayout == 'photoSide';
                   final featureStyle =
                       desktop && p.desktopCardLayout != 'inherit'
                       ? style.copyWith(cardLayout: p.desktopCardLayout)
                       : style;
                   final columns =
                       desktop &&
-                          p.desktopColumns != 'single' &&
-                          (p.desktopColumns == 'double' ||
-                              featureStyle.isVerticalCard)
+                          (photoSide ||
+                              (p.desktopColumns != 'single' &&
+                                  (p.desktopColumns == 'double' ||
+                                      featureStyle.isVerticalCard)))
                       ? 2
                       : 1;
                   Widget card(int index) {
                     final item = features[index];
+                    if (photoSide) {
+                      return Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          style.pagePadding,
+                          0,
+                          style.pagePadding,
+                          p.layout.spacing,
+                        ),
+                        child: EnvironmentPhotoSideCard(
+                          wideLayout: desktop,
+                          item: item,
+                          settings: p.layout,
+                          theme: theme,
+                          icon: featureIconOf((item['icon'] ?? '').toString()),
+                        ),
+                      );
+                    }
                     return EnvironmentFeatureCard(
                       icon: featureIconOf((item['icon'] ?? '').toString()),
                       title: (item['title'] ?? '').toString(),
@@ -199,6 +232,19 @@ class EnvironmentIntroView extends StatelessWidget {
             if (_showBanner) ...<Widget>[
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
+                  if (p.layout.bannerLayout == 'split') {
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: style.pagePadding,
+                      ),
+                      child: EnvironmentSplitPhoto(
+                        imageUrl: bannerImageUrl,
+                        title: bannerTitle,
+                        subtitle: p.layout.text('bannerSubtitle'),
+                        settings: p.layout,
+                      ),
+                    );
+                  }
                   return EnvironmentImageBanner(
                     imageUrl: bannerImageUrl,
                     title: bannerTitle,
@@ -266,26 +312,31 @@ class EnvironmentIntroView extends StatelessWidget {
               EnvironmentBottomNote(
                 text: bottomNote,
                 theme: theme,
-                fontSize: style.bottomNoteSize,
+                fontSize: p.layout.autoDesktop
+                    ? p.layout.number('noteFontSize', 11, 9, 20)
+                    : style.bottomNoteSize,
                 padding: style.bottomNotePadding,
                 horizontalMargin: style.pagePadding,
+                title: p.layout.text('noteTitle'),
               ),
             ],
           ],
           'gallery': [
             if (galleryImages.isNotEmpty) ...<Widget>[
-              EnvironmentSectionTitle(
-                icon: Icons.photo_library_rounded,
-                title: p.sectionTitle('gallery', '環境照片'),
-                theme: theme,
-                fontSize: style.sectionTitleSize,
-                iconSize: style.sectionIconSize,
-                horizontalPadding: style.pagePadding,
-              ),
-              SizedBox(height: style.itemGap),
+              if (p.layout.showGalleryHeading)
+                EnvironmentSectionTitle(
+                  icon: Icons.photo_library_rounded,
+                  title: p.sectionTitle('gallery', '環境照片'),
+                  theme: theme,
+                  fontSize: style.sectionTitleSize,
+                  iconSize: style.sectionIconSize,
+                  horizontalPadding: style.pagePadding,
+                ),
+              if (p.layout.showGalleryHeading) SizedBox(height: style.itemGap),
               EnvironmentGalleryGrid(
                 images: galleryImages,
                 captions: galleryCaptions,
+                aspectRatio: p.layout.number('galleryAspect', 4 / 3, 1, 2.5),
                 layout: p.galleryLayout,
                 imageBuilder: imageBuilder,
                 horizontalPadding: style.pagePadding,
@@ -301,37 +352,64 @@ class EnvironmentIntroView extends StatelessWidget {
             emptyState != null) {
           return emptyState!;
         }
-        final order = p.sectionOrder.where(
-          (id) => !p.hiddenSections.contains(id),
+        final order = p.sectionOrder
+            .where((id) => !p.hiddenSections.contains(id))
+            .toList();
+        final pairFooter =
+            p.layout.footerTogether &&
+            order.contains('gallery') &&
+            order.contains('note') &&
+            sections['gallery']!.isNotEmpty &&
+            sections['note']!.isNotEmpty &&
+            (order.indexOf('gallery') - order.indexOf('note')).abs() == 1;
+        Widget section(String id) => Column(
+          key: sectionKeys?[id] ?? ValueKey('environment-$id'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: p.sectionGap(id, id == 'hero' ? 0 : style.sectionGap),
+            ),
+            ...sections[id]!,
+          ],
+        );
+        final content = Padding(
+          padding: EdgeInsets.only(bottom: style.sectionGap + 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final id in order)
+                if (sections[id]!.isNotEmpty && !(pairFooter && id == 'note'))
+                  if (pairFooter && id == 'gallery')
+                    LayoutBuilder(
+                      builder: (context, c) => c.maxWidth >= 800
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 3, child: section('gallery')),
+                                Expanded(flex: 2, child: section('note')),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [section('gallery'), section('note')],
+                            ),
+                    )
+                  else
+                    section(id),
+            ],
+          ),
         );
         return Align(
           alignment: Alignment.topCenter,
+          heightFactor: fullContent ? 1 : null,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: p.contentMaxWidth),
-            child: SingleChildScrollView(
-              controller: scrollController,
-              padding: EdgeInsets.only(bottom: style.sectionGap + 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final id in order)
-                    if (sections[id]!.isNotEmpty)
-                      Column(
-                        key: sectionKeys?[id] ?? ValueKey('environment-$id'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            height: p.sectionGap(
-                              id,
-                              id == 'hero' ? 0 : style.sectionGap,
-                            ),
-                          ),
-                          ...sections[id]!,
-                        ],
-                      ),
-                ],
-              ),
-            ),
+            child: fullContent
+                ? content
+                : SingleChildScrollView(
+                    controller: scrollController,
+                    child: content,
+                  ),
           ),
         );
       },

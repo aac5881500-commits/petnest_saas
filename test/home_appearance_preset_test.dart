@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
 import 'package:petnest_saas/core/models/home_appearance_preset.dart';
@@ -21,35 +22,112 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('five presets keep shop content and only change layout', () {
-    final HomeAppearanceDraft current = _shopDraft();
-    expect(homeAppearancePresets, hasLength(5));
-    expect(homeAppearancePresetById('missing'), isNull);
-    expect(homeAppearancePresetStatus(presetId: null, draft: current), '尚未套用');
+  test(
+    'cream preset is ordinary editable modules and never imports sample content',
+    () {
+      final original = _shopDraft().copyWith(
+        shopInfo: const HomeShopInfoSetting(
+          imageUrl: 'https://example.invalid/my-own-photo.jpg',
+        ),
+      );
+      final preset = _preset('creamOrange');
+      final next = preset.apply(original);
+      expect(next.rooms.layout, HomeRoomSectionLayouts.catalog);
+      expect(next.environment.layout, HomeEnvironmentLayouts.featureCards);
+      expect(next.about.layout, HomeAboutLayouts.editorial);
+      expect(next.shopInfo.layout, 'photoContact');
+      expect(
+        FrontendNavigationConfig.fromMap(
+          next.navigation.toMap(),
+        ).bottomAppearance,
+        FrontendNavigationConfig.appearanceUnderline,
+      );
+      expect(next.shopInfo.imageUrl, original.shopInfo.imageUrl);
+      expect(next.rooms.roomTypeOrder, original.rooms.roomTypeOrder);
+      expect(next.rooms.hiddenRoomTypeIds, original.rooms.hiddenRoomTypeIds);
+      expect(next.about.imageUrl, original.about.imageUrl);
+      expect(next.about.subtitle, original.about.subtitle);
+      expect(next.environment.subtitle, original.environment.subtitle);
+      expect(next.sharedEntry.cards, original.sharedEntry.cards);
+      expect(
+        next.quickActions
+                .visibleItems(storeEnabled: false, chatEnabled: false)
+                .single
+                .id ==
+            HomeQuickActionIds.notifications,
+        true,
+      );
+      expect(next.quickActions.slotOne, isEmpty);
+      expect(next.quickActions.slotTwo, isEmpty);
+      expect(preset.matches(next), true);
+      expect(
+        homeAppearanceDraftSignature(preset.apply(next)),
+        homeAppearanceDraftSignature(next),
+      );
+      final edited = next.copyWith(
+        shopInfo: next.shopInfo.copyWith(photoFraction: .45),
+        sectionVisibility: {
+          ...next.sectionVisibility,
+          'announcements': true,
+          'faq': true,
+        },
+        information: next.information.copyWith(
+          faq: next.information.faq.copyWith(showOnHome: true),
+        ),
+      );
+      expect(edited.sectionVisibility['faq'], true);
+      expect(edited.information.faq.showOnHome, true);
+      expect(edited.sectionVisibility['announcements'], true);
+      expect(preset.matches(edited), false);
+      expect(
+        HomeShopInfoSetting.fromMap(edited.shopInfo.toMap()).photoFraction,
+        .45,
+      );
+    },
+  );
 
-    for (final HomeAppearancePreset preset in homeAppearancePresets) {
-      final HomeAppearanceDraft next = preset.apply(current);
-      expect(preset.matches(next), isTrue, reason: preset.id);
-      expect(preset.matches(preset.apply(next)), isTrue, reason: preset.id);
-      _expectContentKept(current, next);
-      expect(next.sectionOrder.toSet(), HomeSectionOrder.defaultOrder.toSet());
-      expect(next.sectionOrder, next.sectionOrder.toSet().toList());
-      if (const <String>{'minimal', 'brand', 'warm'}.contains(preset.id)) {
+  test(
+    'legacy preset compatibility keeps shop content and only changes layout',
+    () {
+      final HomeAppearanceDraft current = _shopDraft();
+      expect(homeAppearancePresets.map((p) => p.id), ['creamOrange']);
+      expect(legacyHomeAppearancePresets, hasLength(5));
+      expect(homeAppearancePresetById('missing'), isNull);
+      expect(
+        homeAppearancePresetStatus(presetId: null, draft: current),
+        '尚未套用',
+      );
+
+      for (final HomeAppearancePreset preset in legacyHomeAppearancePresets) {
+        final HomeAppearanceDraft next = preset.apply(current);
+        expect(preset.matches(next), isTrue, reason: preset.id);
+        expect(preset.matches(preset.apply(next)), isTrue, reason: preset.id);
+        _expectContentKept(current, next);
         expect(
-          next.theme.primaryColorValue,
-          isNot(current.theme.primaryColorValue),
+          next.sectionOrder.toSet(),
+          HomeSectionOrder.defaultOrder.toSet(),
         );
-        expect(next.theme.textColorValue, isNot(current.theme.textColorValue));
-        expect(next.theme.appBackgroundMode, ShopAppBackground.modeColor);
-        expect(
-          next.theme.appBackgroundAssetId,
-          current.theme.appBackgroundAssetId,
-        );
-        expect(next.theme.buttonTextMode, 'light');
-        expect(next.theme.buttonTextColorValue, 0xFFFFFFFF);
+        expect(next.sectionOrder, next.sectionOrder.toSet().toList());
+        if (const <String>{'minimal', 'brand', 'warm'}.contains(preset.id)) {
+          expect(
+            next.theme.primaryColorValue,
+            isNot(current.theme.primaryColorValue),
+          );
+          expect(
+            next.theme.textColorValue,
+            isNot(current.theme.textColorValue),
+          );
+          expect(next.theme.appBackgroundMode, ShopAppBackground.modeColor);
+          expect(
+            next.theme.appBackgroundAssetId,
+            current.theme.appBackgroundAssetId,
+          );
+          expect(next.theme.buttonTextMode, 'light');
+          expect(next.theme.buttonTextColorValue, 0xFFFFFFFF);
+        }
       }
-    }
-  });
+    },
+  );
 
   test('navigation and quick booking follow each preset', () {
     final HomeAppearanceDraft current = _shopDraft();
@@ -296,20 +374,16 @@ void main() {
     );
     expect(find.text('快速套用前台風格'), findsOneWidget);
     expect(find.text('目前：尚未套用'), findsOneWidget);
-    expect(find.text('奶油極簡'), findsOneWidget);
-    expect(find.text('經典完整'), findsOneWidget);
-    expect(find.text('預約優先'), findsOneWidget);
+    expect(find.text('奶油暖橘'), findsOneWidget);
+    expect(find.text('經典完整'), findsNothing);
+    expect(find.text('預約優先'), findsNothing);
 
-    await tester.tap(find.text('奶油極簡'));
+    await tester.tap(find.text('奶油暖橘'));
     await tester.pumpAndSettle();
-    expect(previewed?.id, 'minimal');
+    expect(previewed?.id, 'creamOrange');
     expect(applied, isNull);
-    expect(find.text('正在預覽：奶油極簡'), findsOneWidget);
+    expect(find.text('正在預覽：奶油暖橘'), findsOneWidget);
 
-    await tester.tap(find.text('溫暖日常'));
-    await tester.pumpAndSettle();
-    expect(previewed?.id, 'warm');
-    expect(find.text('正在預覽：溫暖日常'), findsOneWidget);
     await tester.ensureVisible(
       find.byKey(const Key('home-preset-restore-draft')),
     );
@@ -319,20 +393,20 @@ void main() {
     expect(homeAppearanceDraftSignature(draft), originalSignature);
 
     await tester.ensureVisible(
-      find.byKey(const Key('home-preset-apply-minimal')),
+      find.byKey(const Key('home-preset-apply-creamOrange')),
     );
-    await tester.tap(find.byKey(const Key('home-preset-apply-minimal')));
+    await tester.tap(find.byKey(const Key('home-preset-apply-creamOrange')));
     await tester.pumpAndSettle();
-    expect(find.text('套用「奶油極簡」？'), findsOneWidget);
+    expect(find.text('套用「奶油暖橘」？'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(applied, isNull);
 
-    await tester.tap(find.byKey(const Key('home-preset-apply-minimal')));
+    await tester.tap(find.byKey(const Key('home-preset-apply-creamOrange')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('套用模板'));
     await tester.pumpAndSettle();
-    expect(applied?.id, 'minimal');
+    expect(applied?.id, 'creamOrange');
     expect(tester.takeException(), isNull);
   });
 

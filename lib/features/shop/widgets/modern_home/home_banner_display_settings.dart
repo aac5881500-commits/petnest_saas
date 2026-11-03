@@ -65,6 +65,34 @@ class _HomeBannerDisplaySettingsState extends State<HomeBannerDisplaySettings> {
               _pair(wide, _motionCard(), _activityLookCard())
             else
               _classicSizeCard(),
+            if (!frame.isActivity)
+              _Fold(
+                title: '輪播控制',
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      title: const Text('顯示左右切換箭頭'),
+                      value: frame.showArrows,
+                      onChanged: (v) => _set(frame.copyWith(showArrows: v)),
+                    ),
+                    SwitchListTile(
+                      title: const Text('顯示張數'),
+                      value: frame.showCounter,
+                      onChanged: (v) => _set(frame.copyWith(showCounter: v)),
+                    ),
+                    SwitchListTile(
+                      title: const Text('顯示輪播圓點'),
+                      value: frame.showDots,
+                      onChanged: (v) => _set(frame.copyWith(showDots: v)),
+                    ),
+                    SwitchListTile(
+                      title: const Text('圓點放在海報內'),
+                      value: frame.dotsOverlay,
+                      onChanged: (v) => _set(frame.copyWith(dotsOverlay: v)),
+                    ),
+                  ],
+                ),
+              ),
             if (widget.bannerCount == 0) ...<Widget>[
               const SizedBox(height: 12),
               const Text(

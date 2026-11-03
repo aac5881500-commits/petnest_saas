@@ -228,9 +228,37 @@ class ModernStoreEntryLayouts {
   static const String banner = 'banner';
   static const String brand = 'brand';
   static const String showcase = 'showcase';
-  static const List<String> all = <String>[banner, brand, showcase];
+  static const String splitPhoto = 'splitPhoto';
+  static const String centeredPhoto = 'centeredPhoto';
+  static const String layeredPhotos = 'layeredPhotos';
+  static const String ticket = 'ticket';
+  static const String boutique = 'boutique';
+  static const String capsule = 'capsule';
+  static const String photoBanner = 'photoBanner';
+  static const Map<String, String> quickTemplates = {
+    splitPhoto: '左圖右文',
+    centeredPhoto: '置中好物',
+    layeredPhotos: '雙圖交疊',
+    ticket: '票券入口',
+    boutique: '插畫小店',
+    capsule: '雙色膠囊',
+    photoBanner: '情境橫幅',
+  };
+  static const List<String> all = <String>[
+    banner,
+    brand,
+    showcase,
+    splitPhoto,
+    centeredPhoto,
+    layeredPhotos,
+    ticket,
+    boutique,
+    capsule,
+    photoBanner,
+  ];
 
   static String label(String value) {
+    if (quickTemplates.containsKey(value)) return quickTemplates[value]!;
     switch (value) {
       case brand:
         return '品牌卡';
@@ -258,6 +286,8 @@ class ModernStoreHomeSetting {
     this.storeBannerButtonText = defaultBannerButtonText,
     this.storeBannerImageUrl = '',
     this.storeBannerImageStoragePath = '',
+    this.storeEntrySecondImageUrl = '',
+    this.storeEntrySecondImageStoragePath = '',
     this.storeBannerBackgroundFit = ModernStoreCardFits.cover,
     this.storeBannerBackgroundAlignment = ModernStoreCardAlignments.center,
     this.storeBannerOverlayPreset = ModernStoreCardOverlays.standard,
@@ -278,6 +308,8 @@ class ModernStoreHomeSetting {
   final String storeBannerButtonText;
   final String storeBannerImageUrl;
   final String storeBannerImageStoragePath;
+  final String storeEntrySecondImageUrl;
+  final String storeEntrySecondImageStoragePath;
   final String storeBannerBackgroundFit;
   final String storeBannerBackgroundAlignment;
   final String storeBannerOverlayPreset;
@@ -343,6 +375,11 @@ class ModernStoreHomeSetting {
       storeBannerImageStoragePath: (map['storeBannerImageStoragePath'] ?? '')
           .toString()
           .trim(),
+      storeEntrySecondImageUrl: (map['storeEntrySecondImageUrl'] ?? '')
+          .toString()
+          .trim(),
+      storeEntrySecondImageStoragePath:
+          (map['storeEntrySecondImageStoragePath'] ?? '').toString().trim(),
       storeBannerBackgroundFit: pick(
         ModernStoreCardFits.all,
         map['storeBannerBackgroundFit'],
@@ -404,6 +441,9 @@ class ModernStoreHomeSetting {
       'storeBannerButtonText': storeBannerButtonText,
       'storeBannerImageUrl': storeBannerImageUrl.trim(),
       'storeBannerImageStoragePath': storeBannerImageStoragePath.trim(),
+      'storeEntrySecondImageUrl': storeEntrySecondImageUrl.trim(),
+      'storeEntrySecondImageStoragePath': storeEntrySecondImageStoragePath
+          .trim(),
       'storeBannerBackgroundFit': storeBannerBackgroundFit,
       'storeBannerBackgroundAlignment': storeBannerBackgroundAlignment,
       'storeBannerOverlayPreset': storeBannerOverlayPreset,
@@ -426,6 +466,8 @@ class ModernStoreHomeSetting {
     String? storeBannerButtonText,
     String? storeBannerImageUrl,
     String? storeBannerImageStoragePath,
+    String? storeEntrySecondImageUrl,
+    String? storeEntrySecondImageStoragePath,
     String? storeBannerBackgroundFit,
     String? storeBannerBackgroundAlignment,
     String? storeBannerOverlayPreset,
@@ -449,6 +491,11 @@ class ModernStoreHomeSetting {
       storeBannerImageUrl: storeBannerImageUrl ?? this.storeBannerImageUrl,
       storeBannerImageStoragePath:
           storeBannerImageStoragePath ?? this.storeBannerImageStoragePath,
+      storeEntrySecondImageUrl:
+          storeEntrySecondImageUrl ?? this.storeEntrySecondImageUrl,
+      storeEntrySecondImageStoragePath:
+          storeEntrySecondImageStoragePath ??
+          this.storeEntrySecondImageStoragePath,
       storeBannerBackgroundFit:
           storeBannerBackgroundFit ?? this.storeBannerBackgroundFit,
       storeBannerBackgroundAlignment:

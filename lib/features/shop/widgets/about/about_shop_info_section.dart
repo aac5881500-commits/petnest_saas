@@ -234,6 +234,83 @@ class AboutShopInfoSection extends StatelessWidget {
         }
       });
     }
+    if (layout == 'strip') {
+      final stripFields = [
+        if (name.isNotEmpty) (Icons.storefront_outlined, '店名', name),
+        ...fields,
+      ];
+      return _frame(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _heading('店家資訊'),
+            Container(
+              alignment: Alignment.centerLeft,
+              margin: const EdgeInsets.only(top: 6, bottom: 16),
+              child: Container(width: 24, height: 2, color: accent),
+            ),
+            LayoutBuilder(
+              builder: (context, c) {
+                final wide =
+                    c.maxWidth >= 820 &&
+                    MediaQuery.textScalerOf(context).scale(1) <= 1.3;
+                Widget information(double width) => Wrap(
+                  spacing: 18,
+                  runSpacing: 16,
+                  children: [
+                    for (final data in stripFields)
+                      SizedBox(
+                        width: wide
+                            ? (width -
+                                      18 *
+                                          ((stripFields.length.clamp(1, 3)) -
+                                              1)) /
+                                  stripFields.length.clamp(1, 3)
+                            : width,
+                        child: field(data),
+                      ),
+                  ],
+                );
+                final buttons = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: actions,
+                );
+                return wide
+                    ? Row(
+                        key: const ValueKey('about-contact-strip-row'),
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: LayoutBuilder(
+                              builder: (_, inner) =>
+                                  information(inner.maxWidth),
+                            ),
+                          ),
+                          if (actions.isNotEmpty) ...[
+                            const SizedBox(width: 24),
+                            Expanded(flex: 2, child: buttons),
+                          ],
+                        ],
+                      )
+                    : Column(
+                        key: const ValueKey('about-contact-strip-column'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          information(c.maxWidth),
+                          if (actions.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            buttons,
+                          ],
+                        ],
+                      );
+              },
+            ),
+          ],
+        ),
+      );
+    }
     final tiles = layout == 'tiles';
     return _frame(
       Column(

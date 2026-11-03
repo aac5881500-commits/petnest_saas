@@ -22,6 +22,8 @@ class ModernHomeBannerCarousel extends StatefulWidget {
     required this.theme,
     required this.frameSetting,
     this.onBannerTap,
+    this.frameAspectRatioOverride,
+    this.completePosterFitOverride,
     this.liveComposeBannerId,
     this.initialBannerId,
     this.onComposeChanged,
@@ -36,6 +38,8 @@ class ModernHomeBannerCarousel extends StatefulWidget {
   final List<StoreBannerModel> banners;
   final HomeThemeModel theme;
   final ModernBannerFrameSetting frameSetting;
+  final double? frameAspectRatioOverride;
+  final BoxFit? completePosterFitOverride;
   final ValueChanged<StoreBannerModel>? onBannerTap;
 
   /// 後台預覽：這張用草稿即時合成，顧客前台不傳。
@@ -62,6 +66,8 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
   int _currentIndex = 0;
 
   List<StoreBannerModel> get _banners => widget.banners;
+  double get _frameAspectRatio =>
+      widget.frameAspectRatioOverride ?? widget.frameSetting.frameAspectRatio;
 
   int _indexOf(String? bannerId) {
     if (bannerId == null || bannerId.isEmpty) {
@@ -228,10 +234,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
   Widget _bannerCanvas({required Widget child}) {
     return Padding(
       padding: HomeBannerDisplay.outerPadding(widget.frameSetting.widthPreset),
-      child: AspectRatio(
-        aspectRatio: widget.frameSetting.frameAspectRatio,
-        child: child,
-      ),
+      child: AspectRatio(aspectRatio: _frameAspectRatio, child: child),
     );
   }
 
@@ -251,9 +254,11 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
         theme: widget.theme,
         scope: PetNestBannerScope.home,
         borderRadius: borderRadius,
-        homeFrameAspectRatio:
-            aspectRatio ?? widget.frameSetting.frameAspectRatio,
-        completePosterFit: fit ?? widget.frameSetting.completePosterFit,
+        homeFrameAspectRatio: aspectRatio ?? _frameAspectRatio,
+        completePosterFit:
+            widget.completePosterFitOverride ??
+            fit ??
+            widget.frameSetting.completePosterFit,
         composeLive: widget.liveComposeBannerId == banner.id ? true : null,
         interactMode:
             widget.liveComposeBannerId == banner.id &&
@@ -313,6 +318,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
     final bool showPager = banners.length > 1;
     final bool showNavArrows =
         showPager &&
+        widget.frameSetting.showArrows &&
         (kIsWeb ||
             defaultTargetPlatform == TargetPlatform.windows ||
             defaultTargetPlatform == TargetPlatform.macOS ||
@@ -430,7 +436,42 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                       ),
                     ),
                   ],
-                  if (showPager)
+                  if (showPager &&
+                      widget.frameSetting.showDots &&
+                      widget.frameSetting.dotsOverlay)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 8,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (var i = 0; i < banners.length; i++)
+                            Semantics(
+                              label: '第${i + 1}張海報',
+                              button: true,
+                              selected: i == safeIndex,
+                              child: GestureDetector(
+                                onTap: () => _goToPage(i),
+                                child: Container(
+                                  width: 7,
+                                  height: 7,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: i == safeIndex
+                                        ? theme.primaryColor
+                                        : Colors.white.withValues(alpha: .8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  if (showPager && widget.frameSetting.showCounter)
                     Positioned(
                       right: compact ? 8 : 10,
                       bottom: compact ? 4 : 10,
@@ -460,7 +501,9 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
               ),
             ),
           ),
-          if (showPager) ...[
+          if (showPager &&
+              widget.frameSetting.showDots &&
+              !widget.frameSetting.dotsOverlay) ...[
             const SizedBox(height: 6),
             SizedBox(
               height: 5,
@@ -553,7 +596,9 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
         final double cardWidth = math.max(1, inner * fraction - gap);
         final double height = (cardWidth * frame.activityHeightRatio).clamp(
           96,
-          460,
+          widget.frameAspectRatioOverride == null
+              ? 460
+              : cardWidth / _frameAspectRatio,
         );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

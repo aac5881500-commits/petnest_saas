@@ -24,9 +24,10 @@ class ReviewSectionLayoutPreview extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         child: switch (HomeReviewLayouts.migrate(layout)) {
           HomeReviewLayouts.scoreCompact => _compact(),
-          HomeReviewLayouts.featured => _featured(),
-          HomeReviewLayouts.scoreOverview => _overview(),
-          HomeReviewLayouts.scoreAndLatest => _split(),
+          HomeReviewLayouts.featured => _hero(),
+          HomeReviewLayouts.scoreOverview => _wall(),
+          HomeReviewLayouts.scoreAndLatest => _featured(),
+          HomeReviewLayouts.mini => _mini(),
           _ => _carousel(),
         },
       ),
@@ -61,11 +62,11 @@ class ReviewSectionLayoutPreview extends StatelessWidget {
   Widget _carousel() {
     return Row(
       children: <Widget>[
-        _bar(width: 46, height: 28),
+        _bar(width: 46, height: 16),
         const SizedBox(width: 6),
-        _bar(width: 46, height: 28),
+        _bar(width: 46, height: 16),
         const SizedBox(width: 6),
-        _bar(width: 24, height: 28),
+        _bar(width: 24, height: 16),
       ],
     );
   }
@@ -84,34 +85,36 @@ class ReviewSectionLayoutPreview extends StatelessWidget {
     );
   }
 
-  Widget _overview() {
-    return Row(
-      children: <Widget>[
-        _bar(width: 28, height: 28),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              _bar(width: 72, height: 5),
-              const SizedBox(height: 4),
-              _bar(width: 64, height: 5),
-              const SizedBox(height: 4),
-              _bar(width: 56, height: 5),
-            ],
-          ),
+  Widget _hero() => Row(
+    children: [
+      Text(
+        '4.8',
+        style: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w900,
+          color: theme.primaryColor,
         ),
-      ],
-    );
-  }
-
-  Widget _split() {
-    return Row(
-      children: <Widget>[
-        _bar(width: 28, height: 28),
-        const SizedBox(width: 8),
-        Expanded(child: _bar(width: 72, height: 28)),
-      ],
-    );
-  }
+      ),
+      const SizedBox(width: 8),
+      Expanded(child: _featured()),
+    ],
+  );
+  Widget _wall() => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [_carousel(), const SizedBox(height: 4), _carousel()],
+  );
+  Widget _mini() => Align(
+    alignment: Alignment.topRight,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '★ 4.8 ›',
+        style: TextStyle(fontSize: 12, color: theme.primaryColor),
+      ),
+    ),
+  );
 }

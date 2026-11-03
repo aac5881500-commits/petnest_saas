@@ -1,15 +1,24 @@
+import 'about_page_setting.dart';
 import 'home_card_image_setting.dart';
 import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 
 /// 新版首頁關於我們區塊。內容仍來自既有 about 欄位，這裡只決定怎麼顯示。
 class HomeAboutLayouts {
+  static const String editorial = 'editorial';
   static const String simpleEntry = 'simpleEntry';
   static const String imageEntry = 'imageEntry';
   static const String brandIntro = 'brandIntro';
-  static const List<String> all = <String>[simpleEntry, imageEntry, brandIntro];
+  static const List<String> all = <String>[
+    editorial,
+    simpleEntry,
+    imageEntry,
+    brandIntro,
+  ];
 
   static String label(String value) {
     switch (migrate(value)) {
+      case editorial:
+        return '標題與左右圖文';
       case imageEntry:
         return '圖文介紹';
       case brandIntro:
@@ -383,7 +392,9 @@ class HomeAboutSectionSetting {
     required Map<String, dynamic> environmentIntro,
   }) {
     if (setting.imageSource == 'aboutCover') {
-      return (shop['aboutImageUrl'] ?? '').toString().trim();
+      final cover = AboutPageSetting.fromShop(shop).cover;
+      if (cover.source == 'builtin') return 'builtin-about:${cover.assetId}';
+      return cover.resolveShop(shop);
     }
     if (setting.imageSource == 'galleryFirst') {
       return const HomeEnvironmentSectionSetting(
@@ -395,7 +406,9 @@ class HomeAboutSectionSetting {
     if (chosen.isNotEmpty) {
       return chosen;
     }
-    final String cover = (shop['aboutImageUrl'] ?? '').toString().trim();
+    final String cover = AboutPageSetting.fromShop(
+      shop,
+    ).cover.resolveShop(shop);
     if (cover.isNotEmpty) {
       return cover;
     }
@@ -420,7 +433,7 @@ class HomeAboutSectionSetting {
       items.add(<String, String>{'label': label, 'url': value});
     }
 
-    add('關於我們封面', (shop['aboutImageUrl'] ?? '').toString());
+    add('關於我們封面', AboutPageSetting.fromShop(shop).cover.resolveShop(shop));
     add('店家 Logo', (shop['logoUrl'] ?? '').toString());
     add(
       '環境照片',

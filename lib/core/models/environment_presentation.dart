@@ -1,3 +1,4 @@
+import 'environment_layout_settings.dart';
 import 'package:flutter/material.dart';
 // 檔案：lib/core/models/environment_presentation.dart
 // 功能：環境介紹範本、設備與服務草稿序列化；保留未知欄位。
@@ -28,11 +29,14 @@ class EnvironmentServiceCard {
 }
 
 class EnvironmentPresentation {
+  EnvironmentLayoutSettings get layout =>
+      EnvironmentLayoutSettings.fromMap(_raw['layoutSettings']);
   Map<String, dynamic> get photoSettings => _raw['photoSettings'] is Map
       ? Map<String, dynamic>.from(_raw['photoSettings'])
       : {};
   Map<String, dynamic> photoSetting(String id, bool desktop) {
-    final value = photoSettings['${desktop ? 'desktop' : 'phone'}_$id'];
+    final value =
+        photoSettings['${desktop && !layout.autoDesktop ? 'desktop' : 'phone'}_$id'];
     return value is Map ? Map<String, dynamic>.from(value) : {};
   }
 

@@ -171,6 +171,94 @@ class ShopReportService {
     );
   }
 
+  /// Owner workspace: query enabled sources once, then derive whole-shop and each business without extra reads.
+  Future<Map<String, ShopReportBundle>> loadOwnerModules({
+    required String shopId,
+    required ReportRange range,
+    required Set<String> sources,
+  }) async {
+    final start = range.startDate, end = range.endDate;
+    final bookings = <String, Map<String, dynamic>>{};
+    final payments = <Map<String, dynamic>>[],
+        orders = <Map<String, dynamic>>[];
+    await Future.wait([
+      if (sources.contains('stay') || sources.contains('daycare'))
+        () async {
+          final snaps = await Future.wait([
+            _bookingsCreated(shopId, start, end),
+            _bookingsByStartDate(
+              shopId,
+              start.subtract(const Duration(days: 120)),
+              end,
+            ),
+          ]);
+          for (final snap in snaps) {
+            _mergeDocs(bookings, snap);
+          }
+        }(),
+      if (sources.isNotEmpty)
+        () async {
+          payments.addAll(
+            (await _payments(
+              shopId,
+              start.subtract(const Duration(days: 90)),
+              end,
+            )).docs.map(_docMap),
+          );
+        }(),
+      if (sources.contains('store'))
+        () async {
+          orders.addAll(
+            (await _storeOrders(shopId, start, end)).docs.map(_docMap),
+          );
+        }(),
+    ]);
+    // A current receipt may belong to an older booking outside the order query window.
+    // Resolve its kind before splitting businesses, rather than dropping that receipt.
+    if (sources.contains('stay') || sources.contains('daycare')) {
+      final missing = payments
+          .where((pay) {
+            final id = _str(pay['bookingId']);
+            final when = _dateOf(pay['paidAt']) ?? _dateOf(pay['createdAt']);
+            return id.isNotEmpty &&
+                !id.contains('/') &&
+                !bookings.containsKey(id) &&
+                PaymentSourceType.resolve(pay['sourceType'], bookingId: id) ==
+                    PaymentSourceType.booking &&
+                when != null &&
+                _inRange(when, start, end);
+          })
+          .map((pay) => _str(pay['bookingId']))
+          .toSet()
+          .toList();
+      for (var offset = 0; offset < missing.length; offset += 20) {
+        final docs = await Future.wait(
+          missing
+              .skip(offset)
+              .take(20)
+              .map((id) => _db.collection('bookings').doc(id).get()),
+        );
+        for (final doc in docs) {
+          final data = doc.data();
+          if (data != null && _str(data['shopId']) == shopId) {
+            bookings[doc.id] = {...data, 'id': doc.id};
+          }
+        }
+      }
+    }
+    ShopReportBundle calculate(Set<String> selected) => buildSelectedData(
+      range: range,
+      sources: {...selected, 'payments'},
+      bookings: bookings.values.toList(),
+      payments: payments,
+      storeOrders: orders,
+    );
+    return {
+      'all': calculate(sources),
+      for (final source in sources) source: calculate({source}),
+    };
+  }
+
   /// Pure calculation entry shared with query selection and regression tests.
   ShopReportBundle buildSelectedData({
     required ReportRange range,

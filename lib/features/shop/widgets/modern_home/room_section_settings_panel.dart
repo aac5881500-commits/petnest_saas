@@ -221,6 +221,7 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
               children: <Widget>[
                 for (final (String layout, String description)
                     in const <(String, String)>[
+                      (HomeRoomSectionLayouts.catalog, '照片、房型說明、價格與標籤，左右滑動'),
                       (HomeRoomSectionLayouts.horizontalScroll, '左右滑動查看房型'),
                       (HomeRoomSectionLayouts.cardGrid, '一排兩張，可改單卡或長卡'),
                       (HomeRoomSectionLayouts.simpleEntry, '一張精緻圖片入口'),
@@ -1137,6 +1138,47 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
   }
 
   Widget _layoutDetails(String layout) {
+    if (layout == HomeRoomSectionLayouts.catalog) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('每列卡片數量（可橫向滑動）'),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final n in [1, 2, 3])
+                ChoiceChip(
+                  label: Text('$n 張'),
+                  selected: widget.setting.compact.columns == n,
+                  onSelected: (_) => _update(
+                    widget.setting.copyWith(
+                      compact: widget.setting.compact.copyWith(columns: n),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text('照片高度'),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final h in HomeRoomImageHeights.all)
+                ChoiceChip(
+                  label: Text(HomeRoomImageHeights.label(h)),
+                  selected: widget.setting.compact.imageHeight == h,
+                  onSelected: (_) => _update(
+                    widget.setting.copyWith(
+                      compact: widget.setting.compact.copyWith(imageHeight: h),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const Text('照片、短說明、標籤與價格沿用房型管理；在下方調整房型順序與顯示。'),
+        ],
+      );
+    }
     if (layout == HomeRoomSectionLayouts.horizontalScroll ||
         layout == HomeRoomSectionLayouts.featured ||
         layout == HomeRoomSectionLayouts.refinedCards) {

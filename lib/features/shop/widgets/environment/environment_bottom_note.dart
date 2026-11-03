@@ -15,9 +15,10 @@ class EnvironmentBottomNote extends StatelessWidget {
     this.fontSize = 14,
     this.padding = 18,
     this.horizontalMargin = 16,
+    this.title = '',
   });
 
-  final String text;
+  final String text, title;
   final HomeThemeModel theme;
   final double fontSize;
   final double padding;
@@ -60,21 +61,43 @@ class EnvironmentBottomNote extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(Icons.favorite_rounded, color: theme.primaryColor, size: 26),
+          Icon(
+            title.isEmpty
+                ? Icons.favorite_rounded
+                : Icons.notifications_none_rounded,
+            color: theme.primaryColor,
+            size: 26,
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: fontSize,
-                height: 1.6,
-                fontWeight: FontWeight.w600,
-                color: EnvironmentAppearanceScope.secondary(
-                  context,
-                  theme,
-                  0.72,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title.isNotEmpty) ...[
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: fontSize + 1,
+                      color: theme.textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    height: 1.6,
+                    fontWeight: FontWeight.w600,
+                    color: EnvironmentAppearanceScope.secondary(
+                      context,
+                      theme,
+                      0.72,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],

@@ -1,3 +1,5 @@
+import 'shop_info_template_preview.dart';
+import 'owner_image_upload_button.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
 import 'home_card_image.dart';
@@ -6,11 +8,17 @@ import 'home_section_settings_group.dart';
 class ShopInfoSettingsPanel extends StatefulWidget {
   const ShopInfoSettingsPanel({
     super.key,
+    this.shopId = '',
+    this.defaultIntro = '',
+    this.onBusyChanged,
     required this.setting,
     required this.onChanged,
     this.imageChoices = const [],
     this.onManage,
   });
+  final String shopId;
+  final String defaultIntro;
+  final ValueChanged<bool>? onBusyChanged;
   final HomeShopInfoSetting setting;
   final ValueChanged<HomeShopInfoSetting> onChanged;
   final List<Map<String, String>> imageChoices;
@@ -20,25 +28,45 @@ class ShopInfoSettingsPanel extends StatefulWidget {
 }
 
 class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
-  late final TextEditingController _url;
-  String? _urlError;
+  late final TextEditingController _title, _phone, _map, _line, _intro;
+  final ScrollController _scroll = ScrollController();
   @override
   void initState() {
     super.initState();
-    _url = TextEditingController(text: widget.setting.imageUrl);
+    _title = TextEditingController(text: widget.setting.sectionTitle);
+    _phone = TextEditingController(text: widget.setting.phoneLabel);
+    _map = TextEditingController(text: widget.setting.mapLabel);
+    _line = TextEditingController(text: widget.setting.lineLabel);
+    _intro = TextEditingController(
+      text: widget.setting.introText ?? widget.defaultIntro,
+    );
   }
 
   @override
   void didUpdateWidget(ShopInfoSettingsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_urlError == null && _url.text != widget.setting.imageUrl) {
-      _url.text = widget.setting.imageUrl;
+    void sync(TextEditingController controller, String value) {
+      if (controller.text != value) {
+        controller.value = TextEditingValue(
+          text: value,
+          selection: TextSelection.collapsed(offset: value.length),
+        );
+      }
     }
+
+    sync(_title, widget.setting.sectionTitle);
+    sync(_phone, widget.setting.phoneLabel);
+    sync(_map, widget.setting.mapLabel);
+    sync(_line, widget.setting.lineLabel);
+    sync(_intro, widget.setting.introText ?? widget.defaultIntro);
   }
 
   @override
   void dispose() {
-    _url.dispose();
+    for (final controller in [_title, _phone, _map, _line, _intro]) {
+      controller.dispose();
+    }
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -72,18 +100,22 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
   Widget build(BuildContext context) {
     final s = widget.setting;
     return ListView(
+      controller: _scroll,
+      primary: false,
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 28),
       children: [
+        const Text(
+          '首頁底部店家資訊',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        const Text('此分頁可獨立設定照片、排列版型、顯示內容及聯絡按鈕；不需套用快速模板，也可搭配其他首頁風格。'),
+        const SizedBox(height: 12),
         HomeSectionSettingsGroup(
           title: '顯示方式',
           children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('顯示店家資訊'),
-              subtitle: const Text('只控制此資訊區塊，不會修改導覽選單或店家基本資料。'),
-              value: s.enabled,
-              onChanged: (v) => update(s.copyWith(enabled: v)),
-            ),
+            const Text('店家資訊固定顯示；可選擇呈現方式與快速模板。'),
+            const SizedBox(height: 12),
             choices(
               '位置與展開方式',
               HomeShopInfoSetting.modes,
@@ -97,9 +129,9 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
           ],
         ),
         HomeSectionSettingsGroup(
-          title: '10 組風格預設',
+          title: '店家資訊快速模板',
           children: [
-            const Text('取自十張概念圖的頁尾風格；只套用店家資訊，不加入選房助手等未來功能。'),
+            const Text('點選即套好照片位置、資訊與聯絡按鈕；保留你上傳的圖片及店家資料，也保留上方選擇的顯示方式。'),
             const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -134,35 +166,21 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
                             ),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(12),
-                              onTap: () => update(
-                                s.copyWith(
-                                  preset: p.id,
-                                  followTheme: false,
-                                  layout: p.layout,
-                                ),
-                              ),
+                              onTap: () => update(p.apply(s)),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.storefront_outlined,
-                                          color: Color(p.accent),
-                                          size: 22,
+                                    SizedBox(
+                                      height: 96,
+                                      width: double.infinity,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: ShopInfoTemplatePreview(
+                                          preset: p,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Container(
-                                            height: 6,
-                                            color: Color(
-                                              p.text,
-                                            ).withValues(alpha: 0.25),
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
@@ -194,6 +212,12 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
                 );
               },
             ),
+          ],
+        ),
+        HomeSectionSettingsGroup(
+          title: '進階外觀微調（選填）',
+          storageId: 'shop-info-advanced-style',
+          children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('配色跟隨整體主題'),
@@ -207,6 +231,29 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
               s.layout,
               (v) => update(s.copyWith(layout: v)),
             ),
+            choices(
+              '按鈕造型',
+              const {
+                'standard': '一般圖文',
+                'circle': '圓形圖示・下方文字',
+                'tile': '獨立方卡',
+                'pill': '膠囊按鈕',
+              },
+              s.actionPresentation,
+              (v) => update(s.copyWith(actionPresentation: v)),
+            ),
+            choices(
+              '照片形狀',
+              const {'rounded': '圓角照片', 'circle': '圓形照片', 'square': '方形照片'},
+              s.photoShape,
+              (v) => update(s.copyWith(photoShape: v)),
+            ),
+            choices(
+              '角落裝飾',
+              const {'none': '無裝飾', 'leaf': '葉片', 'paw': '腳印', 'cat': '小動物線條'},
+              s.decoration,
+              (v) => update(s.copyWith(decoration: v)),
+            ),
             Text('圓角 ${s.radius.round()}'),
             Slider(
               value: s.radius,
@@ -218,10 +265,55 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
             ),
             choices(
               '聯絡按鈕',
-              const {'outlined': '外框按鈕', 'filled': '實色按鈕', 'text': '文字按鈕'},
+              const {
+                'mixed': '電話實色・地圖外框・LINE綠色',
+                'outlined': '外框按鈕',
+                'light': '白底品牌色按鈕',
+                'filled': '實色按鈕',
+                'text': '文字按鈕',
+              },
               s.buttonStyle,
               (v) => update(s.copyWith(buttonStyle: v)),
             ),
+          ],
+        ),
+        HomeSectionSettingsGroup(
+          title: '聯絡按鈕與標題（選填）',
+          storageId: 'shop-info-advanced-actions',
+          children: [
+            TextField(
+              key: const ValueKey('footer-section-title'),
+              controller: _title,
+              decoration: const InputDecoration(labelText: '資訊區塊標題'),
+              onChanged: (v) => update(s.copyWith(sectionTitle: v)),
+            ),
+            choices(
+              '按鈕排列',
+              const {
+                'wrap': '自動換行',
+                'threeColumns': '同列等寬',
+                'vertical': '直排按鈕',
+              },
+              s.actionLayout,
+              (v) => update(s.copyWith(actionLayout: v)),
+            ),
+            const Text('電話、地圖與已填寫的社群聯絡方式固定顯示，無法個別關閉。'),
+            TextField(
+              controller: _phone,
+              decoration: const InputDecoration(labelText: '電話按鈕文字'),
+              onChanged: (v) => update(s.copyWith(phoneLabel: v)),
+            ),
+            TextField(
+              controller: _map,
+              decoration: const InputDecoration(labelText: '地圖按鈕文字'),
+              onChanged: (v) => update(s.copyWith(mapLabel: v)),
+            ),
+            TextField(
+              controller: _line,
+              decoration: const InputDecoration(labelText: 'LINE按鈕文字'),
+              onChanged: (v) => update(s.copyWith(lineLabel: v)),
+            ),
+            const Text('電話、地址及LINE網址引用店家基本資料；沒有資料的按鈕會停用。'),
           ],
         ),
         HomeSectionSettingsGroup(
@@ -238,6 +330,23 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
               s.imageSource,
               (v) => update(s.copyWith(imageSource: v)),
             ),
+            if (s.imageSource == 'photo' && widget.shopId.isNotEmpty)
+              OwnerImageUploadButton(
+                shopId: widget.shopId,
+                label: '上傳店面照片',
+                onBusyChanged: widget.onBusyChanged,
+                onUploaded: (url) =>
+                    update(widget.setting.copyWith(imageUrl: url)),
+              ),
+            if (s.layout == 'photoContact') ...[
+              Text('左側照片寬度 ${(s.photoFraction * 100).round()}%'),
+              Slider(
+                value: s.photoFraction,
+                min: .2,
+                max: .5,
+                onChanged: (v) => update(s.copyWith(photoFraction: v)),
+              ),
+            ],
             if (s.layout == 'plain')
               const Text('目前選擇純文字頁尾，照片設定會保留；切換其他版型即可顯示。'),
             if (s.imageSource == 'photo') ...[
@@ -262,36 +371,13 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
                   ],
                   onChanged: (v) {
                     if (v != null) {
-                      setState(() => _urlError = null);
                       update(s.copyWith(imageUrl: v));
                     }
                   },
                 ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _url,
-                decoration: InputDecoration(
-                  labelText: '自訂圖片 HTTPS 網址',
-                  hintText: 'https://…',
-                  errorText: _urlError,
-                  border: const OutlineInputBorder(),
-                ),
-                onChanged: (v) {
-                  final url = v.trim();
-                  final uri = Uri.tryParse(url);
-                  final valid =
-                      url.isEmpty ||
-                      (uri?.scheme == 'https' && uri!.host.isNotEmpty);
-                  setState(
-                    () =>
-                        _urlError = valid ? null : '請使用完整 HTTPS 圖片網址，此輸入尚未套用。',
-                  );
-                  if (valid) update(s.copyWith(imageUrl: url));
-                },
-              ),
               const SizedBox(height: 8),
               const Text(
-                '留空時優先使用關於我們封面或環境照片。要換新的店家照片，可從內容管理上傳後再選用。',
+                '尚未選圖時沿用關於我們封面或環境照片。可上傳店面照片、選擇現有店家圖片，或切換至平台圖庫。',
                 style: TextStyle(fontSize: 12, height: 1.5),
               ),
               if (widget.onManage != null)
@@ -319,38 +405,23 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
         HomeSectionSettingsGroup(
           title: '顯示內容與順序',
           children: [
-            const Text('內容沿用店家基本資料。這裡只控制外觀，不修改電話、地址、營業時間。'),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('店家名稱'),
-              value: s.showName,
-              onChanged: (v) => update(s.copyWith(showName: v)),
+            const Text(
+              '名稱、營業時間、地址、電話與已填寫的字號固定顯示，內容引用店家基本資料；統編仍遵守原公開設定。可拖曳下方欄位調整順序。',
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('店家簡介'),
-              value: s.showIntro,
-              onChanged: (v) => update(s.copyWith(showIntro: v)),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('電話、地圖與已設定的社群按鈕'),
-              value: s.showActions,
-              onChanged: (v) => update(s.copyWith(showActions: v)),
-            ),
-            for (final e in HomeShopInfoSetting.fieldLabels.entries)
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(e.value),
-                value: s.fields.contains(e.key),
-                onChanged: (v) => update(
-                  s.copyWith(
-                    fields: v == true
-                        ? [...s.fields, e.key]
-                        : s.fields.where((k) => k != e.key).toList(),
-                  ),
-                ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const ValueKey('shop-info-introduction'),
+              controller: _intro,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 300,
+              decoration: const InputDecoration(
+                labelText: '店家簡介',
+                helperText: '顯示在本頁店家資訊區。未編輯時沿用原簡介；清空後不顯示文字。',
+                border: OutlineInputBorder(),
               ),
+              onChanged: (v) => update(s.copyWith(introText: v)),
+            ),
             const SizedBox(height: 8),
             const Text(
               '營業資訊順序（拖曳右側把手）',
@@ -360,16 +431,18 @@ class _ShopInfoSettingsPanelState extends State<ShopInfoSettingsPanel> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               buildDefaultDragHandles: false,
-              itemCount: s.fields.length,
+              itemCount: s.orderedFields.length,
               onReorder: (oldIndex, newIndex) {
-                final fields = [...s.fields];
+                final fields = [...s.orderedFields];
                 if (newIndex > oldIndex) newIndex--;
                 fields.insert(newIndex, fields.removeAt(oldIndex));
                 update(s.copyWith(fields: fields));
               },
               itemBuilder: (context, i) => ListTile(
-                key: ValueKey(s.fields[i]),
-                title: Text(HomeShopInfoSetting.fieldLabels[s.fields[i]]!),
+                key: ValueKey(s.orderedFields[i]),
+                title: Text(
+                  HomeShopInfoSetting.fieldLabels[s.orderedFields[i]]!,
+                ),
                 trailing: ReorderableDragStartListener(
                   index: i,
                   child: const Icon(Icons.drag_handle),

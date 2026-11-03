@@ -99,6 +99,7 @@ void main() {
         MaterialApp(
           home: ShopOwnerReportPage(
             shopId: 'test-shop',
+            moduleLoader: () async => {'cat_hotel', 'store'},
             ledgerLoader: (_) => Stream.value(_Ledger()),
             reportLoader: (range) async {
               starts.add(range.startDate);
@@ -151,6 +152,7 @@ void main() {
               ),
               home: ShopOwnerReportPage(
                 shopId: 'test-shop',
+                moduleLoader: () async => {'cat_hotel', 'store'},
                 ledgerLoader: (_) {
                   ledgerLoads++;
                   return Stream.value(_Ledger());
@@ -230,6 +232,7 @@ void main() {
         await tester.tap(find.byTooltip('自訂顯示區塊'));
         await tester.pumpAndSettle();
         final toggle = find.widgetWithText(SwitchListTile, '收入／成本圓環圖');
+        await tester.ensureVisible(toggle);
         await tester.tap(toggle);
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('完成'));

@@ -1,3 +1,4 @@
+import 'booking_appearance_scope.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_step_widgets.dart
 // 功能說明：住宿預約三步驟共用：步驟指示、主題卡片、底部固定欄
 
@@ -125,12 +126,15 @@ class BookingThemedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: margin,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.cardBorderColor),
+      margin: BookingAppearanceScope.of(context).style == 'soft'
+          ? const EdgeInsets.only(bottom: 20)
+          : margin,
+      padding: BookingAppearanceScope.of(context).style == 'warm'
+          ? padding
+          : bookingCardPadding(BookingAppearanceScope.of(context).style),
+      decoration: bookingCardDecoration(
+        BookingAppearanceScope.of(context).style,
+        theme,
       ),
       child: child,
     );

@@ -1,3 +1,5 @@
+import 'store_entry_photo.dart';
+import 'store_entry_template_card.dart';
 // 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_store_card.dart
 // 功能說明：新版首頁「寵物賣場入口卡片」共用 renderer（Preview 與真正首頁同一套）
 
@@ -34,6 +36,15 @@ class ModernHomeStoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (ModernStoreEntryLayouts.quickTemplates.containsKey(
+      setting.storeEntryLayout,
+    )) {
+      return StoreEntryTemplateCard(
+        setting: setting,
+        theme: theme,
+        onTap: onTap,
+      );
+    }
     if (setting.storeEntryLayout == ModernStoreEntryLayouts.brand) {
       return _frame(_brandBody(), key: const Key('store-entry-brand'));
     }
@@ -97,7 +108,7 @@ class ModernHomeStoreCard extends StatelessWidget {
             ColoredBox(color: theme.cardColor),
             if (imageUrl.isNotEmpty)
               Positioned.fill(
-                child: Image.network(
+                child: StoreEntryPhoto(
                   imageUrl,
                   fit: setting.backgroundBoxFit,
                   alignment: setting.backgroundAlignment,
@@ -355,7 +366,7 @@ class ModernHomeStoreCard extends StatelessWidget {
                 Icons.shopping_bag_outlined,
                 color: theme.primaryColor.withValues(alpha: 0.7),
               )
-            : Image.network(
+            : StoreEntryPhoto(
                 url,
                 fit: BoxFit.cover,
                 width: double.infinity,
@@ -376,7 +387,7 @@ class ModernHomeStoreCard extends StatelessWidget {
     if (imageUrl.isEmpty) {
       return ColoredBox(color: theme.primaryColor.withValues(alpha: 0.10));
     }
-    return Image.network(
+    return StoreEntryPhoto(
       imageUrl,
       fit: setting.backgroundBoxFit,
       alignment: setting.backgroundAlignment,

@@ -1,3 +1,6 @@
+import '../environment/environment_photo.dart';
+import 'editorial_section_widgets.dart';
+import '../../data/environment_feature_icons.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'environment_end_entry.dart';
 import 'dart:ui' show PointerDeviceKind;
@@ -65,6 +68,32 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
       facilitiesFor(facilityKeys, introduction: environmentIntro),
     );
     switch (setting.layout) {
+      case HomeEnvironmentLayouts.featureCards:
+        final raw = environmentIntro['features'];
+        final items = raw is List
+            ? raw
+                  .whereType<Map>()
+                  .map(
+                    (f) => <String, dynamic>{
+                      ...Map<String, dynamic>.from(f),
+                      'iconData': environmentFeatureIcon('${f['icon'] ?? ''}'),
+                    },
+                  )
+                  .take(setting.facilityLimit.clamp(1, 6))
+                  .toList()
+            : <Map<String, dynamic>>[];
+        if (items.isEmpty)
+          return preview
+              ? const Text('請至環境介紹管理新增特色，首頁會自動同步。')
+              : const SizedBox.shrink();
+        return EnvironmentHighlightCards(
+          items: items,
+          theme: theme,
+          onOpen: _open,
+          outlined:
+              setting.simpleSurface != HomeEnvironmentSurfaces.transparent,
+        );
+
       case HomeEnvironmentLayouts.simpleEntry:
         return _entry(resolvedImageUrl);
       case HomeEnvironmentLayouts.imageEntry:
@@ -516,14 +545,12 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
         errorBuilder: (_, _, _) => _photoFallback(),
       );
     }
-    return Image.network(
-      imageUrl,
+    return EnvironmentPhoto(
+      imageUrl: imageUrl,
       fit: BoxFit.cover,
       alignment: alignment,
       width: double.infinity,
       height: height,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) => _photoFallback(),
     );
   }
 

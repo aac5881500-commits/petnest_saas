@@ -1,3 +1,4 @@
+import '../environment/environment_photo.dart';
 // 檔案：lib/features/shop/widgets/modern_home/environment_home_image_settings.dart
 // 功能：環境展示圖片草稿來源與有限寬度縮圖；沿用平台卡片圖庫。
 import 'dart:math' as math;
@@ -168,12 +169,9 @@ class EnvironmentHomeImageSettings extends StatelessWidget {
                                   ? const Center(
                                       child: Icon(Icons.image_outlined),
                                     )
-                                  : Image.network(
-                                      image.url,
+                                  : EnvironmentPhoto(
+                                      imageUrl: image.url,
                                       fit: BoxFit.contain,
-                                      gaplessPlayback: true,
-                                      errorBuilder: (_, error, stack) =>
-                                          const Center(child: Text('圖片暫時無法顯示')),
                                     ),
                             ),
                           ),

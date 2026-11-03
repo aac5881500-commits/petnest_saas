@@ -146,7 +146,13 @@ class _BrandAlign extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(alignment: Alignment(x.clamp(0, 1) * 2 - 1, 0), child: child);
+    return SizedBox(
+      width: double.infinity,
+      child: Align(
+        alignment: Alignment(x.clamp(0, 1) * 2 - 1, 0),
+        child: child,
+      ),
+    );
   }
 }
 

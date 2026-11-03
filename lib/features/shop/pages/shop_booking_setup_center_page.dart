@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/shop/widgets/booking/booking_appearance_editor.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_scope.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_intro_appearance_editor.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_intro_data_stream.dart';
@@ -22,6 +23,7 @@ enum ShopBookingSetupTab {
   booking,
   listAppearance,
   detailAppearance,
+  bookingAppearance,
 }
 
 class ShopBookingSetupCenterPage extends StatefulWidget {
@@ -61,10 +63,13 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
     with ShopDashboardLeaveAware<ShopBookingSetupCenterPage> {
   @override
   bool get dashboardHasUnsavedChanges =>
-      _appearanceKey.currentState?.hasChanges ?? false;
+      (_appearanceKey.currentState?.hasChanges ?? false) ||
+      (_bookingAppearanceKey.currentState?.hasChanges ?? false);
   @override
   bool get dashboardIsBusy =>
-      _navigating || (_appearanceKey.currentState?.isBusy ?? false);
+      _navigating ||
+      (_appearanceKey.currentState?.isBusy ?? false) ||
+      (_bookingAppearanceKey.currentState?.isBusy ?? false);
   @override
   Future<bool> dashboardConfirmLeave() async {
     if (_navigating) return false;
@@ -92,6 +97,10 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
             ShopService.instance.streamRoomTypes(widget.shopId),
       )).stream;
   final _appearanceKey = GlobalKey<RoomIntroAppearanceEditorState>();
+  final _bookingAppearanceKey = GlobalKey<BookingAppearanceEditorState>();
+  bool _bookingAppearanceVisited = false;
+  ShopBookingSetupTab? _lastRoomTab;
+  ShopBookingSetupTab? _lastBookingTab;
   bool _appearanceVisited = false;
   bool _isAppearance(ShopBookingSetupTab tab) =>
       tab == ShopBookingSetupTab.listAppearance ||
@@ -108,6 +117,7 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
     super.initState();
     _tab = widget.initialTab;
     _appearanceVisited = _isAppearance(_tab);
+    _bookingAppearanceVisited = _tab == ShopBookingSetupTab.bookingAppearance;
     _stayOpeningGuide = widget.guideStayOpening;
     _loadRole();
   }
@@ -205,6 +215,7 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
       tabs.addAll([
         ShopBookingSetupTab.listAppearance,
         ShopBookingSetupTab.detailAppearance,
+        ShopBookingSetupTab.bookingAppearance,
       ]);
     }
     return tabs;
@@ -229,14 +240,21 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
     return ShopBookingSetupTab.roomTypes;
   }
 
-  Future<bool> _leaveCurrentTab() => _isAppearance(_tab)
+  Future<bool> _leaveCurrentTab() =>
+      _tab == ShopBookingSetupTab.bookingAppearance
+      ? (_bookingAppearanceKey.currentState?.confirmLeave() ??
+            Future.value(true))
+      : _isAppearance(_tab)
       ? (_appearanceKey.currentState?.confirmLeave() ?? Future.value(true))
       : _tab == ShopBookingSetupTab.booking
       ? _bookingLeaveGuard.confirmLeave()
       : _roomLeaveGuard.confirmLeave();
 
   Future<void> _selectTab(ShopBookingSetupTab tab) async {
-    if (_appearanceKey.currentState?.isBusy == true) return;
+    if (_appearanceKey.currentState?.isBusy == true ||
+        _bookingAppearanceKey.currentState?.isBusy == true) {
+      return;
+    }
     if (_tab == ShopBookingSetupTab.booking && _bookingTutorialLocked) return;
     if (_navigating || tab == _tab || !_allowedTabs.contains(tab)) return;
     _navigating = true;
@@ -246,6 +264,15 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
           mounted) {
         setState(() {
           _tab = tab;
+          if (tab == ShopBookingSetupTab.booking ||
+              tab == ShopBookingSetupTab.bookingAppearance) {
+            _lastBookingTab = tab;
+          } else {
+            _lastRoomTab = tab;
+          }
+          if (tab == ShopBookingSetupTab.bookingAppearance) {
+            _bookingAppearanceVisited = true;
+          }
           if (_isAppearance(tab)) _appearanceVisited = true;
         });
       }
@@ -289,6 +316,24 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
         : allowed.first;
 
     final originalTabs = allowed.where((tab) => !_isAppearance(tab)).toList();
+    final roomTabs = allowed
+        .where(
+          (tab) => tab == ShopBookingSetupTab.roomTypes || _isAppearance(tab),
+        )
+        .toList();
+    final bookingTabs = allowed
+        .where(
+          (tab) =>
+              tab == ShopBookingSetupTab.booking ||
+              tab == ShopBookingSetupTab.bookingAppearance,
+        )
+        .toList();
+    final inBooking = bookingTabs.contains(current);
+    final groups = <ShopBookingSetupTab>[
+      if (roomTabs.isNotEmpty) ShopBookingSetupTab.roomTypes,
+      if (bookingTabs.isNotEmpty) ShopBookingSetupTab.booking,
+    ];
+    final subTabs = inBooking ? bookingTabs : roomTabs;
     return RoomIntroAppearanceHost(
       shopId: widget.shopId,
       shopStream: _shopSource,
@@ -316,41 +361,75 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
               Material(
                 color: Theme.of(context).colorScheme.surface,
                 child: SizedBox(
-                  height: 48,
+                  height: MediaQuery.textScalerOf(context).scale(14) > 21
+                      ? 88
+                      : 56,
                   child: LayoutBuilder(
                     builder:
                         (BuildContext context, BoxConstraints constraints) {
-                          final bool equalTabs = constraints.maxWidth >= 720;
-                          final List<Widget> chips = allowed.map((
+                          final List<Widget> chips = groups.map((
                             ShopBookingSetupTab tab,
                           ) {
                             final Widget chip = _SetupTabChip(
                               tab: tab,
-                              selected: current == tab,
+                              primary: true,
+                              selected:
+                                  tab ==
+                                  (inBooking
+                                      ? ShopBookingSetupTab.booking
+                                      : ShopBookingSetupTab.roomTypes),
                               onTap:
                                   _tab == ShopBookingSetupTab.booking &&
                                       _bookingTutorialLocked
                                   ? null
-                                  : () => _selectTab(tab),
+                                  : () {
+                                      final candidates =
+                                          tab == ShopBookingSetupTab.booking
+                                          ? bookingTabs
+                                          : roomTabs;
+                                      final last =
+                                          tab == ShopBookingSetupTab.booking
+                                          ? _lastBookingTab
+                                          : _lastRoomTab;
+                                      _selectTab(
+                                        candidates.contains(last)
+                                            ? last!
+                                            : candidates.first,
+                                      );
+                                    },
                             );
-                            if (equalTabs) {
-                              return Expanded(child: chip);
-                            }
-                            return chip;
+                            return Expanded(child: chip);
                           }).toList();
-                          if (equalTabs) {
-                            return Row(children: chips);
-                          }
-                          return ListView(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            children: chips,
-                          );
+                          return Row(children: chips);
                         },
                   ),
                 ),
               ),
               const Divider(height: 1),
+              if (subTabs.length > 1)
+                SizedBox(
+                  height: MediaQuery.textScalerOf(context).scale(13) > 20
+                      ? 72
+                      : 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: subTabs
+                        .map(
+                          (tab) => _SetupTabChip(
+                            tab: tab,
+                            selected: current == tab,
+                            onTap: () => _selectTab(tab),
+                            labelOverride: tab == ShopBookingSetupTab.roomTypes
+                                ? '房型管理'
+                                : tab == ShopBookingSetupTab.booking
+                                ? '開放與規則'
+                                : null,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
               Expanded(
                 child: Align(
                   alignment: Alignment.topCenter,
@@ -426,6 +505,15 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
                 }
               : null,
         );
+      case ShopBookingSetupTab.bookingAppearance:
+        return _bookingAppearanceVisited ||
+                _tab == ShopBookingSetupTab.bookingAppearance
+            ? BookingAppearanceEditor(
+                key: _bookingAppearanceKey,
+                shopId: widget.shopId,
+                shopStream: _shopSource,
+              )
+            : const SizedBox.shrink();
       case ShopBookingSetupTab.listAppearance:
       case ShopBookingSetupTab.detailAppearance:
         return const SizedBox.shrink();
@@ -458,11 +546,15 @@ class _SetupTabChip extends StatelessWidget {
     required this.tab,
     required this.selected,
     required this.onTap,
+    this.labelOverride,
+    this.primary = false,
   });
 
   final ShopBookingSetupTab tab;
   final bool selected;
   final VoidCallback? onTap;
+  final String? labelOverride;
+  final bool primary;
 
   @override
   Widget build(BuildContext context) {
@@ -487,20 +579,68 @@ class _SetupTabChip extends StatelessWidget {
         icon = Icons.article_outlined;
         label = '房型詳細頁外觀';
         break;
+      case ShopBookingSetupTab.bookingAppearance:
+        icon = Icons.palette_outlined;
+        label = '預約頁外觀';
+        break;
+    }
+    if (primary) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Semantics(
+          selected: selected,
+          button: true,
+          child: Material(
+            color: selected ? colors.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: selected
+                          ? colors.onPrimaryContainer
+                          : colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        labelOverride ?? label,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: selected
+                              ? colors.onPrimaryContainer
+                              : colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
             border: Border(
               bottom: BorderSide(
                 color: selected ? colors.primary : Colors.transparent,
@@ -509,14 +649,19 @@ class _SetupTabChip extends StatelessWidget {
             ),
           ),
           child: Row(
-            children: <Widget>[
-              Icon(icon, size: 18, color: selected ? colors.primary : null),
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected ? colors.primary : colors.onSurfaceVariant,
+              ),
               const SizedBox(width: 6),
               Text(
-                label,
+                labelOverride ?? label,
                 style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: selected ? colors.primary : null,
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? colors.primary : colors.onSurfaceVariant,
                 ),
               ),
             ],

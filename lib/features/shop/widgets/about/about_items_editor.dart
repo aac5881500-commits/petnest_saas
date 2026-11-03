@@ -156,6 +156,9 @@ class _ItemEditorState extends State<_ItemEditor> {
           ],
         ),
         TextField(
+          key: PageStorageKey<String>(
+            'about-input-${widget.section}-${widget.item.id}-title',
+          ),
           controller: _title,
           decoration: InputDecoration(
             labelText: widget.section == 'team' ? '姓名或稱呼（選填）' : '標題（選填）',
@@ -164,11 +167,17 @@ class _ItemEditorState extends State<_ItemEditor> {
         ),
         if (widget.section == 'team')
           TextField(
+            key: PageStorageKey<String>(
+              'about-input-${widget.section}-${widget.item.id}-role',
+            ),
             controller: _role,
             decoration: const InputDecoration(labelText: '職稱（選填）'),
             onChanged: (v) => widget.onChanged(widget.item.copyWith(role: v)),
           ),
         TextField(
+          key: PageStorageKey<String>(
+            'about-input-${widget.section}-${widget.item.id}-text',
+          ),
           controller: _text,
           minLines: 3,
           maxLines: 8,
@@ -186,6 +195,8 @@ class _ItemEditorState extends State<_ItemEditor> {
                 const [
                   'pets',
                   'heart',
+                  'leaf',
+                  'people',
                   'home',
                   'care',
                   'clean',
@@ -197,6 +208,8 @@ class _ItemEditorState extends State<_ItemEditor> {
               for (final e in const {
                 'pets': '貓咪',
                 'heart': '愛心',
+                'leaf': '自然',
+                'people': '陪伴',
                 'home': '居家',
                 'care': '照護',
                 'clean': '清潔',

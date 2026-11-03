@@ -28,6 +28,7 @@ void main() {
         MaterialApp(
           home: ShopOwnerReportPage(
             shopId: 'test-shop',
+            moduleLoader: () async => {'cat_hotel', 'store'},
             reportLoader: (range) async => ShopReportService.instance
                 .buildSelectedData(range: range, sources: {}),
             ledgerLoader: (_) => ledger.stream,
@@ -72,6 +73,7 @@ void main() {
         MaterialApp(
           home: ShopOwnerReportPage(
             shopId: 'test-shop',
+            moduleLoader: () async => {'cat_hotel', 'store'},
             reportLoader: (range) async => ShopReportService.instance
                 .buildSelectedData(range: range, sources: {}),
             ledgerLoader: (_) =>

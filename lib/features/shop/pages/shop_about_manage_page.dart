@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/about_page_template.dart';
 import 'package:petnest_saas/core/models/shop_service_showcase.dart';
 import '../widgets/about/about_service_showcase.dart';
 import 'dart:async';
@@ -45,7 +46,9 @@ class ShopAboutManagePage extends StatefulWidget {
 }
 
 class _ShopAboutManagePageState extends State<ShopAboutManagePage>
-    with ShopDashboardLeaveAware<ShopAboutManagePage> {
+    with
+        SingleTickerProviderStateMixin,
+        ShopDashboardLeaveAware<ShopAboutManagePage> {
   @override
   bool get dashboardHasUnsavedChanges => _hasUnsavedChanges;
   @override
@@ -79,7 +82,8 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
   StreamSubscription<Map<String, dynamic>?>? _shopSubscription;
   Object? _loadError;
   bool _preview = false, _seeded = false;
-  int _tab = 0;
+  int _tab = 1;
+  late final TabController _editorTabs;
 
   static const int _maxImageBytes = 5 * 1024 * 1024;
 
@@ -103,6 +107,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
   @override
   void initState() {
     super.initState();
+    _editorTabs = TabController(length: 6, initialIndex: 1, vsync: this);
     _titleController.addListener(_onDraftChanged);
     _descriptionController.addListener(_onDraftChanged);
     _messageController.addListener(_onDraftChanged);
@@ -111,6 +116,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
 
   @override
   void dispose() {
+    _editorTabs.dispose();
     _titleController.removeListener(_onDraftChanged);
     _descriptionController.removeListener(_onDraftChanged);
     _messageController.removeListener(_onDraftChanged);
@@ -618,12 +624,28 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
   };
   HomeThemeModel get _previewTheme =>
       AboutPageSetting.shopTheme(_shop, HomeThemeModel.classicDefault);
-  Widget _previewPane() => EnvironmentDraftPreview(
+  void _editPreviewSection(String section) {
+    final index = switch (section) {
+      'cover' || 'message' || 'highlights' => 1,
+      'principles' || 'team' || 'credentials' => 2,
+      'stories' => 3,
+      'services' || 'contact' => 4,
+      _ => 1,
+    };
+    setState(() {
+      _tab = index;
+      _preview = false;
+    });
+    _editorTabs.animateTo(index);
+  }
+
+  Widget _previewPane({bool interactive = true}) => EnvironmentDraftPreview(
     notice: '所有變更均為草稿，按儲存後才會更新正式內容。',
     contentBuilder: (scroll) => AboutIntroView(
       shop: _draftShop,
       setting: _setting,
       theme: _previewTheme,
+      onEditSection: interactive ? _editPreviewSection : null,
       scrollController: scroll,
       preview: true,
     ),
@@ -644,7 +666,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                 icon: const Icon(Icons.close),
               ),
             ),
-            Expanded(child: _previewPane()),
+            Expanded(child: _previewPane(interactive: false)),
           ],
         ),
       ),
@@ -759,6 +781,35 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
     );
   }
 
+  Future<void> _applyDaylightTemplate(bool _) async {
+    if (_imageBusy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('套用完整日光簡約範本？'),
+        content: const Text(
+          '將替換目前草稿的封面、主副標題、簡介、照護理念與品牌故事，並套用範本排列、外觀及區塊顯示。包含示意照片與文字，之後都可自行修改。其他區塊資料及原圖檔不會刪除，店家聯絡資訊不變。按儲存後才會更新正式頁。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('套用到草稿'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _imageBusy) return;
+    setState(() {
+      _setting = AboutPageTemplate.complete(_setting);
+      _titleController.text = AboutPageTemplate.title;
+      _descriptionController.text = AboutPageTemplate.description;
+    });
+  }
+
   void _changeSetting(AboutPageSetting next) => setState(() => _setting = next);
   Widget _workspace() => ShopRoomTypeWorkspace(
     preview: _previewPane(),
@@ -769,7 +820,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
     editor: IgnorePointer(
       ignoring: _imageBusy,
       child: DefaultTabController(
-        length: 5,
+        length: 6,
         child: Column(
           children: [
             if (_loadError != null)
@@ -786,34 +837,47 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                 ),
               ),
             TabBar(
+              controller: _editorTabs,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               onTap: (v) => setState(() => _tab = v),
               tabs: const [
-                Tab(text: '介紹內容'),
-                Tab(text: '照片素材'),
+                Tab(text: '版型範本'),
+                Tab(text: '封面與介紹'),
                 Tab(text: '理念與團隊'),
-                Tab(text: '排版外觀'),
-                Tab(text: '服務項目'),
+                Tab(text: '品牌故事'),
+                Tab(text: '服務與資訊'),
+                Tab(text: '進階外觀'),
               ],
             ),
             Expanded(
               child: IndexedStack(
                 index: _tab,
                 children: [
-                  _settingsScroll('content', [
-                    const ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.storefront_outlined),
-                      title: Text('店家資訊固定顯示'),
-                      subtitle: Text('電話、地址、營業時間與許可字號自動引用基本資料。可在「排版外觀」選擇呈現方式。'),
+                  _settingsScroll('templates', [
+                    AboutAppearanceEditor(
+                      section: 'templates',
+                      shop: _draftShop,
+                      onApplyTemplate: _applyDaylightTemplate,
+                      setting: _setting,
+                      theme: _previewTheme,
+                      onChanged: _changeSetting,
                     ),
-                    const Text('填寫品牌介紹與服務特色，左側可即時預覽；儲存後才會更新前台。'),
+                  ]),
+                  _settingsScroll('content', [
+                    const Text('填寫自己的介紹與封面，左側立即更新。未填的選填內容不會出現在顧客端。'),
                     _sectionTitle('主標題'),
                     _inputBox(
                       controller: _titleController,
                       hint: '例如品牌名稱或你的照護理念（選填）',
                       maxLines: 3,
+                    ),
+                    _sectionTitle('副標題（選填）'),
+                    AboutCoverSubtitleField(
+                      value: _setting.coverSubtitle,
+                      onChanged: (value) => _changeSetting(
+                        _setting.withAppearance({'coverSubtitle': value}),
+                      ),
                     ),
                     _sectionTitle('簡介'),
                     _inputBox(
@@ -821,111 +885,179 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                       hint: '簡單介紹店家、照護方式與經營理念',
                       maxLines: 5,
                     ),
-                    _sectionTitle('完整介紹／給毛孩爸媽的話'),
-                    _inputBox(
-                      controller: _messageController,
-                      hint: '分享創店故事、照顧方式與希望傳達的真實內容',
-                      maxLines: 8,
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('長介紹使用展開閱讀'),
-                      value: _setting.expandable,
-                      onChanged: (v) =>
-                          _changeSetting(_setting.copyWith({'expandable': v})),
-                    ),
-                    AboutItemsEditor(
-                      section: 'highlights',
-                      items: _setting.items('highlights'),
-                      shop: _draftShop,
-                      onChanged: (items) => _changeSetting(
-                        _setting.withItems('highlights', items),
-                      ),
-                      onUpload: _uploadContentPhoto,
-                    ),
-                    const Text('可填寫實際提供的房型設備、陪伴方式或清潔安排。空白特色不會顯示。'),
-                    AboutItemsEditor(
-                      section: 'stories',
-                      items: _setting.items('stories'),
-                      shop: _draftShop,
-                      onChanged: (items) =>
-                          _changeSetting(_setting.withItems('stories', items)),
-                      onUpload: _uploadContentPhoto,
-                    ),
-                  ]),
-                  _settingsScroll('photos', [
-                    _sectionTitle('介紹封面來源'),
-                    AboutMediaField(
-                      value: _setting.cover,
-                      shop: _draftShop,
-                      onChanged: (image) => _changeSetting(
-                        _setting.copyWith({'cover': image.toMap()}),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => _changeSetting(
-                          _setting.copyWith({
-                            'cover': const AboutMedia(source: 'legacy').toMap(),
-                          }),
-                        ),
-                        child: const Text('使用原有關於我們封面'),
-                      ),
-                    ),
-                    const Text('下方保留原有封面上傳、裁切與顯示範圍。移除只解除本頁引用，不刪除已儲存圖片。'),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: AboutCoverImageBox(
-                          showHeightSetting: _setting.layout == 'classic',
-                          imageUrl: _aboutImageUrl,
-                          frame: _frame,
-                          uploading: _uploadingImage,
-                          busy: _imageBusy,
-                          overlayTitle: _titleController.text,
-                          overlaySubtitle: _descriptionController.text,
-                          onUpload: _pickAndUploadAboutImage,
-                          onDelete: _removeAboutImage,
-                          onFrameChanged: (value) => setState(() {
-                            _frame = value;
-                            _setting = _setting.copyWith({
-                              'coverFrame': value.toMap(),
-                            });
-                          }),
-                        ),
-                      ),
-                    ),
-                    _sectionTitle('介紹配圖比例'),
-                    const Text('套用於分段配圖與新版封面；原有排版的封面沿用上方高度選項。'),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
+                    ExpansionTile(
+                      key: const PageStorageKey<String>('about-group-message'),
+                      initiallyExpanded: false,
+                      title: const Text('補充介紹（選填）'),
+                      childrenPadding: const EdgeInsets.all(12),
                       children: [
-                        for (final e in const {
-                          'square': '正方形',
-                          'landscape': '4:3',
-                          'wide': '16:9',
-                        }.entries)
-                          ChoiceChip(
-                            label: Text(e.value),
-                            selected:
-                                _setting.choice('imageRatio', [
-                                  'square',
-                                  'landscape',
-                                  'wide',
-                                ], 'landscape') ==
-                                e.key,
-                            onSelected: (_) => _changeSetting(
-                              _setting.withAppearance({'imageRatio': e.key}),
-                            ),
+                        _sectionTitle('完整介紹／給毛孩爸媽的話'),
+                        _inputBox(
+                          controller: _messageController,
+                          hint: '分享創店故事、照顧方式與希望傳達的真實內容',
+                          maxLines: 8,
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('長介紹使用展開閱讀'),
+                          value: _setting.expandable,
+                          onChanged: (v) => _changeSetting(
+                            _setting.copyWith({'expandable': v}),
                           ),
+                        ),
                       ],
                     ),
-                    const Text('故事與理念的個別配圖在各內容項目內設定；人物及證照只能使用真實店家素材。'),
+                    ExpansionTile(
+                      key: const PageStorageKey<String>(
+                        'about-group-cover-photo',
+                      ),
+                      initiallyExpanded: true,
+                      title: const Text('封面照片'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        _sectionTitle('介紹封面來源'),
+                        AboutMediaField(
+                          onUpload: _uploadContentPhoto,
+                          value: _setting.cover,
+                          shop: _draftShop,
+                          onChanged: (image) => _changeSetting(
+                            _setting.copyWith({'cover': image.toMap()}),
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            onPressed: () => _changeSetting(
+                              _setting.copyWith({
+                                'cover': const AboutMedia(
+                                  source: 'legacy',
+                                ).toMap(),
+                              }),
+                            ),
+                            child: const Text('使用原有關於我們封面'),
+                          ),
+                        ),
+                        const Text('下方保留原有封面上傳、裁切與顯示範圍。移除只解除本頁引用，不刪除已儲存圖片。'),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            child: AboutCoverImageBox(
+                              showHeightSetting: _setting.layout == 'classic',
+                              imageUrl: _aboutImageUrl,
+                              frame: _frame,
+                              uploading: _uploadingImage,
+                              busy: _imageBusy,
+                              overlayTitle: _titleController.text,
+                              overlaySubtitle: _descriptionController.text,
+                              onUpload: _pickAndUploadAboutImage,
+                              onDelete: _removeAboutImage,
+                              onFrameChanged: (value) => setState(() {
+                                _frame = value;
+                                _setting = _setting.copyWith({
+                                  'coverFrame': value.toMap(),
+                                });
+                              }),
+                            ),
+                          ),
+                        ),
+                        _sectionTitle('介紹配圖比例'),
+                        const Text('套用於分段配圖與新版封面；原有排版的封面沿用上方高度選項。'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (final e in const {
+                              'square': '正方形',
+                              'landscape': '4:3',
+                              'wide': '16:9',
+                            }.entries)
+                              ChoiceChip(
+                                label: Text(e.value),
+                                selected:
+                                    _setting.choice('imageRatio', [
+                                      'square',
+                                      'landscape',
+                                      'wide',
+                                    ], 'landscape') ==
+                                    e.key,
+                                onSelected: (_) => _changeSetting(
+                                  _setting.withAppearance({
+                                    'imageRatio': e.key,
+                                  }),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const Text('故事與理念的個別配圖在各內容項目內設定；人物及證照只能使用真實店家素材。'),
+                      ],
+                    ),
+                    ExpansionTile(
+                      key: const PageStorageKey<String>(
+                        'about-group-cover-layout',
+                      ),
+                      initiallyExpanded: false,
+                      title: const Text('封面排列'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        AboutAppearanceEditor(
+                          section: 'cover',
+                          shop: _draftShop,
+                          onApplyTemplate: _applyDaylightTemplate,
+                          setting: _setting,
+                          theme: _previewTheme,
+                          onChanged: _changeSetting,
+                        ),
+                      ],
+                    ),
+                    ExpansionTile(
+                      key: const PageStorageKey<String>(
+                        'about-group-highlights',
+                      ),
+                      initiallyExpanded: false,
+                      title: const Text('店家特色'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        AboutItemsEditor(
+                          section: 'highlights',
+                          items: _setting.items('highlights'),
+                          shop: _draftShop,
+                          onChanged: (items) => _changeSetting(
+                            _setting.withItems('highlights', items),
+                          ),
+                          onUpload: _uploadContentPhoto,
+                        ),
+                        const Text('可填寫實際提供的房型設備、陪伴方式或清潔安排。空白特色不會顯示。'),
+                        AboutAppearanceEditor(
+                          section: 'highlights',
+                          shop: _draftShop,
+                          onApplyTemplate: _applyDaylightTemplate,
+                          setting: _setting,
+                          theme: _previewTheme,
+                          onChanged: _changeSetting,
+                        ),
+                      ],
+                    ),
                   ]),
                   _settingsScroll('people', [
+                    ExpansionTile(
+                      key: const PageStorageKey<String>(
+                        'about-group-principle-layout',
+                      ),
+                      initiallyExpanded: false,
+                      title: const Text('照護理念排列'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        AboutAppearanceEditor(
+                          section: 'principles',
+                          shop: _draftShop,
+                          onApplyTemplate: _applyDaylightTemplate,
+                          setting: _setting,
+                          theme: _previewTheme,
+                          onChanged: _changeSetting,
+                        ),
+                      ],
+                    ),
                     for (final section in [
                       'principles',
                       'team',
@@ -954,65 +1086,137 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
                       Text(
                         '已引用基本資料的公開許可字號：${_shop['licenseNumber']}。不需在經歷重複輸入。',
                       ),
-                    _sectionTitle('各區塊顯示與順序'),
-                    for (var i = 0; i < _setting.sectionOrder.length; i++)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                AboutPageSetting.sectionNames[_setting
-                                    .sectionOrder[i]]!,
-                              ),
-                              value: _setting.visible(_setting.sectionOrder[i]),
-                              subtitle: _setting.sectionOrder[i] == 'contact'
-                                  ? const Text('固定顯示，可調整順序')
-                                  : null,
-                              onChanged: _setting.sectionOrder[i] == 'contact'
-                                  ? null
-                                  : (v) => _changeSetting(
-                                      _setting.setVisible(
-                                        _setting.sectionOrder[i],
-                                        v,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '區塊上移',
-                            onPressed: i > 0
-                                ? () => _moveSection(i, i - 1)
-                                : null,
-                            icon: const Icon(Icons.arrow_upward),
-                          ),
-                          IconButton(
-                            tooltip: '區塊下移',
-                            onPressed: i + 1 < _setting.sectionOrder.length
-                                ? () => _moveSection(i, i + 1)
-                                : null,
-                            icon: const Icon(Icons.arrow_downward),
-                          ),
-                        ],
+                  ]),
+                  _settingsScroll('stories', [
+                    const Text('每段可填標題、內文與照片，使用自己的店家故事。'),
+                    AboutItemsEditor(
+                      section: 'stories',
+                      items: _setting.items('stories'),
+                      shop: _draftShop,
+                      onChanged: (items) =>
+                          _changeSetting(_setting.withItems('stories', items)),
+                      onUpload: _uploadContentPhoto,
+                    ),
+                    ExpansionTile(
+                      key: const PageStorageKey<String>(
+                        'about-group-story-layout',
                       ),
+                      initiallyExpanded: false,
+                      title: const Text('故事排列'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        AboutAppearanceEditor(
+                          section: 'stories',
+                          shop: _draftShop,
+                          onApplyTemplate: _applyDaylightTemplate,
+                          setting: _setting,
+                          theme: _previewTheme,
+                          onChanged: _changeSetting,
+                        ),
+                      ],
+                    ),
+                  ]),
+                  _settingsScroll('services', [
+                    ExpansionTile(
+                      key: const PageStorageKey<String>('about-group-services'),
+                      initiallyExpanded: true,
+                      title: const Text('服務項目'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        _sectionTitle('服務項目展示'),
+                        AboutServiceShowcaseEditor(
+                          value: _setting.serviceShowcase,
+                          shop: _draftShop,
+                          enabledModules: serviceShowcaseEnabledModules(_shop),
+                          busy: _imageBusy,
+                          onChanged: (value) => _changeSetting(
+                            _setting.copyWith({
+                              'moduleShowcase': value.toMap(),
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                    ExpansionTile(
+                      key: const PageStorageKey<String>('about-group-contact'),
+                      initiallyExpanded: false,
+                      title: const Text('店家資訊'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        const Text('電話、地址與營業時間引用基本資料，這裡只調整呈現方式。'),
+                        AboutAppearanceEditor(
+                          section: 'contact',
+                          shop: _draftShop,
+                          onApplyTemplate: _applyDaylightTemplate,
+                          setting: _setting,
+                          theme: _previewTheme,
+                          onChanged: _changeSetting,
+                        ),
+                      ],
+                    ),
                   ]),
                   _settingsScroll('appearance', [
+                    const Text('不需要額外調整時，保留版型預設即可。'),
                     AboutAppearanceEditor(
+                      section: 'advanced',
+                      shop: _draftShop,
+                      onApplyTemplate: _applyDaylightTemplate,
                       setting: _setting,
                       theme: _previewTheme,
                       onChanged: _changeSetting,
                     ),
-                  ]),
-                  _settingsScroll('services', [
-                    _sectionTitle('服務項目展示'),
-                    AboutServiceShowcaseEditor(
-                      value: _setting.serviceShowcase,
-                      shop: _draftShop,
-                      enabledModules: serviceShowcaseEnabledModules(_shop),
-                      busy: _imageBusy,
-                      onChanged: (value) => _changeSetting(
-                        _setting.copyWith({'moduleShowcase': value.toMap()}),
-                      ),
+                    ExpansionTile(
+                      key: const PageStorageKey<String>('about-group-order'),
+                      initiallyExpanded: false,
+                      title: const Text('區塊顯示與順序'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [
+                        _sectionTitle('各區塊顯示與順序'),
+                        for (var i = 0; i < _setting.sectionOrder.length; i++)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    AboutPageSetting.sectionNames[_setting
+                                        .sectionOrder[i]]!,
+                                  ),
+                                  value: _setting.visible(
+                                    _setting.sectionOrder[i],
+                                  ),
+                                  subtitle:
+                                      _setting.sectionOrder[i] == 'contact'
+                                      ? const Text('固定顯示，可調整順序')
+                                      : null,
+                                  onChanged:
+                                      _setting.sectionOrder[i] == 'contact'
+                                      ? null
+                                      : (v) => _changeSetting(
+                                          _setting.setVisible(
+                                            _setting.sectionOrder[i],
+                                            v,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: '區塊上移',
+                                onPressed: i > 0
+                                    ? () => _moveSection(i, i - 1)
+                                    : null,
+                                icon: const Icon(Icons.arrow_upward),
+                              ),
+                              IconButton(
+                                tooltip: '區塊下移',
+                                onPressed: i + 1 < _setting.sectionOrder.length
+                                    ? () => _moveSection(i, i + 1)
+                                    : null,
+                                icon: const Icon(Icons.arrow_downward),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
                   ]),
                 ],
@@ -1079,6 +1283,13 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage>
     required int maxLines,
   }) {
     return TextField(
+      key: PageStorageKey<String>(
+        'about-input-${identical(controller, _titleController)
+            ? 'title'
+            : identical(controller, _descriptionController)
+            ? 'description'
+            : 'message'}',
+      ),
       controller: controller,
       maxLines: maxLines,
       decoration: InputDecoration(

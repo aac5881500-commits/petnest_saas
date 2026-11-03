@@ -1083,3 +1083,6 @@ exports.saveShopMapLocation = require("./shops/shop_map_location")
     .saveShopMapLocation;
 
 exports.inspectionPreviewHeartbeat = require("./platform/inspection_owner_preview").inspectionPreviewHeartbeat;
+
+// Platform fees paid by shop owners; isolated from customer booking payments.
+Object.assign(exports, require("./platform_billing"));

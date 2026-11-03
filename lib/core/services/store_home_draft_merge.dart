@@ -1,19 +1,15 @@
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 
-/// 外觀頁只覆寫自己調整過的入口顯示與版型，保留商城頁的新文案和圖片。
+/// Merge only fields edited in the frontend draft; preserve newer store content.
 ModernStoreHomeSetting mergeStoreHomeDisplayDraft({
   required ModernStoreHomeSetting latest,
   required ModernStoreHomeSetting loaded,
   required ModernStoreHomeSetting draft,
-}) => latest.copyWith(
-  showStoreBanner: draft.showStoreBanner == loaded.showStoreBanner
-      ? null
-      : draft.showStoreBanner,
-  featuredProductLayout:
-      draft.featuredProductLayout == loaded.featuredProductLayout
-      ? null
-      : draft.featuredProductLayout,
-  storeEntryLayout: draft.storeEntryLayout == loaded.storeEntryLayout
-      ? null
-      : draft.storeEntryLayout,
-);
+}) {
+  final before = loaded.toMap();
+  return ModernStoreHomeSetting.fromMap({
+    ...latest.toMap(),
+    for (final entry in draft.toMap().entries)
+      if (entry.value != before[entry.key]) entry.key: entry.value,
+  });
+}

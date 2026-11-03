@@ -31,7 +31,7 @@ class HomeSectionSettingsGroup extends StatelessWidget {
               key: PageStorageKey<String>(storageId!),
               title: Text(title),
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              children: [content],
+              children: [_SectionContentStorage(child: content)],
             )
           : Padding(
               padding: const EdgeInsets.all(16),
@@ -49,4 +49,20 @@ class HomeSectionSettingsGroup extends StatelessWidget {
             ),
     );
   }
+}
+
+/// ExpansionTile stores a bool under its PageStorageKey. Descendant text-field
+/// scrollables must not restore that same entry as a double scroll offset.
+class _SectionContentStorage extends StatefulWidget {
+  const _SectionContentStorage({required this.child});
+  final Widget child;
+  @override
+  State<_SectionContentStorage> createState() => _SectionContentStorageState();
+}
+
+class _SectionContentStorageState extends State<_SectionContentStorage> {
+  final PageStorageBucket _bucket = PageStorageBucket();
+  @override
+  Widget build(BuildContext context) =>
+      PageStorage(bucket: _bucket, child: widget.child);
 }

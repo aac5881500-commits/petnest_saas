@@ -1,6 +1,4 @@
-import 'home_card_image.dart';
 import 'home_section_settings_group.dart';
-import 'home_end_entry_style_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
@@ -16,6 +14,7 @@ class ReviewSectionSettingsPanel extends StatefulWidget {
     required this.setting,
     required this.theme,
     required this.onChanged,
+    this.bannerAvailable = false,
     this.displayStyles,
     this.onDisplayStyles,
   });
@@ -23,6 +22,7 @@ class ReviewSectionSettingsPanel extends StatefulWidget {
   final HomeInformationSectionsSetting setting;
   final HomeThemeModel theme;
   final ValueChanged<HomeInformationSectionsSetting> onChanged;
+  final bool bannerAvailable;
   final HomeDisplayStyleSetting? displayStyles;
   final ValueChanged<HomeDisplayStyleSetting>? onDisplayStyles;
 
@@ -128,20 +128,23 @@ class _ReviewSectionSettingsPanelState
           _styleEditor(),
           const SizedBox(height: 12),
         ],
-        HomeDraftSwitch(
-          title: '首頁顯示',
-          value: setting.showOnHome,
-          onChanged: (bool value) {
-            _update(setting.copyWith(showOnHome: value));
-          },
-        ),
+        const Text('評價保持公開，可選擇獨立區塊或迷你入口。全部評價入口固定保留。'),
         const SizedBox(height: 8),
         const Text('展示版型', style: TextStyle(fontWeight: FontWeight.bold)),
         HomeSectionLayoutPicker(
           theme: widget.theme,
           selectedId: layout,
           onSelected: (String value) {
-            _update(setting.copyWith(layout: value));
+            _update(
+              setting.copyWith(
+                layout: value,
+                showOnHome: true,
+                showViewAll: true,
+                showImages:
+                    value == HomeReviewLayouts.carousel ||
+                    value == HomeReviewLayouts.featured,
+              ),
+            );
           },
           choices: <HomeSectionLayoutChoice>[
             for (final String item in HomeReviewLayouts.all)
@@ -159,11 +162,35 @@ class _ReviewSectionSettingsPanelState
         ),
         const SizedBox(height: 16),
         const Text('目前版型設定', style: TextStyle(fontWeight: FontWeight.bold)),
-        if (layout == HomeReviewLayouts.scoreCompact)
-          HomeCardImageSettings(
-            setting: setting.cardImage,
-            onChanged: (value) => _update(setting.copyWith(cardImage: value)),
+        if (layout == HomeReviewLayouts.mini) ...[
+          DropdownButtonFormField<String>(
+            initialValue: HomeReviewSectionSetting.placement(
+              setting.miniPlacement,
+            ),
+            decoration: const InputDecoration(labelText: '迷你評分位置'),
+            items: const [
+              DropdownMenuItem(value: 'bannerTopRight', child: Text('海報右上角')),
+              DropdownMenuItem(
+                value: 'bannerBottomRight',
+                child: Text('海報右下角'),
+              ),
+              DropdownMenuItem(value: 'inline', child: Text('獨立單行入口')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                _update(setting.copyWith(miniPlacement: value));
+              }
+            },
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              widget.bannerAvailable
+                  ? '已啟用的海報可顯示角落入口；點擊即可看全部評價。'
+                  : '目前沒有啟用的海報，角落模式會自動改為獨立單行入口。',
+            ),
+          ),
+        ],
         TextField(
           controller: _title,
           maxLength: 12,
@@ -186,93 +213,64 @@ class _ReviewSectionSettingsPanelState
             _update(setting.copyWith(subtitle: value.trim()));
           },
         ),
-        if (layout == HomeReviewLayouts.carousel)
-          HomeDraftCountChips(
-            label: '滑動則數',
-            values: const <int>[2, 3, 4, 5],
-            selected: HomeReviewSectionSetting.migrateCarouselCount(
-              setting.carouselCount,
+        if (layout != HomeReviewLayouts.mini) ...[
+          if (layout != HomeReviewLayouts.scoreCompact &&
+              layout != HomeReviewLayouts.featured)
+            HomeDraftCountChips(
+              label: '顯示評價則數',
+              values: const [2, 3, 4, 5],
+              selected: HomeReviewSectionSetting.migrateCarouselCount(
+                setting.carouselCount,
+              ),
+              onChanged: (value) =>
+                  _update(setting.copyWith(carouselCount: value)),
             ),
-            onChanged: (int value) {
-              _update(setting.copyWith(carouselCount: value));
-            },
+          HomeDraftCountChips(
+            label: '每則文字行數',
+            values: const [2, 3, 6, 12],
+            selected: setting.contentLines,
+            onChanged: (value) =>
+                _update(setting.copyWith(contentLines: value)),
           ),
-        if (layout == HomeReviewLayouts.carousel ||
-            layout == HomeReviewLayouts.featured ||
-            layout == HomeReviewLayouts.scoreAndLatest)
+          HomeDraftCountChips(
+            label: '評價字體大小',
+            values: const [12, 14, 16, 18],
+            selected: setting.textSize,
+            onChanged: (value) => _update(setting.copyWith(textSize: value)),
+          ),
           HomeDraftSwitch(
             title: '顯示顧客名稱',
             value: setting.showCustomerName,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showCustomerName: value));
-            },
+            onChanged: (value) =>
+                _update(setting.copyWith(showCustomerName: value)),
           ),
-        if (layout == HomeReviewLayouts.carousel ||
-            layout == HomeReviewLayouts.featured ||
-            layout == HomeReviewLayouts.scoreAndLatest)
           HomeDraftSwitch(
             title: '顯示日期',
             value: setting.showDate,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showDate: value));
-            },
+            onChanged: (value) => _update(setting.copyWith(showDate: value)),
           ),
-        if (layout == HomeReviewLayouts.carousel ||
-            layout == HomeReviewLayouts.featured ||
-            layout == HomeReviewLayouts.scoreAndLatest)
+          if (layout == HomeReviewLayouts.carousel ||
+              layout == HomeReviewLayouts.featured)
+            HomeDraftSwitch(
+              title: '顯示顧客上傳照片',
+              value: setting.showImages,
+              onChanged: (value) =>
+                  _update(setting.copyWith(showImages: value)),
+            ),
           HomeDraftSwitch(
-            title: '顯示評價圖片',
-            value: setting.showImages,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showImages: value));
-            },
-          ),
-        if (layout == HomeReviewLayouts.carousel ||
-            layout == HomeReviewLayouts.featured ||
-            layout == HomeReviewLayouts.scoreAndLatest)
-          HomeDraftSwitch(
-            title: '顯示店家已回覆',
+            title: layout == HomeReviewLayouts.scoreAndLatest
+                ? '顯示店家回覆內容'
+                : '顯示店家已回覆',
             value: setting.showReplyBadge,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showReplyBadge: value));
-            },
-          ),
-        if (layout == HomeReviewLayouts.carousel ||
-            layout == HomeReviewLayouts.featured ||
-            layout == HomeReviewLayouts.scoreAndLatest)
-          HomeDraftSwitch(
-            title: '顯示全部評價入口',
-            value: setting.showViewAll,
-            onChanged: (bool value) {
-              _update(setting.copyWith(showViewAll: value));
-            },
-          ),
-        if (layout == HomeReviewLayouts.carousel && setting.showViewAll)
-          HomeEndEntryStylePicker(
-            value: setting.endEntryStyle,
-            color: widget.theme.primaryColor,
-            label: '全部評價',
             onChanged: (value) =>
-                _update(setting.copyWith(endEntryStyle: value)),
+                _update(setting.copyWith(showReplyBadge: value)),
           ),
+        ],
         if (widget.onDisplayStyles != null)
           HomeSectionSettingsGroup(
             title: '進階外觀',
             storageId: 'review-section-advanced-appearance',
             children: [_styleEditor()],
-          ),
-        HomeDraftSwitch(
-          title: '保留住宿服務快捷入口',
-          subtitle: '控制我們的服務中的入口，與首頁獨立展示分開設定。',
-          value: setting.keepServiceEntry,
-          onChanged: (bool value) {
-            _update(setting.copyWith(keepServiceEntry: value));
-          },
-        ),
-        if (!setting.showOnHome && !setting.keepServiceEntry)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(kHomeInfoHiddenEntryMessage),
           ),
       ],
     );

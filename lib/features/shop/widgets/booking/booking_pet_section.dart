@@ -1,3 +1,6 @@
+import 'booking_template_pet_grid.dart';
+import 'booking_pet_choice.dart';
+import 'booking_appearance_scope.dart';
 import 'package:petnest_saas/core/models/pet_species.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_pet_section.dart
 // 功能說明：前台預約寵物選擇區塊：顯示我的寵物、新增寵物、選擇入住寵物
@@ -235,6 +238,17 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                                 color: theme.textColor.withValues(alpha: 0.7),
                               ),
                             )
+                          else if (const [
+                            'cream',
+                            'house',
+                          ].contains(BookingAppearanceScope.of(context).style))
+                            BookingTemplatePetGrid(
+                              style: BookingAppearanceScope.of(context).style,
+                              pets: pets,
+                              selectedIds: widget.selectedPetIds,
+                              theme: theme,
+                              onToggle: widget.onTogglePet,
+                            )
                           else
                             Wrap(
                               spacing: 8,
@@ -245,6 +259,17 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                                 final bool selected = widget.selectedPetIds
                                     .contains(petId);
 
+                                if (BookingAppearanceScope.of(context).style ==
+                                    'soft') {
+                                  return BookingPetChoice(
+                                    pet: pet,
+                                    selected: selected,
+                                    theme: theme,
+                                    portrait: true,
+                                    onSelected: (value) =>
+                                        widget.onTogglePet(petId, value),
+                                  );
+                                }
                                 return FilterChip(
                                   avatar: CircleAvatar(
                                     backgroundColor: Colors.grey.shade200,

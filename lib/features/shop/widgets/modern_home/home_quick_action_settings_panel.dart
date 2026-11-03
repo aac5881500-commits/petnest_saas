@@ -175,6 +175,48 @@ class FrontendRoleActionsPanel extends StatelessWidget {
                   color: Colors.black54,
                 ),
               ),
+              const Text(
+                '右上角圖示大小（含通知鈴鐺）',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final entry in const {
+                    'small': '小',
+                    'medium': '中',
+                    'large': '大',
+                  }.entries)
+                    ChoiceChip(
+                      label: Text('圖示${entry.value}'),
+                      selected: quickActions.iconSize == entry.key,
+                      onSelected: (_) => onQuickActions(
+                        quickActions.copyWith(iconSize: entry.key),
+                      ),
+                    ),
+                ],
+              ),
+              const Text(
+                '右上角按鈕外觀',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final entry in const {
+                    'plain': '無外框',
+                    'capsule': '膠囊外框',
+                    'circles': '獨立圓形',
+                  }.entries)
+                    ChoiceChip(
+                      label: Text(entry.value),
+                      selected: quickActions.containerStyle == entry.key,
+                      onSelected: (_) => onQuickActions(
+                        quickActions.copyWith(containerStyle: entry.key),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 14),
               const Text(
                 '右上角快捷鍵',

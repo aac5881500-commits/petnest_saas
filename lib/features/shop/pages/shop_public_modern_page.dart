@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/home_desktop_layout_setting.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/home_desktop_layout.dart';
 import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
 import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_entry_access_error.dart';
@@ -895,11 +897,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           hasContent: faqItems.isNotEmpty,
         );
         final HomeInfoSectionPhase reviewPhase = resolveHomeInfoPhase(
-          showOnHome: informationSections.reviews.showOnHome,
+          showOnHome: true,
           editorPreview: editorPreview,
           ready: _reviewsReady,
           failed: _reviewsFailed,
-          hasContent: reviewItems.isNotEmpty,
+          hasContent: true,
         );
         final HomeQuickBookingSectionSetting quickBookingSection =
             HomeQuickBookingSectionSetting.fromMap(
@@ -947,9 +949,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               (editorPreview || faqItems.isNotEmpty) &&
               homeInfoOccupiesSection(faqPhase) &&
               visibility.shows(HomeSharedEntrySources.faq),
-          showReviews:
-              homeInfoOccupiesSection(reviewPhase) &&
-              visibility.shows(HomeSharedEntrySources.reviews),
+          showReviews: !informationSections.reviews.overlaysBanner(
+            banners.isNotEmpty,
+          ),
           showQuickBooking:
               visibility.shows(HomeSharedEntrySources.quickBooking) &&
               homeQuickBookingVisible(
@@ -1025,155 +1027,172 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           );
         }
 
+        final desktopLayout = HomeDesktopLayoutSetting.fromMap(
+          modernAppearance[HomeDesktopLayoutSetting.mapKey],
+        );
         if (widget.layoutCanvas) {
-          return _buildLayoutCanvas(
-            shop: shop,
-            shopName: shopName,
-            theme: modernTheme,
-            navigation: navigation,
-            navShop: navShop,
-            embeddedPreview: embeddedPreview,
-            useBottomBar: useBottomBar,
-            sectionOrder: sectionOrder,
-            visibleSectionIds: visibleSections,
-            spanOf: spanOf,
-            buildSection: sectionBody,
+          return HomeDesktopLayoutFrame(
+            setting: desktopLayout,
+            background: modernTheme.backgroundColor,
+            child: _buildLayoutCanvas(
+              shop: shop,
+              shopName: shopName,
+              theme: modernTheme,
+              navigation: navigation,
+              navShop: navShop,
+              embeddedPreview: embeddedPreview,
+              useBottomBar: useBottomBar,
+              sectionOrder: sectionOrder,
+              visibleSectionIds: visibleSections,
+              spanOf: spanOf,
+              buildSection: sectionBody,
+            ),
           );
         }
 
-        return Scaffold(
-          extendBody: useBottomBar && !_shopInfoSetting.isFixed(useBottomBar),
-          backgroundColor: modernTheme.backgroundColor,
+        return HomeDesktopLayoutFrame(
+          setting: desktopLayout,
+          background: modernTheme.backgroundColor,
+          child: Scaffold(
+            extendBody: useBottomBar && !_shopInfoSetting.isFixed(useBottomBar),
+            backgroundColor: modernTheme.backgroundColor,
 
-          drawer: useBottomBar
-              ? null
-              : _modernDrawer(
-                  shop: shop,
-                  theme: modernTheme,
-                  navigation: navigation,
-                  embeddedPreview: embeddedPreview,
-                ),
-          bottomNavigationBar: _bottomArea(
-            shop: shop,
-            shopName: shopName,
-            theme: modernTheme,
-            useBottomBar: useBottomBar,
-            navigationBar: useBottomBar
-                ? _bottomBar(
+            drawer: useBottomBar
+                ? null
+                : _modernDrawer(
                     shop: shop,
                     theme: modernTheme,
                     navigation: navigation,
-                    shopState: navShop,
                     embeddedPreview: embeddedPreview,
-                  )
-                : null,
-          ),
+                  ),
+            bottomNavigationBar: _bottomArea(
+              shop: shop,
+              shopName: shopName,
+              theme: modernTheme,
+              useBottomBar: useBottomBar,
+              navigationBar: useBottomBar
+                  ? _bottomBar(
+                      shop: shop,
+                      theme: modernTheme,
+                      navigation: navigation,
+                      shopState: navShop,
+                      embeddedPreview: embeddedPreview,
+                    )
+                  : null,
+            ),
 
-          body: SafeArea(
-            bottom: false,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(child: ShopAppBackdrop(theme: modernTheme)),
-                Positioned.fill(
-                  child: Column(
-                    children: <Widget>[
-                      StoreBrandTopBar(
-                        style: brandStyle,
-                        shopName: shopName,
-                        subtitle: headerSubtitle,
-                        logoUrl: logoUrl,
-                        theme: modernTheme,
-                        backgroundColor: modernTheme.backgroundColor,
-                        leading: _brandLeading(
-                          hideMenu: useBottomBar,
-                          textColor: modernTheme.textColor,
+            body: SafeArea(
+              bottom: false,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(child: ShopAppBackdrop(theme: modernTheme)),
+                  Positioned.fill(
+                    child: Column(
+                      children: <Widget>[
+                        StoreBrandTopBar(
+                          style: brandStyle,
+                          shopName: shopName,
+                          subtitle: headerSubtitle,
+                          logoUrl: logoUrl,
+                          theme: modernTheme,
+                          backgroundColor: modernTheme.backgroundColor,
+                          leading: _brandLeading(
+                            hideMenu: useBottomBar,
+                            textColor: modernTheme.textColor,
+                          ),
+                          actions: quickActionBar,
+                          actionsAtStart: quickActions.atStart,
                         ),
-                        actions: quickActionBar,
-                        actionsAtStart: quickActions.atStart,
-                      ),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final screenHeight = constraints.maxHeight;
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final screenHeight = constraints.maxHeight;
 
-                            // 含精選商品與賣場 Banner 後的首頁估算高度
-                            const estimatedContentHeight = 1120.0;
+                              // 含精選商品與賣場 Banner 後的首頁估算高度
+                              const estimatedContentHeight = 1120.0;
 
-                            final canScroll =
-                                estimatedContentHeight > screenHeight;
+                              final canScroll =
+                                  estimatedContentHeight > screenHeight;
 
-                            return ListView(
-                              controller: _homeScroll,
-                              primary: false,
-                              physics:
-                                  canScroll ||
-                                      useBottomBar ||
-                                      _shopInfoSetting.enabled
-                                  ? const BouncingScrollPhysics()
-                                  : const NeverScrollableScrollPhysics(),
-                              padding: EdgeInsets.fromLTRB(
-                                12,
-                                5,
-                                12,
-                                useBottomBar &&
-                                        !_shopInfoSetting.isFixed(useBottomBar)
-                                    ? ModernBottomNavigation.contentClearance(
-                                        navigation.bottomAppearance,
-                                        MediaQuery.paddingOf(context).bottom,
-                                      )
-                                    : 12,
-                              ),
-                              children: <Widget>[
-                                ...buildHomeSectionRows(
-                                  sectionIds: visibleSections,
-                                  spanOf: spanOf,
-                                  gap: constraints.maxWidth < 760 ? 8 : 10,
-                                  itemBuilder: sectionBody,
+                              return ListView(
+                                controller: _homeScroll,
+                                primary: false,
+                                physics:
+                                    canScroll ||
+                                        useBottomBar ||
+                                        _shopInfoSetting.enabled
+                                    ? const BouncingScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                padding: EdgeInsets.fromLTRB(
+                                  12,
+                                  5,
+                                  12,
+                                  useBottomBar &&
+                                          !_shopInfoSetting.isFixed(
+                                            useBottomBar,
+                                          )
+                                      ? ModernBottomNavigation.contentClearance(
+                                          navigation.bottomAppearance,
+                                          MediaQuery.paddingOf(context).bottom,
+                                        )
+                                      : 12,
                                 ),
-                                if (_shopInfoSetting.enabled &&
-                                    !_shopInfoSetting.isFixed(
-                                      useBottomBar,
-                                    )) ...<Widget>[
-                                  const SizedBox(height: 8),
-                                  sectionBody('shopInfo'),
+                                children: <Widget>[
+                                  ...buildHomeSectionRows(
+                                    sectionIds: visibleSections,
+                                    spanOf: spanOf,
+                                    gap:
+                                        HomeDesktopLayoutScope.maybeOf(
+                                          context,
+                                        )?.sectionGap ??
+                                        (constraints.maxWidth < 760 ? 8 : 10),
+                                    itemBuilder: sectionBody,
+                                  ),
+                                  if (_shopInfoSetting.enabled &&
+                                      !_shopInfoSetting.isFixed(
+                                        useBottomBar,
+                                      )) ...<Widget>[
+                                    const SizedBox(height: 8),
+                                    sectionBody('shopInfo'),
+                                  ],
                                 ],
-                              ],
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                FloatingContactButton(
-                  shop: shop,
-                  shopId: widget.shopId,
-                  isPreview: widget.isPreview || widget.layoutCanvas,
-                  bottomBarHeight:
-                      useBottomBar && !_shopInfoSetting.isFixed(useBottomBar)
-                      ? ModernBottomNavigation.slotHeight(
-                          navigation.bottomAppearance,
-                          MediaQuery.paddingOf(context).bottom,
-                        )
-                      : 0,
-                  peerRect: _menuRect,
-                  ownRect: _contactRect,
-                ),
-                if (useBottomBar &&
-                    showHomeShopMenu(
-                      layoutCanvas: widget.layoutCanvas,
-                      isPreview: widget.isPreview,
-                    ))
-                  _shopMenuButton(
+                  FloatingContactButton(
                     shop: shop,
-                    shopName: shopName,
-                    theme: modernTheme,
-                    navigation: navigation,
-                    embeddedPreview: embeddedPreview,
+                    shopId: widget.shopId,
+                    isPreview: widget.isPreview || widget.layoutCanvas,
+                    bottomBarHeight:
+                        useBottomBar && !_shopInfoSetting.isFixed(useBottomBar)
+                        ? ModernBottomNavigation.slotHeight(
+                            navigation.bottomAppearance,
+                            MediaQuery.paddingOf(context).bottom,
+                          )
+                        : 0,
+                    peerRect: _menuRect,
+                    ownRect: _contactRect,
                   ),
-              ],
+                  if (useBottomBar &&
+                      showHomeShopMenu(
+                        layoutCanvas: widget.layoutCanvas,
+                        isPreview: widget.isPreview,
+                      ))
+                    _shopMenuButton(
+                      shop: shop,
+                      shopName: shopName,
+                      theme: modernTheme,
+                      navigation: navigation,
+                      embeddedPreview: embeddedPreview,
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -1570,11 +1589,48 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           theme: theme,
         ).buildDock(context, pull: true);
       case 'banners':
-        return _buildBannerSection(
+        final banner = _buildBannerSection(
           shop: shop,
           banners: banners,
           theme: theme,
           frameSetting: frameSetting,
+        );
+        if (!informationSections.reviews.overlaysBanner(banners.isNotEmpty)) {
+          return banner;
+        }
+        return Stack(
+          children: [
+            banner,
+            Positioned(
+              right: 18,
+              top:
+                  informationSections.reviews.miniPlacement ==
+                      'bannerBottomRight'
+                  ? null
+                  : 12,
+              bottom:
+                  informationSections.reviews.miniPlacement ==
+                      'bannerBottomRight'
+                  ? 32
+                  : null,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 230),
+                child: ModernReviewSection(
+                  theme: theme,
+                  setting: informationSections.reviews,
+                  reviews: reviewItems,
+                  phase: _reviewsFailed
+                      ? HomeInfoSectionPhase.unavailable
+                      : !_reviewsReady
+                      ? HomeInfoSectionPhase.loading
+                      : HomeInfoSectionPhase.ready,
+                  onOpen: () => _openPage(
+                    ShopReviewListPage(shopId: widget.shopId, theme: theme),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       case 'about':
         return ModernHomeAboutSection(
@@ -1738,9 +1794,17 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             baseline: HomeDisplayStyle.classic,
           ),
           theme: theme,
-          setting: informationSections.reviews,
+          setting: informationSections.reviews.showOnHome
+              ? informationSections.reviews
+              : informationSections.reviews.copyWith(
+                  layout: HomeReviewLayouts.mini,
+                ),
           reviews: reviewItems,
-          phase: reviewPhase,
+          phase: _reviewsFailed
+              ? HomeInfoSectionPhase.unavailable
+              : !_reviewsReady
+              ? HomeInfoSectionPhase.loading
+              : HomeInfoSectionPhase.ready,
           onOpen: () {
             _openPage(ShopReviewListPage(shopId: widget.shopId, theme: theme));
           },
@@ -1819,18 +1883,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             focusSectionToken: widget.focusSectionToken,
             buildSection: buildSection,
           ),
-          if (!useBottomBar && widget.canvasMode.startsWith('navigation'))
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Builder(
-                builder: (context) => FilledButton.tonalIcon(
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  icon: const Icon(Icons.menu),
-                  label: const Text('查看選單'),
-                ),
-              ),
-            ),
           FloatingContactButton(
             shop: shop,
             shopId: widget.shopId,
@@ -1922,38 +1974,55 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       );
     }
     final bool composeLive = widget.isPreview && !widget.layoutCanvas;
-    return ModernHomeBannerCarousel(
-      key: ValueKey<String>(
-        widget.layoutCanvas
-            ? '${widget.canvasMode}_banners_${widget.shopId}'
-            : 'modern-home-banner-${widget.shopId}',
-      ),
-      scrollStorageKey: widget.layoutCanvas
-          ? '${widget.canvasMode}_banner_pager_${widget.shopId}'
-          : 'modern-home-banner-pageview',
-      banners: banners,
-      theme: theme,
-      frameSetting: frameSetting,
-      liveComposeBannerId: composeLive ? widget.initialPreviewBannerId : null,
-      initialBannerId: widget.initialPreviewBannerId,
-      onComposeChanged: composeLive ? widget.onPreviewBannerChanged : null,
-      onComposeTextSelected: composeLive ? widget.onPreviewTextSelected : null,
-      onComposeCtaSelected: composeLive ? widget.onPreviewCtaSelected : null,
-      composeImageBytes: composeLive ? widget.previewImageBytes : null,
-      composeSelectedTextId: composeLive ? widget.previewSelectedTextId : null,
-      composeCtaSelected: composeLive && widget.previewCtaSelected,
-      onBannerTap: widget.isPreview
-          ? null
-          : (StoreBannerModel banner) {
-              HomeBannerNavigation.open(
-                context: context,
-                shopId: widget.shopId,
-                shop: shop,
-                theme: theme,
-                banner: banner,
-                useModernDrawer: true,
-              );
-            },
+    return LayoutBuilder(
+      builder: (context, c) {
+        final desktop = HomeDesktopLayoutScope.maybeOf(context);
+        return ModernHomeBannerCarousel(
+          completePosterFitOverride: desktop == null ? null : BoxFit.scaleDown,
+          frameAspectRatioOverride: desktop == null
+              ? null
+              : c.maxWidth / desktop.bannerHeight,
+          key: ValueKey<String>(
+            widget.layoutCanvas
+                ? '${widget.canvasMode}_banners_${widget.shopId}'
+                : 'modern-home-banner-${widget.shopId}',
+          ),
+          scrollStorageKey: widget.layoutCanvas
+              ? '${widget.canvasMode}_banner_pager_${widget.shopId}'
+              : 'modern-home-banner-pageview',
+          banners: banners,
+          theme: theme,
+          frameSetting: frameSetting,
+          liveComposeBannerId: composeLive
+              ? widget.initialPreviewBannerId
+              : null,
+          initialBannerId: widget.initialPreviewBannerId,
+          onComposeChanged: composeLive ? widget.onPreviewBannerChanged : null,
+          onComposeTextSelected: composeLive
+              ? widget.onPreviewTextSelected
+              : null,
+          onComposeCtaSelected: composeLive
+              ? widget.onPreviewCtaSelected
+              : null,
+          composeImageBytes: composeLive ? widget.previewImageBytes : null,
+          composeSelectedTextId: composeLive
+              ? widget.previewSelectedTextId
+              : null,
+          composeCtaSelected: composeLive && widget.previewCtaSelected,
+          onBannerTap: widget.isPreview
+              ? null
+              : (StoreBannerModel banner) {
+                  HomeBannerNavigation.open(
+                    context: context,
+                    shopId: widget.shopId,
+                    shop: shop,
+                    theme: theme,
+                    banner: banner,
+                    useModernDrawer: true,
+                  );
+                },
+        );
+      },
     );
   }
 }

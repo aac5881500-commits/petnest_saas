@@ -8285,6 +8285,14 @@ match /legal_pet_license_links/{linkId} {
 
     // 🚫 其他全部拒絕
 
+    // Platform merchant orders and short-lived checkout authorizations are
+    // backend-only. Neither owners nor staff can forge paid receipts.
+    match /platform_billing_orders/{billingId} { allow read, write: if false; }
+    match /platform_billing_accounts/{billingId} { allow read, write: if false; }
+    match /platform_billing_requests/{billingId} { allow read, write: if false; }
+    match /platform_billing_test_receipts/{billingId} { allow read, write: if false; }
+    match /platform_billing_state/{billingId} { allow read, write: if false; }
+
     match /{document=**} {
 
       allow read, write: if false;

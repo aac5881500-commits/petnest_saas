@@ -194,6 +194,8 @@ class _EnvironmentSectionSettingsPanelState
                       child: _choice(
                         layout: layout,
                         description: switch (layout) {
+                          HomeEnvironmentLayouts.featureCards =>
+                            '同步環境介紹的特色圖示、標題與短說明。',
                           HomeEnvironmentLayouts.facilityScroll =>
                             '展示已選設備，列表末端入口可查看完整環境。',
                           HomeEnvironmentLayouts.simpleEntry =>
@@ -209,7 +211,39 @@ class _EnvironmentSectionSettingsPanelState
           ),
         ]),
         _card('目前版型設定', [
-          if (setting.layout == HomeEnvironmentLayouts.facilityScroll) ...[
+          if (setting.layout == HomeEnvironmentLayouts.featureCards) ...[
+            const Text('內容引用環境介紹管理的特色卡片，不需在首頁重複輸入。'),
+            TextButton(
+              onPressed: widget.onManage,
+              child: const Text('管理環境特色與圖片'),
+            ),
+            const Text('首頁顯示特色數量'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final n in [1, 2, 3])
+                  ChoiceChip(
+                    label: Text('$n 張'),
+                    selected: setting.facilityLimit == n,
+                    onSelected: (_) =>
+                        _update(setting.copyWith(facilityLimit: n)),
+                  ),
+              ],
+            ),
+            SwitchListTile(
+              title: const Text('顯示卡片外框'),
+              value:
+                  setting.simpleSurface != HomeEnvironmentSurfaces.transparent,
+              onChanged: (v) => _update(
+                setting.copyWith(
+                  simpleSurface: v
+                      ? HomeEnvironmentSurfaces.outlined
+                      : HomeEnvironmentSurfaces.transparent,
+                ),
+              ),
+            ),
+          ] else if (setting.layout ==
+              HomeEnvironmentLayouts.facilityScroll) ...[
             _label('首頁顯示設備數量'),
             Wrap(
               spacing: 8,

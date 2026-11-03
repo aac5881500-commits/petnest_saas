@@ -1,3 +1,5 @@
+import '../widgets/environment/environment_photo.dart';
+import 'package:petnest_saas/core/models/environment_layout_settings.dart';
 import '../data/environment_feature_icons.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_environment_page.dart
@@ -250,6 +252,14 @@ Widget environmentIntroNetworkImage({
   double? height,
   BoxFit fit = BoxFit.cover,
 }) {
+  if (EnvironmentBuiltinPhotos.id(imageUrl) != null) {
+    return EnvironmentPhoto(
+      imageUrl: imageUrl,
+      width: width,
+      height: height,
+      fit: fit,
+    );
+  }
   return Image.network(
     imageUrl,
     width: width,

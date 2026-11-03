@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/platform/widgets/public_shop_entry_gate.dart';
 import 'package:petnest_saas/core/models/shop_map_location.dart';
 import 'package:petnest_saas/features/platform/models/public_map_shop.dart';
 import 'platform_shop_map_page.dart';
@@ -93,18 +94,33 @@ class _PlatformShopListPageState extends State<PlatformShopListPage> {
     );
   }
 
+  bool _openingShop = false;
   Future<void> _openShop(String shopId) async {
-    try {
-      await ShopSharingService.instance.selectPublicShop(shopId);
-    } catch (_) {
-      if (mounted) _toast('暫時無法切換店家，請稍後重試');
+    if (_openingShop) {
+      _toast('店家仍在載入，請稍候');
       return;
     }
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => ShopPublicPage(shopId: shopId)),
-    );
+    _openingShop = true;
+    Future<void>? selecting;
+    try {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => PublicShopEntryGate(
+            prepare: () => selecting = ShopSharingService.instance
+                .selectPublicShop(shopId),
+            shopBuilder: (_) => ShopPublicPage(shopId: shopId),
+          ),
+        ),
+      );
+    } finally {
+      // A back gesture does not cancel the server request. Do not race a
+      // second shop selection against an unfinished previous selection.
+      try {
+        await selecting;
+      } catch (_) {}
+      _openingShop = false;
+    }
   }
 
   void _bookAgain(String shopId) {

@@ -1,3 +1,6 @@
+import 'home_desktop_layout.dart';
+import 'editorial_section_widgets.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -42,6 +45,20 @@ class ModernShopFooter extends StatelessWidget {
   Color get border =>
       setting.followTheme ? borderColor : accent.withValues(alpha: 0.25);
   String value(String key) => (shop[key] ?? '').toString().trim();
+  String get introduction =>
+      setting.introText ??
+      (value('aboutDescription').isNotEmpty
+          ? value('aboutDescription')
+          : value('description').isNotEmpty
+          ? value('description')
+          : value('aboutSubtitle'));
+  List<String> get contactIds => [
+    'phone',
+    'map',
+    'line',
+    if (value('igUrl').isNotEmpty) 'instagram',
+    if (value('fbUrl').isNotEmpty) 'facebook',
+  ];
   String get address => [
     'city',
     'district',
@@ -217,13 +234,37 @@ class ModernShopFooter extends StatelessWidget {
   );
 
   Widget _info(BuildContext context, String image, VoidCallback? onClose) {
+    if (setting.layout == 'photoContact') {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onClose != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: '關閉店家資訊',
+                onPressed: onClose,
+                icon: Icon(Icons.close, color: ink),
+              ),
+            ),
+          _photoContact(image),
+        ],
+      );
+    }
+    if (const [
+      'infoActions',
+      'brandColumns',
+      'photoDetails',
+      'brandSplit',
+      'photoThree',
+      'photoRight',
+      'editorialPhoto',
+    ].contains(setting.layout)) {
+      return _composedInfo(context, image, onClose);
+    }
     final hasImage = setting.imageSource != 'none' && setting.layout != 'plain';
     final centered = setting.layout == 'centered';
-    final intro = value('aboutDescription').isNotEmpty
-        ? value('aboutDescription')
-        : value('description').isNotEmpty
-        ? value('description')
-        : value('aboutSubtitle');
+    final intro = introduction;
     final identity = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: centered
@@ -272,23 +313,31 @@ class ModernShopFooter extends StatelessWidget {
       'tax': Icons.receipt_long_outlined,
     };
     final actions = <Widget>[
-      if (value('phone').isNotEmpty)
-        _action('撥打電話', Icons.phone_outlined, () => _callPhone(value('phone'))),
-      if (address.isNotEmpty)
-        _action('開啟地圖', Icons.near_me_outlined, () => _openMap(address)),
-      if (value('lineUrl').isNotEmpty)
+      if (contactIds.contains('phone') && value('phone').isNotEmpty)
         _action(
-          'LINE',
+          setting.phoneLabel,
+          Icons.phone_outlined,
+          () => _callPhone(value('phone')),
+        ),
+      if (contactIds.contains('map') && address.isNotEmpty)
+        _action(
+          setting.mapLabel,
+          Icons.near_me_outlined,
+          () => _openMap(address),
+        ),
+      if (contactIds.contains('line') && value('lineUrl').isNotEmpty)
+        _action(
+          setting.lineLabel,
           FontAwesomeIcons.line,
           () => _openUrl(value('lineUrl')),
         ),
-      if (value('igUrl').isNotEmpty)
+      if (contactIds.contains('instagram') && value('igUrl').isNotEmpty)
         _action(
           'Instagram',
           FontAwesomeIcons.instagram,
           () => _openUrl(value('igUrl')),
         ),
-      if (value('fbUrl').isNotEmpty)
+      if (contactIds.contains('facebook') && value('fbUrl').isNotEmpty)
         _action(
           'Facebook',
           FontAwesomeIcons.facebookF,
@@ -340,7 +389,7 @@ class ModernShopFooter extends StatelessWidget {
         else
           identity,
         const SizedBox(height: 16),
-        for (final key in setting.fields)
+        for (final key in setting.orderedFields)
           if ((values[key] ?? '').isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -384,6 +433,737 @@ class ModernShopFooter extends StatelessWidget {
       ],
     );
   }
+
+  Widget _composedInfo(
+    BuildContext context,
+    String image,
+    VoidCallback? onClose,
+  ) => LayoutBuilder(
+    builder: (context, c) {
+      final u = (c.maxWidth / 500).clamp(.78, 1.15).toDouble();
+      final gap = 12 * u;
+      final intro = introduction;
+      Widget identity() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (setting.showName)
+            Row(
+              children: [
+                if (setting.imageSource == 'logo') ...[
+                  SizedBox(
+                    width: 34 * u,
+                    height: 34 * u,
+                    child: sectionPhoto(image, fit: BoxFit.contain),
+                  ),
+                  SizedBox(width: 6 * u),
+                ],
+                Expanded(
+                  child: Text(
+                    shopName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 19 * u,
+                      height: 1.3,
+                      fontWeight: FontWeight.w800,
+                      color: ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          if (setting.showIntro && intro.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: 5 * u),
+              child: Text(
+                intro,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12 * u, height: 1.45, color: muted),
+              ),
+            ),
+        ],
+      );
+      final fieldValues = <String, String>{
+        'hours': hours,
+        'address': address,
+        'phone': value('phone'),
+        'license': value('licenseNumber'),
+        'tax': shop['showTaxId'] == true ? value('taxId') : '',
+      };
+      final fieldIcons = <String, IconData>{
+        'hours': Icons.schedule_outlined,
+        'address': Icons.location_on_outlined,
+        'phone': Icons.phone_outlined,
+        'license': Icons.verified_outlined,
+        'tax': Icons.receipt_long_outlined,
+      };
+      Widget details() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final key in setting.orderedFields)
+            if ((fieldValues[key] ?? '').isNotEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 4 * u),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(fieldIcons[key], size: 18 * u, color: ink),
+                    SizedBox(width: 7 * u),
+                    Expanded(
+                      child: Text(
+                        '${HomeShopInfoSetting.fieldLabels[key]}  ${fieldValues[key]}',
+                        style: TextStyle(
+                          fontSize: 13 * u,
+                          height: 1.45,
+                          color: ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        ],
+      );
+      Widget photo({double? width, double? height}) {
+        if (setting.imageSource == 'none' || setting.imageSource == 'logo') {
+          return const SizedBox.shrink();
+        }
+        Widget pic = SizedBox(
+          width: width,
+          height: height ?? 132 * u,
+          child: sectionPhoto(
+            image,
+            fit: setting.imageFit == 'contain' ? BoxFit.contain : BoxFit.cover,
+          ),
+        );
+        if (setting.photoShape == 'circle') return ClipOval(child: pic);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(
+            setting.photoShape == 'square' ? 0 : setting.radius / 2,
+          ),
+          child: pic,
+        );
+      }
+
+      Widget action(String id) {
+        final label = switch (id) {
+          'phone' => setting.phoneLabel,
+          'map' => setting.mapLabel,
+          'line' => setting.lineLabel,
+          'instagram' => 'Instagram',
+          _ => 'Facebook',
+        };
+        final target = switch (id) {
+          'phone' => value('phone'),
+          'map' => address,
+          'line' => value('lineUrl'),
+          'instagram' => value('igUrl'),
+          _ => value('fbUrl'),
+        };
+        final Object icon = switch (id) {
+          'phone' => Icons.phone,
+          'map' => Icons.location_on,
+          'line' => FontAwesomeIcons.line,
+          'instagram' => FontAwesomeIcons.instagram,
+          _ => FontAwesomeIcons.facebookF,
+        };
+        final color = setting.buttonStyle == 'mixed' && id == 'line'
+            ? const Color(0xFF06B854)
+            : accent;
+        final filled =
+            setting.buttonStyle == 'filled' ||
+            (setting.buttonStyle == 'mixed' && id != 'map');
+        final light = setting.buttonStyle == 'light';
+        final fill = light
+            ? Colors.white
+            : filled
+            ? color
+            : Colors.transparent;
+        final fg = light
+            ? (id == 'line' ? const Color(0xFF06B854) : accent)
+            : filled
+            ? (ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+                  ? Colors.white
+                  : const Color(0xFF16344B))
+            : ink;
+        Widget glyph(double size) => icon is IconData
+            ? Icon(icon, size: size, color: fg)
+            : FaIcon(icon as FaIconData, size: size, color: fg);
+        final circle = setting.actionPresentation == 'circle';
+        final tile = setting.actionPresentation == 'tile';
+        Widget body;
+        if (circle || tile) {
+          body = Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 46 * u,
+                height: 46 * u,
+                decoration: BoxDecoration(
+                  color: fill,
+                  shape: BoxShape.circle,
+                  border: setting.buttonStyle == 'text'
+                      ? null
+                      : Border.all(color: color.withValues(alpha: .45)),
+                ),
+                child: Center(child: glyph(23 * u)),
+              ),
+              SizedBox(height: 5 * u),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(fontSize: 11 * u, color: ink),
+                ),
+              ),
+            ],
+          );
+          if (tile) {
+            body = Container(
+              padding: EdgeInsets.symmetric(vertical: 8 * u, horizontal: 4 * u),
+              decoration: BoxDecoration(
+                border: Border.all(color: border),
+                borderRadius: BorderRadius.circular(
+                  setting.radius == 0 ? 18 : setting.radius,
+                ),
+              ),
+              child: body,
+            );
+          }
+        } else {
+          body = Container(
+            padding: EdgeInsets.symmetric(vertical: 9 * u, horizontal: 5 * u),
+            decoration: BoxDecoration(
+              color: fill,
+              border: setting.buttonStyle == 'text'
+                  ? null
+                  : Border.all(color: color.withValues(alpha: .5)),
+              borderRadius: BorderRadius.circular(
+                setting.actionPresentation == 'pill' ? 99 : 10,
+              ),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  glyph(17 * u),
+                  SizedBox(width: 4 * u),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 11 * u,
+                      color: fg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return Semantics(
+          button: true,
+          enabled: target.isNotEmpty && !isPreview,
+          label: label,
+          child: Opacity(
+            opacity: target.isEmpty ? .4 : 1,
+            child: InkWell(
+              onTap: target.isEmpty || isPreview
+                  ? null
+                  : () {
+                      if (id == 'phone') {
+                        _callPhone(target);
+                      } else if (id == 'map') {
+                        _openMap(target);
+                      } else {
+                        _openUrl(target);
+                      }
+                    },
+              borderRadius: BorderRadius.circular(12),
+              child: body,
+            ),
+          ),
+        );
+      }
+
+      Widget actions() {
+        if (!setting.showActions || contactIds.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final items = [for (final id in contactIds) action(id)];
+        if (setting.actionLayout == 'vertical') {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) SizedBox(height: 6 * u),
+                items[i],
+              ],
+            ],
+          );
+        }
+        if (setting.actionLayout == 'wrap') {
+          return Wrap(
+            spacing: 6 * u,
+            runSpacing: 6 * u,
+            children: [
+              for (final item in items) SizedBox(width: 88 * u, child: item),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < items.length; i++) ...[
+              if (i > 0) SizedBox(width: 5 * u),
+              Expanded(child: items[i]),
+            ],
+          ],
+        );
+      }
+
+      Widget content() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          identity(),
+          SizedBox(height: 6 * u),
+          details(),
+        ],
+      );
+      Widget infoAndActions() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          content(),
+          SizedBox(height: 8 * u),
+          actions(),
+        ],
+      );
+      final hasPhoto =
+          setting.imageSource != 'none' && setting.imageSource != 'logo';
+      final width = c.maxWidth;
+      Widget body;
+      switch (setting.layout) {
+        case 'infoActions':
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!setting.showName && setting.sectionTitle.isNotEmpty) ...[
+                Text(
+                  setting.sectionTitle,
+                  style: TextStyle(
+                    fontSize: 19 * u,
+                    color: ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: gap),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(flex: 6, child: content()),
+                  Container(
+                    width: 1,
+                    height: 70 * u,
+                    color: border,
+                    margin: EdgeInsets.symmetric(horizontal: gap),
+                  ),
+                  Expanded(flex: 5, child: actions()),
+                ],
+              ),
+            ],
+          );
+        case 'brandColumns':
+          body = width < 360
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identity(),
+                    SizedBox(height: gap),
+                    Row(
+                      children: [
+                        Expanded(child: details()),
+                        SizedBox(width: gap),
+                        Expanded(child: actions()),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(flex: 4, child: identity()),
+                    Container(
+                      width: 1,
+                      height: 75 * u,
+                      color: border,
+                      margin: EdgeInsets.symmetric(horizontal: gap),
+                    ),
+                    Expanded(flex: 5, child: details()),
+                    SizedBox(width: gap),
+                    Expanded(flex: 5, child: actions()),
+                  ],
+                );
+        case 'brandSplit':
+          body = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 5, child: identity()),
+              Container(
+                width: 1,
+                height: 85 * u,
+                color: border,
+                margin: EdgeInsets.symmetric(horizontal: gap),
+              ),
+              Expanded(
+                flex: 6,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    details(),
+                    SizedBox(height: gap),
+                    actions(),
+                  ],
+                ),
+              ),
+            ],
+          );
+        case 'photoThree':
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (setting.sectionTitle.isNotEmpty) ...[
+                Text(
+                  setting.sectionTitle,
+                  style: TextStyle(
+                    fontSize: 19 * u,
+                    color: ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: gap),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (hasPhoto) ...[
+                    SizedBox(
+                      width: width * setting.photoFraction,
+                      child: photo(height: 120 * u),
+                    ),
+                    SizedBox(width: gap),
+                  ],
+                  Expanded(flex: 5, child: content()),
+                  SizedBox(width: gap),
+                  Expanded(flex: 4, child: actions()),
+                ],
+              ),
+            ],
+          );
+        case 'photoRight':
+          body = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 6, child: content()),
+              SizedBox(width: gap),
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (hasPhoto) ...[
+                      photo(height: 76 * u),
+                      SizedBox(height: gap),
+                    ],
+                    actions(),
+                  ],
+                ),
+              ),
+            ],
+          );
+        default:
+          body = Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (hasPhoto) ...[
+                SizedBox(
+                  width: width * setting.photoFraction,
+                  child: photo(
+                    height: setting.photoShape == 'circle'
+                        ? width * setting.photoFraction
+                        : 155 * u,
+                  ),
+                ),
+                SizedBox(width: gap),
+              ],
+              Expanded(child: infoAndActions()),
+            ],
+          );
+      }
+      return Stack(
+        children: [
+          if (setting.decoration != 'none')
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: .12,
+                  child: Icon(
+                    setting.decoration == 'leaf'
+                        ? Icons.eco_outlined
+                        : setting.decoration == 'cat'
+                        ? Icons.cruelty_free_outlined
+                        : Icons.pets,
+                    size: 70 * u,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (onClose != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: '關閉店家資訊',
+                    onPressed: onClose,
+                    icon: Icon(Icons.close, color: ink),
+                  ),
+                ),
+              body,
+            ],
+          ),
+        ],
+      );
+    },
+  );
+
+  Widget _photoContact(String image) => LayoutBuilder(
+    builder: (context, c) {
+      final desktop = HomeDesktopLayoutScope.maybeOf(context);
+      final u = desktop?.cardScale ?? c.maxWidth / 790;
+      final intro = introduction;
+      final localTheme = HomeThemeModel(
+        backgroundColorValue: surface.toARGB32(),
+        cardColorValue: surface.toARGB32(),
+        cardBorderColorValue: border.toARGB32(),
+        primaryColorValue: accent.toARGB32(),
+        textColorValue: ink.toARGB32(),
+      );
+      Widget contact(
+        String id,
+        String label,
+        Object icon,
+        String target,
+        VoidCallback action,
+      ) {
+        final filled =
+            setting.buttonStyle == 'filled' ||
+            (setting.buttonStyle == 'mixed' && id != 'map');
+        final color = setting.buttonStyle == 'mixed' && id == 'line'
+            ? const Color(0xFF06B854)
+            : accent;
+        return Opacity(
+          opacity: target.isEmpty ? .45 : 1,
+          child: InkWell(
+            onTap: target.isEmpty || isPreview ? null : action,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: 10 * u,
+                vertical: 11 * u,
+              ),
+              decoration: BoxDecoration(
+                color: filled ? color : null,
+                border: setting.buttonStyle == 'text'
+                    ? null
+                    : Border.all(color: color.withValues(alpha: .5)),
+                borderRadius: BorderRadius.circular(12 * u),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon is IconData)
+                    Icon(icon, size: 23 * u, color: filled ? Colors.white : ink)
+                  else
+                    FaIcon(
+                      icon as FaIconData,
+                      size: 23 * u,
+                      color: filled ? Colors.white : ink,
+                    ),
+                  SizedBox(width: 7 * u),
+                  Flexible(
+                    child: editorialText(
+                      label,
+                      21 * u,
+                      localTheme,
+                      bold: true,
+                      lines: 1,
+                      color: filled ? Colors.white : ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      final buttons = <Widget>[
+        for (final id in contactIds)
+          if (id == 'phone')
+            contact(
+              id,
+              setting.phoneLabel,
+              Icons.phone,
+              value('phone'),
+              () => _callPhone(value('phone')),
+            )
+          else if (id == 'map')
+            contact(
+              id,
+              setting.mapLabel,
+              Icons.location_on,
+              address,
+              () => _openMap(address),
+            )
+          else if (id == 'line')
+            contact(
+              id,
+              setting.lineLabel,
+              FontAwesomeIcons.line,
+              value('lineUrl'),
+              () => _openUrl(value('lineUrl')),
+            )
+          else if (id == 'instagram')
+            contact(
+              id,
+              'Instagram',
+              FontAwesomeIcons.instagram,
+              value('igUrl'),
+              () => _openUrl(value('igUrl')),
+            )
+          else if (id == 'facebook')
+            contact(
+              id,
+              'Facebook',
+              FontAwesomeIcons.facebookF,
+              value('fbUrl'),
+              () => _openUrl(value('fbUrl')),
+            ),
+      ];
+      Widget detail(IconData icon, String text) => Padding(
+        padding: EdgeInsets.only(bottom: 8 * u),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 25 * u, color: accent),
+            SizedBox(width: 12 * u),
+            Expanded(child: editorialText(text, 21 * u, localTheme, lines: 2)),
+          ],
+        ),
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (setting.sectionTitle.isNotEmpty) ...[
+            EditorialSectionHeading(
+              title: setting.sectionTitle,
+              theme: localTheme,
+            ),
+            SizedBox(height: 12 * u),
+          ],
+          Container(
+            padding: EdgeInsets.all(10 * u),
+            decoration: BoxDecoration(
+              border: Border.all(color: border),
+              borderRadius: BorderRadius.circular(setting.radius),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (setting.imageSource != 'none') ...[
+                  SizedBox(
+                    width: desktop == null
+                        ? (c.maxWidth - 20 * u) * setting.photoFraction
+                        : ((c.maxWidth - 20 * u) * setting.photoFraction).clamp(
+                            180.0,
+                            280.0,
+                          ),
+                    height: desktop == null ? 158 * u : 160,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(setting.radius / 2),
+                      child: sectionPhoto(
+                        image,
+                        fit: setting.imageFit == 'contain'
+                            ? BoxFit.contain
+                            : BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 18 * u),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (setting.showName)
+                        editorialText(shopName, 24 * u, localTheme, bold: true),
+                      if (setting.showIntro && intro.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: 8 * u),
+                          child: editorialText(intro, 21 * u, localTheme),
+                        ),
+                      for (final key in setting.orderedFields)
+                        if (key == 'hours' && hours.isNotEmpty)
+                          detail(Icons.schedule_outlined, hours)
+                        else if (key == 'address' && address.isNotEmpty)
+                          detail(Icons.location_on, address)
+                        else if (key == 'phone' && value('phone').isNotEmpty)
+                          detail(Icons.phone_outlined, value('phone'))
+                        else if (key == 'license' &&
+                            value('licenseNumber').isNotEmpty)
+                          detail(
+                            Icons.verified_outlined,
+                            value('licenseNumber'),
+                          )
+                        else if (key == 'tax' &&
+                            shop['showTaxId'] == true &&
+                            value('taxId').isNotEmpty)
+                          detail(Icons.receipt_long, value('taxId')),
+                      if (setting.showActions && buttons.isNotEmpty)
+                        setting.actionLayout == 'threeColumns'
+                            ? Row(
+                                children: [
+                                  for (var i = 0; i < buttons.length; i++) ...[
+                                    if (i > 0) SizedBox(width: 8 * u),
+                                    Expanded(child: buttons[i]),
+                                  ],
+                                ],
+                              )
+                            : Wrap(
+                                spacing: 8 * u,
+                                runSpacing: 8 * u,
+                                children: buttons,
+                              ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
+  );
 
   Widget _action(String label, Object icon, VoidCallback action) {
     final style = setting.buttonStyle == 'filled'
@@ -508,6 +1288,9 @@ class _ModernShopInfoPanelState extends State<ModernShopInfoPanel> {
   Widget build(BuildContext context) {
     final f = widget.footer;
     if (!f.setting.enabled) return const SizedBox.shrink();
+    if (widget.alwaysExpanded && f.setting.layout == 'photoContact') {
+      return f.buildInfoBody(context);
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       child: Material(

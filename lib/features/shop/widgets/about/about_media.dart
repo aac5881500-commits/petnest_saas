@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/about_builtin_photos.dart';
+import 'about_builtin_photo.dart';
 // 功能：關於我們照片來源與縮圖，沿用店家環境相簿、平台卡片圖庫與既有上傳。
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/about_page_setting.dart';
@@ -58,7 +60,13 @@ class _AboutMediaViewState extends State<AboutMediaView> {
               const Center(child: Icon(Icons.broken_image_outlined)),
         );
   @override
-  Widget build(BuildContext context) => widget.media.source == 'platform'
+  Widget build(BuildContext context) => widget.media.source == 'builtin'
+      ? AboutBuiltinPhoto(
+          id: widget.media.assetId,
+          fit: widget.fit,
+          alignment: widget.alignment,
+        )
+      : widget.media.source == 'platform'
       ? FutureBuilder<PlatformMediaAsset?>(
           future: _asset,
           builder: (_, s) {
@@ -139,12 +147,101 @@ class AboutMediaField extends StatelessWidget {
     }
   }
 
+  Future<void> _pickBuiltin(BuildContext context) async {
+    String? selected = AboutBuiltinPhotos.names.containsKey(value.assetId)
+        ? value.assetId
+        : null;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => Dialog(
+          child: SizedBox(
+            width: 660,
+            height: MediaQuery.sizeOf(context).height * .8,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    '範本示意照片（非店家實景）',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  child: GridView.extent(
+                    maxCrossAxisExtent: 180,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final entry in AboutBuiltinPhotos.names.entries)
+                        Semantics(
+                          selected: entry.key == selected,
+                          child: InkWell(
+                            onTap: () => setLocal(() => selected = entry.key),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: entry.key == selected
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: AboutBuiltinPhoto(id: entry.key),
+                                  ),
+                                  Text(
+                                    entry.value,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('取消'),
+                      ),
+                      FilledButton(
+                        onPressed: selected == null
+                            ? null
+                            : () => Navigator.pop(context, selected),
+                        child: const Text('套用照片'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result != null && context.mounted) {
+      onChanged(AboutMedia(source: 'builtin', assetId: result));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        '目前來源：${const {'none': '未選擇', 'legacy': '原有關於我們封面', 'shop': '明確選取的店家照片', 'firstGallery': '環境相簿第一張（隨排序更新）', 'platform': '平台卡片圖庫'}[value.source] ?? '未選擇'}',
+        '目前來源：${const {'none': '未選擇', 'legacy': '原有關於我們封面', 'shop': '明確選取的店家照片', 'firstGallery': '環境相簿第一張（隨排序更新）', 'platform': '平台卡片圖庫', 'builtin': 'APP 內建範本示意照片'}[value.source] ?? '未選擇'}',
       ),
       if (value.source != 'none')
         Padding(
@@ -191,6 +288,12 @@ class AboutMediaField extends StatelessWidget {
               onPressed: () =>
                   onChanged(value.copyWith(source: 'firstGallery')),
               child: const Text('使用環境相簿第一張'),
+            ),
+          if (allowLibrary)
+            OutlinedButton.icon(
+              icon: const Icon(Icons.photo_outlined),
+              label: const Text('選擇範本照片'),
+              onPressed: () => _pickBuiltin(context),
             ),
           if (allowLibrary)
             OutlinedButton.icon(

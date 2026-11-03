@@ -1,3 +1,4 @@
+import 'home_desktop_layout.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -230,8 +231,12 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
           child: Stack(
             clipBehavior: Clip.hardEdge,
             children: <Widget>[
-              widget.buildSection(sectionId),
-              if (sectionId == 'banners' ||
+              if (sectionId == 'storeEntrance')
+                IgnorePointer(child: widget.buildSection(sectionId))
+              else
+                widget.buildSection(sectionId),
+              if (sectionId == 'storeEntrance' ||
+                  sectionId == 'banners' ||
                   sectionId == 'sharedEntries' ||
                   sectionId == 'rooms' ||
                   sectionId == 'facilities' ||
@@ -244,6 +249,7 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
                 _sectionDragHandle(
                   sectionId: sectionId,
                   tooltip: switch (sectionId) {
+                    'storeEntrance' => '拖曳整個商城入口區塊',
                     'sharedEntries' => '拖曳整個共用精緻小卡區',
                     'rooms' => '拖曳整個房型介紹區塊',
                     'facilities' => '拖曳整個環境展示區塊',
@@ -495,14 +501,41 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
                       ...buildHomeSectionRows(
                         sectionIds: widget.sectionIds,
                         spanOf: widget.spanOf,
-                        gap: constraints.maxWidth < 760 ? 8 : 10,
+                        gap:
+                            HomeDesktopLayoutScope.maybeOf(
+                              context,
+                            )?.sectionGap ??
+                            (constraints.maxWidth < 760 ? 8 : 10),
                         itemBuilder: _orderedSection,
                       ),
                       if (widget.shopInfo != null)
                         Padding(
                           key: _shopInfoAnchor,
                           padding: const EdgeInsets.only(top: 8),
-                          child: widget.shopInfo,
+                          child: Semantics(
+                            button: true,
+                            label: '設定店家資訊',
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () =>
+                                  widget.onSelectSection?.call('shopInfo'),
+                              child: Stack(
+                                children: [
+                                  widget.shopInfo!,
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: IconButton.filledTonal(
+                                      tooltip: '設定店家資訊',
+                                      icon: const Icon(Icons.tune, size: 18),
+                                      onPressed: () => widget.onSelectSection
+                                          ?.call('shopInfo'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                     ],
                   );

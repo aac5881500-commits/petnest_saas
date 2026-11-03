@@ -1,3 +1,4 @@
+import 'environment_photo.dart';
 // 檔案名稱：lib/features/shop/widgets/environment/environment_feature_manager.dart
 // 功能說明：後台環境特色卡片管理區塊
 
@@ -16,6 +17,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
     required this.onManageImage,
     this.busy = false,
     this.showLayoutControl = true,
+    this.onBuiltinImage,
   });
 
   final List<Map<String, dynamic>> features;
@@ -27,6 +29,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
   final Future<void> Function(int index) onManageImage;
   final bool busy;
   final bool showLayoutControl;
+  final Future<void> Function(int)? onBuiltinImage;
 
   IconData _featureIcon(String key) => environmentFeatureIcon(key);
 
@@ -107,24 +110,9 @@ class EnvironmentFeatureManager extends StatelessWidget {
                                       color: Color(0xFFB87535),
                                     ),
                                   )
-                                : Image.network(
-                                    imageUrl,
+                                : EnvironmentPhoto(
+                                    imageUrl: imageUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (
-                                          BuildContext context,
-                                          Object error,
-                                          StackTrace? stackTrace,
-                                        ) {
-                                          return const ColoredBox(
-                                            color: Color(0xFFF0E0CC),
-                                            child: Icon(
-                                              Icons.broken_image_outlined,
-                                              size: 20,
-                                              color: Color(0xFFB87535),
-                                            ),
-                                          );
-                                        },
                                   ),
                           ),
                         ),
@@ -153,6 +141,14 @@ class EnvironmentFeatureManager extends StatelessWidget {
                           tooltip: '特色圖片',
                           icon: const Icon(Icons.image_rounded),
                         ),
+                        if (onBuiltinImage != null)
+                          IconButton(
+                            tooltip: '選擇示意照片',
+                            onPressed: busy
+                                ? null
+                                : () => onBuiltinImage!(index),
+                            icon: const Icon(Icons.photo_library_outlined),
+                          ),
                         IconButton(
                           tooltip: '更換特色圖示',
                           onPressed: busy ? null : () => onChangeIcon(index),

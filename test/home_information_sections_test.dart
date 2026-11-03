@@ -321,7 +321,7 @@ void main() {
         );
     expect(span('policy', compact), HomeSectionSpan.half);
     expect(span('faq', compact), HomeSectionSpan.half);
-    expect(span('reviews', compact), HomeSectionSpan.half);
+    expect(span('reviews', compact), HomeSectionSpan.full);
     expect(
       span(
         'policy',
@@ -403,7 +403,8 @@ void main() {
     ], (String id) => span(id, compact));
     expect(rows.map((HomeSectionRow row) => row.sectionIds), <List<String>>[
       <String>['rooms', 'policy'],
-      <String>['faq', 'reviews'],
+      <String>['faq'],
+      <String>['reviews'],
     ]);
   });
 
@@ -631,6 +632,7 @@ void main() {
           body: SizedBox(
             width: 320,
             child: ListView(
+              cacheExtent: 5000,
               children: <Widget>[
                 ModernHomePolicySection(
                   theme: HomeThemeModel.modernDefault,
@@ -703,16 +705,18 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byKey(const Key('home-policy-card')).first).height,
+      closeTo(kModernHomeSmallCardHeight, 0.5),
+    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -1500));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('預覽示意：尚無已發布條款'), findsOneWidget);
     expect(find.text('示意：入住時間'), findsNothing);
     expect(find.text('預覽示意：尚未有公開評價'), findsOneWidget);
     expect(find.text('示意評價：環境乾淨，照顧很細心。'), findsNothing);
-    expect(
-      tester.getSize(find.byKey(const Key('home-policy-card')).first).height,
-      closeTo(kModernHomeSmallCardHeight, 0.5),
-    );
     expect(tester.getSize(find.text('預覽示意：尚未有公開評價')).height, greaterThan(12));
   });
 
@@ -821,7 +825,7 @@ void main() {
       }).layout,
       HomeReviewLayouts.scoreAndLatest,
     );
-    expect(HomeReviewLayouts.badge(HomeReviewLayouts.scoreAndLatest), '推薦');
+    expect(HomeReviewLayouts.badge(HomeReviewLayouts.scoreAndLatest), '獨立整排');
     expect(const HomeReviewSectionSetting().layout, HomeReviewLayouts.carousel);
   });
 

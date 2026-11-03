@@ -1,3 +1,5 @@
+import 'home_shop_info_setting.dart';
+import 'about_builtin_photos.dart';
 import 'shop_service_showcase.dart';
 // 功能：完整關於我們頁的內容與外觀；首頁小卡保持獨立，舊欄位仍為介紹單一來源。
 import 'package:flutter/material.dart';
@@ -26,12 +28,14 @@ class AboutMedia {
     return AboutMedia(
       source:
           const [
-            'none',
-            'legacy',
-            'shop',
-            'firstGallery',
-            'platform',
-          ].contains(source)
+                'none',
+                'legacy',
+                'shop',
+                'firstGallery',
+                'platform',
+                'builtin',
+              ].contains(source) &&
+              (source != 'builtin' || AboutBuiltinPhotos.names.containsKey(id))
           ? source
           : 'none',
       url: '${m['url'] ?? ''}'.trim(),
@@ -122,6 +126,7 @@ class AboutPageSetting {
   static const path = 'homeAppearance.aboutPage';
   static const layouts = {
     'classic': '原有排版',
+    'daylight': '日光簡約版',
     'brief': '簡介版',
     'story': '故事版',
     'alternating': '圖文交錯版',
@@ -132,19 +137,25 @@ class AboutPageSetting {
     'editorial': '雜誌專欄版',
   };
   static const contactLayouts = {
+    'footer': '快速資訊卡',
     'list': '經典清單',
     'tiles': '雙欄資訊',
     'brand': '品牌名片',
     'visit': '到店指南',
+    'strip': '橫列聯絡資訊',
   };
   static const coverLayouts = {
     'auto': '沿用整頁版型',
     'stacked': '上圖下文',
+    'centered': '大圖與置中介紹',
     'imageLeft': '左圖右文',
     'imageRight': '左文右圖',
   };
-  String get coverLayout =>
-      choice('coverLayout', coverLayouts.keys.toList(), 'auto');
+  String get coverLayout => choice(
+    'coverLayout',
+    coverLayouts.keys.toList(),
+    layout == 'daylight' ? 'centered' : 'auto',
+  );
   static const sectionSpacings = {
     'auto': '沿用原設定',
     'compact': '緊湊',
@@ -161,7 +172,9 @@ class AboutPageSetting {
   String get contactLayout => choice(
     'contactLayout',
     contactLayouts.keys.toList(),
-    layout == 'boutique'
+    layout == 'daylight'
+        ? 'strip'
+        : layout == 'boutique'
         ? 'brand'
         : layout == 'editorial'
         ? 'visit'
@@ -178,6 +191,32 @@ class AboutPageSetting {
         ? 'ribbon'
         : 'cards',
   );
+  static const principleLayouts = {
+    'auto': '沿用整頁版型',
+    'stacked': '上圖下文卡片',
+    'photoSide': '右圖理念卡',
+  };
+  String get principleLayout => choice(
+    'principleLayout',
+    principleLayouts.keys.toList(),
+    layout == 'daylight' ? 'photoSide' : 'auto',
+  );
+  static const storyLayouts = {
+    'auto': '沿用整頁版型',
+    'stacked': '上圖下文',
+    'imageLeft': '左圖右文',
+    'alternating': '左右交錯',
+  };
+  String get storyLayout => choice(
+    'storyLayout',
+    storyLayouts.keys.toList(),
+    layout == 'daylight' ? 'imageLeft' : 'auto',
+  );
+  String get storiesTitle =>
+      '${appearance['storiesTitle'] ?? ''}'.trim().isEmpty
+      ? '品牌故事'
+      : '${appearance['storiesTitle']}'.trim();
+  String get coverSubtitle => '${appearance['coverSubtitle'] ?? ''}'.trim();
   static const sectionNames = {
     'services': '服務項目',
     'highlights': '店家特色',
@@ -211,13 +250,25 @@ class AboutPageSetting {
     ];
   }
 
-  bool visible(String section) =>
-      section == 'contact' ||
-      _raw['visibility'] is! Map ||
-      (_raw['visibility'] as Map)[section] != false;
+  bool visible(String section) => section == 'services'
+      ? serviceShowcase.layout != 'hidden'
+      : section == 'contact' ||
+            _raw['visibility'] is! Map ||
+            (_raw['visibility'] as Map)[section] != false;
   List<String> get sectionOrder {
     final raw = _raw['sectionOrder'];
-    final defaults = layout == 'boutique'
+    final defaults = layout == 'daylight'
+        ? [
+            'principles',
+            'stories',
+            'highlights',
+            'services',
+            'team',
+            'credentials',
+            'message',
+            'contact',
+          ]
+        : layout == 'boutique'
         ? ['contact', 'highlights']
         : layout == 'highlights'
         ? ['highlights', 'principles']
@@ -232,6 +283,28 @@ class AboutPageSetting {
           : defaults),
       ...sectionNames.keys,
     }.toList();
+  }
+
+  // 本頁底部資訊與區塊底色，獨立於首頁設定；舊資料沒有覆寫時維持原樣。
+  HomeShopInfoSetting get contactFooter =>
+      HomeShopInfoSetting.fromMap(appearance['contactFooter']);
+  Color? sectionBackground(String id) {
+    final raw = appearance['sectionBackgrounds'];
+    if (raw is! Map) return null;
+    return EnvironmentPageAppearance(raw: {'color': raw[id]}).color('color');
+  }
+
+  AboutPageSetting withSectionBackground(String id, Color? color) {
+    final raw = appearance['sectionBackgrounds'];
+    final next = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{};
+    if (color == null) {
+      next.remove(id);
+    } else {
+      next[id] = color.toARGB32();
+    }
+    return withAppearance({'sectionBackgrounds': next});
   }
 
   Map<String, dynamic> get appearance => _raw['appearance'] is Map
@@ -270,6 +343,16 @@ class AboutPageSetting {
     'appearance': {...appearance, ...changes},
   });
   AboutPageSetting setVisible(String key, bool value) => copyWith({
+    if (key == 'services')
+      'moduleShowcase': serviceShowcase
+          .copyWith(
+            layout: value
+                ? (serviceShowcase.layout == 'hidden'
+                      ? 'cards'
+                      : serviceShowcase.layout)
+                : 'hidden',
+          )
+          .toMap(),
     'visibility': {
       if (_raw['visibility'] is Map)
         ...Map<String, dynamic>.from(_raw['visibility']),

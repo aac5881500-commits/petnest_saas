@@ -241,10 +241,12 @@ class OwnerFinanceInsights extends StatelessWidget {
     required this.entries,
     required this.ledgerReady,
     required this.sections,
+    this.wholeShop = true,
+    this.revenueComplete = true,
   });
   final ShopReportBundle report;
   final List<Map<String, dynamic>> entries;
-  final bool ledgerReady;
+  final bool ledgerReady, wholeShop, revenueComplete;
   final Set<String> sections;
   @override
   Widget build(BuildContext context) {
@@ -268,7 +270,7 @@ class OwnerFinanceInsights extends StatelessWidget {
                   '商城商品': k.storeRevenue,
                 },
               );
-              final expense = ledgerReady
+              final expense = ledgerReady && wholeShop
                   ? OwnerDonut(
                       title: '成本結構占比',
                       caption: '已填寫的薪資與各項支出；同名項目自動合併。點選圖例查看占比。',
@@ -278,10 +280,14 @@ class OwnerFinanceInsights extends StatelessWidget {
                           '支出・${e.key}': e.value,
                       },
                     )
-                  : const OwnerReportSection(
+                  : OwnerReportSection(
                       title: '成本結構占比',
-                      subtitle: '私人資料尚未載入',
-                      child: Text('取得薪資與支出後才會繪製成本圓環圖。'),
+                      subtitle: wholeShop ? '私人資料尚未載入' : '共用成本尚未分攤',
+                      child: Text(
+                        wholeShop
+                            ? '取得薪資與支出後才會繪製成本圓環圖。'
+                            : '目前只看單一業務收入，請切整店查看完整成本。',
+                      ),
                     );
               return box.maxWidth >= 1050
                   ? Row(
@@ -337,7 +343,7 @@ class OwnerFinanceInsights extends StatelessWidget {
                   .toList(),
             ),
           ),
-        if (sections.contains('salary') && ledgerReady)
+        if (sections.contains('salary') && ledgerReady && wholeShop)
           OwnerReportSection(
             title: '員工薪資明細',
             subtitle: '同名員工當月多筆金額合併。占比以已填薪資合計為分母，未包含未填項目。',
@@ -354,7 +360,7 @@ class OwnerFinanceInsights extends StatelessWidget {
                   .toList(),
             ),
           ),
-        if (sections.contains('costs') && ledgerReady)
+        if (sections.contains('costs') && ledgerReady && wholeShop)
           OwnerReportSection(
             title: '成本與經營觀察',
             subtitle: '僅依本月已填收支，不自動推算尚未填寫的房租、稅金或其他成本。',
@@ -374,13 +380,13 @@ class OwnerFinanceInsights extends StatelessWidget {
                     ),
                     _stat(
                       '薪資／系統淨實收',
-                      k.paidAmount <= 0
+                      !revenueComplete || k.paidAmount <= 0
                           ? '無法計算'
                           : '${(payroll / k.paidAmount * 100).toStringAsFixed(1)}%',
                     ),
                     _stat(
                       '已填成本／系統淨實收',
-                      k.paidAmount <= 0
+                      !revenueComplete || k.paidAmount <= 0
                           ? '無法計算'
                           : '${(costs / k.paidAmount * 100).toStringAsFixed(1)}%',
                     ),
@@ -390,7 +396,7 @@ class OwnerFinanceInsights extends StatelessWidget {
                 if (k.unpaidAmount > 0)
                   Text('待追蹤：系統未收款 ${ownerMoney(k.unpaidAmount)}，請回訂單明細核對催收。'),
                 if (entries.isEmpty) const Text('尚未填寫成本，目前結餘不足以反映實際經營成果。'),
-                if (costs > k.paidAmount)
+                if (revenueComplete && costs > k.paidAmount)
                   const Text('已填支出超過系統淨實收，請一併核對其他收入與付款時點。'),
                 const SizedBox(height: 12),
                 _table(

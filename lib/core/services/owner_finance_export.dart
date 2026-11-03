@@ -7,6 +7,9 @@ class OwnerFinanceExport {
     required String month,
     required List<Map<String, dynamic>> entries,
     ShopReportBundle? report,
+    bool isDemo = false,
+    String sourceLabel = '整店',
+    bool includeBalance = true,
   }) {
     final excel = Excel.createExcel();
     void row(String sheet, List<Object> values) => excel[sheet].appendRow(
@@ -15,6 +18,10 @@ class OwnerFinanceExport {
           .toList(),
     );
     row('月報說明', ['月份', month]);
+    row('月報說明', ['資料模式', isDemo ? '示範虛構資料，非正式帳務' : '正式資料']);
+    row('月報說明', ['系統來源範圍', sourceLabel]);
+    row('月報說明', ['私人收支範圍', '整店共用，未分攤至個別業務']);
+    if (!includeBalance) row('月報說明', ['業務結餘', '成本未分攤或仍有模板待串接，不計算完整整店／業務結餘']);
     row('月報說明', ['資料範圍', '完整月份私人收支，不受畫面開關與明細篩選影響。包含員工薪資，請妥善保管。']);
     row('月報說明', ['統計口徑', '訂單按建立日、淨實收按付款日且已反映退款；結餘非會計淨利。']);
     row('月報說明', ['系統資料', report == null ? '讀取失敗，未提供系統收入與結餘，不當作零元。' : '已載入']);
@@ -34,7 +41,9 @@ class OwnerFinanceExport {
       row('月報摘要', ['系統淨實收', k.paidAmount]);
       row('月報摘要', ['退款', k.refundAmount]);
       row('月報摘要', ['未收款', k.unpaidAmount]);
-      row('月報摘要', ['收支結餘', k.paidAmount + income - salary - cost]);
+      if (includeBalance) {
+        row('月報摘要', ['收支結餘', k.paidAmount + income - salary - cost]);
+      }
       row('每日營收', ['日期', '訂單數', '訂單金額', '淨實收', '退款', '未收款']);
       for (final r in report.revenueByDay) {
         row('每日營收', [

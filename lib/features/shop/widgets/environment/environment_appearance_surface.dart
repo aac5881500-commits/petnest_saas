@@ -45,10 +45,12 @@ class EnvironmentAppearanceSurface extends StatefulWidget {
     required this.baseTheme,
     required this.contentBuilder,
     required this.actionTextSize,
+    this.fullContent = false,
   });
   final EnvironmentPageAppearance appearance;
   final HomeThemeModel baseTheme;
   final double actionTextSize;
+  final bool fullContent;
   final Widget Function(BuildContext, HomeThemeModel) contentBuilder;
   @override
   State<EnvironmentAppearanceSurface> createState() =>
@@ -125,60 +127,70 @@ class _EnvironmentAppearanceSurfaceState
         child: EnvironmentAppearanceScope(
           appearance: appearance,
           baseTheme: widget.baseTheme,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: appearance.backgroundMode == 'theme'
-                      ? ShopAppBackdrop(theme: resolved)
-                      : Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ColoredBox(color: resolved.backgroundColor),
-                            if (appearance.backgroundMode == 'image' &&
-                                _asset != null &&
-                                !_failed) ...[
-                              Opacity(
-                                opacity: appearance.imageOpacity,
-                                child: Image.network(
-                                  _asset!.imageUrl,
-                                  key: ValueKey(_asset!.id),
-                                  fit: BoxFit.cover,
-                                  gaplessPlayback: true,
-                                  errorBuilder: (_, error, stack) {
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                          if (mounted && !_failed) {
-                                            setState(() => _failed = true);
-                                          }
-                                        });
-                                    return const SizedBox.shrink();
-                                  },
-                                ),
+          child: widget.fullContent
+              ? ColoredBox(
+                  color: resolved.backgroundColor,
+                  child: Builder(
+                    builder: (context) =>
+                        widget.contentBuilder(context, resolved),
+                  ),
+                )
+              : Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: appearance.backgroundMode == 'theme'
+                            ? ShopAppBackdrop(theme: resolved)
+                            : Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ColoredBox(color: resolved.backgroundColor),
+                                  if (appearance.backgroundMode == 'image' &&
+                                      _asset != null &&
+                                      !_failed) ...[
+                                    Opacity(
+                                      opacity: appearance.imageOpacity,
+                                      child: Image.network(
+                                        _asset!.imageUrl,
+                                        key: ValueKey(_asset!.id),
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                        errorBuilder: (_, error, stack) {
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                                if (mounted && !_failed) {
+                                                  setState(
+                                                    () => _failed = true,
+                                                  );
+                                                }
+                                              });
+                                          return const SizedBox.shrink();
+                                        },
+                                      ),
+                                    ),
+                                    ColoredBox(
+                                      color:
+                                          (appearance.darkMask
+                                                  ? Colors.black
+                                                  : Colors.white)
+                                              .withValues(
+                                                alpha: appearance.maskOpacity,
+                                              ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              ColoredBox(
-                                color:
-                                    (appearance.darkMask
-                                            ? Colors.black
-                                            : Colors.white)
-                                        .withValues(
-                                          alpha: appearance.maskOpacity,
-                                        ),
-                              ),
-                            ],
-                          ],
-                        ),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Builder(
+                        builder: (context) =>
+                            widget.contentBuilder(context, resolved),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Positioned.fill(
-                child: Builder(
-                  builder: (context) =>
-                      widget.contentBuilder(context, resolved),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

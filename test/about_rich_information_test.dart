@@ -57,6 +57,114 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  test('日光簡約只提供排列預設，獨立覆寫與內容不被覆蓋', () {
+    final before = AboutPageSetting().withItems('stories', [
+      const AboutContentItem(id: 'story', title: '保留內容'),
+    ]);
+    final setting = before.copyWith({'layout': 'daylight'});
+    expect(setting.coverLayout, 'centered');
+    expect(setting.principleLayout, 'photoSide');
+    expect(setting.storyLayout, 'imageLeft');
+    expect(setting.contactLayout, 'strip');
+    expect(setting.sectionOrder.first, 'principles');
+    expect(setting.sectionOrder.last, 'contact');
+    final custom = setting.withAppearance({
+      'coverLayout': 'imageRight',
+      'storyLayout': 'stacked',
+      'coverSubtitle': '自訂副標',
+    });
+    final loaded = AboutPageSetting.fromMap(custom.toMap());
+    expect(loaded.coverLayout, 'imageRight');
+    expect(loaded.storyLayout, 'stacked');
+    expect(loaded.coverSubtitle, '自訂副標');
+    expect(loaded.items('stories').single.title, '保留內容');
+    expect(AboutPageSetting().coverLayout, 'auto');
+    expect(AboutPageSetting().principleLayout, 'auto');
+    expect(AboutPageSetting().storyLayout, 'auto');
+    expect(
+      aboutPageUpdates(before, custom)['homeAppearance.aboutPage.layout'],
+      'daylight',
+    );
+  });
+  for (final width in [320.0, 390.0, 1200.0]) {
+    testWidgets('日光簡約完整內容寬度 $width，預覽與正式一致且大字不溢出', (tester) async {
+      final setting = AboutPageSetting()
+          .copyWith({'layout': 'daylight'})
+          .withAppearance({'coverSubtitle': '安心入住，細心陪伴'})
+          .withItems('principles', [
+            for (var i = 0; i < 3; i++)
+              AboutContentItem(
+                id: 'p$i',
+                title: '照護理念$i',
+                text: '保留完整文字，內容變長時自然增高，不裁切重要資訊。' * 2,
+                image: const AboutMedia(
+                  source: 'shop',
+                  url: 'https://example.invalid/p.jpg',
+                ),
+              ),
+            const AboutContentItem(id: 'empty'),
+            const AboutContentItem(id: 'hidden', title: '隱藏項目', visible: false),
+          ])
+          .withItems('stories', [
+            const AboutContentItem(
+              id: 'story',
+              title: '故事標題',
+              text: '故事內容',
+              image: AboutMedia(
+                source: 'shop',
+                url: 'https://example.invalid/s.jpg',
+              ),
+            ),
+          ]);
+      for (final preview in [true, false]) {
+        await show(
+          tester,
+          AboutIntroView(
+            shop: {
+              ...info,
+              'aboutTitle': '關於我們',
+              'aboutDescription': '介紹草稿',
+              'aboutImageUrl': 'https://example.invalid/cover.jpg',
+            },
+            setting: setting,
+            theme: theme,
+            preview: preview,
+          ),
+          width: width,
+          scale: 1.3,
+        );
+        expect(
+          find.byKey(const ValueKey('about-daylight-cover')),
+          findsOneWidget,
+        );
+        expect(find.text('安心入住，細心陪伴'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('about-principle-side-p0')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('about-story-side-story')),
+          findsOneWidget,
+        );
+        expect(find.text('隱藏項目'), findsNothing);
+        expect(
+          find.byKey(const ValueKey('about-principle-side-empty')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(
+            ValueKey(
+              width >= 1100
+                  ? 'about-contact-strip-row'
+                  : 'about-contact-strip-column',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
   test('獨立封面與間距讀寫，切整頁保留內容及覆寫', () {
     final before = AboutPageSetting().withItems('stories', [
       const AboutContentItem(id: 'story', title: '原有故事'),

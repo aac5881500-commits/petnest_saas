@@ -1,3 +1,5 @@
+import '../environment/environment_photo.dart';
+import 'editorial_section_widgets.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
@@ -124,6 +126,25 @@ class ModernHomeAboutSection extends StatelessWidget {
 
   Widget _body(String imageUrl) {
     switch (HomeAboutLayouts.migrate(setting.layout)) {
+      case HomeAboutLayouts.editorial:
+        return EditorialAboutCard(
+          theme: theme,
+          sectionTitle: setting.entryTitle,
+          title: (shop['aboutTitle'] ?? shopName).toString(),
+          body: _summary,
+          photo: _photoUrl(imageUrl),
+          button: setting.entryButton,
+          onOpen: _open,
+          showImage: setting.showImage,
+          imageTop: setting.imagePosition == HomeAboutImagePositions.top,
+          imageFit: _fit,
+          imageAlignment: _alignment,
+          imageLeft: setting.imagePosition != HomeAboutImagePositions.right,
+          showButton: setting.showButton,
+          showArrow: setting.showArrow,
+          showDecoration: setting.showLogo,
+        );
+
       case HomeAboutLayouts.imageEntry:
         return _imageCard(imageUrl);
       case HomeAboutLayouts.brandIntro:
@@ -448,14 +469,12 @@ class ModernHomeAboutSection extends StatelessWidget {
             height: double.infinity,
             errorBuilder: (_, _, _) => _iconFallback(),
           )
-        : Image.network(
-            url,
+        : EnvironmentPhoto(
+            imageUrl: url,
             fit: fit,
             alignment: alignment,
             width: double.infinity,
             height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => _iconFallback(),
           );
     return ColoredBox(
       color: theme.primaryColor.withValues(alpha: 0.08),

@@ -1,3 +1,4 @@
+import 'environment_photo.dart';
 // 檔案名稱：lib/features/shop/widgets/environment/environment_gallery_manager.dart
 // 功能說明：後台環境照片牆管理區塊
 
@@ -95,11 +96,9 @@ class EnvironmentGalleryManager extends StatelessWidget {
                       children: [
                         Flexible(
                           child: InteractiveViewer(
-                            child: Image.network(
-                              images[index],
+                            child: EnvironmentPhoto(
+                              imageUrl: images[index],
                               fit: BoxFit.contain,
-                              errorBuilder: (_, error, stack) =>
-                                  const Text('照片暫時無法載入'),
                             ),
                           ),
                         ),
@@ -166,11 +165,9 @@ class EnvironmentGalleryManager extends StatelessWidget {
               leading: SizedBox(
                 width: 48,
                 height: 36,
-                child: Image.network(
-                  trashImages[index],
+                child: EnvironmentPhoto(
+                  imageUrl: trashImages[index],
                   fit: BoxFit.cover,
-                  errorBuilder: (_, error, stack) =>
-                      const Icon(Icons.broken_image_outlined),
                 ),
               ),
               title: Text('已移除照片 ${index + 1}'),
@@ -228,19 +225,7 @@ class _GalleryThumb extends StatelessWidget {
         children: [
           ColoredBox(
             color: const Color(0xFFF5EBDD),
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder:
-                  (BuildContext context, Object error, StackTrace? stackTrace) {
-                    return const Center(
-                      child: Icon(
-                        Icons.broken_image_rounded,
-                        color: Color(0xFFB87535),
-                      ),
-                    );
-                  },
-            ),
+            child: EnvironmentPhoto(imageUrl: imageUrl, fit: BoxFit.cover),
           ),
           Positioned.fill(
             child: Material(

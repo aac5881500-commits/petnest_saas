@@ -8,6 +8,7 @@ const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("./inspection_write_guard");
 const {defineSecret} = require("firebase-functions/params");
 const policy = require("./shop_deletion_policy");
+const {assertNoPlatformBilling} = require("../platform_billing/service");
 const emailCode = require("./shop_deletion_email");
 
 const ROOT_ADMIN_UID = "7FNrECQeqAca9Vu8lBBzTSdcJcg1";
@@ -3704,6 +3705,7 @@ async function createJobHandler(request) {
           "這間店已有刪除工作，不能重複建立。",
       );
     }
+    await assertNoPlatformBilling(tx, db, shopId);
     const shop = shopSnapshot.data() || {};
     tx.create(jobRef, {
       jobId: jobRef.id,

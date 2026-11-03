@@ -484,6 +484,11 @@ class _BottomAppearanceEditor extends StatelessWidget {
       _ChoiceRow(
         options: const <_Choice>[
           _Choice(
+            value: FrontendNavigationConfig.appearanceUnderline,
+            title: '選中底線',
+            subtitle: '貼底、圖示與底線標記',
+          ),
+          _Choice(
             value: FrontendNavigationConfig.appearanceAttached,
             title: '原版貼底',
             subtitle: '貼齊底部',

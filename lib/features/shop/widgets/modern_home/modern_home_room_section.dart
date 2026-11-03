@@ -1,3 +1,4 @@
+import 'editorial_section_widgets.dart';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -70,6 +71,29 @@ class ModernHomeRoomSection extends StatelessWidget {
         return const SizedBox.shrink();
       }
       return _withFont(_emptyPreview());
+    }
+    if (setting.layout == HomeRoomSectionLayouts.catalog) {
+      final ids = setting.homeRoomIds(roomTypes);
+      return _withFont(
+        EditorialRoomStrip(
+          rooms: [
+            for (final id in ids)
+              if (_byId[id] != null) _byId[id]!,
+          ],
+          theme: theme,
+          fontFamily: setting.appliedFontFamily,
+          title: _title,
+          showPrice: setting.showPrice,
+          columns: setting.compact.columns.clamp(1, 3),
+          imageRatio: setting.compact.imageHeight == HomeRoomImageHeights.tall
+              ? 1.25
+              : setting.compact.imageHeight == HomeRoomImageHeights.compact
+              ? 2.0
+              : 1.62,
+          onAll: _openAll,
+          onRoom: (room) => onOpenRoom?.call(room),
+        ),
+      );
     }
     return _withFont(
       Column(
