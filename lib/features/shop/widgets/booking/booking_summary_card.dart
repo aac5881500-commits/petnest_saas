@@ -1,3 +1,5 @@
+import 'booking_appearance_scope.dart';
+import 'booking_editorial_design.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_summary_card.dart
 // 功能說明：前台預約確認卡片：顯示入住日、退房日、晚數、寵物數量、房型、加值服務與總價
 
@@ -16,6 +18,9 @@ class BookingSummaryCard extends StatelessWidget {
     required this.totalPrice,
     this.theme = HomeThemeModel.classicDefault,
     this.depositAmount = 0,
+    this.roomAmount,
+    this.addonAmount,
+    this.couponSection,
     this.originalTotal,
     this.discountAmount = 0,
     this.discountPercent = 0,
@@ -42,6 +47,8 @@ class BookingSummaryCard extends StatelessWidget {
     this.petNamesById = const {},
   });
 
+  final int? roomAmount, addonAmount;
+  final Widget? couponSection;
   final HomeThemeModel theme;
   final String startDateText;
   final String endDateText;
@@ -76,8 +83,260 @@ class BookingSummaryCard extends StatelessWidget {
   selectedDailyTimedServices;
   final Map<String, String> petNamesById;
 
+  Widget _editorial(BuildContext context) {
+    final t = BookingEditorial.theme(context);
+    final cream = BookingAppearanceScope.of(context).style == 'cream';
+    Widget amount(
+      String label,
+      int value, {
+      String? note,
+      bool strong = false,
+    }) => Container(
+      margin: cream ? const EdgeInsets.only(bottom: 9) : null,
+      decoration: cream
+          ? BoxDecoration(
+              color: strong ? BookingEditorial.tint(context) : t.cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: t.cardBorderColor),
+            )
+          : null,
+      padding: cream
+          ? const EdgeInsets.all(14)
+          : const EdgeInsets.symmetric(vertical: 10),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final caption = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: strong
+                    ? BookingEditorial.title(21, context)
+                    : BookingEditorial.body(16, context),
+              ),
+              if (note != null)
+                Text(note, style: BookingEditorial.body(13, context)),
+            ],
+          );
+          final price = Text(
+            'NT\$ $value',
+            style: strong
+                ? BookingEditorial.title(25, context)
+                : BookingEditorial.body(17, context),
+          );
+          if (c.maxWidth < 300 ||
+              MediaQuery.textScalerOf(context).scale(14) > 21) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                caption,
+                const SizedBox(height: 5),
+                Align(alignment: Alignment.centerRight, child: price),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: caption),
+              const SizedBox(width: 12),
+              price,
+            ],
+          );
+        },
+      ),
+    );
+    Widget detail(String label, Widget content) => Container(
+      margin: cream ? const EdgeInsets.only(bottom: 12) : null,
+      padding: cream
+          ? const EdgeInsets.all(16)
+          : const EdgeInsets.symmetric(vertical: 15),
+      decoration: BoxDecoration(
+        color: cream ? t.cardColor : null,
+        borderRadius: cream ? BorderRadius.circular(24) : null,
+        border: cream
+            ? Border.all(color: t.cardBorderColor)
+            : Border(bottom: BorderSide(color: t.cardBorderColor)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) =>
+            c.maxWidth < 300 || MediaQuery.textScalerOf(context).scale(14) > 22
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: BookingEditorial.title(18, context)),
+                  const SizedBox(height: 8),
+                  content,
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: Text(
+                      label,
+                      style: BookingEditorial.title(18, context),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: content),
+                ],
+              ),
+      ),
+    );
+    final lines = <MapEntry<String, int>>[
+      if (timeAddon != null)
+        MapEntry(
+          timeAddon!['label']?.toString() ?? '入退房時間',
+          ((timeAddon!['price'] ?? 0) as num).toInt(),
+        ),
+      for (final v in valueServices)
+        MapEntry(
+          v['name']?.toString() ?? '加值服務',
+          ((v['price'] ?? 0) as num).toInt(),
+        ),
+      for (final v in customServices.entries)
+        if (v.value.isNotEmpty)
+          MapEntry(
+            '${v.key}（${v.value.length} 隻）',
+            (customServicePrices[v.key] ?? 0) * v.value.length,
+          ),
+    ];
+    for (final entry in dailyTimedServices.asMap().entries) {
+      final service = entry.value;
+      final name = service['name']?.toString() ?? '';
+      final raw = service['id']?.toString().trim() ?? '';
+      final id = raw.isNotEmpty
+          ? raw
+          : name.isNotEmpty
+          ? 'daily_timed_$name'
+          : 'daily_timed_${entry.key}';
+      var count = 0;
+      for (final days in (selectedDailyTimedServices[id] ?? {}).values) {
+        for (final slots in days.values) {
+          count += slots.length;
+        }
+      }
+      if (count > 0) {
+        lines.add(
+          MapEntry(
+            '$name（$count 次）',
+            ((service['price'] ?? 0) as num).toInt() * count,
+          ),
+        );
+      }
+    }
+    final addons = addonAmount ?? lines.fold<int>(0, (sum, e) => sum + e.value);
+    final room =
+        roomAmount ??
+        ((originalTotal ?? totalPrice) - addons - specialDateSurchargeAmount);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BookingEditorial.heading('確認住宿安排', subtitle: '請核對本次住宿內容與費用。'),
+        BookingEditorial.trip(
+          '${startDateText.replaceAll('-', '/')}—${endDateText.replaceAll('-', '/')} · $nights 晚 · $petCount 隻',
+        ),
+        const SizedBox(height: 12),
+        detail(
+          '住宿日期',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '入住  $startDateText',
+                style: BookingEditorial.body(16, context),
+              ),
+              Text(
+                '退房  $endDateText',
+                style: BookingEditorial.body(16, context),
+              ),
+            ],
+          ),
+        ),
+        detail(
+          '入住貓咪',
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final name in petNames)
+                Chip(
+                  avatar: Icon(
+                    Icons.pets_outlined,
+                    size: 17,
+                    color: t.primaryColor,
+                  ),
+                  label: Text(name, style: BookingEditorial.body(14, context)),
+                  backgroundColor: t.backgroundColor,
+                  side: BorderSide(color: t.cardBorderColor),
+                ),
+            ],
+          ),
+        ),
+        detail(
+          '入住房型',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(roomTypeName, style: BookingEditorial.title(19, context)),
+              Text('$petCount 隻入住', style: BookingEditorial.body(14, context)),
+            ],
+          ),
+        ),
+        BookingEditorial.heading('加購服務'),
+        if (lines.isEmpty)
+          Text('本次未加購其他服務。', style: BookingEditorial.body(14, context)),
+        for (final e in lines) ...[
+          amount(e.key, e.value),
+          Divider(color: t.cardBorderColor, height: 1),
+        ],
+        if (couponSection != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: couponSection!,
+          ),
+        BookingEditorial.heading('費用明細'),
+        amount('住宿費用', room, note: '共 $nights 晚 · $petCount 隻'),
+        amount('加購服務', addons),
+        if (specialDateSurchargeAmount > 0)
+          amount('特殊日期加價', specialDateSurchargeAmount),
+        for (final d in specialDateSurchargeDetails)
+          Text(
+            '${d['date'] ?? ''} · NT\$ ${d['amount'] ?? 0}',
+            style: BookingEditorial.body(12, context),
+          ),
+        if (discountAmount > 0)
+          amount(
+            discountCampaignName.isEmpty ? '住宿優惠' : discountCampaignName,
+            -discountAmount,
+          ),
+        if (couponDiscountAmount > 0)
+          amount(
+            couponName.isEmpty ? '優惠券折抵' : couponName,
+            -couponDiscountAmount,
+          ),
+        if (pointAmount > 0) amount('點數折抵', -pointAmount),
+        if (discountAmount == 0 &&
+            couponDiscountAmount == 0 &&
+            pointAmount == 0)
+          amount('優惠折抵', 0),
+        Divider(color: t.primaryColor, height: 18),
+        amount('應付總額', totalPrice, strong: true),
+        if (depositAmount > 0) amount('訂金', depositAmount),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (const [
+      'editorial',
+      'cream',
+    ].contains(BookingAppearanceScope.of(context).style)) {
+      return _editorial(context);
+    }
     final int baseOriginal =
         (originalTotal ?? totalPrice) -
         (specialDateSurchargeAmount > 0 ? specialDateSurchargeAmount : 0);

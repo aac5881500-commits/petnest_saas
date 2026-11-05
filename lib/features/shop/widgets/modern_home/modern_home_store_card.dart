@@ -1,3 +1,4 @@
+import 'editorial_section_widgets.dart';
 import 'store_entry_photo.dart';
 import 'store_entry_template_card.dart';
 // 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_store_card.dart
@@ -36,6 +37,23 @@ class ModernHomeStoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final body = _body(context);
+    if (setting.storeSectionTitle.trim().isEmpty) return body;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        EditorialSectionHeading(
+          title: setting.storeSectionTitle,
+          theme: theme,
+          accent: setting.storeHeadingAccent,
+        ),
+        const SizedBox(height: 10),
+        body,
+      ],
+    );
+  }
+
+  Widget _body(BuildContext context) {
     if (ModernStoreEntryLayouts.quickTemplates.containsKey(
       setting.storeEntryLayout,
     )) {

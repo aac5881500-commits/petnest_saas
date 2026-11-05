@@ -26,6 +26,7 @@ class ModernHomeRoomSection extends StatelessWidget {
     this.onManageRooms,
     this.simpleImageUrl = '',
     this.displayStyle,
+    this.headerTrailing,
   });
 
   final HomeThemeModel theme;
@@ -42,6 +43,7 @@ class ModernHomeRoomSection extends StatelessWidget {
   /// 簡約入口的平台圖庫圖片。其他排版不使用，也不會寫回房型。
   final String simpleImageUrl;
   final HomeDisplayStyle? displayStyle;
+  final Widget? headerTrailing;
 
   String get _title {
     final String title = setting.title.trim();
@@ -83,6 +85,8 @@ class ModernHomeRoomSection extends StatelessWidget {
           theme: theme,
           fontFamily: setting.appliedFontFamily,
           title: _title,
+          headerTrailing: headerTrailing,
+          headingAccent: setting.headingAccent,
           showPrice: setting.showPrice,
           columns: setting.compact.columns.clamp(1, 3),
           imageRatio: setting.compact.imageHeight == HomeRoomImageHeights.tall
@@ -158,7 +162,9 @@ class ModernHomeRoomSection extends StatelessWidget {
             ),
           ),
         ),
-        if (titleAction)
+        if (headerTrailing != null)
+          headerTrailing!
+        else if (titleAction)
           TextButton(
             onPressed: _openAll,
             child: Text(

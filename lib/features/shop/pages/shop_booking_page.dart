@@ -1,3 +1,5 @@
+import '../widgets/booking/booking_cream_header.dart';
+import '../widgets/booking/booking_editorial_design.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_background_surface.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_arrival_layout.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_inline_calendar.dart';
@@ -618,25 +620,83 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       },
       child: Scaffold(
         backgroundColor: widget.theme.backgroundColor,
-        appBar: AppBar(
-          backgroundColor: widget.theme.cardColor,
-          foregroundColor: widget.theme.textColor,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          automaticallyImplyLeading: _currentStep <= 1,
-          leading: _currentStep > 1
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => _goToStep(_currentStep - 1),
-                )
-              : null,
-          title: Text(
-            '我要預約',
-            style: TextStyle(
-              color: widget.theme.textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: StreamBuilder<Map<String, dynamic>?>(
+            stream: _shopStream,
+            builder: (context, headerSnapshot) {
+              final appearance = BookingPageAppearance.fromShop(
+                headerSnapshot.data ?? _currentShopData ?? {},
+              );
+              final editorialHeader =
+                  (_currentStep == 1 &&
+                      const [
+                        'editorial',
+                        'cream',
+                      ].contains(appearance.style)) ||
+                  (_currentStep >= 2 &&
+                      const ['editorial', 'cream'].contains(appearance.style));
+              return AppBar(
+                backgroundColor: editorialHeader
+                    ? appearance
+                          .applyLook(
+                            _suiteTheme(
+                              headerSnapshot.data ?? _currentShopData,
+                            ),
+                            frontendTheme:
+                                BookingPageAppearance.frontendThemeFromShop(
+                                  headerSnapshot.data,
+                                ),
+                          )
+                          .backgroundColor
+                    : widget.theme.cardColor,
+                foregroundColor: editorialHeader
+                    ? appearance
+                          .applyLook(
+                            _suiteTheme(
+                              headerSnapshot.data ?? _currentShopData,
+                            ),
+                            frontendTheme:
+                                BookingPageAppearance.frontendThemeFromShop(
+                                  headerSnapshot.data,
+                                ),
+                          )
+                          .textColor
+                    : widget.theme.textColor,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                automaticallyImplyLeading: _currentStep <= 1,
+                leading: _currentStep > 1
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => _goToStep(_currentStep - 1),
+                      )
+                    : null,
+                title: editorialHeader
+                    ? BookingAppearanceScope(
+                        appearance: appearance,
+                        frontendTheme:
+                            BookingPageAppearance.frontendThemeFromShop(
+                              headerSnapshot.data,
+                            ),
+                        child: BookingEditorial.brand(
+                          shopName:
+                              (headerSnapshot.data?['name'] ??
+                                      _currentShopData?['name'] ??
+                                      '貓咪旅館')
+                                  .toString(),
+                        ),
+                      )
+                    : Text(
+                        '我要預約',
+                        style: TextStyle(
+                          color: widget.theme.textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              );
+            },
           ),
         ),
         drawer: widget.useModernDrawer
@@ -758,26 +818,15 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               );
             }
 
-            final activeTheme = _currentStep == 1
-                ? BookingArrivalLayout.themeFor(
-                    BookingPageAppearance.fromShop(shop).style,
-                    appearance: BookingPageAppearance.fromShop(shop),
-                    originalTheme: BookingPageAppearance.frontendThemeFromShop(
-                      shop,
-                      fallback: widget.theme,
-                    ),
-                  )
-                : BookingPageAppearance.fromShop(shop).look.followFrontend
-                ? BookingPageAppearance.fromShop(shop).applyLook(
-                    widget.theme,
-                    frontendTheme: BookingPageAppearance.frontendThemeFromShop(
-                      shop,
-                      fallback: widget.theme,
-                    ),
-                  )
-                : widget.theme.copyWith(
-                    appBackgroundMode: ShopAppBackground.modeColor,
-                  );
+            final appearance = BookingPageAppearance.fromShop(shop);
+            final activeTheme = BookingArrivalLayout.themeFor(
+              appearance.style,
+              appearance: appearance,
+              originalTheme: BookingPageAppearance.frontendThemeFromShop(
+                shop,
+                fallback: widget.theme,
+              ),
+            );
             return BookingAppearanceScope(
               appearance: BookingPageAppearance.fromShop(shop),
               frontendTheme: BookingPageAppearance.frontendThemeFromShop(
@@ -982,16 +1031,46 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     if (_currentStep == 2) {
+      final serviceTheme = BookingArrivalLayout.themeFor(
+        BookingPageAppearance.fromShop(shop).style,
+        appearance: BookingPageAppearance.fromShop(shop),
+        originalTheme: BookingPageAppearance.frontendThemeFromShop(
+          shop,
+          fallback: widget.theme,
+        ),
+      );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          if (BookingPageAppearance.fromShop(shop).style == 'cream')
+            BookingCreamHeader(
+              shopName: shop['name']?.toString() ?? '貓咪旅館',
+              step: 2,
+              title: '挑選安心的小房間',
+              subtitle: '選擇房型，再搭配貓咪喜歡的服務。',
+            ),
+          if (BookingPageAppearance.fromShop(shop).serviceStyle != 'original')
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              color: serviceTheme.primaryColor.withValues(alpha: .08),
+              child: Text(
+                '${_startDate?.month}/${_startDate?.day}—${_endDate?.month}/${_endDate?.day} · ${_selectedPetIds.length} 隻貓咪',
+                style: TextStyle(
+                  color: serviceTheme.textColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           BookingRoomTypeSection(
             shopId: widget.shopId,
             startDate: _startDate,
             endDate: _endDate,
             selectedPetIds: _selectedPetIds,
             selectedRoomType: _selectedRoomType,
-            theme: widget.theme,
+            theme: serviceTheme,
+            onAdjustSelection: () => _goToStep(1),
             onSelectRoomType: (roomType) {
               setState(() {
                 _selectedRoomType = roomType;
@@ -1025,7 +1104,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             startDate: _startDate,
             endDate: _endDate,
             selectedDailyTimedServices: _selectedDailyTimedServices,
-            theme: widget.theme,
+            theme: serviceTheme,
             addonTotal: _addonTotalAmount(),
             onDailyTimedServicesChanged: () {
               setState(() {});
@@ -1106,7 +1185,18 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         if (_selectedRoomType != null &&
             _startDate != null &&
             _endDate != null) ...<Widget>[
-          _buildMemberCouponSection(),
+          if (BookingPageAppearance.fromShop(shop).style == 'cream')
+            BookingCreamHeader(
+              shopName: shop['name']?.toString() ?? '貓咪旅館',
+              step: 3,
+              title: '確認貓咪的小旅行',
+              subtitle: '最後核對住宿安排與本次費用。',
+            ),
+          if (!const [
+            'editorial',
+            'cream',
+          ].contains(BookingPageAppearance.fromShop(shop).style))
+            _buildMemberCouponSection(),
           BookingPointsRedeemSection(
             shopId: widget.shopId,
             userId: FirebaseAuth.instance.currentUser?.uid ?? '',
@@ -1141,10 +1231,39 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     );
   }
 
+  HomeThemeModel _suiteTheme(Map<String, dynamic>? shop) =>
+      BookingArrivalLayout.themeFor(
+        BookingPageAppearance.fromShop(shop).style,
+        appearance: BookingPageAppearance.fromShop(shop),
+        originalTheme: BookingPageAppearance.frontendThemeFromShop(
+          shop,
+          fallback: widget.theme,
+        ),
+      );
+
+  bool get _editorialActive {
+    final a = BookingPageAppearance.fromShop(_currentShopData ?? {});
+    return (_currentStep == 1 &&
+            const ['editorial', 'cream'].contains(a.style)) ||
+        (_currentStep == 2 &&
+            const ['editorial', 'cream'].contains(a.serviceStyle));
+  }
+
   Widget _buildStepBottomBar({
     required Map<String, dynamic> shop,
     required List<String> serviceTypes,
   }) {
+    if (_editorialActive) {
+      final hint = _currentStep == 1 ? _step1Hint : _step2Hint;
+      return BookingEditorialFooter(
+        left: _currentStep == 1 ? '已選 ${_selectedPetIds.length} 隻貓咪' : '預估總額',
+        right: _currentStep == 1
+            ? '$_nights 晚住宿'
+            : ShopReportFormat.money(_estimatedTotal(shop)),
+        hint: hint,
+        onNext: hint == null ? () => _goToStep(_currentStep + 1) : null,
+      );
+    }
     if (_currentStep == 1) {
       final hint = _step1Hint;
       final stepTheme = BookingArrivalLayout.themeFor(
@@ -1179,6 +1298,14 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     if (_currentStep == 2) {
+      final serviceTheme = BookingArrivalLayout.themeFor(
+        BookingPageAppearance.fromShop(shop).style,
+        appearance: BookingPageAppearance.fromShop(shop),
+        originalTheme: BookingPageAppearance.frontendThemeFromShop(
+          shop,
+          fallback: widget.theme,
+        ),
+      );
       final String? hint = _step2Hint;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1190,7 +1317,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                   '已選 $_selectedAddonCount 項加值服務',
                   style: TextStyle(
                     fontSize: 12,
-                    color: widget.theme.textColor.withValues(alpha: 0.7),
+                    color: serviceTheme.textColor.withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -1199,7 +1326,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: widget.theme.textColor,
+                  color: serviceTheme.textColor,
                 ),
               ),
             ],
@@ -1211,13 +1338,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                 hint,
                 style: TextStyle(
                   fontSize: 12,
-                  color: widget.theme.textColor.withValues(alpha: 0.7),
+                  color: serviceTheme.textColor.withValues(alpha: 0.7),
                 ),
               ),
             ),
           const SizedBox(height: 8),
           BookingPrimaryButton(
-            theme: widget.theme,
+            theme: serviceTheme,
             label: '下一步',
             onPressed: hint == null ? () => _goToStep(3) : null,
           ),
@@ -1263,7 +1390,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       customerPhoneController: _customerPhoneController,
       noteController: _noteController,
       isSubmitting: _submitting,
-      theme: widget.theme,
+      theme: _suiteTheme(shop),
       compact: true,
       selectedPets: _pets
           .where(
@@ -1316,7 +1443,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               .toInt();
 
     return BookingMemberCouponSection(
-      theme: widget.theme,
+      theme: _suiteTheme(_currentShopData),
       selectedCoupon: selectedCoupon,
       availableCoupons: _availableMemberCoupons,
       loading: _memberCouponsLoading,
@@ -1335,7 +1462,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   Future<void> _showMemberCouponPicker() async {
     final MemberCouponModel? result = await showBookingMemberCouponPicker(
       context: context,
-      theme: widget.theme,
+      theme: _suiteTheme(_currentShopData),
       coupons: _availableMemberCoupons,
       selectedCoupon: _selectedMemberCoupon,
     );
@@ -2043,9 +2170,10 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       lastDate: lastDay,
     );
 
-    showDialog(
+    final appearance = BookingPageAppearance.fromShop(shop);
+    showBookingCalendarSurface(
       context: context,
-      useRootNavigator: false,
+      presentation: appearance.calendarPresentation,
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setInnerState) {
@@ -2070,7 +2198,23 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
                 final payload = snapshot.data!;
 
+                final calendarTheme = BookingArrivalLayout.themeFor(
+                  appearance.style,
+                  appearance: appearance,
+                  originalTheme: widget.theme,
+                );
                 return BookingCalendarDialog(
+                  backgroundColor:
+                      appearance.calendarBackgroundFor(calendarTheme) == null
+                      ? null
+                      : Color(appearance.calendarBackgroundFor(calendarTheme)!),
+                  visualStyle: appearance.calendarStyle,
+                  presentation: appearance.calendarPresentation,
+                  density: appearance.calendarDensity,
+                  accentColor:
+                      appearance.calendarAccentFor(calendarTheme) == null
+                      ? null
+                      : Color(appearance.calendarAccentFor(calendarTheme)!),
                   payload: payload,
                   calendarMonth: _calendarMonth,
                   today: today,
@@ -2090,7 +2234,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                       0,
                     );
 
-                    setState(() {
+                    setInnerState(() {
                       _calendarMonth = newMonth;
 
                       _calendarFuture = _buildFrontCalendarPayload(
@@ -2731,7 +2875,14 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         BookingSummaryHelper.buildSummary(
-          theme: widget.theme,
+          theme: _suiteTheme(shop),
+          couponSection:
+              const [
+                'editorial',
+                'cream',
+              ].contains(BookingPageAppearance.fromShop(shop).style)
+              ? _buildMemberCouponSection()
+              : null,
           startDateText: _formatDate(_startDate!),
           endDateText: _formatDate(_endDate!),
           nights: _nights,

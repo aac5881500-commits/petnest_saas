@@ -1,3 +1,6 @@
+import 'booking_editorial_design.dart';
+import 'booking_appearance_scope.dart';
+import 'booking_service_templates.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_addon_section.dart
 // 功能說明：顯示營業時間外入住、一般加值服務、客製化服務、每日分時段服務
 // 🔥 前台預約加值服務區塊
@@ -34,7 +37,7 @@ class BookingAddonSection extends StatelessWidget {
     required this.onDailyTimedServicesChanged,
   });
 
-  /// 舊版整區展開參數仍由外層傳入，實際改為分類折疊。
+  /// 舊版整區展開參數仍由外層傳入，各分類內容預設完整顯示。
   // ignore: unused_field
   final bool showAddons;
   final bool addonLoading;
@@ -206,8 +209,339 @@ class BookingAddonSection extends StatelessWidget {
     return slots;
   }
 
+  Widget _editorial(BuildContext context) {
+    final cream = BookingAppearanceScope.of(context).style == 'cream';
+    List<Map<String, dynamic>> items(String key) =>
+        List<Map<String, dynamic>>.from(addonData?[key] ?? []);
+    Widget row(
+      String name,
+      String desc,
+      String price, {
+      bool? selected,
+      VoidCallback? toggle,
+      Widget? controls,
+    }) => Container(
+      margin: cream ? const EdgeInsets.only(bottom: 12) : EdgeInsets.zero,
+      padding: cream
+          ? const EdgeInsets.all(15)
+          : const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: cream ? BookingEditorial.theme(context).cardColor : null,
+        borderRadius: cream ? BorderRadius.circular(24) : null,
+        border: cream
+            ? Border.all(color: BookingEditorial.theme(context).cardBorderColor)
+            : Border(
+                bottom: BorderSide(
+                  color: BookingEditorial.theme(context).cardBorderColor,
+                ),
+              ),
+      ),
+      child: GestureDetector(
+        onTap: toggle,
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 30,
+              child: selected == null
+                  ? Icon(
+                      Icons.radio_button_checked,
+                      color: BookingEditorial.theme(context).primaryColor,
+                      size: 24,
+                    )
+                  : SizedBox(
+                      height: 27,
+                      child: Checkbox(
+                        value: selected,
+                        onChanged: toggle == null ? null : (_) => toggle(),
+                        activeColor: BookingEditorial.theme(
+                          context,
+                        ).primaryColor,
+                        side: BorderSide(
+                          color: BookingEditorial.theme(context).primaryColor,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      Text(name, style: BookingEditorial.title(19, context)),
+                      Text(price, style: BookingEditorial.body(14, context)),
+                    ],
+                  ),
+                  if (desc.isNotEmpty)
+                    Text(desc, style: BookingEditorial.body(14, context)),
+                  if (controls != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 9),
+                      child: controls,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final available = pets
+        .where((p) => selectedPetIds.contains(_petId(p)))
+        .toList();
+    Widget chip(String label, bool selected, ValueChanged<bool> change) =>
+        FilterChip(
+          label: Text(label, style: BookingEditorial.body(14, context)),
+          selected: selected,
+          onSelected: change,
+          selectedColor: BookingEditorial.tint(context),
+          backgroundColor: BookingEditorial.theme(context).backgroundColor,
+          checkmarkColor: BookingEditorial.theme(context).primaryColor,
+          side: BorderSide(
+            color: BookingEditorial.theme(context).cardBorderColor,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+        );
+    final times = items('timeOptions');
+    final selectedIndex = times.indexWhere(
+      (v) => v['label'] == selectedTimeAddon?['label'],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Divider(
+          color: BookingEditorial.theme(context).cardBorderColor,
+          height: 26,
+        ),
+        BookingEditorial.heading('加購服務', subtitle: '加購選填，讓住宿體驗更完整。'),
+        if (addonLoading) const LinearProgressIndicator(),
+        if (!addonLoading && addonData == null)
+          Text('目前尚未設定加購服務', style: BookingEditorial.body(15, context)),
+        if (BookingAddonsHelper.parseBool(addonData?['enabled']) &&
+            times.isNotEmpty)
+          row(
+            '入退房時間',
+            '選擇入住與退房方式。',
+            'NT\$ ${selectedTimeAddon?['price'] ?? 0}／筆',
+            controls: DropdownButtonFormField<int>(
+              key: const ValueKey('editorial-time-choice'),
+              initialValue: selectedIndex < 0 ? null : selectedIndex,
+              isExpanded: true,
+              style: BookingEditorial.body(15, context),
+              dropdownColor: BookingEditorial.theme(context).backgroundColor,
+              decoration: InputDecoration(
+                hintText: '選擇時間方案',
+                filled: true,
+                fillColor: BookingEditorial.tint(context),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: [
+                for (var i = 0; i < times.length; i++)
+                  DropdownMenuItem(
+                    value: i,
+                    child: Text('${times[i]['label']}'),
+                  ),
+              ],
+              onChanged: (i) {
+                if (i != null) onSelectTimeAddon(times[i]);
+              },
+            ),
+          ),
+        for (final v in items('valueServices'))
+          row(
+            '${v['name']}',
+            v['desc']?.toString() ?? '整筆預約收一次。',
+            'NT\$ ${v['price']}／筆',
+            selected: selectedValueServices.any((x) => x['name'] == v['name']),
+            toggle: () => onToggleValueService(v),
+          ),
+        for (final v in items('customServices'))
+          row(
+            '${v['name']}',
+            v['desc']?.toString() ?? '依每隻貓咪需求安排照護。',
+            'NT\$ ${v['price']}／隻',
+            selected: selectedCustomServices.containsKey(v['name']),
+            toggle: () => onToggleCustomService(v),
+            controls: Wrap(
+              spacing: 8,
+              runSpacing: 5,
+              children: [
+                for (final pet in available)
+                  chip(
+                    _petName(pet, _petId(pet)),
+                    selectedCustomServices[v['name']]?.contains(_petId(pet)) ??
+                        false,
+                    (value) => onToggleCustomPet(
+                      v['name'].toString(),
+                      _petId(pet),
+                      value,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        for (final entry in items('dailyTimedServices').asMap().entries)
+          Builder(
+            builder: (context) {
+              final v = entry.value,
+                  id = _dailyTimedServiceId(v, entry.key),
+                  selection = selectedDailyTimedServices[id] ?? {};
+              final slots = _serviceTimeSlots(v);
+              return row(
+                '${v['name']}',
+                '先選貓咪，再選日期與時段；每隻分開安排。',
+                'NT\$ ${v['price']}／時段',
+                selected: selection.isNotEmpty,
+                toggle: () {
+                  if (selection.isNotEmpty) {
+                    selectedDailyTimedServices.remove(id);
+                  } else if (available.isNotEmpty) {
+                    selectedDailyTimedServices[id] = {
+                      _petId(available.first): {},
+                    };
+                  }
+                  onDailyTimedServicesChanged();
+                },
+                controls: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 5,
+                      children: [
+                        for (final p in available)
+                          chip(
+                            _petName(p, _petId(p)),
+                            selection.containsKey(_petId(p)),
+                            (value) {
+                              if (value) {
+                                selectedDailyTimedServices
+                                    .putIfAbsent(id, () => {})
+                                    .putIfAbsent(_petId(p), () => {});
+                              } else {
+                                selectedDailyTimedServices[id]?.remove(
+                                  _petId(p),
+                                );
+                                if (selectedDailyTimedServices[id]?.isEmpty ??
+                                    false) {
+                                  selectedDailyTimedServices.remove(id);
+                                }
+                              }
+                              onDailyTimedServicesChanged();
+                            },
+                          ),
+                      ],
+                    ),
+                    if (available.isEmpty)
+                      Text(
+                        '請先選擇入住貓咪。',
+                        style: BookingEditorial.body(14, context),
+                      ),
+                    if (slots.isEmpty)
+                      Text(
+                        '店家尚未設定可選時段。',
+                        style: BookingEditorial.body(14, context),
+                      ),
+                    for (final p in available.where(
+                      (p) => selection.containsKey(_petId(p)),
+                    )) ...[
+                      if (selection.length > 1)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _petName(p, _petId(p)),
+                            style: BookingEditorial.title(13, context),
+                          ),
+                        ),
+                      if (_buildServiceDates().isEmpty)
+                        Text(
+                          '請先選擇入住與退房日期。',
+                          style: BookingEditorial.body(14, context),
+                        ),
+                      for (final date in _buildServiceDates())
+                        Padding(
+                          padding: const EdgeInsets.only(top: 7),
+                          child: Wrap(
+                            spacing: 7,
+                            runSpacing: 5,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: BookingEditorial.tint(context),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${date.month}/${date.day}',
+                                  style: BookingEditorial.body(14, context),
+                                ),
+                              ),
+                              for (final slot in slots)
+                                chip(
+                                  slot['label'].toString(),
+                                  selection[_petId(p)]?[_dateKey(date)]
+                                          ?.contains(slot['id']) ??
+                                      false,
+                                  (value) {
+                                    final days = selectedDailyTimedServices
+                                            .putIfAbsent(id, () => {})
+                                            .putIfAbsent(_petId(p), () => {}),
+                                        list = days.putIfAbsent(
+                                          _dateKey(date),
+                                          () => [],
+                                        );
+                                    if (value) {
+                                      if (!list.contains(slot['id'])) {
+                                        list.add(slot['id'].toString());
+                                      }
+                                    } else {
+                                      list.remove(slot['id']);
+                                      if (list.isEmpty) {
+                                        days.remove(_dateKey(date));
+                                      }
+                                    }
+                                    onDailyTimedServicesChanged();
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (BookingAppearanceScope.of(context).serviceStyle == 'editorial' ||
+        BookingAppearanceScope.of(context).style == 'cream') {
+      return _editorial(context);
+    }
     final bool addonEnabled = BookingAddonsHelper.parseBool(
       addonData?['enabled'],
     );
@@ -238,23 +572,33 @@ class BookingAddonSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '加值服務',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: theme.textColor,
+        if (BookingAppearanceScope.of(context).serviceStyle != 'original')
+          BookingServiceTemplates.header(
+            BookingAppearanceScope.of(context).serviceStyle,
+            theme,
+            '客製你的住宿體驗',
+            '加購選填，依需求搭配服務',
+            '02',
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '依分類展開選擇，不會一次展開全部表單。',
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.textColor.withValues(alpha: 0.7),
+        if (BookingAppearanceScope.of(context).serviceStyle == 'original') ...[
+          Text(
+            '加購服務（選填）',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: theme.textColor,
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          Text(
+            '依需要勾選即可，不加購也能繼續。各項計費方式不同，請參考分類說明。',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textColor.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         if (addonLoading) const Center(child: CircularProgressIndicator()),
         if (!addonLoading && addonData == null)
           Padding(
@@ -272,6 +616,7 @@ class BookingAddonSection extends StatelessWidget {
             _AddonCategoryCard(
               theme: theme,
               title: '入退房時間',
+              description: '單選一個時間方案，按所選方案計費。請依預計抵達或接回時間選擇。',
               selectedCount: selectedTimeAddon == null ? 0 : 1,
               children: <Widget>[
                 if (!addonEnabled)
@@ -298,6 +643,9 @@ class BookingAddonSection extends StatelessWidget {
                       child: AddonItemCard(
                         item: {...item, 'name': label},
                         isSelected: isSelected,
+                        singleChoice: true,
+                        priceUnit: '每筆預約',
+                        accentColor: theme.primaryColor,
                       ),
                     );
                   }),
@@ -307,6 +655,7 @@ class BookingAddonSection extends StatelessWidget {
             _AddonCategoryCard(
               theme: theme,
               title: '加值服務',
+              description: '可複選；每項按整筆預約收費一次，不乘貓咪數與住宿晚數。',
               selectedCount: selectedValueServices.length,
               children: <Widget>[
                 ...valueServices.map((item) {
@@ -320,7 +669,12 @@ class BookingAddonSection extends StatelessWidget {
                     onTap: () {
                       onToggleValueService(item);
                     },
-                    child: AddonItemCard(item: item, isSelected: isSelected),
+                    child: AddonItemCard(
+                      item: item,
+                      isSelected: isSelected,
+                      priceUnit: '每筆預約一次',
+                      accentColor: theme.primaryColor,
+                    ),
                   );
                 }),
               ],
@@ -329,6 +683,7 @@ class BookingAddonSection extends StatelessWidget {
             _AddonCategoryCard(
               theme: theme,
               title: '客製服務',
+              description: '先勾選服務，再選需要服務的貓咪；每隻收費一次，不乘住宿天數。',
               selectedCount: selectedCustomServices.length,
               children: <Widget>[
                 ...customServices.map((item) {
@@ -349,11 +704,16 @@ class BookingAddonSection extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        AddonItemCard(item: item, isSelected: isSelected),
+                        AddonItemCard(
+                          item: item,
+                          isSelected: isSelected,
+                          priceUnit: '每隻貓咪一次',
+                          accentColor: theme.primaryColor,
+                        ),
 
                         if (isSelected)
                           Padding(
-                            padding: const EdgeInsets.only(left: 30, top: 6),
+                            padding: const EdgeInsets.only(bottom: 14, top: 4),
                             child: Wrap(
                               spacing: 6,
                               runSpacing: 6,
@@ -377,6 +737,9 @@ class BookingAddonSection extends StatelessWidget {
 
                                 return FilterChip(
                                   label: Text('🐱 $petName'),
+                                  selectedColor: theme.primaryColor.withValues(
+                                    alpha: .12,
+                                  ),
                                   selected: selected,
                                   showCheckmark: false,
                                   onSelected: (value) {
@@ -400,6 +763,7 @@ class BookingAddonSection extends StatelessWidget {
             _AddonCategoryCard(
               theme: theme,
               title: '每日分時段服務',
+              description: '先選貓咪，再選每天的時段；每隻 × 日期 × 時段計費，服務日期不含退房日。',
               selectedCount: selectedDailyTimedServices.values.where((
                 Map<String, Map<String, List<String>>> pets,
               ) {
@@ -411,7 +775,7 @@ class BookingAddonSection extends StatelessWidget {
               }).length,
               children: <Widget>[
                 Text(
-                  '請先選擇需要服務的寵物，再依住宿期間每天選擇服務時段。',
+                  '① 選擇貓咪　→　② 勾選日期下的時段。只計算實際勾選的時段。',
                   style: TextStyle(
                     fontSize: 12,
                     color: theme.textColor.withValues(alpha: 0.7),
@@ -463,24 +827,32 @@ class BookingAddonSection extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Text(
+                            serviceName,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  serviceName,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              Text(
+                                'NT\$ $servicePrice',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.primaryColor,
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Text(
-                                '\$$servicePrice / 次',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                              const Text(
+                                '每隻／每個日期時段',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF596574),
                                 ),
                               ),
                             ],
@@ -492,7 +864,8 @@ class BookingAddonSection extends StatelessWidget {
                               serviceDesc,
                               style: const TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey,
+                                color: Color(0xFF596574),
+                                height: 1.5,
                               ),
                             ),
                           ],
@@ -510,7 +883,7 @@ class BookingAddonSection extends StatelessWidget {
                           const Divider(height: 24),
 
                           const Text(
-                            '選擇服務寵物',
+                            '① 選擇服務貓咪',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -563,7 +936,7 @@ class BookingAddonSection extends StatelessWidget {
                                       : Colors.grey.shade50,
                                   border: Border.all(
                                     color: isSelected
-                                        ? Colors.blueGrey.shade300
+                                        ? theme.primaryColor
                                         : Colors.grey.shade200,
                                     width: isSelected ? 1.2 : 1,
                                   ),
@@ -582,7 +955,7 @@ class BookingAddonSection extends StatelessWidget {
                                       title: Text('🐱 $petName'),
                                       subtitle: isSelected
                                           ? const Text(
-                                              '請選擇每天需要的服務時段',
+                                              '② 在下方選擇日期與服務時段',
                                               style: TextStyle(fontSize: 12),
                                             )
                                           : null,
@@ -738,6 +1111,11 @@ class BookingAddonSection extends StatelessWidget {
                                                                   );
 
                                                           return FilterChip(
+                                                            selectedColor: theme
+                                                                .primaryColor
+                                                                .withValues(
+                                                                  alpha: .12,
+                                                                ),
                                                             label: Text(
                                                               slotLabel,
                                                               style: TextStyle(
@@ -766,15 +1144,11 @@ class BookingAddonSection extends StatelessWidget {
                                                                 ),
                                                             backgroundColor:
                                                                 Colors.white,
-                                                            selectedColor:
-                                                                Colors
-                                                                    .blueGrey
-                                                                    .shade100,
+
                                                             side: BorderSide(
                                                               color: selected
-                                                                  ? Colors
-                                                                        .blueGrey
-                                                                        .shade400
+                                                                  ? theme
+                                                                        .primaryColor
                                                                   : Colors
                                                                         .grey
                                                                         .shade300,
@@ -879,16 +1253,17 @@ class BookingAddonSection extends StatelessWidget {
         BookingThemedCard(
           theme: theme,
           margin: EdgeInsets.zero,
-          child: Row(
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
             children: <Widget>[
-              Expanded(
-                child: Text(
-                  '已選 $selectedCount 項加值服務',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: theme.textColor,
-                  ),
+              Text(
+                '已選 $selectedCount 項加值服務',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textColor,
                 ),
               ),
               Text(
@@ -912,60 +1287,104 @@ class _AddonCategoryCard extends StatelessWidget {
     required this.theme,
     required this.title,
     required this.children,
+    required this.description,
     this.selectedCount = 0,
   });
-
   final HomeThemeModel theme;
-  final String title;
+  final String title, description;
   final int selectedCount;
   final List<Widget> children;
-
   @override
   Widget build(BuildContext context) {
+    final style = BookingAppearanceScope.of(context).serviceStyle;
     return Container(
+      key: ValueKey('booking-addon-category-$title'),
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selectedCount > 0
-              ? const Color(0xFF2E8B47)
-              : theme.cardBorderColor,
-        ),
+        color: style == 'editorial' ? Colors.transparent : theme.cardColor,
+        borderRadius: BorderRadius.circular(style == 'premium' ? 6 : 16),
+        border: style == 'editorial'
+            ? Border(bottom: BorderSide(color: theme.cardBorderColor))
+            : style == 'journal'
+            ? Border(
+                left: BorderSide(
+                  color: theme.primaryColor.withValues(alpha: .4),
+                  width: 3,
+                ),
+              )
+            : Border.all(
+                color: selectedCount > 0
+                    ? theme.primaryColor
+                    : theme.cardBorderColor,
+              ),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          key: PageStorageKey<String>('booking_addon_category_$title'),
-          initiallyExpanded: selectedCount > 0,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          title: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: theme.textColor,
-                  ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: theme.textColor,
                 ),
               ),
               if (selectedCount > 0)
                 Text(
                   '已選 $selectedCount',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF2E8B47),
+                    color: theme.primaryColor,
                   ),
                 ),
             ],
           ),
-          children: children,
-        ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: theme.textColor.withValues(alpha: .8),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (style == 'premium' &&
+              (title == '入退房時間' || title == '加值服務') &&
+              children.length > 1)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns =
+                    constraints.maxWidth >= 420 &&
+                        MediaQuery.textScalerOf(context).scale(14) <= 21
+                    ? 2
+                    : 1;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 4,
+                  children: [
+                    for (final child in children)
+                      SizedBox(
+                        width:
+                            (constraints.maxWidth - (columns - 1) * 10) /
+                            columns,
+                        child: child,
+                      ),
+                  ],
+                );
+              },
+            )
+          else
+            ...children,
+        ],
       ),
     );
   }

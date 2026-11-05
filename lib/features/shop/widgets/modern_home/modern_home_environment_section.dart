@@ -88,6 +88,11 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
               : const SizedBox.shrink();
         return EnvironmentHighlightCards(
           items: items,
+          photoHeight: switch (setting.imageHeight) {
+            HomeEnvironmentImageHeights.compact => 72,
+            HomeEnvironmentImageHeights.tall => 132,
+            _ => 100,
+          },
           theme: theme,
           onOpen: _open,
           outlined:

@@ -132,6 +132,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   String _storeCardContentPosition = ModernStoreCardPositions.centerLeft;
   String _featuredProductLayout = ModernFeaturedProductLayouts.horizontal;
   String _storeEntryLayout = ModernStoreEntryLayouts.banner;
+  String _storeEntryPlacement = 'standalone', _storeSectionTitle = '';
+  bool _storeHeadingAccent = true;
   String _committedStoreCardImageUrl = '';
   String _committedStoreCardImagePath = '';
   String _storeEntrySecondImageUrl = '';
@@ -525,6 +527,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       storeBannerButtonColorPreset: _storeCardButtonColorPreset,
       storeBannerContentPosition: _storeCardContentPosition,
       storeEntryLayout: _storeEntryLayout,
+      storeEntryPlacement: _storeEntryPlacement,
+      storeSectionTitle: _storeSectionTitle,
+      storeHeadingAccent: _storeHeadingAccent,
       storeEntrySecondImageUrl: _storeEntrySecondImageUrl,
       storeEntrySecondImageStoragePath: _storeEntrySecondImagePath,
     );
@@ -553,6 +558,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     _storeCardContentPosition = setting.storeBannerContentPosition;
     _featuredProductLayout = setting.featuredProductLayout;
     _storeEntryLayout = setting.storeEntryLayout;
+    _storeEntryPlacement = setting.storeEntryPlacement;
+    _storeSectionTitle = setting.storeSectionTitle;
+    _storeHeadingAccent = setting.storeHeadingAccent;
 
     _committedStoreCardImageUrl = setting.storeBannerImageUrl;
     _committedStoreCardImagePath = setting.storeBannerImageStoragePath;
@@ -855,6 +863,9 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _storeCardContentPosition = storeHomeSetting.storeBannerContentPosition;
         _featuredProductLayout = storeHomeSetting.featuredProductLayout;
         _storeEntryLayout = storeHomeSetting.storeEntryLayout;
+        _storeEntryPlacement = storeHomeSetting.storeEntryPlacement;
+        _storeSectionTitle = storeHomeSetting.storeSectionTitle;
+        _storeHeadingAccent = storeHomeSetting.storeHeadingAccent;
         _storeEntrySecondImageUrl = storeHomeSetting.storeEntrySecondImageUrl;
         _storeEntrySecondImagePath =
             storeHomeSetting.storeEntrySecondImageStoragePath;
@@ -1203,6 +1214,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   HomeAppearanceDraft get _appearanceDraft {
     return HomeAppearanceDraft(
+      storeHome: _draftStoreHomeSetting,
       theme: _modernTheme,
       desktopLayout: _desktopLayout,
       shopInfo: _shopInfo,
@@ -1263,6 +1275,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     final HomeAppearanceDraft next = browsing.apply(_appearanceDraft);
     return <String, dynamic>{
       ..._draftModernAppearance,
+      ...next.storeHome.toMap(),
       'themeColors': next.theme.toMap(),
       HomeDesktopLayoutSetting.mapKey: next.desktopLayout.toMap(),
       HomeShopInfoSetting.mapKey: next.shopInfo.toMap(),
@@ -1298,6 +1311,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         _selectedLayout = 'modern';
         _applySelectedLayoutSettings();
       }
+      _setStoreHomeDraft(next.storeHome);
       _modernTheme = next.theme;
       _desktopLayout = next.desktopLayout;
       _shopInfo = next.shopInfo;
@@ -1708,6 +1722,21 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       );
     }
     final Widget settings = NewsSectionSettingsPanel(
+      shopId: widget.shopId,
+      onPlaceNearRooms: (before) => setState(() {
+        final order = List<String>.of(_homeSectionOrder)
+          ..remove('announcements');
+        final index = order.indexOf('rooms');
+        order.insert(
+          index < 0 ? order.length : index + (before ? 0 : 1),
+          'announcements',
+        );
+        _homeSectionOrder = HomeSectionOrder.normalize(order);
+        _appearanceDirty = true;
+      }),
+      onBusyChanged: (busy) {
+        if (mounted) setState(() => _isUploadingSectionPhoto = busy);
+      },
       setting: _newsSection,
       displayStyles: _displayStyle,
       onDisplayStyles: (value) => setState(() {

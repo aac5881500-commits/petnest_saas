@@ -29,6 +29,23 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_review_sec
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('簡潔FAQ讀回並能展開答案', (tester) async {
+    final setting = HomeFaqSectionSetting.fromMap(const HomeFaqSectionSetting(
+      layout: HomeFaqLayouts.minimalAccordion, headingAccent: false,
+      showOnHome: true, previewCount: 3).toMap());
+    expect(setting.layout, HomeFaqLayouts.minimalAccordion);
+    expect(setting.headingAccent, false);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SizedBox(width: 320,
+      child: ModernHomeFaqSection(theme: HomeThemeModel.modernDefault, setting: setting,
+        items: const [HomeFaqItem(id: 'one', sortOrder: 0, question: '需要準備什麼？', answer: '準備熟悉的日常用品。')],
+        phase: HomeInfoSectionPhase.ready, onOpen: () {})))));
+    expect(find.text('準備熟悉的日常用品。'), findsNothing);
+    await tester.tap(find.byKey(const Key('home-faq-item-one')));
+    await tester.pump();
+    expect(find.text('準備熟悉的日常用品。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 
   test('入口圖庫與末端樣式保存、舊資料及未知值相容', () {
     const image = HomeCardImageSetting(

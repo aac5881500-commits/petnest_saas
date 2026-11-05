@@ -1,3 +1,5 @@
+import 'booking_arrival_layout.dart';
+import 'booking_appearance_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'front_calendar_payload.dart';
@@ -117,12 +119,26 @@ class _BookingInlineCalendarState extends State<BookingInlineCalendar> {
           );
         }
         final data = snapshot.data!;
+        final appearance = BookingAppearanceScope.of(context);
+        final pageTheme = BookingArrivalLayout.themeFor(
+          appearance.style,
+          appearance: appearance,
+          originalTheme: BookingAppearanceScope.frontendOf(context),
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             IgnorePointer(
               ignoring: _busy,
               child: BookingCalendar(
+                visualStyle: BookingAppearanceScope.of(context).calendarStyle,
+                backgroundColor:
+                    appearance.calendarBackgroundFor(pageTheme) == null
+                    ? null
+                    : Color(appearance.calendarBackgroundFor(pageTheme)!),
+                accentColor: appearance.calendarAccentFor(pageTheme) == null
+                    ? null
+                    : Color(appearance.calendarAccentFor(pageTheme)!),
                 key: ValueKey('${_month.year}-${_month.month}'),
                 initialMonth: _month,
                 firstDate: widget.today,
@@ -134,7 +150,9 @@ class _BookingInlineCalendarState extends State<BookingInlineCalendar> {
                 unbookableDateKeys: data.unbookableDateKeys,
                 remainingRoomsMap: data.remainingRoomsMap,
                 specialOpenDateKeys: data.specialOpenDateKeys,
-                compactCells: true,
+                compactCells:
+                    BookingAppearanceScope.of(context).calendarDensity !=
+                    'comfortable',
                 onDayTap: _tap,
                 onMonthChanged: (month) => setState(() => _month = month),
               ),

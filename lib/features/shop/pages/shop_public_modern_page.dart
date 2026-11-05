@@ -1,3 +1,4 @@
+import '../widgets/modern_home/home_store_action.dart';
 import 'package:petnest_saas/core/models/home_desktop_layout_setting.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_desktop_layout.dart';
 import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
@@ -977,6 +978,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           return _homeSection(
             sectionId: sectionId,
             shop: shop,
+            visibleSectionIds: visibleSections,
             shopName: shopName,
             headerSubtitle: headerSubtitle,
             brandStyle: brandStyle,
@@ -1471,6 +1473,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   Widget _buildPopularRoomSection({
     required HomeThemeModel theme,
     required HomeRoomSectionSetting roomSection,
+    Widget? headerTrailing,
   }) {
     final bool preview = widget.layoutCanvas || widget.isPreview;
     if (_roomTypes == null && !_roomTypesFailed) {
@@ -1484,6 +1487,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       builder: (String simpleImageUrl) => ModernHomeRoomSection(
         theme: theme,
         setting: roomSection,
+        headerTrailing: headerTrailing,
         simpleImageUrl: simpleImageUrl,
         roomTypes: _roomTypes ?? const <Map<String, dynamic>>[],
         preview: preview,
@@ -1528,6 +1532,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   }
 
   Widget _homeSection({
+    required List<String> visibleSectionIds,
     required String sectionId,
     required Map<String, dynamic> shop,
     required String shopName,
@@ -1663,7 +1668,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           },
         );
       case 'announcements':
-        return ModernHomeNewsSection(
+        Widget buildNews([Widget? aside]) => ModernHomeNewsSection(
+          storeAside: aside,
           displayStyle: homeResolvedDisplayStyle(
             setting: displayStyles,
             sectionId: HomeDisplaySections.announcements,
@@ -1685,6 +1691,25 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             );
           },
         );
+        if (storeHomeSetting.storeEntryPlacement == 'news' &&
+            newsItems.isNotEmpty) {
+          return StoreEntranceBanner(
+            shopId: widget.shopId,
+            shop: shop,
+            theme: theme,
+            setting: storeHomeSetting,
+            whenClosed: buildNews(),
+            builder: (open) => buildNews(
+              HomeStoreAction(
+                setting: storeHomeSetting,
+                theme: theme,
+                onTap: open,
+                photoCard: true,
+              ),
+            ),
+          );
+        }
+        return buildNews();
       case 'dailyCare':
         return ModernStayingDailyCareSection(
           shopId: widget.shopId,
@@ -1692,6 +1717,29 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           platformPreview: widget.platformPreview,
         );
       case 'rooms':
+        if (storeHomeSetting.storeEntryPlacement == 'rooms' &&
+            roomSection.layout != HomeRoomSectionLayouts.simpleEntry &&
+            HomeRoomSectionSetting.hasPublishedRooms(_roomTypes ?? const [])) {
+          return StoreEntranceBanner(
+            shopId: widget.shopId,
+            shop: shop,
+            theme: theme,
+            setting: storeHomeSetting,
+            whenClosed: _buildPopularRoomSection(
+              theme: theme,
+              roomSection: roomSection,
+            ),
+            builder: (open) => _buildPopularRoomSection(
+              theme: theme,
+              roomSection: roomSection,
+              headerTrailing: HomeStoreAction(
+                setting: storeHomeSetting,
+                theme: theme,
+                onTap: open,
+              ),
+            ),
+          );
+        }
         return _buildPopularRoomSection(theme: theme, roomSection: roomSection);
       case 'sharedEntries':
         return _buildSharedEntrySection(
@@ -1707,6 +1755,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           setting: storeHomeSetting,
         );
       case 'storeEntrance':
+        if ((storeHomeSetting.storeEntryPlacement == 'news' &&
+                visibleSectionIds.contains('announcements') &&
+                newsItems.isNotEmpty &&
+                newsPhase != HomeNewsSectionPhase.hidden) ||
+            (storeHomeSetting.storeEntryPlacement == 'rooms' &&
+                visibleSectionIds.contains('rooms') &&
+                roomSection.layout != HomeRoomSectionLayouts.simpleEntry &&
+                HomeRoomSectionSetting.hasPublishedRooms(
+                  _roomTypes ?? const [],
+                ))) {
+          return const SizedBox.shrink();
+        }
         return StoreEntranceBanner(
           shopId: widget.shopId,
           shop: shop,

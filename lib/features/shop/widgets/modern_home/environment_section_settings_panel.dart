@@ -217,6 +217,13 @@ class _EnvironmentSectionSettingsPanelState
               onPressed: widget.onManage,
               child: const Text('管理環境特色與圖片'),
             ),
+            _label('特色照片高度'),
+            _segments(
+              values: HomeEnvironmentImageHeights.all,
+              labelOf: HomeEnvironmentImageHeights.label,
+              selected: setting.imageHeight,
+              onChanged: (v) => _update(setting.copyWith(imageHeight: v)),
+            ),
             const Text('首頁顯示特色數量'),
             Wrap(
               spacing: 8,

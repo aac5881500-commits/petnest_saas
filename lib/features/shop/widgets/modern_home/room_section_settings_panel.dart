@@ -327,18 +327,25 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
             style: TextStyle(fontSize: 12, height: 1.35, color: Colors.black54),
           ),
         if (!simple)
-          TextField(
-            controller: _titleController,
-            maxLength: 24,
-            decoration: const InputDecoration(
-              labelText: '標題',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            onChanged: (String value) {
-              _update(widget.setting.copyWith(title: value.trim()));
-            },
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('標題左側主題色豎線（暖橘色槓）'),
+            value: widget.setting.headingAccent,
+            onChanged: (value) =>
+                widget.onChanged(widget.setting.copyWith(headingAccent: value)),
           ),
+        TextField(
+          controller: _titleController,
+          maxLength: 24,
+          decoration: const InputDecoration(
+            labelText: '標題',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          onChanged: (String value) {
+            _update(widget.setting.copyWith(title: value.trim()));
+          },
+        ),
         if (!simple)
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

@@ -6,12 +6,85 @@ class BookingPageAppearance {
     this.reminderTitle = '預約前提醒',
     this.note = '',
     this.style = 'warm',
+    this.serviceStyle = 'original',
+    this.suiteColorMode = 'template',
+    this.heroImage = '',
     this.compact = false,
     this.narrow = false,
     this.looks = const {},
+    this.calendarStyle = 'classic',
+    this.calendarPresentation = 'dialog',
+    this.calendarDensity = 'compact',
+    this.calendarColorMode = 'template',
+    this.calendarBackground = 0xFFF0F7F2,
+    this.calendarAccent = 0xFF34786B,
   });
+  final String suiteColorMode, heroImage;
+  static const defaultHero =
+      'assets/images/shop_house/modern_japanese/modern_japanese_cat_default.jpg';
+  static const suiteServiceStyles = {
+    'original': 'original',
+    'editorial': 'editorial',
+    'cream': 'cream',
+    'house': 'journal',
+    'warm': 'original',
+    'boutique': 'premium',
+    'minimal': 'original',
+    'soft': 'journal',
+    'compact': 'premium',
+  };
+  final String serviceStyle;
+  static const serviceStyles = {
+    'original': '原版',
+    'cream': '韓系奶油套裝',
+    'editorial': 'A 旅宿雜誌風',
+    'journal': 'C 奶油手帳風',
+    'premium': 'D 沉穩精品風',
+  };
+  final String calendarStyle, calendarPresentation, calendarDensity;
+  final String calendarColorMode;
+  final int calendarBackground, calendarAccent;
+  int? calendarBackgroundFor(HomeThemeModel page) =>
+      switch (calendarColorMode) {
+        'page' => page.backgroundColorValue,
+        'custom' => calendarBackground,
+        _ => null,
+      };
+  int? calendarAccentFor(HomeThemeModel page) => switch (calendarColorMode) {
+    'page' => page.primaryColorValue,
+    'custom' => calendarAccent,
+    _ => null,
+  };
+  static const calendarStyles = {
+    'classic': '經典月曆',
+    'stay': '旅宿日期卡',
+    'week': '週曆時間軸',
+    'journal': '日程清單',
+    'board': '週末旅行板',
+    'ribbon': '旅程長票',
+    'weekbands': '整月週次表',
+    'monthlist': '整月日期索引',
+    'monthwall': '整月卡片牆',
+    'minimal': '清爽留白',
+    'round': '圓形日期',
+    'soft': '柔和色塊',
+  };
+  static const monthCalendarStyles = {
+    'classic',
+    'stay',
+    'weekbands',
+    'monthlist',
+    'monthwall',
+  };
+  static const weekCalendarStyles = {'week', 'journal', 'board', 'ribbon'};
+  static const calendarPresentations = {
+    'dialog': '置中視窗',
+    'summary': '日期摘要視窗',
+    'sheet': '底部滑出',
+  };
+  static const calendarDensities = {'compact': '精簡', 'comfortable': '寬鬆'};
   final Map<String, BookingPageLook> looks;
-  bool get lookEditable => style != 'cream' && style != 'house';
+  bool get lookEditable => true;
   BookingPageLook get look => lookEditable
       ? looks[style] ?? const BookingPageLook()
       : const BookingPageLook();
@@ -36,6 +109,9 @@ class BookingPageAppearance {
     HomeThemeModel? frontendTheme,
   }) {
     final source = frontendTheme ?? base;
+    if (suiteColorMode == 'frontend') {
+      return source.copyWith(cardColorValue: source.backgroundColorValue);
+    }
     return base.copyWith(
       backgroundColorValue: look.followFrontend
           ? source.backgroundColorValue
@@ -55,6 +131,7 @@ class BookingPageAppearance {
       appBackgroundScrim: look.followFrontend
           ? source.appBackgroundScrim
           : ShopAppBackground.defaultScrim,
+      cardColorValue: look.background ?? base.cardColorValue,
       textColorValue: look.text ?? base.textColorValue,
       primaryColorValue: look.primary ?? base.primaryColorValue,
     );
@@ -63,6 +140,7 @@ class BookingPageAppearance {
   final String reminderTitle, note, style;
   static const styles = <String, String>{
     'original': '最初版本',
+    'editorial': '旅宿雜誌・三頁套裝',
     'cream': '韓系奶油',
     'house': '圓潤小屋',
     'warm': '月曆直選',
@@ -73,6 +151,7 @@ class BookingPageAppearance {
   };
   static const descriptions = <String, String>{
     'original': '日期 → 提醒 → 貓咪・原始卡片排版',
+    'editorial': '日期貓咪・房型服務・費用確認，完整三頁套裝',
     'cream': '貓咪插畫・藍黃照片卡・膠囊日期',
     'house': '屋頂頁首・拱形照片卡・淺藍日期區',
     'warm': '完整月曆・先選日期再選貓咪',
@@ -94,7 +173,52 @@ class BookingPageAppearance {
           ? data['reminderTitle']
           : '預約前提醒',
       style: styles.containsKey(data['style']) ? data['style'] : 'warm',
+      serviceStyle: data['style'] == 'cream'
+          ? 'cream'
+          : serviceStyles.containsKey(data['serviceStyle'])
+          ? data['serviceStyle']
+          : 'original',
+      suiteColorMode:
+          const [
+            'template',
+            'frontend',
+            'custom',
+          ].contains(data['suiteColorMode'])
+          ? data['suiteColorMode']
+          : ((data['looks'] is Map && (data['looks'] as Map).isNotEmpty)
+                ? 'custom'
+                : 'template'),
+      heroImage:
+          data['heroImage'] is String &&
+              ((data['heroImage'] as String).startsWith('https://') ||
+                  (data['heroImage'] as String).startsWith('assets/images/'))
+          ? data['heroImage']
+          : '',
       note: data['note'] is String ? data['note'] : '',
+      calendarStyle: calendarStyles.containsKey(data['calendarStyle'])
+          ? data['calendarStyle']
+          : 'classic',
+      calendarPresentation:
+          calendarPresentations.containsKey(data['calendarPresentation'])
+          ? data['calendarPresentation']
+          : 'dialog',
+      calendarDensity: calendarDensities.containsKey(data['calendarDensity'])
+          ? data['calendarDensity']
+          : 'compact',
+      calendarColorMode:
+          const [
+            'template',
+            'page',
+            'custom',
+          ].contains(data['calendarColorMode'])
+          ? data['calendarColorMode']
+          : 'template',
+      calendarBackground: data['calendarBackground'] is int
+          ? data['calendarBackground']
+          : 0xFFF0F7F2,
+      calendarAccent: data['calendarAccent'] is int
+          ? data['calendarAccent']
+          : 0xFF34786B,
       looks: data['looks'] is Map
           ? {
               for (final entry in (data['looks'] as Map).entries)
@@ -110,6 +234,15 @@ class BookingPageAppearance {
     'reminderTitle': reminderTitle,
     'note': note,
     'style': style,
+    'serviceStyle': serviceStyle,
+    'suiteColorMode': suiteColorMode,
+    'heroImage': heroImage,
+    'calendarStyle': calendarStyle,
+    'calendarPresentation': calendarPresentation,
+    'calendarDensity': calendarDensity,
+    'calendarColorMode': calendarColorMode,
+    'calendarBackground': calendarBackground,
+    'calendarAccent': calendarAccent,
     'compact': compact,
     'narrow': narrow,
     if (looks.isNotEmpty)
@@ -123,10 +256,12 @@ class BookingPageLook {
     this.text,
     this.primary,
     this.font = '',
+    this.fontWeight,
     this.followFrontend = false,
   });
   final int? background, text, primary;
   final String font;
+  final int? fontWeight;
   final bool followFrontend;
   static const backgrounds = <int, String>{
     0xFFFFFFFF: '白色',
@@ -157,14 +292,17 @@ class BookingPageLook {
     'NotoSerifTC': '思源宋體',
     'KleeOne': '手寫體',
   };
+  static int? _color(Object? value) =>
+      value is int && value >= 0xFF000000 && value <= 0xFFFFFFFF ? value : null;
   factory BookingPageLook.fromMap(Map data) => BookingPageLook(
     followFrontend: data['followFrontend'] == true,
-    background: backgrounds.containsKey(data['background'])
-        ? data['background']
-        : null,
-    text: texts.containsKey(data['text']) ? data['text'] : null,
-    primary: primaries.containsKey(data['primary']) ? data['primary'] : null,
+    background: _color(data['background']),
+    text: _color(data['text']),
+    primary: _color(data['primary']),
     font: fonts.containsKey(data['font']) ? data['font'] : '',
+    fontWeight: const [400, 500, 600, 700, 800].contains(data['fontWeight'])
+        ? data['fontWeight']
+        : null,
   );
   Map<String, dynamic> toMap() => {
     if (followFrontend) 'followFrontend': true,
@@ -172,5 +310,6 @@ class BookingPageLook {
     if (text != null) 'text': text,
     if (primary != null) 'primary': primary,
     'font': font,
+    if (fontWeight != null) 'fontWeight': fontWeight,
   };
 }

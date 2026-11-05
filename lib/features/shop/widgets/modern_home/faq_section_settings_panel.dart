@@ -70,6 +70,7 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
     final String layout = HomeFaqLayouts.migrate(setting.layout);
     final bool showsQuestions =
         layout == HomeFaqLayouts.preview ||
+        layout == HomeFaqLayouts.minimalAccordion ||
         layout == HomeFaqLayouts.horizontalCards ||
         layout == HomeFaqLayouts.twoColumnCards;
     final bool answerPreview =
@@ -183,6 +184,13 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
                     _update(setting.copyWith(subtitle: value.trim()));
                   },
                 ),
+                if (layout == HomeFaqLayouts.minimalAccordion)
+                  HomeDraftSwitch(
+                    title: '標題左側主題色豎線（暖橘色槓）',
+                    value: setting.headingAccent,
+                    onChanged: (v) =>
+                        _update(setting.copyWith(headingAccent: v)),
+                  ),
                 if (showsQuestions)
                   HomeDraftCountChips(
                     label: '顯示題數',

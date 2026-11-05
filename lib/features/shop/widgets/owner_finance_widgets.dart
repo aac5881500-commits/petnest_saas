@@ -6,6 +6,20 @@ import 'package:petnest_saas/core/models/shop_report_models.dart';
 final _currency = NumberFormat('#,##0', 'zh_TW');
 String ownerMoney(num value) => 'NT\$ ${_currency.format(value)}';
 
+String ownerSignedMoney(
+  num value, {
+  int direction = 0,
+  bool forceSign = false,
+}) {
+  final signed = direction == 0 ? value : value.abs() * direction;
+  final sign = signed < 0 || direction < 0
+      ? '-'
+      : forceSign || direction > 0
+      ? '+'
+      : '';
+  return '$sign${ownerMoney(signed.abs())}';
+}
+
 Map<String, int> ownerGroupAmounts(
   List<Map<String, dynamic>> entries,
   String kind,
@@ -286,7 +300,7 @@ class OwnerFinanceInsights extends StatelessWidget {
                       child: Text(
                         wholeShop
                             ? '取得薪資與支出後才會繪製成本圓環圖。'
-                            : '目前只看單一業務收入，請切整店查看完整成本。',
+                            : '目前只看單一服務項目收入，請切整店查看完整成本。',
                       ),
                     );
               return box.maxWidth >= 1050

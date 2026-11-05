@@ -261,10 +261,10 @@ void main() {
       expect(find.text('收支結餘'), findsNothing);
       expect(find.text('總淨收入（淨實收＋其他收入）'), findsNothing);
       final count = queries.length;
-      await select('寵物美容（待串接）');
+      await select('寵物美容（統計準備中）');
       expect(queries.length, count);
       await tester.scrollUntilVisible(
-        find.text('此業務尚無可用的統計來源'),
+        find.text('此服務項目尚無可用的統計來源'),
         160,
         scrollable: find
             .byWidgetPredicate(
@@ -272,7 +272,7 @@ void main() {
             )
             .first,
       );
-      expect(find.text('此業務尚無可用的統計來源'), findsOneWidget);
+      expect(find.text('此服務項目尚無可用的統計來源'), findsOneWidget);
       expect(find.text('系統訂單金額'), findsNothing);
       expect(tester.takeException(), isNull);
     },
@@ -324,7 +324,9 @@ void main() {
       await tester.tap(find.byTooltip('自訂顯示區塊'));
       await tester.pumpAndSettle();
       expect(find.text('資料來源・依已開啟模板'), findsOneWidget);
-      expect(find.text('寵物美容・待串接'), findsOneWidget);
+      await tester.tap(find.text('含統計準備中項目'));
+      await tester.pumpAndSettle();
+      expect(find.text('寵物美容・統計準備中'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await capture('settings');
     });

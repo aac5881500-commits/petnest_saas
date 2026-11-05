@@ -21,17 +21,60 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/store_brand_style
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('快速模板保留商城與FAQ的關閉狀態', () {
+    for (final enabled in [false, true]) {
+      final current = _shopDraft().copyWith(
+        storeHome: ModernStoreHomeSetting(showStoreBanner: enabled),
+        sectionVisibility: {'faq': enabled, 'storeEntrance': enabled},
+        information: const HomeInformationSectionsSetting().copyWith(
+          faq: HomeFaqSectionSetting(showOnHome: enabled),
+        ),
+      );
+      final next = _preset('creamOrange').apply(current);
+      expect(next.storeHome.showStoreBanner, enabled);
+      expect(next.information.faq.showOnHome, enabled);
+      expect(next.sectionVisibility['faq'], enabled);
+      expect(next.sectionVisibility['storeEntrance'], enabled);
+      expect(next.information.faq.layout, HomeFaqLayouts.minimalAccordion);
+      expect(next.storeHome.storeEntryPlacement, 'news');
+    }
+  });
 
   test(
     'cream preset is ordinary editable modules and never imports sample content',
     () {
       final original = _shopDraft().copyWith(
+        storeHome: const ModernStoreHomeSetting(
+          storeBannerTitle: '我的商城',
+          storeBannerImageUrl: 'https://example.invalid/own.jpg',
+          storeBannerButtonText: '購買好物',
+        ),
         shopInfo: const HomeShopInfoSetting(
           imageUrl: 'https://example.invalid/my-own-photo.jpg',
         ),
       );
       final preset = _preset('creamOrange');
       final next = preset.apply(original);
+      expect(next.news.layout, HomeNewsLayouts.feature);
+      expect(next.news.showHeading, true);
+      expect(next.information.faq.layout, HomeFaqLayouts.minimalAccordion);
+      expect(
+        next.information.faq.showOnHome,
+        original.information.faq.showOnHome,
+      );
+      expect(next.storeHome.storeEntryPlacement, 'news');
+      expect(
+        next.environment.imageHeight,
+        HomeEnvironmentImageHeights.standard,
+      );
+      expect(next.sectionOrder.take(6), [
+        'banners',
+        'facilities',
+        'rooms',
+        'announcements',
+        'about',
+        'faq',
+      ]);
       expect(next.rooms.layout, HomeRoomSectionLayouts.catalog);
       expect(next.environment.layout, HomeEnvironmentLayouts.featureCards);
       expect(next.about.layout, HomeAboutLayouts.editorial);
@@ -42,6 +85,12 @@ void main() {
         ).bottomAppearance,
         FrontendNavigationConfig.appearanceUnderline,
       );
+      expect(
+        next.storeHome.storeBannerImageUrl,
+        original.storeHome.storeBannerImageUrl,
+      );
+      expect(next.storeHome.storeBannerTitle, '我的商城');
+      expect(next.storeHome.storeBannerButtonText, '購買好物');
       expect(next.shopInfo.imageUrl, original.shopInfo.imageUrl);
       expect(next.rooms.roomTypeOrder, original.rooms.roomTypeOrder);
       expect(next.rooms.hiddenRoomTypeIds, original.rooms.hiddenRoomTypeIds);

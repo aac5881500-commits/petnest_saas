@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/owner_cashflow_totals.dart';
+import 'package:petnest_saas/features/shop/widgets/owner_cashflow_card.dart';
 import 'dart:math' as math;
 import 'package:petnest_saas/core/services/owner_report_workspace.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -45,14 +47,18 @@ class ShopOwnerReportPage extends StatefulWidget {
 class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     with SingleTickerProviderStateMixin {
   bool _demo = false, _modulesReady = false;
+  bool _demoIncludeReserved = false;
   Object? _moduleError;
   Set<String> _enabledModules = {};
   String _scope = 'all';
   int _demoSequence = 0;
   final Map<String, List<OwnerLedgerEntry>> _demoLedger = {};
   late Future<Map<String, ShopReportBundle>> _workspace;
-  Set<String> get _activeModules =>
-      _demo ? OwnerReportDemo.modules : _enabledModules;
+  Set<String> get _activeModules => _demo
+      ? (_demoIncludeReserved
+            ? OwnerReportDemo.modules
+            : OwnerReportDemo.readyModules)
+      : _enabledModules;
   Set<String> get _sources =>
       OwnerReportWorkspace.sources(_activeModules, _scope);
   bool get _scopeReady =>
@@ -185,7 +191,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     '成本與記帳': ['salary', 'costs', 'ledger'],
   };
   static const _panels = <String, String>{
-    'modules': '各業務收入比較',
+    'modules': '各服務項目收入比較',
     'summary': '收入與結餘摘要',
     'charts': '收入／成本圓環圖',
     'operations': '訂單與營運指標',
@@ -209,7 +215,6 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
   String _query = '', _kind = 'all';
   bool _descending = true, _exporting = false;
   String get _settingsKey => 'owner_report_panels_v1_${widget.shopId}';
-  final _money = NumberFormat('#,##0', 'zh_TW');
   String get _monthKey => DateFormat('yyyy-MM').format(_month);
   CollectionReference<Map<String, dynamic>> get _entries => FirebaseFirestore
       .instance
@@ -226,6 +231,34 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     _load();
     _restorePanels();
     if (!_demo) _loadModules();
+  }
+
+  void _setDemoScenario(bool reserved) {
+    setState(() {
+      _demoIncludeReserved = reserved;
+      _scope = 'all';
+      _load(reloadLedger: false);
+    });
+  }
+
+  Future<void> _applyPreset(bool full) async {
+    setState(() {
+      _sections.clear();
+      _sections.addAll(
+        full ? _panels.keys : ['summary', 'salary', 'costs', 'ledger'],
+      );
+    });
+    if (_needsComparison && _previous == null) _loadPrevious();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_settingsKey, _sections.toList());
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('本次設定已套用，裝置儲存失敗。')));
+      }
+    }
   }
 
   Future<void> _restorePanels() async {
@@ -308,6 +341,63 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                 Expanded(
                   child: ListView(
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton(
+                              onPressed: () {
+                                _applyPreset(false);
+                                update(() {});
+                              },
+                              child: const Text('只看收支'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () {
+                                _applyPreset(true);
+                                update(() {});
+                              },
+                              child: const Text('全部顯示'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_demo) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            '示範情境',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              ChoiceChip(
+                                label: const Text('完整營運（住宿＋日托＋商城）'),
+                                selected: !_demoIncludeReserved,
+                                onSelected: (_) {
+                                  _setDemoScenario(false);
+                                  update(() {});
+                                },
+                              ),
+                              ChoiceChip(
+                                label: const Text('含統計準備中項目'),
+                                selected: _demoIncludeReserved,
+                                onSelected: (_) {
+                                  _setDemoScenario(true);
+                                  update(() {});
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const Padding(
                         padding: EdgeInsets.all(16),
                         child: Text(
@@ -334,7 +424,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                             ))
                               ChoiceChip(
                                 label: Text(
-                                  '${source.label}${source.ready ? '' : '・待串接'}',
+                                  '${source.label}${source.ready ? '' : '・統計準備中'}',
                                 ),
                                 selected: _scope == source.id,
                                 onSelected: (_) {
@@ -629,6 +719,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                         ],
                         decoration: const InputDecoration(
                           labelText: '金額（新台幣整數）',
+                          helperText: '輸入正整數，依收入／支出類別自動加減。',
                         ),
                         validator: (v) {
                           final n = int.tryParse(v ?? '');
@@ -829,35 +920,44 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     }
   }
 
-  Widget _metric(String label, int amount, {bool money = true}) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: SizedBox(
-        width:
-            (math.min(MediaQuery.sizeOf(context).width, 1440) - 32) /
-                (MediaQuery.sizeOf(context).width < 600
-                    ? 2
-                    : MediaQuery.sizeOf(context).width < 1100
-                    ? 3
-                    : 6) -
-            72,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label),
-            const SizedBox(height: 6),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                money ? 'NT\$ ${_money.format(amount)}' : '$amount 人',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+  Widget _metric(String label, int amount, {bool money = true, int flow = 0}) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width:
+                (math.min(MediaQuery.sizeOf(context).width, 1440) - 32) /
+                    (MediaQuery.sizeOf(context).width < 600
+                        ? 2
+                        : MediaQuery.sizeOf(context).width < 1100
+                        ? 3
+                        : 6) -
+                72,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    money
+                        ? ownerSignedMoney(amount, direction: flow)
+                        : '$amount 人',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: flow < 0
+                          ? const Color(0xffb34c43)
+                          : flow > 0
+                          ? const Color(0xff197b58)
+                          : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
   Widget _salarySummary(List<OwnerLedgerEntry> docs) {
     final groups = ownerGroupAmounts(
       docs.map((d) => d.data()).toList(),
@@ -882,7 +982,9 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                       (e) => DataRow(
                         cells: [
                           DataCell(Text(e.key)),
-                          DataCell(Text(ownerMoney(e.value))),
+                          DataCell(
+                            Text(ownerSignedMoney(e.value, direction: -1)),
+                          ),
                           DataCell(
                             Text(
                               '${(e.value / total * 100).toStringAsFixed(1)}%',
@@ -975,7 +1077,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
             Card(
               child: ListTile(
                 title: Text(
-                  '${doc.data()['name']}　${ownerMoney(doc.data()['amount'] as num)}',
+                  '${doc.data()['name']}　${ownerSignedMoney(doc.data()['amount'] as num, direction: doc.data()['kind'] == 'income' ? 1 : -1)}',
                 ),
                 subtitle: Text(
                   '${_label(doc.data()['kind'] as String)}${(doc.data()['note'] as String? ?? '').isEmpty ? '' : '\n${doc.data()['note']}'}',
@@ -1063,7 +1165,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                   DropdownMenuItem(
                     value: source.id,
                     child: Text(
-                      '${source.label}${source.ready ? '' : '（待串接）'}',
+                      '${source.label}${source.ready ? '' : '（統計準備中）'}',
                     ),
                   ),
               ],
@@ -1073,7 +1175,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
             ),
           ),
           Text(
-            _tab == 1 || _tab == 2 ? '薪資／手動收支維持整店記帳' : '已啟用模板分開統計，待串接不列入合計',
+            _tab == 1 || _tab == 2 ? '薪資／手動收支維持整店記帳' : '已啟用模板分開統計，統計準備中不列入合計',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -1101,15 +1203,15 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
       final reports = snapshot.data!,
           sources = OwnerReportWorkspace.available(_activeModules);
       return OwnerReportSection(
-        title: '各業務收入比較',
-        subtitle: '只彙總已啟用且串接完成的系統訂單及收款。待串接模板不當作 0 元；整店薪資與共用成本尚未分攤。',
+        title: '各服務項目收入比較',
+        subtitle: '只彙總已啟用且可統計的系統訂單及收款。統計準備中的服務項目不當作 0 元；整店薪資與共用成本尚未分攤。',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_tab == 0 || _sections.contains('charts'))
               OwnerDonut(
-                title: '各業務淨實收占比',
-                caption: '可點圖例查看不同業務，不含手動其他收入。',
+                title: '各服務項目淨實收占比',
+                caption: '可點圖例查看不同服務項目，不含手動其他收入。',
                 values: {
                   for (final source in sources)
                     if (reports[source.id] != null)
@@ -1120,8 +1222,8 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 columns: const [
-                  DataColumn(label: Text('業務模組')),
-                  DataColumn(label: Text('串接狀態')),
+                  DataColumn(label: Text('服務項目')),
+                  DataColumn(label: Text('統計狀態')),
                   DataColumn(label: Text('訂單金額')),
                   DataColumn(label: Text('淨實收')),
                   DataColumn(label: Text('未收款')),
@@ -1131,7 +1233,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                   return DataRow(
                     cells: [
                       DataCell(Text(source.label)),
-                      DataCell(Text(source.ready ? '已串接' : '待串接・已預留')),
+                      DataCell(Text(source.ready ? '可統計' : '統計準備中')),
                       DataCell(
                         Text(
                           report == null
@@ -1163,6 +1265,65 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
       );
     },
   );
+  Widget _manualTotals(
+    int salary,
+    int expense,
+    int income,
+    List<OwnerLedgerEntry> docs,
+  ) => OwnerReportSection(
+    title: _tab == 1
+        ? '本月薪資摘要'
+        : _tab == 2
+        ? '本月手動收支'
+        : '整店已填收支（未分攤）',
+    subtitle: '依已填寫資料合計；未填成本不會自動估算。',
+    child: Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _metric('員工薪資合計', salary, flow: -1),
+        if (_tab == 1)
+          _metric(
+            '已填薪資人數',
+            ownerGroupAmounts(
+              docs.map((d) => d.data()).toList(),
+              'salary',
+            ).length,
+            money: false,
+          ),
+        if (_tab != 1) ...[
+          _metric('其他支出合計', expense, flow: -1),
+          _metric('手動其他收入', income, flow: 1),
+          _metric('支出總計（含薪資）', salary + expense, flow: -1),
+        ],
+      ],
+    ),
+  );
+  Widget _cashflowSummary(
+    ShopReportBundle report,
+    List<OwnerLedgerEntry> docs,
+    bool ready,
+  ) {
+    if (!_wholeShop) {
+      return OwnerReportSection(
+        title: '整店收支總結',
+        subtitle: '單一服務項目尚未分攤整店薪資與支出。',
+        child: TextButton(
+          onPressed: () => _setScope('all'),
+          child: const Text('切回整店查看總收入與結餘'),
+        ),
+      );
+    }
+    return OwnerCashflowCard(
+      totals: OwnerCashflowTotals.fromEntries(
+        report.revenueKpi.paidAmount,
+        docs.map((e) => e.data()).toList(),
+      ),
+      complete: _canCalculateBalance,
+      privateReady: ready,
+    );
+  }
+
   Widget _reportContent(
     List<OwnerLedgerEntry> docs,
     bool ready,
@@ -1171,16 +1332,16 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
     int income,
   ) => !_scopeReady
       ? OwnerReportSection(
-          title: _modulesReady || _demo ? '此業務尚無可用的統計來源' : '正在讀取店家模板',
+          title: _modulesReady || _demo ? '此服務項目尚無可用的統計來源' : '正在讀取店家模板',
           subtitle: _moduleError != null
               ? '模板設定讀取失敗，請重試或切換示範資料。'
-              : '尚未串接的業務不當作 0 元，也不合併進其他業務。',
+              : '統計準備中的服務項目不當作 0 元，也不合併進其他服務項目。',
           child: _moduleError != null
               ? TextButton(onPressed: _loadModules, child: const Text('重新讀取模板'))
               : Text(
                   _scope == 'all'
-                      ? '整店只彙總已啟用且完成串接的業務。'
-                      : '${OwnerReportWorkspace.label(_scope)}報表已預留，待訂單與付款資料串接。',
+                      ? '整店只彙總已啟用且可統計的服務項目。'
+                      : '${OwnerReportWorkspace.label(_scope)}報表統計準備中，暫無可用的訂單與付款統計。',
                 ),
         )
       : FutureBuilder<ShopReportBundle>(
@@ -1199,6 +1360,7 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
               return const LinearProgressIndicator();
             }
             final report = snapshot.data!, k = report.revenueKpi;
+            if (_tab == 2) return _cashflowSummary(report, docs, ready);
             final panels = _tab == 0
                 ? <String>{'charts'}
                 : _tab == 3
@@ -1207,6 +1369,8 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_tab == 0 || (_tab == 4 && _sections.contains('summary')))
+                  _cashflowSummary(report, docs, ready),
                 if (_tab == 0 || (_tab == 4 && _sections.contains('summary')))
                   OwnerReportSection(
                     title: '${OwnerReportWorkspace.label(_scope)}・本月成果',
@@ -1219,13 +1383,6 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                         _metric('系統淨實收（已反映退款）', k.paidAmount),
                         _metric('系統退款', k.refundAmount),
                         _metric('系統未收款', k.unpaidAmount),
-                        if (ready && _canCalculateBalance)
-                          _metric('總淨收入（淨實收＋其他收入）', k.paidAmount + income),
-                        if (ready && _canCalculateBalance)
-                          _metric(
-                            '收支結餘',
-                            k.paidAmount + income - salary - expense,
-                          ),
                       ],
                     ),
                   ),
@@ -1237,12 +1394,12 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                 if (_wholeShop && !_canCalculateBalance)
                   const Padding(
                     padding: EdgeInsets.all(12),
-                    child: Text('尚有已啟用模板待串接，目前只提供已串接收入與整店已填支出，暫不計算完整結餘。'),
+                    child: Text('部分已啟用的服務尚未提供統計，目前只提供可統計收入與整店已填支出，暫不計算完整結餘。'),
                   ),
                 if (!_wholeShop)
                   const Padding(
                     padding: EdgeInsets.all(12),
-                    child: Text('薪資與手動收支為整店共用，尚未分攤；此頁只看選定業務的系統收入，不計算業務結餘。'),
+                    child: Text('薪資與手動收支為整店共用，尚未分攤；此頁只看選定服務項目的系統收入，不計算服務項目結餘。'),
                   ),
                 OwnerFinanceInsights(
                   report: report,
@@ -1499,41 +1656,41 @@ class _ShopOwnerReportPageState extends State<ShopOwnerReportPage>
                                   ),
                                 ],
                               ),
+                            if (_tab == 2)
+                              _reportContent(
+                                docs,
+                                ready,
+                                salary,
+                                expense,
+                                income,
+                              ),
                             if (ready &&
                                 (_tab == 0 ||
                                     _tab == 1 ||
                                     _tab == 2 ||
                                     (_tab == 4 &&
                                         _sections.contains('summary'))))
-                              OwnerReportSection(
-                                title: _tab == 1
-                                    ? '本月薪資摘要'
-                                    : _tab == 2
-                                    ? '本月手動收支'
-                                    : '整店已填收支（未分攤）',
-                                subtitle: '依已填寫資料合計；未填成本不會自動估算。',
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    if (_tab != 2) _metric('員工薪資合計', salary),
-                                    if (_tab == 1)
-                                      _metric(
-                                        '已填薪資人數',
-                                        ownerGroupAmounts(
-                                          docs.map((d) => d.data()).toList(),
-                                          'salary',
-                                        ).length,
-                                        money: false,
+                              (_tab == 2
+                                  ? Card(
+                                      child: ExpansionTile(
+                                        title: const Text('查看手動收支分類'),
+                                        subtitle: const Text('薪資、其他支出與其他收入'),
+                                        children: [
+                                          _manualTotals(
+                                            salary,
+                                            expense,
+                                            income,
+                                            docs,
+                                          ),
+                                        ],
                                       ),
-                                    if (_tab != 1) ...[
-                                      _metric('其他支出合計', expense),
-                                      _metric('手動其他收入', income),
-                                      _metric('支出總計', salary + expense),
-                                    ],
-                                  ],
-                                ),
-                              ),
+                                    )
+                                  : _manualTotals(
+                                      salary,
+                                      expense,
+                                      income,
+                                      docs,
+                                    )),
                             if (_tab == 1) ...[
                               if (ready) _salarySummary(docs),
                               _entryList(docs, ready),

@@ -18,17 +18,21 @@ class StoreEntranceBanner extends StatelessWidget {
     required this.shop,
     required this.theme,
     required this.setting,
+    this.builder,
+    this.whenClosed = const SizedBox.shrink(),
   });
 
   final String shopId;
   final Map<String, dynamic> shop;
   final HomeThemeModel theme;
   final ModernStoreHomeSetting setting;
+  final Widget Function(VoidCallback onOpen)? builder;
+  final Widget whenClosed;
 
   @override
   Widget build(BuildContext context) {
     if (!setting.showStoreBanner || !StorefrontAccess.isModuleEnabled(shop)) {
-      return const SizedBox.shrink();
+      return whenClosed;
     }
 
     return StreamBuilder<Map<String, dynamic>>(
@@ -39,10 +43,11 @@ class StoreEntranceBanner extends StatelessWidget {
               shop: shop,
               settings: snapshot.data,
             )) {
-              return const SizedBox.shrink();
+              return whenClosed;
             }
 
             void openStore() => _openStore(context);
+            if (builder != null) return builder!(openStore);
             if (setting.storeEntryLayout == ModernStoreEntryLayouts.showcase) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 18),

@@ -1,3 +1,5 @@
+import 'booking_appearance_scope.dart';
+import 'booking_editorial_design.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_member_coupon_ui.dart
 // 功能說明：前台住宿預約的會員優惠券選擇卡與挑選 BottomSheet。
 
@@ -60,6 +62,78 @@ class BookingMemberCouponSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (const [
+      'editorial',
+      'cream',
+    ].contains(BookingAppearanceScope.of(context).style)) {
+      final t = BookingEditorial.theme(context);
+      final blocked = couponBlockedBySpecialDate || unavailableReason != null;
+      final text = loading
+          ? '正在讀取優惠券'
+          : couponBlockedBySpecialDate
+          ? '特殊日期加價，本次不可使用優惠券'
+          : unavailableReason ??
+                (selectedCoupon?.name ??
+                    (availableCoupons.isEmpty ? '目前沒有可使用的優惠券' : '選擇優惠券'));
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: t.primaryColor),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              onTap:
+                  !loading &&
+                      !couponBlockedBySpecialDate &&
+                      availableCoupons.isNotEmpty
+                  ? onPick
+                  : null,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.confirmation_number_outlined,
+                    color: t.primaryColor,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '使用優惠券',
+                          style: BookingEditorial.title(17, context),
+                        ),
+                        Text(
+                          text,
+                          style: BookingEditorial.body(13, context).copyWith(
+                            color: blocked
+                                ? const Color(0xFFA24C23)
+                                : t.textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!blocked && availableCoupons.isNotEmpty)
+                    Icon(Icons.chevron_right, color: t.primaryColor),
+                ],
+              ),
+            ),
+            if (selectedCoupon != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: onClear,
+                  child: const Text('取消使用優惠券'),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     if (couponBlockedBySpecialDate) {
       return Card(
         margin: EdgeInsets.zero,

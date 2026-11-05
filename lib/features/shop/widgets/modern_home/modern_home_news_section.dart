@@ -1,3 +1,5 @@
+import 'news_image_cards.dart';
+import 'editorial_section_widgets.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -18,6 +20,7 @@ class ModernHomeNewsSection extends StatelessWidget {
     required this.preview,
     required this.onOpen,
     this.displayStyle,
+    this.storeAside,
   });
 
   final HomeThemeModel theme;
@@ -27,6 +30,7 @@ class ModernHomeNewsSection extends StatelessWidget {
   final bool preview;
   final ValueChanged<ShopAnnouncementSection> onOpen;
   final HomeDisplayStyle? displayStyle;
+  final Widget? storeAside;
 
   String get _surface {
     final HomeDisplayStyle? style = displayStyle;
@@ -60,7 +64,26 @@ class ModernHomeNewsSection extends StatelessWidget {
   Widget build(BuildContext context) => HomeCardImage(
     setting: setting.cardImage,
     enabled: setting.layout == HomeNewsLayouts.compactCard,
-    builder: (context, image) => _content(context, image.url),
+    builder: (context, image) {
+      final content = _content(context, image.url);
+      if (!setting.showHeading ||
+          phase == HomeNewsSectionPhase.hidden ||
+          (!preview && items.isEmpty && storeAside == null)) {
+        return content;
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          EditorialSectionHeading(
+            title: setting.entryTitle,
+            theme: theme,
+            accent: setting.headingAccent,
+          ),
+          const SizedBox(height: 10),
+          content,
+        ],
+      );
+    },
   );
 
   Widget _content(BuildContext context, String imageUrl) {
@@ -74,10 +97,21 @@ class ModernHomeNewsSection extends StatelessWidget {
       return _messageCard(kHomeNewsErrorMessage);
     }
     if ((phase == HomeNewsSectionPhase.empty || items.isEmpty) && !preview) {
-      return const SizedBox.shrink();
+      return storeAside ?? const SizedBox.shrink();
     }
     if (phase == HomeNewsSectionPhase.empty || items.isEmpty) {
       return _messageCard(kHomeNewsEmptyMessage, imageUrl: imageUrl);
+    }
+    if (setting.layout == HomeNewsLayouts.imageCarousel ||
+        setting.layout == HomeNewsLayouts.feature ||
+        storeAside != null) {
+      return NewsImageCards(
+        items: items.take(setting.multiLineCount).toList(),
+        setting: setting,
+        theme: theme,
+        storeAside: storeAside,
+        onOpen: (item) => _open(_sectionFor(item)),
+      );
     }
     return switch (HomeNewsLayouts.migrate(setting.layout)) {
       HomeNewsLayouts.compactCard => _compact(items.first, imageUrl),

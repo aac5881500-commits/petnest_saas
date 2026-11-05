@@ -105,7 +105,22 @@ void main() {
             .value,
         true,
       );
-      expect(find.byType(BookingQuickTemplateCard), findsNWidgets(8));
+      expect(find.byType(BookingQuickTemplateCard), findsNWidgets(9));
+      final otherTop = tester
+          .getTopLeft(find.byKey(const ValueKey('booking-quick-house')))
+          .dy;
+      for (final key in [
+        'booking-style-original',
+        'booking-editorial-suite',
+        'booking-quick-cream',
+      ]) {
+        expect(
+          tester.getTopLeft(find.byKey(ValueKey(key))).dy,
+          lessThan(otherTop),
+        );
+      }
+      expect(find.text('完整三頁套裝'), findsOneWidget);
+      expect(find.text('其他版型・待逐步調整'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

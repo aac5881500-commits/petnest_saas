@@ -44,24 +44,27 @@ class EditorialSectionHeading extends StatelessWidget {
     required this.title,
     required this.theme,
     this.trailing,
+    this.accent = true,
     this.fontFamily,
   });
   final String title;
   final HomeThemeModel theme;
   final Widget? trailing;
+  final bool accent;
   final String? fontFamily;
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Container(
-        width: 3,
-        height: HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 24,
-        margin: const EdgeInsets.only(right: 8),
-        decoration: BoxDecoration(
-          color: theme.primaryColor,
-          borderRadius: BorderRadius.circular(3),
+      if (accent)
+        Container(
+          width: 3,
+          height: HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 24,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: theme.primaryColor,
+            borderRadius: BorderRadius.circular(3),
+          ),
         ),
-      ),
       Expanded(
         child: editorialText(
           title,
@@ -83,11 +86,13 @@ class EnvironmentHighlightCards extends StatelessWidget {
     required this.theme,
     required this.onOpen,
     this.outlined = true,
+    this.photoHeight = 100,
   });
   final List<Map<String, dynamic>> items;
   final HomeThemeModel theme;
   final VoidCallback onOpen;
   final bool outlined;
+  final double photoHeight;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, c) {
@@ -118,13 +123,16 @@ class EnvironmentHighlightCards extends StatelessWidget {
                   child: Column(
                     children: [
                       SizedBox(
-                        height: 78 * u,
-                        width: 104 * u,
+                        height:
+                            (items[i]['imageUrl'] ?? '').toString().isNotEmpty
+                            ? photoHeight
+                            : 78 * u,
+                        width: double.infinity,
                         child:
                             (items[i]['imageUrl'] ?? '').toString().isNotEmpty
                             ? sectionPhoto(
                                 '${items[i]['imageUrl']}',
-                                fit: BoxFit.contain,
+                                fit: BoxFit.cover,
                               )
                             : Icon(
                                 items[i]['iconData'] as IconData? ??
@@ -171,6 +179,8 @@ class EditorialRoomStrip extends StatelessWidget {
     this.showPrice = true,
     this.columns = 2,
     this.fontFamily,
+    this.headerTrailing,
+    this.headingAccent = true,
     this.imageRatio = 1.62,
   });
   final List<Map<String, dynamic>> rooms;
@@ -181,6 +191,8 @@ class EditorialRoomStrip extends StatelessWidget {
   final bool showPrice;
   final int columns;
   final String? fontFamily;
+  final Widget? headerTrailing;
+  final bool headingAccent;
   final double imageRatio;
   String photo(Map<String, dynamic> r) {
     for (final key in ['coverImageUrl', 'imageUrl', 'photoUrl']) {
@@ -209,17 +221,20 @@ class EditorialRoomStrip extends StatelessWidget {
           EditorialSectionHeading(
             title: title,
             theme: theme,
+            accent: headingAccent,
             fontFamily: fontFamily,
-            trailing: TextButton(
-              onPressed: onAll,
-              child: Text(
-                '查看全部房型 ›',
-                style: TextStyle(
-                  fontSize: desktop == null ? 12 : 14,
-                  color: theme.primaryColor,
+            trailing:
+                headerTrailing ??
+                TextButton(
+                  onPressed: onAll,
+                  child: Text(
+                    '查看全部房型 ›',
+                    style: TextStyle(
+                      fontSize: desktop == null ? 12 : 14,
+                      color: theme.primaryColor,
+                    ),
+                  ),
                 ),
-              ),
-            ),
           ),
           SizedBox(height: 8 * u),
           SizedBox(
@@ -350,6 +365,17 @@ class EditorialRoomStrip extends StatelessWidget {
               ),
             ),
           ),
+          if (headerTrailing != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onAll,
+                child: Text(
+                  '查看全部房型 ›',
+                  style: TextStyle(color: theme.primaryColor),
+                ),
+              ),
+            ),
         ],
       );
     },

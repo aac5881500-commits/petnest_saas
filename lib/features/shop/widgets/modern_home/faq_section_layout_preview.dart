@@ -24,6 +24,7 @@ class FaqSectionLayoutPreview extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         child: switch (HomeFaqLayouts.migrate(layout)) {
           HomeFaqLayouts.singleLine => _line(),
+          HomeFaqLayouts.minimalAccordion => _preview(),
           HomeFaqLayouts.preview => _preview(),
           HomeFaqLayouts.horizontalCards => _horizontal(),
           HomeFaqLayouts.twoColumnCards => _columns(),

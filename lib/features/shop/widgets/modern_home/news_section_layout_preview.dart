@@ -25,6 +25,14 @@ class NewsSectionLayoutPreview extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: switch (HomeNewsLayouts.migrate(layout)) {
+            HomeNewsLayouts.imageCarousel => Row(
+              children: [
+                Expanded(child: _compact()),
+                const SizedBox(width: 5),
+                Expanded(child: _compact()),
+              ],
+            ),
+            HomeNewsLayouts.feature => _single(),
             HomeNewsLayouts.compactCard => _compact(),
             HomeNewsLayouts.multiLine => _multi(),
             _ => _single(),

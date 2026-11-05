@@ -7,10 +7,22 @@ class HomeNewsLayouts {
   static const String compactCard = 'compactCard';
   static const String singleLine = 'singleLine';
   static const String multiLine = 'multiLine';
-  static const List<String> all = <String>[compactCard, singleLine, multiLine];
+  static const String imageCarousel = 'imageCarousel';
+  static const String feature = 'feature';
+  static const List<String> all = <String>[
+    compactCard,
+    singleLine,
+    multiLine,
+    imageCarousel,
+    feature,
+  ];
 
   static String label(String value) {
     switch (migrate(value)) {
+      case imageCarousel:
+        return '消息圖卡橫滑';
+      case feature:
+        return '焦點圖文（可搭商城）';
       case compactCard:
         return '簡約小卡';
       case multiLine:
@@ -130,6 +142,10 @@ class HomeNewsSectionSetting {
     this.surfaceStyle = HomeNewsSurfaces.solid,
     this.textAlign = HomeNewsTextAligns.left,
     this.showEmptyPlaceholder = true,
+    this.showHeading = false,
+    this.headingAccent = true,
+    this.photoUrl = 'builtin-env:warm-room',
+    this.secondPhotoUrl = 'builtin-env:warm-about',
   });
 
   final int schemaVersion;
@@ -147,6 +163,8 @@ class HomeNewsSectionSetting {
 
   /// 編輯預覽在沒有公告時是否仍占一塊提示卡。正式前台本來就會隱藏。
   final bool showEmptyPlaceholder;
+  final bool showHeading, headingAccent;
+  final String photoUrl, secondPhotoUrl;
 
   bool get isHalf =>
       HomeNewsLayouts.migrate(layout) == HomeNewsLayouts.compactCard;
@@ -170,6 +188,10 @@ class HomeNewsSectionSetting {
     String? surfaceStyle,
     String? textAlign,
     bool? showEmptyPlaceholder,
+    bool? showHeading,
+    bool? headingAccent,
+    String? photoUrl,
+    String? secondPhotoUrl,
   }) {
     return HomeNewsSectionSetting(
       schemaVersion: schemaVersion ?? this.schemaVersion,
@@ -185,6 +207,10 @@ class HomeNewsSectionSetting {
       surfaceStyle: surfaceStyle ?? this.surfaceStyle,
       textAlign: textAlign ?? this.textAlign,
       showEmptyPlaceholder: showEmptyPlaceholder ?? this.showEmptyPlaceholder,
+      showHeading: showHeading ?? this.showHeading,
+      headingAccent: headingAccent ?? this.headingAccent,
+      photoUrl: photoUrl ?? this.photoUrl,
+      secondPhotoUrl: secondPhotoUrl ?? this.secondPhotoUrl,
     );
   }
 
@@ -203,6 +229,10 @@ class HomeNewsSectionSetting {
       'surfaceStyle': HomeNewsSurfaces.migrate(surfaceStyle),
       'textAlign': HomeNewsTextAligns.migrate(textAlign),
       'showEmptyPlaceholder': showEmptyPlaceholder,
+      'showHeading': showHeading,
+      'headingAccent': headingAccent,
+      'photoUrl': photoUrl,
+      'secondPhotoUrl': secondPhotoUrl,
     };
   }
 
@@ -217,6 +247,11 @@ class HomeNewsSectionSetting {
           ? (map['schemaVersion'] as num).toInt()
           : 1,
       cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
+      showHeading: map['showHeading'] == true,
+      headingAccent: map['headingAccent'] != false,
+      photoUrl: (map['photoUrl'] ?? 'builtin-env:warm-room').toString(),
+      secondPhotoUrl: (map['secondPhotoUrl'] ?? 'builtin-env:warm-about')
+          .toString(),
       layout: HomeNewsLayouts.migrate(map['layout']),
       source: HomeNewsSources.migrate(map['source']),
       title: title.isEmpty ? '最新消息' : title,
@@ -253,6 +288,7 @@ class HomeNewsItem {
     required this.publishedAt,
     required this.pinned,
     required this.iconType,
+    this.imageUrl = '',
   });
 
   final String id;
@@ -262,6 +298,7 @@ class HomeNewsItem {
   final DateTime publishedAt;
   final bool pinned;
   final String iconType;
+  final String imageUrl;
 
   bool get isCampaign => sourceType == HomeNewsSources.campaigns;
 
@@ -275,6 +312,7 @@ class HomeNewsItem {
       publishedAt: _time(data['createdAt']),
       pinned: data['isPinned'] == true,
       iconType: (data['type'] ?? 'normal').toString(),
+      imageUrl: (data['imageUrl'] ?? data['coverUrl'] ?? '').toString(),
     );
   }
 

@@ -55,6 +55,7 @@ class StoreFrontHomeSettingsSectionState
     text: ModernStoreHomeSetting.defaultBannerButtonText,
   );
 
+  final TextEditingController _sectionTitleController = TextEditingController();
   bool _loaded = false;
   bool _saving = false;
   late final Future<void> _loading;
@@ -62,6 +63,8 @@ class StoreFrontHomeSettingsSectionState
   bool _showFeatured = true;
   bool _showBanner = true;
   bool _removeImage = false;
+  String _entryPlacement = 'standalone', _sectionTitle = '';
+  bool _headingAccent = true;
   String _featuredLayout = ModernFeaturedProductLayouts.horizontal;
   String _entryLayout = ModernStoreEntryLayouts.banner;
   String _fit = ModernStoreCardFits.cover;
@@ -96,6 +99,7 @@ class StoreFrontHomeSettingsSectionState
     _discardPending();
     _discardSecondPending();
     _featuredTitle.dispose();
+    _sectionTitleController.dispose();
     _bannerTitle.dispose();
     _bannerSubtitle.dispose();
     _bannerButton.dispose();
@@ -186,6 +190,12 @@ class StoreFrontHomeSettingsSectionState
   void _apply(ModernStoreHomeSetting setting) {
     _applying = true;
     _entryLayout = setting.storeEntryLayout;
+    _entryPlacement = setting.storeEntryPlacement;
+    _sectionTitle = setting.storeSectionTitle;
+    if (_sectionTitleController.text != _sectionTitle) {
+      _sectionTitleController.text = _sectionTitle;
+    }
+    _headingAccent = setting.storeHeadingAccent;
     _showFeatured = setting.showFeaturedProducts;
     _featuredTitle.text = setting.featuredTitle;
     _featuredLayout = setting.featuredProductLayout;
@@ -239,6 +249,9 @@ class StoreFrontHomeSettingsSectionState
       storeBannerButtonColorPreset: _buttonColor,
       storeBannerContentPosition: _position,
       storeEntryLayout: _entryLayout,
+      storeEntryPlacement: _entryPlacement,
+      storeSectionTitle: _sectionTitle,
+      storeHeadingAccent: _headingAccent,
       storeEntrySecondImageUrl: _pendingSecondUrl.isNotEmpty
           ? _pendingSecondUrl
           : _secondUrl,
@@ -475,6 +488,44 @@ class StoreFrontHomeSettingsSectionState
             onChanged: enabled
                 ? (bool value) => _edit(() => _showBanner = value)
                 : null,
+          ),
+          TextFormField(
+            controller: _sectionTitleController,
+            decoration: const InputDecoration(
+              labelText: '商城區塊標題（留空不顯示）',
+              helperText: '例如：好物商城；與卡片內的商城名稱分開設定',
+            ),
+            maxLength: 24,
+            onFieldSubmitted: (value) =>
+                _edit(() => _sectionTitle = value.trim()),
+            onChanged: (value) {
+              _sectionTitle = value;
+              _notifyDraft();
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('標題左側主題色豎線（暖橘色槓）'),
+            value: _headingAccent,
+            onChanged: enabled
+                ? (value) => _edit(() => _headingAccent = value)
+                : null,
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: _entryPlacement,
+            decoration: const InputDecoration(labelText: '商城入口位置'),
+            items: const [
+              DropdownMenuItem(value: 'standalone', child: Text('獨立區塊')),
+              DropdownMenuItem(value: 'news', child: Text('消息右側並排卡')),
+              DropdownMenuItem(value: 'rooms', child: Text('房型標題右側按鈕')),
+            ],
+            onChanged: enabled
+                ? (value) => _edit(() => _entryPlacement = value!)
+                : null,
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('並排模式的區塊標題在「消息展示」設定；房型標題右側按鈕沿用下方按鈕文字。'),
           ),
           _quickTemplates(enabled),
           const Text('商城入口樣式', style: TextStyle(fontWeight: FontWeight.w700)),

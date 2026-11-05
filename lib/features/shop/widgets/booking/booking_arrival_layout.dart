@@ -1,3 +1,5 @@
+import 'booking_editorial_design.dart';
+import 'booking_editorial_arrival.dart';
 import 'booking_appearance_scope.dart';
 import 'package:petnest_saas/core/models/booking_page_appearance.dart';
 import 'booking_quick_template_surface.dart';
@@ -30,6 +32,13 @@ class BookingArrivalLayout extends StatefulWidget {
     HomeThemeModel? originalTheme,
   }) {
     final base = switch (style) {
+      'editorial' => const HomeThemeModel(
+        backgroundColorValue: 0xFFFAF7F1,
+        cardColorValue: 0xFFFAF7F1,
+        cardBorderColorValue: 0xFFD3D0C7,
+        primaryColorValue: 0xFF204528,
+        textColorValue: 0xFF204528,
+      ),
       'original' => const HomeThemeModel(
         backgroundColorValue: 0xFFFFF9F0,
         cardColorValue: 0xFFFFF9F0,
@@ -262,6 +271,17 @@ class _BookingArrivalLayoutState extends State<BookingArrivalLayout> {
   Widget build(BuildContext context) {
     final Widget body;
     switch (widget.style) {
+      case 'editorial':
+        body = BookingEditorialArrival(
+          shopName: widget.shopName,
+          coverUrl: widget.coverUrl,
+          dateSection: widget.dateSection,
+          petsSection: widget.petsSection,
+          campaign: widget.campaign,
+          dateLabel: widget.dateLabel,
+          hasDates: widget.hasDates,
+          petCount: widget.petCount,
+        );
       case 'original':
         body = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -528,7 +548,9 @@ class _BookingArrivalLayoutState extends State<BookingArrivalLayout> {
       data: Theme.of(context).copyWith(
         colorScheme: ColorScheme.fromSeed(seedColor: t.primaryColor),
         textTheme: Theme.of(context).textTheme.apply(
-          fontFamily: BookingAppearanceScope.of(context).look.font.isEmpty
+          fontFamily: widget.style == 'editorial'
+              ? BookingEditorial.serif
+              : BookingAppearanceScope.of(context).look.font.isEmpty
               ? null
               : BookingAppearanceScope.of(context).look.font,
         ),
@@ -536,7 +558,9 @@ class _BookingArrivalLayoutState extends State<BookingArrivalLayout> {
       child: DefaultTextStyle.merge(
         style: TextStyle(
           color: t.textColor,
-          fontFamily: BookingAppearanceScope.of(context).look.font.isEmpty
+          fontFamily: widget.style == 'editorial'
+              ? BookingEditorial.serif
+              : BookingAppearanceScope.of(context).look.font.isEmpty
               ? null
               : BookingAppearanceScope.of(context).look.font,
         ),

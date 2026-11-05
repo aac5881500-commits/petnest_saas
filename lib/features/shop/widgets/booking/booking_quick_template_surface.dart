@@ -1,3 +1,5 @@
+import 'booking_cream_header.dart';
+import 'booking_editorial_design.dart';
 import 'package:flutter/material.dart';
 
 /// 兩款參考圖的可操作介面骨架；圖像僅負責插畫，文字與控制項保留原生。
@@ -21,48 +23,7 @@ class BookingQuickTemplateSurface extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (cream) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: Container(
-              color: const Color(0xFFFFF5D6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
-                    child: _brand(cream),
-                  ),
-                  AspectRatio(
-                    aspectRatio: 2.7,
-                    child: Image.asset(
-                      heroAsset,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(18, 8, 18, 6),
-                    child: Text(
-                      '貓咪旅宿預約',
-                      style: TextStyle(
-                        fontSize: 29,
-                        height: 1.25,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF60402D),
-                      ),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(18, 0, 18, 22),
-                    child: Text(
-                      '讓貓咪在旅途中，也有安心的家',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF79583F)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          BookingCreamHeader(shopName: shopName, step: 1),
         ] else ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
@@ -97,7 +58,7 @@ class BookingQuickTemplateSurface extends StatelessWidget {
         Container(
           padding: EdgeInsets.all(cream ? 10 : 4),
           decoration: BoxDecoration(
-            color: cream ? const Color(0xFFFFF5DF) : Colors.white,
+            color: cream ? BookingEditorial.tint(context) : Colors.white,
             borderRadius: BorderRadius.circular(cream ? 28 : 18),
             border: cream ? null : Border.all(color: const Color(0xFFD5DEE4)),
           ),
@@ -105,39 +66,44 @@ class BookingQuickTemplateSurface extends StatelessWidget {
         ),
         campaign,
         const SizedBox(height: 18),
-        Row(
-          children: [
-            Text(
-              '1/3',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: cream
-                    ? const Color(0xFF4E9BD1)
-                    : const Color(0xFF4788B6),
-              ),
-            ),
-            const SizedBox(width: 12),
-            for (var i = 0; i < 3; i++)
-              Expanded(
-                child: Container(
-                  height: 4,
-                  margin: const EdgeInsets.only(right: 5),
-                  decoration: BoxDecoration(
-                    color: i == 0
-                        ? const Color(0xFF60A8D8)
-                        : const Color(0xFFE1E6EB),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+        if (!cream)
+          Row(
+            children: [
+              Text(
+                '1/3',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: cream
+                      ? const Color(0xFF4E9BD1)
+                      : const Color(0xFF4788B6),
                 ),
               ),
-          ],
-        ),
+              const SizedBox(width: 12),
+              for (var i = 0; i < 3; i++)
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    margin: const EdgeInsets.only(right: 5),
+                    decoration: BoxDecoration(
+                      color: i == 0
+                          ? const Color(0xFF60A8D8)
+                          : const Color(0xFFE1E6EB),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+            ],
+          ),
       ],
     );
     return DefaultTextStyle.merge(
       style: TextStyle(
-        fontFamily: cream ? 'jfOpenHuninn' : null,
-        color: cream ? const Color(0xFF60402D) : const Color(0xFF253B4A),
+        fontFamily: cream
+            ? BookingEditorial.body(14, context).fontFamily
+            : null,
+        color: cream
+            ? BookingEditorial.theme(context).textColor
+            : const Color(0xFF253B4A),
       ),
       child: content,
     );

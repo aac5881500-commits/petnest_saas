@@ -35,6 +35,7 @@ class HomeAppearanceDraft {
     required this.information,
     required this.navigation,
     required this.bannerFrame,
+    this.storeHome = const ModernStoreHomeSetting(),
     this.desktopLayout = const HomeDesktopLayoutSetting(),
     this.shopInfo = const HomeShopInfoSetting(),
     this.sectionVisibility = const <String, bool>{},
@@ -49,6 +50,7 @@ class HomeAppearanceDraft {
     this.storeEntryLayout = ModernStoreEntryLayouts.banner,
   });
 
+  final ModernStoreHomeSetting storeHome;
   final HomeDesktopLayoutSetting desktopLayout;
   final HomeShopInfoSetting shopInfo;
   final Map<String, bool> sectionVisibility;
@@ -73,6 +75,7 @@ class HomeAppearanceDraft {
   final String storeEntryLayout;
 
   HomeAppearanceDraft copyWith({
+    ModernStoreHomeSetting? storeHome,
     HomeDesktopLayoutSetting? desktopLayout,
     HomeShopInfoSetting? shopInfo,
     Map<String, bool>? sectionVisibility,
@@ -97,6 +100,7 @@ class HomeAppearanceDraft {
     int? bannerButtonTextColorValue,
   }) {
     return HomeAppearanceDraft(
+      storeHome: storeHome ?? this.storeHome,
       desktopLayout: desktopLayout ?? this.desktopLayout,
       shopInfo: shopInfo ?? this.shopInfo,
       sectionVisibility: sectionVisibility ?? this.sectionVisibility,
@@ -154,7 +158,7 @@ const List<HomeAppearancePreset> homeAppearancePresets = <HomeAppearancePreset>[
   HomeAppearancePreset(
     id: 'creamOrange',
     name: '奶油暖橘',
-    description: '品牌抬頭、三欄環境特色、圖文房型與照片式店家資訊。',
+    description: '品牌抬頭、大圖環境特色、房型、消息商城並排、簡潔問答與店家資訊。',
     navigationLabel: '底部選單',
     apply: _applyCreamOrange,
   ),
@@ -233,6 +237,7 @@ String homeAppearancePresetStatus({
 
 String homeAppearanceDraftSignature(HomeAppearanceDraft draft) {
   return jsonEncode(<String, Object?>{
+    'storeHome': draft.storeHome.toMap(),
     'desktopLayout': draft.desktopLayout.toMap(),
     'shopInfo': draft.shopInfo.toMap(),
     'sectionVisibility': draft.sectionVisibility,
@@ -1055,7 +1060,16 @@ FrontendNavigationConfig _bottomFloating(FrontendNavigationConfig navigation) {
 
 /// Only combines ordinary module settings. It never owns shop content or a renderer.
 HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
-  const front = ['banners', 'facilities', 'rooms', 'about'];
+  const front = [
+    'banners',
+    'facilities',
+    'rooms',
+    'announcements',
+    'about',
+    'faq',
+    'reviews',
+    'storeEntrance',
+  ];
   return current.copyWith(
     desktopLayout: const HomeDesktopLayoutSetting(),
     theme: current.theme.copyWith(
@@ -1077,7 +1091,18 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
     sectionVisibility: {
       ...current.sectionVisibility,
       for (final id in HomeSharedEntrySources.joinable)
-        id: const ['rooms', 'facilities', 'about'].contains(id),
+        id: const [
+          'rooms',
+          'facilities',
+          'announcements',
+          'about',
+          'faq',
+          'reviews',
+          'storeEntrance',
+        ].contains(id),
+      'faq':
+          current.sectionVisibility['faq'] ??
+          current.information.faq.showOnHome,
     },
     rooms: current.rooms.copyWith(
       layout: HomeRoomSectionLayouts.catalog,
@@ -1091,6 +1116,7 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
     environment: current.environment.copyWith(
       layout: HomeEnvironmentLayouts.featureCards,
       facilityLimit: 3,
+      imageHeight: HomeEnvironmentImageHeights.standard,
       showTitle: false,
       showSubtitle: false,
       showDescription: false,
@@ -1109,12 +1135,32 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
       showSubtitle: true,
       surfaceStyle: HomeAboutSurfaces.transparent,
     ),
-    news: current.news.copyWith(layout: HomeNewsLayouts.multiLine),
+    news: current.news.copyWith(
+      layout: HomeNewsLayouts.feature,
+      title: '店裡的新鮮事',
+      showHeading: true,
+      headingAccent: true,
+      showDate: true,
+      showSummary: true,
+      showTypeBadge: true,
+    ),
+    storeHome: current.storeHome.copyWith(
+      storeEntryPlacement: 'news',
+      storeSectionTitle: '好物商城',
+      storeHeadingAccent: true,
+    ),
+
     quickBooking: current.quickBooking.copyWith(showOnHome: false),
     information: current.information.copyWith(
       policy: current.information.policy.copyWith(showOnHome: false),
-      faq: current.information.faq.copyWith(showOnHome: false),
-      reviews: current.information.reviews.copyWith(showOnHome: false),
+      faq: current.information.faq.copyWith(
+        layout: HomeFaqLayouts.minimalAccordion,
+        title: '常見問題',
+        headingAccent: true,
+        previewCount: 3,
+        showViewAll: true,
+      ),
+      reviews: current.information.reviews.copyWith(showOnHome: true),
     ),
     sharedEntry: current.sharedEntry.copyWith(enabled: false),
     showStayServiceStrip: false,
@@ -1136,7 +1182,7 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
       showCounter: false,
     ),
     brandStyle: current.brandStyle.copyWith(
-      subtitleAngle: -4.6,
+      subtitleAngle: -7,
       subtitleFontFamily: 'KleeOne',
       markType: 'wordmark',
       logoSize: 'large',
@@ -1167,10 +1213,10 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
       followTheme: true,
       imageSource: 'photo',
       photoFraction: .36,
-      showName: false,
-      showIntro: false,
+      showName: true,
+      showIntro: true,
       showActions: true,
-      fields: const ['hours', 'address'],
+      fields: const ['hours', 'address', 'phone'],
       actionIds: const ['phone', 'map', 'line'],
       actionLayout: 'threeColumns',
       buttonStyle: 'mixed',

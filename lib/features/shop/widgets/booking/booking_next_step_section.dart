@@ -1,3 +1,5 @@
+import 'booking_appearance_scope.dart';
+import 'booking_editorial_design.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_next_step_section.dart
 // 功能說明：前台預約下一步按鈕：進入填寫資料頁
 
@@ -84,6 +86,28 @@ class BookingNextStepSection extends StatelessWidget {
     return Column(
       children: [
         if (!compact) ...[const SizedBox(height: 8)],
+        if (BookingAppearanceScope.of(context).style == 'cream')
+          const BookingCreamProgress(step: 3),
+        if (const [
+          'editorial',
+          'cream',
+        ].contains(BookingAppearanceScope.of(context).style)) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('應付金額', style: BookingEditorial.title(16, context)),
+              Flexible(
+                child: Text(
+                  'NT\$ $totalPrice',
+                  style: BookingEditorial.title(27, context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('下一步將填寫聯絡與入住資料。', style: BookingEditorial.body(12, context)),
+          const SizedBox(height: 10),
+        ],
         BookingPrimaryButton(
           theme: theme,
           label: '下一步：填寫資料',
@@ -185,6 +209,7 @@ class BookingNextStepSection extends StatelessWidget {
                       (extraPetCount * extraPrice * nights) +
                       specialDateSurchargeAmount;
 
+                  if (!context.mounted) return;
                   Navigator.push(
                     context,
                     MaterialPageRoute(

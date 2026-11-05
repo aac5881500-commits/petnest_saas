@@ -297,6 +297,9 @@ class ModernStoreHomeSetting {
     this.storeBannerButtonColorPreset = ModernStoreCardButtonColors.brand,
     this.storeBannerContentPosition = ModernStoreCardPositions.centerLeft,
     this.storeEntryLayout = ModernStoreEntryLayouts.banner,
+    this.storeEntryPlacement = 'standalone',
+    this.storeSectionTitle = '',
+    this.storeHeadingAccent = true,
   });
 
   final bool showFeaturedProducts;
@@ -319,6 +322,9 @@ class ModernStoreHomeSetting {
   final String storeBannerButtonColorPreset;
   final String storeBannerContentPosition;
   final String storeEntryLayout;
+  final String storeEntryPlacement;
+  final String storeSectionTitle;
+  final bool storeHeadingAccent;
 
   bool get hasBackgroundImage => storeBannerImageUrl.trim().isNotEmpty;
 
@@ -422,6 +428,13 @@ class ModernStoreHomeSetting {
         map['storeBannerContentPosition'],
         ModernStoreCardPositions.centerLeft,
       ),
+      storeEntryPlacement: pick(
+        const ['standalone', 'news', 'rooms'],
+        map['storeEntryPlacement'],
+        'standalone',
+      ),
+      storeSectionTitle: (map['storeSectionTitle'] ?? '').toString().trim(),
+      storeHeadingAccent: map['storeHeadingAccent'] != false,
       storeEntryLayout: pick(
         ModernStoreEntryLayouts.all,
         map['storeEntryLayout'],
@@ -453,6 +466,9 @@ class ModernStoreHomeSetting {
       'storeBannerButtonColorPreset': storeBannerButtonColorPreset,
       'storeBannerContentPosition': storeBannerContentPosition,
       'storeEntryLayout': storeEntryLayout,
+      'storeEntryPlacement': storeEntryPlacement,
+      'storeSectionTitle': storeSectionTitle,
+      'storeHeadingAccent': storeHeadingAccent,
     };
   }
 
@@ -477,6 +493,9 @@ class ModernStoreHomeSetting {
     String? storeBannerButtonColorPreset,
     String? storeBannerContentPosition,
     String? storeEntryLayout,
+    String? storeEntryPlacement,
+    String? storeSectionTitle,
+    bool? storeHeadingAccent,
   }) {
     return ModernStoreHomeSetting(
       showFeaturedProducts: showFeaturedProducts ?? this.showFeaturedProducts,
@@ -513,6 +532,9 @@ class ModernStoreHomeSetting {
       storeBannerContentPosition:
           storeBannerContentPosition ?? this.storeBannerContentPosition,
       storeEntryLayout: storeEntryLayout ?? this.storeEntryLayout,
+      storeEntryPlacement: storeEntryPlacement ?? this.storeEntryPlacement,
+      storeSectionTitle: storeSectionTitle ?? this.storeSectionTitle,
+      storeHeadingAccent: storeHeadingAccent ?? this.storeHeadingAccent,
     );
   }
 

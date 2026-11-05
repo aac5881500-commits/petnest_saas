@@ -29,7 +29,7 @@ class BookingAppearanceScope extends InheritedWidget {
 BoxDecoration bookingCardDecoration(String style, HomeThemeModel theme) {
   final line = theme.cardBorderColor;
   return switch (style) {
-    'cream' || 'house' => const BoxDecoration(),
+    'cream' || 'house' || 'editorial' => const BoxDecoration(),
     'minimal' => BoxDecoration(
       color: theme.cardColor,
       border: Border(bottom: BorderSide(color: line)),
@@ -65,6 +65,7 @@ BoxDecoration bookingCardDecoration(String style, HomeThemeModel theme) {
 }
 
 EdgeInsets bookingCardPadding(String style) => switch (style) {
+  'editorial' => const EdgeInsets.symmetric(vertical: 4),
   'cream' || 'house' => const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
   'minimal' => const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
   'boutique' => const EdgeInsets.all(22),

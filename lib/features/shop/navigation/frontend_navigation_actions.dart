@@ -67,8 +67,21 @@ class FrontendNavigationLaunch {
     }
     switch (item.action) {
       case FrontendNavAction.home:
-        onScrollHomeToTop?.call();
+        final navigator = Navigator.of(context);
+        final currentRoute = ModalRoute.of(context);
         _closeDrawer(context);
+        if (currentRoute != null && ShopMainTabRoute.isTab(currentRoute)) {
+          ShopMainTabRoute.popToShopHome(navigator);
+          onScrollHomeToTop?.call();
+        } else if (onScrollHomeToTop != null) {
+          onScrollHomeToTop!.call();
+        } else {
+          navigator.pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => ShopPublicPage(shopId: shopId),
+            ),
+          );
+        }
         return;
       case FrontendNavAction.platform:
         _goToPlatform(context);

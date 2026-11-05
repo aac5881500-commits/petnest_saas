@@ -1,3 +1,5 @@
+import 'owner_image_upload_button.dart';
+import 'editorial_section_widgets.dart';
 import 'home_card_image.dart';
 import 'home_section_settings_group.dart';
 import 'home_section_layout_option_card.dart';
@@ -19,11 +21,17 @@ class NewsSectionSettingsPanel extends StatefulWidget {
     required this.onChanged,
     required this.onOpenFeatures,
     this.availability,
+    this.shopId = '',
+    this.onBusyChanged,
+    this.onPlaceNearRooms,
     this.displayStyles,
     this.onDisplayStyles,
   });
 
   final String? availability;
+  final String shopId;
+  final ValueChanged<bool>? onBusyChanged;
+  final ValueChanged<bool>? onPlaceNearRooms;
   final HomeNewsSectionSetting setting;
   final HomeThemeModel theme;
   final bool locked;
@@ -94,6 +102,22 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
           title: '首頁顯示',
           children: [
             const Text('控制首頁消息呈現，不變更公告及活動內容。'),
+            if (widget.onPlaceNearRooms != null)
+              Wrap(
+                spacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => widget.onPlaceNearRooms!(true),
+                    icon: const Icon(Icons.vertical_align_top),
+                    label: const Text('移到房型介紹前'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => widget.onPlaceNearRooms!(false),
+                    icon: const Icon(Icons.vertical_align_bottom),
+                    label: const Text('移到房型介紹後'),
+                  ),
+                ],
+              ),
             if (widget.availability != null) Text(widget.availability!),
             TextButton(
               onPressed: widget.onOpenFeatures,
@@ -107,14 +131,21 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
             HomeSectionLayoutPicker(
               theme: widget.theme,
               selectedId: HomeNewsLayouts.migrate(widget.setting.layout),
-              onSelected: (value) =>
-                  _update(widget.setting.copyWith(layout: value)),
+              onSelected: (value) => _update(
+                widget.setting.copyWith(
+                  layout: value,
+                  showHeading: true,
+                  showDate: true,
+                ),
+              ),
               choices: [
                 for (final item in HomeNewsLayouts.all)
                   HomeSectionLayoutChoice(
                     id: item,
                     title: HomeNewsLayouts.label(item),
                     description: switch (item) {
+                      HomeNewsLayouts.imageCarousel => '每頁兩張圖卡，可滑動並點擊頁點',
+                      HomeNewsLayouts.feature => '焦點消息圖文，可於商城入口選擇右側並排',
                       HomeNewsLayouts.multiLine => '展示多則消息與摘要',
                       HomeNewsLayouts.singleLine => '精簡呈現最新消息、類型與日期',
                       _ => '半寬入口，連結既有消息頁面',
@@ -168,7 +199,56 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
             _update(setting.copyWith(title: value.trim()));
           },
         ),
-        if (multi) ...<Widget>[
+        _switch(
+          '顯示區塊標題',
+          setting.showHeading,
+          (value) => _update(setting.copyWith(showHeading: value)),
+        ),
+        _switch(
+          '標題左側主題色豎線（暖橘色槓）',
+          setting.headingAccent,
+          (value) => _update(setting.copyWith(headingAccent: value)),
+        ),
+        if (layout == HomeNewsLayouts.imageCarousel ||
+            layout == HomeNewsLayouts.feature) ...[
+          const Text('消息照片（公告已有照片時優先沿用；否則使用以下圖片）'),
+          for (var i = 0; i < 2; i++)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 100,
+                  child: sectionPhoto(
+                    i == 0 ? setting.photoUrl : setting.secondPhotoUrl,
+                  ),
+                ),
+                if (widget.shopId.isNotEmpty)
+                  OwnerImageUploadButton(
+                    shopId: widget.shopId,
+                    onBusyChanged: widget.onBusyChanged,
+                    label: '更換第${i + 1}張消息照片',
+                    onUploaded: (url) => _update(
+                      i == 0
+                          ? widget.setting.copyWith(photoUrl: url)
+                          : widget.setting.copyWith(secondPhotoUrl: url),
+                    ),
+                  ),
+                TextButton(
+                  onPressed: () => _update(
+                    i == 0
+                        ? widget.setting.copyWith(
+                            photoUrl: 'builtin-env:warm-room',
+                          )
+                        : widget.setting.copyWith(
+                            secondPhotoUrl: 'builtin-env:warm-about',
+                          ),
+                  ),
+                  child: const Text('使用內建圖片'),
+                ),
+              ],
+            ),
+        ],
+        if (multi || layout == HomeNewsLayouts.imageCarousel) ...<Widget>[
           const Text('顯示數量', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           _chips(
@@ -193,6 +273,23 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
           _switch('顯示查看全部', setting.showArrow, (bool value) {
             _update(setting.copyWith(showArrow: value));
           }),
+        ],
+        if (layout == HomeNewsLayouts.feature) ...[
+          _switch(
+            '顯示摘要',
+            setting.showSummary,
+            (value) => _update(setting.copyWith(showSummary: value)),
+          ),
+          _switch(
+            '顯示日期',
+            setting.showDate,
+            (value) => _update(setting.copyWith(showDate: value)),
+          ),
+          _switch(
+            '顯示類型標籤',
+            setting.showTypeBadge,
+            (value) => _update(setting.copyWith(showTypeBadge: value)),
+          ),
         ],
         if (single)
           _switch('顯示箭頭', setting.showArrow, (bool value) {

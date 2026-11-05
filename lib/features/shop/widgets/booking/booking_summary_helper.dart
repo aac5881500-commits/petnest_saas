@@ -160,6 +160,7 @@ class BookingSummaryHelper {
   /// 🔥 建立 Summary Card
   /// ===============================
   static Widget buildSummary({
+    Widget? couponSection,
     required String startDateText,
     required String endDateText,
     required int nights,
@@ -231,7 +232,20 @@ class BookingSummaryHelper {
         .where((String name) => name.isNotEmpty)
         .toList();
 
+    final parts = calculatePriceParts(
+      selectedRoomType: selectedRoomType,
+      nights: nights,
+      selectedPetIds: selectedPetIds,
+      selectedTimeAddon: selectedTimeAddon,
+      selectedValueServices: selectedValueServices,
+      selectedCustomServices: selectedCustomServices,
+      selectedDailyTimedServices: selectedDailyTimedServices,
+      addonData: addonData,
+    );
     return BookingSummaryCard(
+      roomAmount: parts['roomTotal']! + parts['petTotal']!,
+      addonAmount: parts['addonTotal'],
+      couponSection: couponSection,
       theme: theme,
       startDateText: startDateText,
       endDateText: endDateText,

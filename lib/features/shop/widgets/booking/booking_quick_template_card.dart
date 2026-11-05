@@ -35,7 +35,13 @@ class BookingQuickTemplateCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               child: SizedBox(
                 height: compact ? 64 : 94,
-                child: style == 'cream'
+                child: style == 'editorial'
+                    ? Image.asset(
+                        BookingPageAppearance.defaultHero,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      )
+                    : style == 'cream'
                     ? Image.asset(
                         'assets/images/booking_cream_hero_v1.png',
                         width: double.infinity,
@@ -99,7 +105,9 @@ class BookingQuickTemplateCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    BookingPageAppearance.styles[style]!,
+                    style == 'original'
+                        ? '原始預設'
+                        : BookingPageAppearance.styles[style]!,
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: compact ? 14 : 15,

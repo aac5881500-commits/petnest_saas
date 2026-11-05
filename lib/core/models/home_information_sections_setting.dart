@@ -61,6 +61,7 @@ class HomePolicyLayouts {
 class HomeFaqLayouts {
   static const String compact = 'compact';
   static const String singleLine = 'singleLine';
+  static const String minimalAccordion = 'minimalAccordion';
   static const String preview = 'preview';
   static const String horizontalCards = 'horizontalCards';
   static const String twoColumnCards = 'twoColumnCards';
@@ -68,6 +69,7 @@ class HomeFaqLayouts {
     compact,
     singleLine,
     preview,
+    minimalAccordion,
     horizontalCards,
     twoColumnCards,
   ];
@@ -76,6 +78,8 @@ class HomeFaqLayouts {
     switch (migrate(value)) {
       case singleLine:
         return '單行入口';
+      case minimalAccordion:
+        return '簡潔展開列表';
       case preview:
         return '展開問答';
       case horizontalCards:
@@ -91,6 +95,8 @@ class HomeFaqLayouts {
     switch (migrate(value)) {
       case singleLine:
         return '整排單行入口，顯示題數與箭頭。';
+      case minimalAccordion:
+        return '主題色標題與細分隔線，點擊加號展開答案。';
       case preview:
         return '在首頁展開前幾題答案，其餘進入完整頁面。';
       case horizontalCards:
@@ -262,6 +268,7 @@ class HomePolicySectionSetting {
 class HomeFaqSectionSetting {
   const HomeFaqSectionSetting({
     this.showOnHome = false,
+    this.headingAccent = true,
     this.cardImage = const HomeCardImageSetting(),
     this.layout = HomeFaqLayouts.compact,
     this.title = '常見問題',
@@ -276,6 +283,7 @@ class HomeFaqSectionSetting {
   });
 
   final bool showOnHome;
+  final bool headingAccent;
   final HomeCardImageSetting cardImage;
   final String layout;
   final String title;
@@ -296,6 +304,7 @@ class HomeFaqSectionSetting {
 
   HomeFaqSectionSetting copyWith({
     bool? showOnHome,
+    bool? headingAccent,
     HomeCardImageSetting? cardImage,
     String? layout,
     String? title,
@@ -310,6 +319,7 @@ class HomeFaqSectionSetting {
   }) {
     return HomeFaqSectionSetting(
       showOnHome: showOnHome ?? this.showOnHome,
+      headingAccent: headingAccent ?? this.headingAccent,
       cardImage: cardImage ?? this.cardImage,
       layout: layout ?? this.layout,
       title: title ?? this.title,
@@ -327,6 +337,7 @@ class HomeFaqSectionSetting {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'showOnHome': showOnHome,
+      'headingAccent': headingAccent,
       'cardImage': cardImage.toMap(),
       'layout': HomeFaqLayouts.migrate(layout),
       'title': _clip(title, 12),
@@ -349,6 +360,7 @@ class HomeFaqSectionSetting {
     final String title = _clip(map['title'], 12);
     return HomeFaqSectionSetting(
       showOnHome: map['showOnHome'] == true,
+      headingAccent: map['headingAccent'] != false,
       cardImage: HomeCardImageSetting.fromMap(map['cardImage']),
       layout: HomeFaqLayouts.migrate(map['layout']),
       title: title.isEmpty ? '常見問題' : title,

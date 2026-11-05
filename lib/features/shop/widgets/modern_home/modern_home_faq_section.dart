@@ -1,3 +1,4 @@
+import 'editorial_section_widgets.dart';
 import 'home_card_image.dart';
 import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
@@ -67,7 +68,7 @@ class ModernHomeFaqSection extends StatelessWidget {
     final List<HomeFaqItem> source = items;
     return switch (HomeFaqLayouts.migrate(setting.layout)) {
       HomeFaqLayouts.singleLine => _entry(source, wide: true, empty: empty),
-      HomeFaqLayouts.preview => _FaqPreview(
+      HomeFaqLayouts.minimalAccordion || HomeFaqLayouts.preview => _FaqPreview(
         theme: theme,
         setting: setting,
         items: source,
@@ -342,31 +343,43 @@ class _FaqPreviewState extends State<_FaqPreview> {
       widget.setting.previewCount,
     );
     final List<HomeFaqItem> visible = widget.items.take(count).toList();
+    final minimal = widget.setting.layout == HomeFaqLayouts.minimalAccordion;
     return Material(
       key: const Key('home-faq-card'),
-      color: widget.theme.cardColor,
+      color: minimal ? Colors.transparent : widget.theme.cardColor,
       borderRadius: BorderRadius.circular(14),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: widget.theme.cardBorderColor),
+          border: minimal
+              ? null
+              : Border.all(color: widget.theme.cardBorderColor),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+          padding: minimal
+              ? EdgeInsets.zero
+              : const EdgeInsets.fromLTRB(12, 12, 12, 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                widget.setting.entryTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.2,
-                  fontWeight: FontWeight.w800,
-                  color: widget.theme.textColor,
+              if (minimal)
+                EditorialSectionHeading(
+                  title: widget.setting.entryTitle,
+                  theme: widget.theme,
+                  accent: widget.setting.headingAccent,
+                )
+              else
+                Text(
+                  widget.setting.entryTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    color: widget.theme.textColor,
+                  ),
                 ),
-              ),
               if (widget.empty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -383,7 +396,9 @@ class _FaqPreviewState extends State<_FaqPreview> {
                 _row(visible[index], index),
               if (widget.setting.showViewAll)
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: minimal
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: TextButton(
                     key: const Key('home-faq-see-all'),
                     onPressed: widget.onOpen,
@@ -399,6 +414,7 @@ class _FaqPreviewState extends State<_FaqPreview> {
 
   Widget _row(HomeFaqItem item, int index) {
     final bool open = _openId == item.id;
+    final minimal = widget.setting.layout == HomeFaqLayouts.minimalAccordion;
     return Column(
       children: <Widget>[
         InkWell(
@@ -412,20 +428,22 @@ class _FaqPreviewState extends State<_FaqPreview> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: <Widget>[
-                widget.setting.leadingStyle == HomeFaqLeadingStyles.number
-                    ? Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
+                if (!minimal) ...[
+                  widget.setting.leadingStyle == HomeFaqLeadingStyles.number
+                      ? Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: widget.theme.primaryColor,
+                          ),
+                        )
+                      : Icon(
+                          Icons.help_outline_rounded,
+                          size: 18,
                           color: widget.theme.primaryColor,
                         ),
-                      )
-                    : Icon(
-                        Icons.help_outline_rounded,
-                        size: 18,
-                        color: widget.theme.primaryColor,
-                      ),
-                const SizedBox(width: 8),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: Text(
                     item.question,
@@ -440,13 +458,22 @@ class _FaqPreviewState extends State<_FaqPreview> {
                   ),
                 ),
                 Icon(
-                  open ? Icons.expand_less : Icons.expand_more,
-                  color: widget.theme.secondaryTextColor,
+                  minimal
+                      ? (open ? Icons.remove : Icons.add)
+                      : (open ? Icons.expand_less : Icons.expand_more),
+                  color: minimal
+                      ? widget.theme.primaryColor
+                      : widget.theme.secondaryTextColor,
                 ),
               ],
             ),
           ),
         ),
+        if (minimal)
+          Divider(
+            height: 1,
+            color: widget.theme.primaryColor.withValues(alpha: .18),
+          ),
         if (open)
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 72),

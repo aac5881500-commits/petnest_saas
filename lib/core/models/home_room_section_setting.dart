@@ -669,6 +669,7 @@ class HomeRoomSectionSetting {
     this.schemaVersion = 1,
     this.layout = HomeRoomSectionLayouts.horizontalScroll,
     this.title = '房型介紹',
+    this.headingAccent = true,
     this.showPrice = true,
     this.fontFamily = '',
     this.fallbackCoverAssetId = '',
@@ -691,6 +692,7 @@ class HomeRoomSectionSetting {
   final int schemaVersion;
   final String layout;
   final String title;
+  final bool headingAccent;
   final bool showPrice;
 
   /// 只影響房型展示文字。空字串不指定 fontFamily。
@@ -718,6 +720,7 @@ class HomeRoomSectionSetting {
     Object? schemaVersion = _keep,
     Object? layout = _keep,
     Object? title = _keep,
+    bool? headingAccent,
     Object? showPrice = _keep,
     Object? fontFamily = _keep,
     Object? fallbackCoverAssetId = _keep,
@@ -733,6 +736,7 @@ class HomeRoomSectionSetting {
           : schemaVersion as int,
       layout: layout == _keep ? this.layout : layout as String,
       title: title == _keep ? this.title : title as String,
+      headingAccent: headingAccent ?? this.headingAccent,
       showPrice: showPrice == _keep ? this.showPrice : showPrice as bool,
       fontFamily: fontFamily == _keep
           ? this.fontFamily
@@ -759,6 +763,7 @@ class HomeRoomSectionSetting {
       'schemaVersion': schemaVersion,
       'layout': layout,
       'title': title,
+      'headingAccent': headingAccent,
       'showPrice': showPrice,
       'fontFamily': fontFamily,
       'fallbackCoverAssetId': fallbackCoverAssetId,
@@ -789,6 +794,7 @@ class HomeRoomSectionSetting {
           : 1,
       layout: HomeRoomSectionLayouts.migrate(rawLayout),
       title: title.isEmpty ? '房型介紹' : title,
+      headingAccent: map['headingAccent'] != false,
       showPrice: map['showPrice'] is bool ? map['showPrice'] as bool : true,
       fontFamily: _fontFamily(map['fontFamily']),
       fallbackCoverAssetId: _assetId(map['fallbackCoverAssetId']),

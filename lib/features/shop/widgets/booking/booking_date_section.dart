@@ -1,3 +1,4 @@
+import 'booking_editorial_design.dart';
 import 'booking_appearance_scope.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_date_section.dart
 // 功能說明：前台預約日期區塊：顯示店名、預約狀態提示、已選日期與選擇日期按鈕
@@ -38,6 +39,75 @@ class BookingDateSection extends StatelessWidget {
     final style = BookingAppearanceScope.of(context).style;
     final bool hasDate = startDate != null && endDate != null;
 
+    if (style == 'editorial') {
+      Widget field(String title, DateTime? date) => Column(
+        children: [
+          Text(title, style: BookingEditorial.body(14, context)),
+          const SizedBox(height: 3),
+          Text(
+            date == null ? '選擇日期' : '${date.month}/${date.day}',
+            style: BookingEditorial.title(23, context),
+          ),
+        ],
+      );
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: BookingEditorial.theme(context).cardBorderColor,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(child: field('入住', startDate)),
+                Container(
+                  width: 1,
+                  height: 38,
+                  color: BookingEditorial.theme(context).cardBorderColor,
+                ),
+                Expanded(child: field('退房', endDate)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: BookingEditorial.tint(context),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                hasDate ? '共 $nights 晚' : '請選擇住宿日期',
+                textAlign: TextAlign.center,
+                style: BookingEditorial.body(12, context),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: bookingEnabled ? onOpenCalendar : null,
+              icon: const Icon(Icons.calendar_month_outlined, size: 20),
+              label: Text(
+                hasDate ? '修改日期' : '選擇日期',
+                style: BookingEditorial.title(15, context),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: BookingEditorial.theme(context).primaryColor,
+                side: BorderSide(
+                  color: BookingEditorial.theme(context).primaryColor,
+                ),
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (style == 'cream' || style == 'house') {
       final cream = style == 'cream';
       Widget field(String label, DateTime? date) => Column(

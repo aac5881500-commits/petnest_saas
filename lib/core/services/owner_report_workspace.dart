@@ -41,7 +41,7 @@ class OwnerReportWorkspace {
       sources(modules, scope).isNotEmpty &&
       available(modules).every((source) => source.ready);
   static String label(String scope) => scope == 'all'
-      ? '整店（已串接業務）'
+      ? '整店（全部可統計服務）'
       : catalog.firstWhere((s) => s.id == scope).label;
   static Map<String, ShopReportBundle> build({
     required ReportRange range,
@@ -83,6 +83,7 @@ class OwnerLedgerEntry {
 }
 
 class OwnerReportDemo {
+  static const readyModules = {'cat_hotel', 'store'};
   static const modules = {
     'cat_hotel',
     'store',

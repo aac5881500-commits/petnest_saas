@@ -1,3 +1,5 @@
+import 'booking_appearance_scope.dart';
+import 'booking_editorial_design.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
@@ -46,6 +48,21 @@ class BookingPetChoice extends StatelessWidget {
       ),
     );
     final name = pet['name']?.toString() ?? '未命名';
+    if (BookingAppearanceScope.of(context).style == 'editorial') {
+      return FilterChip(
+        avatar: avatar,
+        label: Text(name, style: BookingEditorial.body(13, context)),
+        selected: selected,
+        selectedColor: BookingEditorial.tint(context),
+        backgroundColor: BookingEditorial.theme(context).backgroundColor,
+        checkmarkColor: BookingEditorial.theme(context).primaryColor,
+        side: BorderSide(
+          color: BookingEditorial.theme(context).cardBorderColor,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        onSelected: onSelected,
+      );
+    }
     if (!portrait) {
       return FilterChip(
         avatar: avatar,

@@ -1,3 +1,4 @@
+import 'booking_editorial_design.dart';
 import 'booking_template_pet_grid.dart';
 import 'booking_pet_choice.dart';
 import 'booking_appearance_scope.dart';
@@ -114,14 +115,20 @@ class _BookingPetSectionState extends State<BookingPetSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            widget.title ?? '選擇入住貓咪（已選 ${widget.selectedPetIds.length} 隻）',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: theme.textColor,
+          if (BookingAppearanceScope.of(context).style == 'editorial')
+            BookingEditorial.heading(
+              '選擇入住貓咪',
+              trailing: '已選 ${widget.selectedPetIds.length} 隻',
+            )
+          else
+            Text(
+              widget.title ?? '選擇入住貓咪（已選 ${widget.selectedPetIds.length} 隻）',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: theme.textColor,
+              ),
             ),
-          ),
           const SizedBox(height: 4),
           Text(
             widget.enabled
@@ -259,13 +266,18 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                                 final bool selected = widget.selectedPetIds
                                     .contains(petId);
 
-                                if (BookingAppearanceScope.of(context).style ==
-                                    'soft') {
+                                if (const ['soft', 'editorial'].contains(
+                                  BookingAppearanceScope.of(context).style,
+                                )) {
                                   return BookingPetChoice(
                                     pet: pet,
                                     selected: selected,
                                     theme: theme,
-                                    portrait: true,
+                                    portrait:
+                                        BookingAppearanceScope.of(
+                                          context,
+                                        ).style ==
+                                        'soft',
                                     onSelected: (value) =>
                                         widget.onTogglePet(petId, value),
                                   );

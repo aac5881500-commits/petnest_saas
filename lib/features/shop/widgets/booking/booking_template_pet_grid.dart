@@ -1,3 +1,5 @@
+import 'booking_editorial_design.dart';
+import 'booking_appearance_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
@@ -31,7 +33,16 @@ class BookingTemplatePetGrid extends StatelessWidget {
               id = (entry.value['petId'] ?? entry.value['name'] ?? '')
                   .toString();
           final selected = selectedIds.contains(id), cream = style == 'cream';
-          final frame = cream
+          final custom =
+              BookingAppearanceScope.of(context).suiteColorMode != 'template';
+          final frame = cream && custom
+              ? Color.alphaBlend(
+                  theme.primaryColor.withValues(
+                    alpha: entry.key.isEven ? .12 : .2,
+                  ),
+                  theme.backgroundColor,
+                )
+              : cream
               ? (entry.key.isEven
                     ? const Color(0xFFFFE6A0)
                     : const Color(0xFFD4EEFF))
@@ -91,9 +102,13 @@ class BookingTemplatePetGrid extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 20,
-                      fontFamily: cream ? 'jfOpenHuninn' : null,
+                      fontFamily: cream
+                          ? BookingEditorial.body(20, context).fontFamily
+                          : null,
                       color: theme.textColor,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: cream
+                          ? BookingEditorial.title(20, context).fontWeight
+                          : FontWeight.w800,
                     ),
                   ),
                 ),
@@ -150,4 +165,3 @@ class BookingTemplatePetGrid extends StatelessWidget {
     },
   );
 }
-

@@ -1,3 +1,4 @@
+import 'booking_editorial_design.dart';
 import 'booking_appearance_scope.dart';
 // 檔案名稱：lib/features/shop/widgets/booking/booking_step_widgets.dart
 // 功能說明：住宿預約三步驟共用：步驟指示、主題卡片、底部固定欄
@@ -20,6 +21,12 @@ class BookingStepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final a = BookingAppearanceScope.of(context);
+    if (a.style == 'cream') return const SizedBox.shrink();
+    if ((currentStep == 1 && const ['editorial', 'cream'].contains(a.style)) ||
+        (currentStep >= 2 && const ['editorial', 'cream'].contains(a.style))) {
+      return BookingEditorialProgress(step: currentStep);
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Row(
@@ -193,6 +200,12 @@ class BookingPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (const [
+      'editorial',
+      'cream',
+    ].contains(BookingAppearanceScope.of(context).style)) {
+      return BookingEditorial.button(label, enabled ? onPressed : null);
+    }
     final bool canTap = onPressed != null;
     final bool visuallyEnabled = canTap && enabled;
     return SizedBox(

@@ -1,3 +1,5 @@
+import 'booking_editorial_design.dart';
+import 'booking_calendar_dialog.dart';
 import 'booking_background_surface.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'booking_template_pet_grid.dart';
@@ -30,6 +32,17 @@ class BookingArrivalPreview extends StatefulWidget {
 class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
   DateTime? _start, _end;
   final _pets = <String>{};
+  @override
+  void initState() {
+    super.initState();
+    if (widget.appearance.style == 'editorial') {
+      final now = DateTime.now();
+      _start = DateTime(now.year, now.month, now.day + 8);
+      _end = DateTime(now.year, now.month, now.day + 11);
+      _pets.addAll(['奶茶', '芝麻']);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final a = widget.appearance;
@@ -97,6 +110,16 @@ class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
                   style: TextStyle(fontSize: 11),
                 ),
               ),
+              if (a.style == 'editorial') ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: BookingEditorial.brand(shopName: widget.shopName),
+                ),
+                const BookingEditorialProgress(step: 1),
+              ],
               if (a.style == 'original')
                 BookingStepIndicator(currentStep: 1, theme: t),
               BookingArrivalLayout(
@@ -131,14 +154,58 @@ class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
                   endDate: _end,
                   nights: _end != null ? _end!.difference(_start!).inDays : 0,
                   onOpenCalendar: () async {
-                    final range = await showDateRangePicker(
-                      context: context,
-                      firstDate: today,
-                      lastDate: today.add(const Duration(days: 90)),
-                      initialDateRange: _start != null && _end != null
-                          ? DateTimeRange(start: _start!, end: _end!)
-                          : null,
-                    );
+                    DateTime? start = _start, end = _end;
+                    var month = start ?? today;
+                    final range =
+                        await showBookingCalendarSurface<DateTimeRange>(
+                          context: context,
+                          presentation: a.calendarPresentation,
+                          builder: (dialogContext) => StatefulBuilder(
+                            builder: (context, change) => BookingCalendarDialog(
+                              payload: const FrontCalendarPayload(
+                                blockedDateKeys: {},
+                                blockedDateReasons: {},
+                                unbookableDateKeys: {},
+                                priceMap: {},
+                                remainingRoomsMap: {},
+                              ),
+                              calendarMonth: month,
+                              today: today,
+                              maxDays: 90,
+                              tempStartDate: start,
+                              tempEndDate: end,
+                              rangeMessage: '示範日期，正式預約依實際可預約日為準',
+                              visualStyle: a.calendarStyle,
+                              presentation: a.calendarPresentation,
+                              density: a.calendarDensity,
+                              backgroundColor:
+                                  a.calendarBackgroundFor(t) == null
+                                  ? null
+                                  : Color(a.calendarBackgroundFor(t)!),
+                              accentColor: a.calendarAccentFor(t) == null
+                                  ? null
+                                  : Color(a.calendarAccentFor(t)!),
+                              onMonthChanged: (v) => change(() => month = v),
+                              onDayTap: (v) => change(() {
+                                if (start == null ||
+                                    end != null ||
+                                    !v.isAfter(start!)) {
+                                  start = v;
+                                  end = null;
+                                } else {
+                                  end = v;
+                                }
+                              }),
+                              onCancel: () => Navigator.pop(dialogContext),
+                              onConfirm: start != null && end != null
+                                  ? () => Navigator.pop(
+                                      dialogContext,
+                                      DateTimeRange(start: start!, end: end!),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        );
                     if (range != null && mounted) {
                       setState(() {
                         _start = range.start;
@@ -152,13 +219,19 @@ class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '選擇入住貓咪（已選 ${_pets.length} 隻）',
-                        style: TextStyle(
-                          color: t.textColor,
-                          fontWeight: FontWeight.w800,
+                      if (a.style == 'editorial')
+                        BookingEditorial.heading(
+                          '選擇入住貓咪',
+                          trailing: '已選 ${_pets.length} 隻',
+                        )
+                      else
+                        Text(
+                          '選擇入住貓咪（已選 ${_pets.length} 隻）',
+                          style: TextStyle(
+                            color: t.textColor,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 14),
                       if (const ['cream', 'house'].contains(a.style))
                         BookingTemplatePetGrid(
@@ -222,10 +295,17 @@ class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
               ),
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: FilledButton(
-                  onPressed: null,
-                  child: const Text('下一步・房型與服務'),
-                ),
+                child: const ['editorial', 'cream'].contains(a.style)
+                    ? BookingEditorialFooter(
+                        left: '已選 ${_pets.length} 隻貓咪',
+                        right:
+                            '${_end != null ? _end!.difference(_start!).inDays : 0} 晚住宿',
+                        onNext: () {},
+                      )
+                    : FilledButton(
+                        onPressed: null,
+                        child: const Text('下一步・房型與服務'),
+                      ),
               ),
             ],
           ),

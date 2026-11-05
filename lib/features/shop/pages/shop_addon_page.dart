@@ -35,7 +35,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   @override
   bool get dashboardHasUnsavedChanges => _hasUnsavedChanges;
   @override
-  bool get dashboardIsBusy => false;
+  bool get dashboardIsBusy => _saving;
   late final TabController _tabController;
   bool _tourLoading = true;
   Object? _tourError;
@@ -98,6 +98,11 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   _AddonKind _focusKind = _AddonKind.time;
   bool _showInventory = false;
   bool _hasUnsavedChanges = false;
+  bool _saving = false;
+  String _search = '';
+  final _searchController = TextEditingController();
+  late final Stream<Map<String, dynamic>?> _shopStream;
+
   _InventoryListFilter _inventoryFilter = _InventoryListFilter.all;
   static const double _desktopMin = 1100;
 
@@ -105,11 +110,13 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
     _loadData();
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -229,90 +236,99 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   }
 
   void _markDirty() {
-    if (_hasUnsavedChanges) {
-      return;
-    }
     setState(() => _hasUnsavedChanges = true);
   }
 
   /// 🔥 儲存
   Future<void> _save() async {
-    final List<Map<String, dynamic>> normalizedValueServices =
-        _normalizeServices(valueServices, idPrefix: 'value');
+    if (_saving || !_hasUnsavedChanges) return;
+    setState(() => _saving = true);
+    try {
+      final List<Map<String, dynamic>> normalizedValueServices =
+          _normalizeServices(valueServices, idPrefix: 'value');
 
-    final List<Map<String, dynamic>> normalizedCustomServices =
-        _normalizeServices(customServices, idPrefix: 'custom');
+      final List<Map<String, dynamic>> normalizedCustomServices =
+          _normalizeServices(customServices, idPrefix: 'custom');
 
-    final List<Map<String, dynamic>> normalizedDailyTimedServices =
-        _normalizeServices(dailyTimedServices, idPrefix: 'daily_timed').map((
-          Map<String, dynamic> service,
-        ) {
-          final List<dynamic> rawTimeSlots = List<dynamic>.from(
-            service['timeSlots'] ?? <dynamic>[],
-          );
+      final List<Map<String, dynamic>> normalizedDailyTimedServices =
+          _normalizeServices(dailyTimedServices, idPrefix: 'daily_timed').map((
+            Map<String, dynamic> service,
+          ) {
+            final List<dynamic> rawTimeSlots = List<dynamic>.from(
+              service['timeSlots'] ?? <dynamic>[],
+            );
 
-          final List<Map<String, dynamic>> normalizedTimeSlots = rawTimeSlots
-              .map((dynamic rawSlot) {
-                if (rawSlot is! Map) {
+            final List<Map<String, dynamic>> normalizedTimeSlots = rawTimeSlots
+                .map((dynamic rawSlot) {
+                  if (rawSlot is! Map) {
+                    return <String, dynamic>{
+                      'id': _createServiceId('time_slot'),
+                      'label': rawSlot.toString(),
+                    };
+                  }
+
+                  final Map<String, dynamic> slot = Map<String, dynamic>.from(
+                    rawSlot,
+                  );
+
+                  final String existingSlotId = (slot['id'] ?? '')
+                      .toString()
+                      .trim();
+
                   return <String, dynamic>{
-                    'id': _createServiceId('time_slot'),
-                    'label': rawSlot.toString(),
+                    ...slot,
+                    'id': existingSlotId.isNotEmpty
+                        ? existingSlotId
+                        : _createServiceId('time_slot'),
+                    'label': (slot['label'] ?? '').toString(),
                   };
-                }
+                })
+                .toList();
 
-                final Map<String, dynamic> slot = Map<String, dynamic>.from(
-                  rawSlot,
-                );
+            return <String, dynamic>{
+              ...service,
+              'allowMultiplePetsPerSlot':
+                  service['allowMultiplePetsPerSlot'] ?? true,
+              'timeSlots': normalizedTimeSlots,
+            };
+          }).toList();
 
-                final String existingSlotId = (slot['id'] ?? '')
-                    .toString()
-                    .trim();
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .collection('addons')
+          .doc('main')
+          .set(<String, dynamic>{
+            'enabled': enabled,
+            'timeOptions': timeOptions,
+            'valueServices': normalizedValueServices,
+            'customServices': normalizedCustomServices,
+            'dailyTimedServices': normalizedDailyTimedServices,
+          });
 
-                return <String, dynamic>{
-                  ...slot,
-                  'id': existingSlotId.isNotEmpty
-                      ? existingSlotId
-                      : _createServiceId('time_slot'),
-                  'label': (slot['label'] ?? '').toString(),
-                };
-              })
-              .toList();
+      if (!mounted) {
+        return;
+      }
 
-          return <String, dynamic>{
-            ...service,
-            'allowMultiplePetsPerSlot':
-                service['allowMultiplePetsPerSlot'] ?? true,
-            'timeSlots': normalizedTimeSlots,
-          };
-        }).toList();
+      setState(() {
+        valueServices = normalizedValueServices;
+        customServices = normalizedCustomServices;
+        dailyTimedServices = normalizedDailyTimedServices;
+        _hasUnsavedChanges = false;
+      });
 
-    await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .collection('addons')
-        .doc('main')
-        .set(<String, dynamic>{
-          'enabled': enabled,
-          'timeOptions': timeOptions,
-          'valueServices': normalizedValueServices,
-          'customServices': normalizedCustomServices,
-          'dailyTimedServices': normalizedDailyTimedServices,
-        });
-
-    if (!mounted) {
-      return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('加購服務設定已儲存')));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('儲存失敗，變更仍保留，請稍後重試')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    setState(() {
-      valueServices = normalizedValueServices;
-      customServices = normalizedCustomServices;
-      dailyTimedServices = normalizedDailyTimedServices;
-      _hasUnsavedChanges = false;
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('加購服務設定已儲存')));
   }
 
   List<_AddonEntry> _entriesOf(_AddonKind kind) {
@@ -458,6 +474,17 @@ class _ShopAddonPageState extends State<ShopAddonPage>
     }).length;
   }
 
+  void _selectKind(_AddonKind kind) {
+    setState(() {
+      _focusKind = kind;
+      _showInventory = false;
+      _search = '';
+      _searchController.clear();
+      final entries = _entriesOf(kind);
+      _selectedKey = entries.isEmpty ? null : entries.first.key;
+    });
+  }
+
   void _selectEntry(_AddonEntry entry) {
     setState(() {
       _selectedKey = entry.key;
@@ -507,6 +534,8 @@ class _ShopAddonPageState extends State<ShopAddonPage>
     }
     setState(() {
       list.add(item);
+      _search = '';
+      _searchController.clear();
       _selectedKey = _addonItemKey(prefix, item);
       _focusKind = kind;
       _showInventory = false;
@@ -569,15 +598,24 @@ class _ShopAddonPageState extends State<ShopAddonPage>
     );
   }
 
-  Future<void> _addTimeSlot(Map<String, dynamic> item) async {
+  Future<void> _addTimeSlot(
+    Map<String, dynamic> item, {
+    Map<String, dynamic>? editing,
+  }) async {
+    final parts = (editing?['label'] ?? '').toString().split(':');
     final TimeOfDay? selectedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: parts.length == 2
+          ? TimeOfDay(
+              hour: int.tryParse(parts[0]) ?? 0,
+              minute: int.tryParse(parts[1]) ?? 0,
+            )
+          : TimeOfDay.now(),
       helpText: '選擇服務時段',
       cancelText: '取消',
       confirmText: '確定',
     );
-    if (selectedTime == null) {
+    if (selectedTime == null || !mounted) {
       return;
     }
     final String label =
@@ -587,7 +625,9 @@ class _ShopAddonPageState extends State<ShopAddonPage>
           item['timeSlots'] ?? <Map<String, dynamic>>[],
         );
     final bool hasSameTime = timeSlots.any(
-      (Map<String, dynamic> slot) => slot['label']?.toString() == label,
+      (Map<String, dynamic> slot) =>
+          slot['label']?.toString() == label &&
+          (editing == null || slot['id'] != editing['id']),
     );
     if (hasSameTime) {
       if (!mounted) {
@@ -598,10 +638,16 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       ).showSnackBar(SnackBar(content: Text('$label 已經存在')));
       return;
     }
-    timeSlots.add(<String, dynamic>{
-      'id': 'slot_${DateTime.now().microsecondsSinceEpoch}',
-      'label': label,
-    });
+    if (editing != null) {
+      for (final slot in timeSlots) {
+        if (slot['id'] == editing['id']) slot['label'] = label;
+      }
+    } else {
+      timeSlots.add(<String, dynamic>{
+        'id': _createServiceId('slot'),
+        'label': label,
+      });
+    }
     timeSlots.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
       return (a['label'] ?? '').toString().compareTo(
         (b['label'] ?? '').toString(),
@@ -792,7 +838,10 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                         ],
                       ),
               ),
-              body: desktop ? _desktopBody() : _mobileBody(),
+              body: AbsorbPointer(
+                absorbing: _saving,
+                child: desktop ? _desktopBody() : _mobileBody(),
+              ),
             ),
           );
         },
@@ -835,81 +884,87 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   }
 
   Widget _overviewRail() {
-    final Color primary = Theme.of(context).colorScheme.primary;
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFEEF1F6),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE3E7EE)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
+        children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
+              children: [
                 const Text(
-                  '加購服務總覽',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  '服務管理',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 8),
-                _summaryCard(),
+                const SizedBox(height: 4),
+                const Text(
+                  '先選分類，再點服務編輯',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 8,
+                  children: [
+                    for (final kind in _AddonKind.values)
+                      ShopTourAnchor(
+                        ids: ['ShopAddonPage.${kind.index}'],
+                        ready: !_tourLoading,
+                        error: _tourError,
+                        child: ChoiceChip(
+                          label: Text(
+                            '${_kindLabel(kind)} ${_entriesOf(kind).length}',
+                          ),
+                          selected: !_showInventory && _focusKind == kind,
+                          onSelected: (_) => _selectKind(kind),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  key: ValueKey('addon-search-${_focusKind.name}'),
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: '搜尋此分類服務',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _search = v.trim()),
+                ),
               ],
             ),
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              children: <Widget>[
-                ShopTourAnchor(
-                  ids: const ["ShopAddonPage.0"],
-                  ready: !_tourLoading,
-                  error: _tourError,
-                  child: _kindSection(_AddonKind.time, showSwitch: true),
-                ),
-                ShopTourAnchor(
-                  ids: const ["ShopAddonPage.1"],
-                  ready: !_tourLoading,
-                  error: _tourError,
-                  child: _kindSection(_AddonKind.value),
-                ),
-                ShopTourAnchor(
-                  ids: const ['ShopAddonPage.2'],
-                  ready: !_tourLoading,
-                  error: _tourError,
-                  child: _kindSection(_AddonKind.custom),
-                ),
-                ShopTourAnchor(
-                  ids: const ['ShopAddonPage.3'],
-                  ready: !_tourLoading,
-                  error: _tourError,
-                  child: _kindSection(_AddonKind.daily),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                _kindSection(
+                  _focusKind,
+                  showSwitch: _focusKind == _AddonKind.time,
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: ShopTourAnchor(
-              ids: const ["ShopAddonPage.4"],
-              ready: !_tourLoading,
-              error: _tourError,
-              child: _inventoryNavTile(primary),
-            ),
+          ExpansionTile(
+            title: const Text('設定摘要', style: TextStyle(fontSize: 13)),
+            children: [
+              Padding(padding: const EdgeInsets.all(12), child: _summaryCard()),
+            ],
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-            child: Text(
-              _hasUnsavedChanges ? '有尚未儲存的變更' : '所有設定已儲存',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: _hasUnsavedChanges
-                    ? const Color(0xFFC2410C)
-                    : const Color(0xFF5F7A68),
-              ),
+            padding: const EdgeInsets.all(12),
+            child: ShopTourAnchor(
+              ids: const ['ShopAddonPage.4'],
+              ready: !_tourLoading,
+              error: _tourError,
+              child: _inventoryNavTile(Theme.of(context).colorScheme.primary),
             ),
           ),
         ],
@@ -981,7 +1036,15 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   }
 
   Widget _kindSection(_AddonKind kind, {bool showSwitch = false}) {
-    final List<_AddonEntry> entries = _entriesOf(kind);
+    final List<_AddonEntry> entries = _entriesOf(kind)
+        .where(
+          (entry) =>
+              _search.isEmpty ||
+              _displayName(
+                entry.item,
+              ).toLowerCase().contains(_search.toLowerCase()),
+        )
+        .toList();
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -998,7 +1061,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                 ),
               ),
               IconButton(
-                tooltip: '新增',
+                tooltip: '新增${_kindLabel(kind)}',
                 visualDensity: VisualDensity.compact,
                 onPressed: () => _addService(kind),
                 icon: const Icon(Icons.add, size: 18),
@@ -1029,6 +1092,11 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                   },
                 ),
               ],
+            ),
+          if (entries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(_search.isEmpty ? '尚無服務，按上方＋新增' : '沒有符合的服務'),
             ),
           for (final _AddonEntry entry in entries) _railTile(entry),
         ],
@@ -1219,7 +1287,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
             child: Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1000),
+                constraints: const BoxConstraints(maxWidth: 1320),
                 child: _showInventory
                     ? _inventoryOverview(compact: false)
                     : _selectedEditor(embedded: false),
@@ -1229,7 +1297,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
           Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
+              constraints: const BoxConstraints(maxWidth: 1320),
               child: _saveBar(fullWidth: false),
             ),
           ),
@@ -1239,67 +1307,103 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   }
 
   Widget _saveBar({required bool fullWidth}) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Column(
-          crossAxisAlignment: fullWidth
-              ? CrossAxisAlignment.stretch
-              : CrossAxisAlignment.end,
-          children: <Widget>[
-            if (fullWidth)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  _hasUnsavedChanges ? '有尚未儲存的變更' : '所有設定已儲存',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _hasUnsavedChanges
-                        ? const Color(0xFFC2410C)
-                        : const Color(0xFF5F7A68),
-                  ),
+    final button = FilledButton.icon(
+      onPressed: _hasUnsavedChanges && !_saving ? _save : null,
+      icon: _saving
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.save_outlined, size: 18),
+      label: Text(_saving ? '儲存中…' : '儲存全部變更'),
+    );
+    final status = Text(
+      _saving
+          ? '正在儲存，請稍候'
+          : _hasUnsavedChanges
+          ? '尚未儲存 · 切換服務會保留編輯'
+          : '所有設定已儲存',
+      style: TextStyle(
+        fontSize: 12,
+        color: _hasUnsavedChanges
+            ? const Color(0xFFC2410C)
+            : const Color(0xFF5F7A68),
+      ),
+    );
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: fullWidth
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [status, const SizedBox(height: 8), button],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: status),
+                    const SizedBox(width: 16),
+                    button,
+                  ],
                 ),
-              ),
-            SizedBox(
-              width: fullWidth ? double.infinity : 168,
-              child: FilledButton(
-                style: _hasUnsavedChanges
-                    ? null
-                    : FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFB7C0CC),
-                      ),
-                onPressed: _save,
-                child: Text(_hasUnsavedChanges ? '儲存設定' : '設定已儲存'),
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
   Widget _mobileKindList(_AddonKind kind) {
-    final List<_AddonEntry> entries = _entriesOf(kind);
+    final entries = _entriesOf(kind);
+    final active = _selectedEntry();
+    if (active != null && active.kind == kind) {
+      return ListView(
+        key: ValueKey('addon-mobile-edit-${active.key}'),
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextButton.icon(
+            onPressed: () => setState(() => _selectedKey = null),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: Text('返回${_kindLabel(kind)}列表'),
+          ),
+          if (kind == _AddonKind.time) _timeMasterCard(),
+          _serviceEditor(active, embedded: false),
+        ],
+      );
+    }
     return ListView(
+      key: PageStorageKey('addon-list-${kind.name}'),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: <Widget>[
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${_kindLabel(kind)} · ${entries.length} 項',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => _addService(kind),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('新增'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         if (kind == _AddonKind.time) _timeMasterCard(),
         if (entries.isEmpty)
           _emptyState(kind)
-        else
-          for (final _AddonEntry entry in entries)
-            if (!_showInventory && entry.key == _selectedKey)
-              _serviceEditor(entry, embedded: true)
-            else
-              _mobileSummary(entry),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: () => _addService(kind),
-          icon: const Icon(Icons.add),
-          label: Text('新增${_kindLabel(kind)}'),
-        ),
+        else ...[
+          for (final entry in entries) _mobileSummary(entry),
+        ],
       ],
     );
   }
@@ -1386,11 +1490,70 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         children: <Widget>[_emptyState(_focusKind)],
       );
     }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      children: <Widget>[_serviceEditor(entry, embedded: embedded)],
+    return LayoutBuilder(
+      builder: (context, constraints) => ListView(
+        key: ValueKey('addon-editor-${entry.key}'),
+        padding: const EdgeInsets.all(20),
+        children: [
+          if (constraints.maxWidth >= 1050)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _serviceEditor(entry, embedded: embedded)),
+                const SizedBox(width: 20),
+                SizedBox(width: 280, child: _customerPreview(entry)),
+              ],
+            )
+          else
+            _serviceEditor(entry, embedded: embedded),
+        ],
+      ),
     );
   }
+
+  Widget _customerPreview(_AddonEntry entry) => _formCard(
+    title: '客人看到的服務內容',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _displayName(entry.item),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'NT\$${_priceOf(entry.item)}',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          (entry.item['desc'] ?? '').toString().trim().isEmpty
+              ? '填寫介紹後，這裡會即時顯示'
+              : entry.item['desc'].toString(),
+        ),
+        if (entry.kind == _AddonKind.daily) ...[
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final label in _slotLabels(entry.item))
+                Chip(label: Text(label)),
+            ],
+          ),
+        ],
+        const Divider(height: 28),
+        Text(
+          _billingText(entry.kind),
+          style: const TextStyle(fontSize: 12, height: 1.5),
+        ),
+      ],
+    ),
+  );
 
   Widget _emptyState(_AddonKind kind) {
     final String title = switch (kind) {
@@ -1446,7 +1609,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
             style: const TextStyle(color: Color(0xFF6B7280)),
           )
         : StreamBuilder<Map<String, dynamic>?>(
-            stream: ShopService.instance.streamShop(widget.shopId),
+            stream: _shopStream,
             builder:
                 (
                   BuildContext context,
@@ -1506,43 +1669,62 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         _formCard(
           title: '基本資料',
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              TextFormField(
-                key: ValueKey<String>('${entry.key}-name'),
-                initialValue: (item['name'] ?? item['label'] ?? '').toString(),
-                decoration: InputDecoration(
-                  labelText: entry.kind == _AddonKind.time ? '時間名稱' : '名稱',
-                ),
-                onChanged: (String value) {
-                  if (item.containsKey('label') && !item.containsKey('name')) {
-                    item['label'] = value;
-                  } else if (entry.kind == _AddonKind.time) {
-                    item['label'] = value;
-                  } else {
-                    item['name'] = value;
-                  }
-                  _markDirty();
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final name = TextFormField(
+                    key: ValueKey<String>('${entry.key}-name'),
+                    initialValue: (item['name'] ?? item['label'] ?? '')
+                        .toString(),
+                    decoration: InputDecoration(
+                      labelText: entry.kind == _AddonKind.time ? '時間名稱' : '名稱',
+                    ),
+                    onChanged: (String value) {
+                      if (item.containsKey('label') &&
+                          !item.containsKey('name')) {
+                        item['label'] = value;
+                      } else if (entry.kind == _AddonKind.time) {
+                        item['label'] = value;
+                      } else {
+                        item['name'] = value;
+                      }
+                      _markDirty();
+                    },
+                  );
+                  final price = TextFormField(
+                    key: ValueKey<String>('${entry.key}-price'),
+                    initialValue: _priceOf(item).toString(),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: entry.kind == _AddonKind.daily ? '每次價格' : '價格',
+                      prefixText: 'NT\$ ',
+                    ),
+                    onChanged: (String value) {
+                      item['price'] = int.tryParse(value) ?? 0;
+                      _markDirty();
+                    },
+                  );
+                  return constraints.maxWidth >= 580
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 2, child: name),
+                            const SizedBox(width: 12),
+                            Expanded(child: price),
+                          ],
+                        )
+                      : Column(
+                          children: [name, const SizedBox(height: 12), price],
+                        );
                 },
               ),
-              const SizedBox(height: 8),
-              TextFormField(
-                key: ValueKey<String>('${entry.key}-price'),
-                initialValue: _priceOf(item).toString(),
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: entry.kind == _AddonKind.daily ? '每次價格' : '價格',
-                  prefixText: 'NT\$ ',
-                ),
-                onChanged: (String value) {
-                  item['price'] = int.tryParse(value) ?? 0;
-                  _markDirty();
-                },
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               TextFormField(
                 key: ValueKey<String>('${entry.key}-desc'),
                 initialValue: (item['desc'] ?? '').toString(),
-                maxLines: 2,
+                minLines: 3,
+                maxLines: 5,
                 decoration: const InputDecoration(labelText: '前台介紹'),
                 onChanged: (String value) {
                   item['desc'] = value;
@@ -1566,7 +1748,17 @@ class _ShopAddonPageState extends State<ShopAddonPage>
           _dailySlotCard(item),
         ],
         const SizedBox(height: 10),
-        _inventoryRow(item),
+        ExpansionTile(
+          key: ValueKey('${entry.key}-inventory'),
+          initiallyExpanded: item['useInventory'] == true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          leading: const Icon(Icons.inventory_2_outlined),
+          title: const Text('進階設定：庫存連動'),
+          subtitle: Text(
+            item['useInventory'] == true ? '已開啟庫存扣除' : '選用 · 不使用庫存可略過',
+          ),
+          children: [_inventoryRow(item)],
+        ),
       ],
     );
   }
@@ -1602,7 +1794,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         ? 'daycare'
         : 'stay';
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(widget.shopId),
+      stream: _shopStream,
       builder:
           (
             BuildContext context,
@@ -1726,13 +1918,15 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                   InputChip(
                     label: Text((slot['label'] ?? '').toString()),
                     visualDensity: VisualDensity.compact,
+                    onPressed: () => _addTimeSlot(item, editing: slot),
+                    tooltip: '點擊修改時段',
                     onDeleted: () => _removeTimeSlot(item, slot),
                   ),
               ],
             ),
           const SizedBox(height: 8),
           const Text(
-            '顧客會先選擇寵物，再依入住日期選擇每天需要的服務時段。',
+            '點時段可修改時間，按 × 移除。顧客會依入住日期選擇每天需要的時段。',
             style: TextStyle(
               fontSize: 12,
               color: Color(0xFF6B7280),

@@ -63,7 +63,7 @@ void main() {
     expect(workbook.tables.keys, containsAll(['月報說明', '月報摘要', '私人收支明細']));
     expect(workbook.tables['私人收支明細']!.rows.length, 6);
     final summary = workbook.tables['月報摘要']!.rows;
-    expect(summary[1][1]!.value, const IntCellValue(67000));
+    expect(summary[1][1]!.value, const IntCellValue(-67000));
     expect(summary.any((r) => r.first?.value.toString() == '收支結餘'), isFalse);
   });
   testWidgets(

@@ -286,6 +286,8 @@ void _noopMap(Map<String, dynamic> value) {}
 void _noopCustomPet(String name, String petId, bool selected) {}
 
 Future<void> _expandCategory(WidgetTester tester, String title) async {
-  await tester.tap(find.widgetWithText(ExpansionTile, title));
+  final category = find.byKey(ValueKey('booking-addon-category-$title'));
+  expect(category, findsOneWidget);
+  await tester.ensureVisible(category);
   await tester.pumpAndSettle();
 }
