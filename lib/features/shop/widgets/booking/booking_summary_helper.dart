@@ -4,6 +4,7 @@
 // 並建立預約金額 Summary Card。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_summary_card.dart';
 
@@ -160,7 +161,11 @@ class BookingSummaryHelper {
   /// 🔥 建立 Summary Card
   /// ===============================
   static Widget buildSummary({
+    DailyCareEntitlement? dailyCare,
     Widget? couponSection,
+    int? medicationEstimate,
+    bool advanceMedication = false,
+    bool medicationNeedsQuote = false,
     required String startDateText,
     required String endDateText,
     required int nights,
@@ -241,6 +246,7 @@ class BookingSummaryHelper {
       selectedCustomServices: selectedCustomServices,
       selectedDailyTimedServices: selectedDailyTimedServices,
       addonData: addonData,
+      dailyCareAmount: dailyCare?.amount ?? 0,
     );
     return BookingSummaryCard(
       roomAmount: parts['roomTotal']! + parts['petTotal']!,
@@ -254,6 +260,9 @@ class BookingSummaryHelper {
       petNames: petNames,
       roomTypeName: selectedRoomType['name'] ?? '',
       totalPrice: totalPrice,
+      medicationEstimate: medicationEstimate,
+      advanceMedication: advanceMedication,
+      medicationNeedsQuote: medicationNeedsQuote,
       depositAmount: depositAmount,
       originalTotal: originalTotal,
       discountAmount: discountAmount,
@@ -273,7 +282,12 @@ class BookingSummaryHelper {
       pointAmount: pointAmount,
 
       timeAddon: selectedTimeAddon,
-      valueServices: selectedValueServices,
+      // Display the whole stay amount, rather than the per-day unit price.
+      valueServices: <Map<String, dynamic>>[
+        ...selectedValueServices,
+        if (dailyCare?.toAddonLine() case final Map<String, dynamic> line)
+          <String, dynamic>{...line, 'price': dailyCare!.amount},
+      ],
       customServices: selectedCustomServices,
       customServicePrices: customServicePrices,
       dailyTimedServices: List<Map<String, dynamic>>.from(

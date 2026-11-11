@@ -1,5 +1,7 @@
-import 'package:petnest_saas/features/shop/widgets/pre_arrival_checklist_templates.dart';
+import 'package:petnest_saas/features/shop/widgets/pre_arrival_appearance_editor.dart';
 import 'package:petnest_saas/features/shop/widgets/pre_arrival_workspace.dart';
+import 'package:petnest_saas/features/shop/widgets/pre_arrival_style_picker.dart';
+import 'package:petnest_saas/features/shop/widgets/pre_arrival_checklist_templates.dart';
 import 'package:petnest_saas/features/shop/widgets/pre_arrival_guide_help.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 // 檔案名稱：lib/features/shop/pages/shop_pre_arrival_guide_setting_page.dart
@@ -25,6 +27,8 @@ class ShopPreArrivalGuideSettingPage extends StatefulWidget {
       _ShopPreArrivalGuideSettingPageState();
 }
 
+enum _LeaveChoice { enable, draft, discard }
+
 class _ShopPreArrivalGuideSettingPageState
     extends State<ShopPreArrivalGuideSettingPage>
     with
@@ -45,6 +49,11 @@ class _ShopPreArrivalGuideSettingPageState
   Object? _tourError;
   bool _loading = true;
   bool _saving = false;
+  bool _confirmingLeave = false;
+  bool _daycareOn = false;
+  static const _blocksPerPage = 5;
+  final _showSettings = <bool, bool>{};
+  final _contentPage = <bool, int>{};
   final Set<String> _sessionUploads = <String>{};
   final Set<String> _pendingDeletes = <String>{};
 
@@ -85,7 +94,8 @@ class _ShopPreArrivalGuideSettingPageState
   }
 
   bool get _dirty {
-    return _encode(_accommodation) != _encode(_savedAccommodation) ||
+    return _pendingDeletes.isNotEmpty ||
+        _encode(_accommodation) != _encode(_savedAccommodation) ||
         _encode(_daycare) != _encode(_savedDaycare);
   }
 
@@ -93,7 +103,7 @@ class _ShopPreArrivalGuideSettingPageState
     if (guide == null) {
       return '';
     }
-    return '${guide.enabled}|${guide.title}|${guide.inheritAccommodation}|${guide.blocks.map((PreArrivalGuideBlock b) => '${b.id}:${b.type}:${b.text}:${b.imageUrl}:${b.caption}').join(';')}';
+    return '${guide.appearance.toMap()}|${guide.style}|${guide.enabled}|${guide.title}|${guide.inheritAccommodation}|${guide.blocks.map((PreArrivalGuideBlock b) => '${b.id}:${b.type}:${b.text}:${b.imageUrl}:${b.caption}').join(';')}';
   }
 
   Future<void> _load() async {
@@ -123,61 +133,126 @@ class _ShopPreArrivalGuideSettingPageState
     }
   }
 
-  Future<bool> _confirmLeave() async {
-    if (!_dirty) {
-      return true;
-    }
-    final bool? leave = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('尚未儲存'),
-          content: const Text('離開此頁面將放棄未儲存的修改。'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('繼續編輯'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('離開'),
-            ),
-          ],
-        );
-      },
-    );
-    return leave == true;
+  List<PreArrivalGuideModel> get _hiddenOnLeave {
+    final current = _daycareOn && _tabs.index == 1 ? _daycare : _accommodation;
+    final effective = current?.inheritAccommodation == true
+        ? _accommodation
+        : current;
+    return [
+      for (final (guide, saved) in [
+        (_accommodation, _savedAccommodation),
+        (_daycare, _savedDaycare),
+      ])
+        if (guide != null &&
+            !guide.inheritAccommodation &&
+            !guide.enabled &&
+            guide.visibleBlocks.isNotEmpty &&
+            (identical(guide, effective) || _encode(guide) != _encode(saved)))
+          guide,
+    ];
   }
 
-  Future<void> _save() async {
-    if (_accommodation == null || _daycare == null) {
-      return;
+  Future<bool> _confirmLeave() async {
+    if (_saving || _confirmingLeave) return false;
+    _confirmingLeave = true;
+    try {
+      final hidden = _hiddenOnLeave;
+      if (hidden.isEmpty && !_dirty) return true;
+      final names = hidden
+          .map(
+            (guide) => guide.serviceType == PreArrivalGuideServiceType.daycare
+                ? '安親'
+                : '住宿',
+          )
+          .join('、');
+      final choice = await showDialog<_LeaveChoice>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(hidden.isEmpty ? '尚未儲存' : '準備清單尚未開放'),
+          content: Text(
+            hidden.isEmpty
+                ? '儲存修改後離開，或放棄這次修改。'
+                : '$names準備清單已有內容，但尚未開放，客戶在訂單中看不到。要開啟並儲存嗎？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('繼續編輯'),
+            ),
+            if (_dirty)
+              TextButton(
+                onPressed: () => Navigator.pop(context, _LeaveChoice.discard),
+                child: const Text('放棄修改'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, _LeaveChoice.draft),
+              child: Text(hidden.isNotEmpty ? '保留草稿並離開' : '儲存並離開'),
+            ),
+            if (hidden.isNotEmpty)
+              FilledButton(
+                onPressed: () => Navigator.pop(context, _LeaveChoice.enable),
+                child: const Text('開啟並儲存'),
+              ),
+          ],
+        ),
+      );
+      if (!mounted || choice == null) return false;
+      if (choice == _LeaveChoice.discard) return true;
+      if (choice == _LeaveChoice.enable) {
+        setState(() {
+          for (final guide in hidden) {
+            if (guide.serviceType == PreArrivalGuideServiceType.daycare) {
+              _daycare = guide.copyWith(enabled: true);
+            } else {
+              _accommodation = guide.copyWith(enabled: true);
+            }
+          }
+        });
+      }
+      return !_dirty || (await _save() && !_dirty);
+    } finally {
+      _confirmingLeave = false;
     }
+  }
+
+  Future<bool> _save() async {
+    if (_saving || _accommodation == null || _daycare == null) {
+      return false;
+    }
+    final accommodation = _accommodation!;
+    final daycare = _daycare!;
+    final pendingDeletes = _pendingDeletes.toList();
     setState(() {
       _saving = true;
     });
     try {
-      await PreArrivalGuideService.instance.saveGuide(_accommodation!);
-      await PreArrivalGuideService.instance.saveGuide(_daycare!);
-      for (final String path in _pendingDeletes) {
-        await PreArrivalGuideService.instance.deleteImage(storagePath: path);
+      if (_encode(accommodation) != _encode(_savedAccommodation)) {
+        await PreArrivalGuideService.instance.saveGuide(accommodation);
+        _savedAccommodation = accommodation;
+        _sessionUploads.removeAll(_pathsOf(accommodation));
       }
-      _pendingDeletes.clear();
-      _sessionUploads.clear();
+      if (_encode(daycare) != _encode(_savedDaycare)) {
+        await PreArrivalGuideService.instance.saveGuide(daycare);
+        _savedDaycare = daycare;
+        _sessionUploads.removeAll(_pathsOf(daycare));
+      }
+      for (final path in pendingDeletes) {
+        await PreArrivalGuideService.instance.deleteImage(storagePath: path);
+        _pendingDeletes.remove(path);
+      }
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
-        _savedAccommodation = _accommodation;
-        _savedDaycare = _daycare;
         _saving = false;
       });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('已儲存入住前準備')));
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
         _saving = false;
@@ -185,6 +260,7 @@ class _ShopPreArrivalGuideSettingPageState
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+      return false;
     }
   }
 
@@ -195,8 +271,9 @@ class _ShopPreArrivalGuideSettingPageState
       shopId: widget.shopId,
       ready: !_loading,
       error: _tourError,
-      onPoint: (_) async {
+      onPoint: (point) async {
         _tabs.index = 0;
+        setState(() => _showSettings[false] = point == 0);
       },
       child: ShopFrontendThemeScope(
         shopId: widget.shopId,
@@ -211,22 +288,9 @@ class _ShopPreArrivalGuideSettingPageState
                   final bool daycareOn = DaycareEnabled.isOn(
                     shop: shopSnap.data,
                   );
-                  return PopScope(
-                    canPop: !_dirty,
-                    onPopInvokedWithResult:
-                        (bool didPop, Object? result) async {
-                          if (didPop) {
-                            return;
-                          }
-                          final bool leave = await _confirmLeave();
-                          if (!context.mounted) {
-                            return;
-                          }
-                          if (leave) {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                    child: Scaffold(
+                  _daycareOn = daycareOn;
+                  return dashboardGuard(
+                    Scaffold(
                       backgroundColor: BookingDetailUi.of(context).background,
                       appBar: AppBar(
                         title: Text(daycareOn ? '入住／安親前準備' : '入住前準備'),
@@ -240,12 +304,6 @@ class _ShopPreArrivalGuideSettingPageState
                                 ],
                               )
                             : null,
-                        actions: <Widget>[
-                          TextButton(
-                            onPressed: _saving ? null : _save,
-                            child: Text(_saving ? '儲存中' : '儲存'),
-                          ),
-                        ],
                       ),
                       bottomNavigationBar: _loading
                           ? null
@@ -260,18 +318,23 @@ class _ShopPreArrivalGuideSettingPageState
                                 child: Row(
                                   children: <Widget>[
                                     Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: _saving
-                                            ? null
-                                            : () => _previewGuide(
-                                                isDaycare:
-                                                    daycareOn &&
-                                                    _tabs.index == 1,
-                                              ),
-                                        icon: const Icon(
-                                          Icons.preview_outlined,
+                                      child: ShopTourAnchor(
+                                        ids: const [
+                                          'ShopPreArrivalGuideSettingPage.2',
+                                        ],
+                                        child: OutlinedButton.icon(
+                                          onPressed: _saving
+                                              ? null
+                                              : () => _previewGuide(
+                                                  isDaycare:
+                                                      daycareOn &&
+                                                      _tabs.index == 1,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.preview_outlined,
+                                          ),
+                                          label: const Text('預覽客戶畫面'),
                                         ),
-                                        label: const Text('客戶預覽'),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -324,236 +387,345 @@ class _ShopPreArrivalGuideSettingPageState
   Widget _editor({required bool isDaycare}) {
     final PreArrivalGuideModel guide = isDaycare ? _daycare! : _accommodation!;
     final bool inherit = isDaycare && guide.inheritAccommodation;
+    final effective = inherit ? _accommodation! : guide;
+    final savedEffective =
+        !isDaycare || _savedDaycare?.inheritAccommodation == true
+        ? _savedAccommodation
+        : _savedDaycare;
+    final settings = inherit || (_showSettings[isDaycare] ?? false);
+    final pageCount = guide.blocks.isEmpty
+        ? 1
+        : (guide.blocks.length - 1) ~/ _blocksPerPage + 1;
+    final page = (_contentPage[isDaycare] ?? 0).clamp(0, pageCount - 1);
+    final start = page * _blocksPerPage;
+    final end = (start + _blocksPerPage).clamp(0, guide.blocks.length);
     final editor = AbsorbPointer(
       absorbing: _saving,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 960),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: <Widget>[
-              PreArrivalGuideHelpCard(
-                isDaycare: isDaycare,
-                inherit: inherit,
-                onDemo: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => PreArrivalGuidePage(
-                      guide: preArrivalExample(
-                        shopId: widget.shopId,
-                        isDaycare: isDaycare,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Column(
+                  children: [
+                    ShopTourAnchor(
+                      ids: isDaycare
+                          ? const []
+                          : const ['ShopPreArrivalGuideSettingPage.0'],
+                      child: Card(
+                        child: SwitchListTile(
+                          title: Text(inherit ? '沿用住宿的顯示設定' : '讓客戶在訂單中看到這份清單'),
+                          subtitle: Text(
+                            !effective.enabled
+                                ? (savedEffective?.hasCustomerContent == true
+                                      ? '目前設定為關閉，儲存後客戶就看不到。'
+                                      : '尚未開放，客戶在訂單中看不到。')
+                                : !effective.hasCustomerContent
+                                ? '加入準備內容並儲存後，客戶才看得到。'
+                                : savedEffective?.hasCustomerContent == true
+                                ? '客戶可在訂單中查看已儲存的清單。'
+                                : '已開啟，儲存後客戶就能查看。',
+                          ),
+                          value: effective.enabled,
+                          onChanged: inherit
+                              ? null
+                              : (value) => setState(() {
+                                  if (isDaycare) {
+                                    _daycare = guide.copyWith(enabled: value);
+                                  } else {
+                                    _accommodation = guide.copyWith(
+                                      enabled: value,
+                                    );
+                                  }
+                                }),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                onAddExample: () => _addExample(isDaycare),
-              ),
-              if (isDaycare)
-                SwitchListTile(
-                  title: const Text('沿用住宿內容'),
-                  subtitle: const Text('開啟後，客戶安親訂單會顯示住宿的入住前準備內容'),
-                  value: guide.inheritAccommodation,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _daycare = guide.copyWith(inheritAccommodation: value);
-                    });
-                  },
-                ),
-              const SizedBox(height: 12),
-              const Text(
-                '1. 寫好準備清單',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              const Text('填寫客戶需要帶的物品，以及你想提醒的事。'),
-              const SizedBox(height: 16),
-              TextFormField(
-                key: ValueKey<String>('guide-title-$isDaycare'),
-                initialValue: guide.title,
-                decoration: InputDecoration(
-                  labelText: '客戶看到的頁面標題',
-                  helperText: '例如：入住前請準備好這些物品',
-                  hintText: isDaycare ? '安親前準備' : '入住前準備',
-                ),
-                enabled: !inherit,
-                onChanged: (String value) {
-                  setState(() {
-                    if (isDaycare) {
-                      _daycare = guide.copyWith(title: value);
-                    } else {
-                      _accommodation = guide.copyWith(title: value);
-                    }
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              if (!inherit) ...<Widget>[
-                const Text(
-                  '客戶要帶什麼？',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                const Text('一項物品寫一列，例如「飼料」「外出籠」。不知道怎麼寫，先用常用清單。'),
-                const SizedBox(height: 12),
-                ShopTourAnchor(
-                  ids: isDaycare
-                      ? const []
-                      : const ['ShopPreArrivalGuideSettingPage.1'],
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      FilledButton.icon(
-                        onPressed: () => _addBlock(
-                          isDaycare,
-                          PreArrivalGuideBlockType.checklist,
-                        ),
-                        icon: const Icon(Icons.check_box_outlined),
-                        label: const Text('加一項物品'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () =>
-                            _addChecklist(isDaycare, template: true),
-                        icon: const Icon(Icons.auto_awesome_outlined),
-                        label: const Text('快速模板（9 種）'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => _addSection(isDaycare),
-                        icon: const Icon(Icons.segment),
-                        label: const Text('新增分段'),
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: '其他新增方式',
-                        onSelected: (value) {
-                          if (value == 'batch') {
-                            _addChecklist(isDaycare);
-                          } else if (value == 'image') {
-                            _addImage(isDaycare);
-                          } else {
-                            _addBlock(isDaycare, value);
-                          }
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'batch',
-                            child: Text('一次加多項物品（每行一項）'),
-                          ),
-                          PopupMenuItem(
-                            value: PreArrivalGuideBlockType.heading,
-                            child: Text('加段落標題，例如「必帶物品」'),
-                          ),
-                          PopupMenuItem(
-                            value: PreArrivalGuideBlockType.text,
-                            child: Text('加補充說明，例如分裝方式'),
-                          ),
-                          PopupMenuItem(value: 'image', child: Text('加說明圖片')),
+
+                    if (!inherit)
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: false, label: Text('清單排序')),
+                          ButtonSegment(value: true, label: Text('外觀與設定')),
                         ],
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add, size: 18),
-                              SizedBox(width: 4),
-                              Text('加標題、說明或圖片'),
-                              Icon(Icons.arrow_drop_down, size: 18),
-                            ],
-                          ),
+                        selected: {settings},
+                        onSelectionChanged: (selection) => setState(
+                          () => _showSettings[isDaycare] = selection.single,
                         ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  key: ValueKey(
+                    'pre-arrival-editor-$isDaycare-$settings-$page',
+                  ),
+                  primary: false,
+                  padding: const EdgeInsets.all(16),
+                  children: <Widget>[
+                    if (settings) ...[
+                      const Text(
+                        '準備一份清楚的行前清單',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('整理要帶的物品、店內提供的用品與到店提醒，讓家長輕鬆準備。'),
+                      const SizedBox(height: 12),
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text('操作說明與範例'),
+                        children: [
+                          PreArrivalGuideHelpCard(
+                            isDaycare: isDaycare,
+                            inherit: inherit,
+                            onDemo: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => PreArrivalGuidePage(
+                                  guide: preArrivalExample(
+                                    shopId: widget.shopId,
+                                    isDaycare: isDaycare,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            onAddExample: () => _addExample(isDaycare),
+                          ),
+                        ],
+                      ),
+                      if (isDaycare)
+                        SwitchListTile(
+                          title: const Text('沿用住宿內容'),
+                          subtitle: const Text('開啟後，客戶安親訂單會顯示住宿的入住前準備內容'),
+                          value: guide.inheritAccommodation,
+                          onChanged: (bool value) {
+                            setState(() {
+                              _daycare = guide.copyWith(
+                                inheritAccommodation: value,
+                              );
+                            });
+                          },
+                        ),
+                      if (!inherit) ...[
+                        const SizedBox(height: 24),
+                        PreArrivalStylePicker(
+                          value: guide.style,
+                          onChanged: (style) {
+                            setState(() {
+                              if (isDaycare) {
+                                _daycare = guide.copyWith(style: style);
+                              } else {
+                                _accommodation = guide.copyWith(style: style);
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        PreArrivalAppearanceEditor(
+                          guide: guide,
+                          onChanged: (updated) {
+                            setState(() {
+                              if (isDaycare) {
+                                _daycare = updated;
+                              } else {
+                                _accommodation = updated;
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        PreArrivalCatalogPicker(
+                          guide: guide,
+                          onChanged: (updated) {
+                            setState(() {
+                              if (isDaycare) {
+                                _daycare = updated;
+                              } else {
+                                _accommodation = updated;
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      const Text(
+                        '清單內容',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('填寫客戶需要帶的物品，以及你想提醒的事。'),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        key: ValueKey<String>('guide-title-$isDaycare'),
+                        initialValue: guide.title,
+                        decoration: InputDecoration(
+                          labelText: '客戶看到的頁面標題',
+                          helperText: '例如：入住前請準備好這些物品',
+                          hintText: isDaycare ? '安親前準備' : '入住前準備',
+                        ),
+                        enabled: !inherit,
+                        onChanged: (String value) {
+                          setState(() {
+                            if (isDaycare) {
+                              _daycare = guide.copyWith(title: value);
+                            } else {
+                              _accommodation = guide.copyWith(title: value);
+                            }
+                          });
+                        },
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (guide.blocks.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        children: <Widget>[
-                          Icon(Icons.checklist_outlined, size: 36),
-                          SizedBox(height: 8),
-                          Text('還沒有準備清單'),
-                          SizedBox(height: 4),
-                          Text(
-                            '使用常用清單快速建立，再依店內需求修改；也可以自行新增文字與圖片。',
-                            textAlign: TextAlign.center,
+                    if (!settings) ...<Widget>[
+                      const Text(
+                        '準備項目與提醒',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('建議依必須攜帶、視需要攜帶、店家提供及到店提醒分段整理。'),
+                      const SizedBox(height: 12),
+                      ShopTourAnchor(
+                        ids: isDaycare
+                            ? const []
+                            : const ['ShopPreArrivalGuideSettingPage.1'],
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            if (guide.blocks.isEmpty)
+                              FilledButton.icon(
+                                onPressed: () => _addExample(isDaycare),
+                                icon: const Icon(Icons.auto_awesome_outlined),
+                                label: const Text('使用常用準備清單'),
+                              ),
+                            OutlinedButton.icon(
+                              onPressed: () => _addBlock(
+                                isDaycare,
+                                PreArrivalGuideBlockType.checklist,
+                              ),
+                              icon: const Icon(Icons.check_box_outlined),
+                              label: const Text('加一項物品'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () =>
+                                  _addChecklist(isDaycare, template: true),
+                              icon: const Icon(Icons.auto_awesome_outlined),
+                              label: const Text('其他情境模板'),
+                            ),
+                            PopupMenuButton<String>(
+                              tooltip: '其他新增方式',
+                              onSelected: (value) {
+                                if (value == 'section') {
+                                  _addSection(isDaycare);
+                                } else if (value == 'batch') {
+                                  _addChecklist(isDaycare);
+                                } else if (value == 'image') {
+                                  _addImage(isDaycare);
+                                } else {
+                                  _addBlock(isDaycare, value);
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'section',
+                                  child: Text('新增分段'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'batch',
+                                  child: Text('一次加多項物品（每行一項）'),
+                                ),
+                                PopupMenuItem(
+                                  value: PreArrivalGuideBlockType.heading,
+                                  child: Text('加段落標題，例如「必帶物品」'),
+                                ),
+                                PopupMenuItem(
+                                  value: PreArrivalGuideBlockType.text,
+                                  child: Text('加補充說明，例如分裝方式'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'image',
+                                  child: Text('加說明圖片'),
+                                ),
+                              ],
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add, size: 18),
+                                    SizedBox(width: 4),
+                                    Text('更多內容'),
+                                    Icon(Icons.arrow_drop_down, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (guide.blocks.isEmpty)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Column(
+                              children: <Widget>[
+                                Icon(Icons.checklist_outlined, size: 36),
+                                SizedBox(height: 8),
+                                Text('還沒有準備清單'),
+                                SizedBox(height: 4),
+                                Text(
+                                  '使用常用清單快速建立，再依店內需求修改；也可以自行新增文字與圖片。',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                for (int i = 0; i < guide.blocks.length; i++)
-                  _blockEditor(
-                    isDaycare: isDaycare,
-                    index: i,
-                    block: guide.blocks[i],
-                  ),
-              ],
-              const SizedBox(height: 16),
-              const Text(
-                '2. 確認客戶看到的畫面',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              const Text('可試勾物品，檢查內容和順序；預覽不會儲存。'),
-              const SizedBox(height: 8),
-              ShopTourAnchor(
-                ids: isDaycare
-                    ? const []
-                    : const ['ShopPreArrivalGuideSettingPage.2'],
-                child: OutlinedButton(
-                  onPressed: () {
-                    final PreArrivalGuideModel preview = inherit
-                        ? _accommodation!
-                        : guide;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => PreArrivalGuidePage(guide: preview),
-                      ),
-                    );
-                  },
-                  child: const Text('客戶畫面預覽'),
+                        ),
+                      if (pageCount > 1)
+                        _pageControls(
+                          isDaycare,
+                          page,
+                          pageCount,
+                          start,
+                          end,
+                          guide.blocks.length,
+                        ),
+                      for (int i = start; i < end; i++)
+                        _blockEditor(
+                          isDaycare: isDaycare,
+                          index: i,
+                          block: guide.blocks[i],
+                        ),
+                      if (pageCount > 1)
+                        _pageControls(
+                          isDaycare,
+                          page,
+                          pageCount,
+                          start,
+                          end,
+                          guide.blocks.length,
+                        ),
+                    ],
+                    const SizedBox(height: 24),
+                    const Divider(),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                '3. 決定是否提供給客戶',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              ShopTourAnchor(
-                ids: isDaycare
-                    ? const []
-                    : const ['ShopPreArrivalGuideSettingPage.0'],
-                child: SwitchListTile(
-                  title: const Text('讓客戶在訂單中看到這份清單'),
-                  subtitle: Text(
-                    guide.enabled
-                        ? '已選擇提供給客戶，請按「儲存內容」完成設定。'
-                        : '目前關閉。可先儲存草稿，準備好再開啟。',
-                  ),
-                  value: guide.enabled,
-                  onChanged: (bool value) {
-                    setState(() {
-                      if (isDaycare) {
-                        _daycare = guide.copyWith(enabled: value);
-                      } else {
-                        _accommodation = guide.copyWith(enabled: value);
-                      }
-                    });
-                  },
-                ),
-              ),
-              const Text(
-                '最後按下方「儲存內容」。開關關閉時只儲存草稿；開啟且有內容，客戶才能從訂單詳情查看。',
-                style: TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -567,6 +739,52 @@ class _ShopPreArrivalGuideSettingPageState
         embedded: true,
       ),
       onFullscreen: () => _previewGuide(isDaycare: isDaycare),
+    );
+  }
+
+  Widget _pageControls(
+    bool isDaycare,
+    int page,
+    int count,
+    int start,
+    int end,
+    int total,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        children: [
+          IconButton(
+            tooltip: '上一頁',
+            onPressed: page == 0
+                ? null
+                : () => setState(() => _contentPage[isDaycare] = page - 1),
+            icon: const Icon(Icons.chevron_left),
+          ),
+          DropdownButton<int>(
+            value: page,
+            items: [
+              for (var i = 0; i < count; i++)
+                DropdownMenuItem(value: i, child: Text('第 ${i + 1} 頁')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _contentPage[isDaycare] = value);
+              }
+            },
+          ),
+          IconButton(
+            tooltip: '下一頁',
+            onPressed: page + 1 == count
+                ? null
+                : () => setState(() => _contentPage[isDaycare] = page + 1),
+            icon: const Icon(Icons.chevron_right),
+          ),
+          Text('${start + 1}–$end 項，共 $total 項'),
+        ],
+      ),
     );
   }
 
@@ -684,8 +902,10 @@ class _ShopPreArrivalGuideSettingPageState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('加入完整示範到草稿？'),
-        content: const Text('會在原有內容後方加入標題、說明與勾選項目，保留現有內容。請依店內服務調整，再預覽、啟用並儲存。'),
+        title: const Text('加入分類準備清單？'),
+        content: const Text(
+          '會加入必須攜帶、視需要攜帶、店家提供與到店提醒四個分段，保留現有內容。請確認並修改店內提供的用品，再儲存。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -705,6 +925,8 @@ class _ShopPreArrivalGuideSettingPageState
       idPrefix: 'example-${DateTime.now().microsecondsSinceEpoch}',
     );
     setState(() {
+      _showSettings[isDaycare] = false;
+      _contentPage[isDaycare] = guide.blocks.length ~/ _blocksPerPage;
       if (isDaycare) {
         _daycare = updated;
       } else {
@@ -713,7 +935,7 @@ class _ShopPreArrivalGuideSettingPageState
     });
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已加入示範草稿，尚未儲存；請往下調整內容。')));
+    ).showSnackBar(const SnackBar(content: Text('已加入分類清單；請依實際服務修改後儲存。')));
   }
 
   Future<void> _addChecklist(bool isDaycare, {bool template = false}) async {
@@ -763,6 +985,7 @@ class _ShopPreArrivalGuideSettingPageState
         ),
     ];
     setState(() {
+      _contentPage[isDaycare] = guide.blocks.length ~/ _blocksPerPage;
       if (isDaycare) {
         _daycare = guide.copyWith(blocks: blocks);
       } else {
@@ -790,6 +1013,8 @@ class _ShopPreArrivalGuideSettingPageState
       ],
     );
     setState(() {
+      _showSettings[isDaycare] = false;
+      _contentPage[isDaycare] = guide.blocks.length ~/ _blocksPerPage;
       if (isDaycare) {
         _daycare = updated;
       } else {
@@ -809,6 +1034,8 @@ class _ShopPreArrivalGuideSettingPageState
           ),
         );
     setState(() {
+      _showSettings[isDaycare] = false;
+      _contentPage[isDaycare] = guide.blocks.length ~/ _blocksPerPage;
       if (isDaycare) {
         _daycare = guide.copyWith(blocks: blocks);
       } else {
@@ -847,6 +1074,8 @@ class _ShopPreArrivalGuideSettingPageState
             ),
           );
       setState(() {
+        _showSettings[isDaycare] = false;
+        _contentPage[isDaycare] = guide.blocks.length ~/ _blocksPerPage;
         if (isDaycare) {
           _daycare = guide.copyWith(blocks: blocks);
         } else {
@@ -893,6 +1122,7 @@ class _ShopPreArrivalGuideSettingPageState
       blocks[i] = blocks[i].copyWith(sortOrder: i);
     }
     setState(() {
+      _contentPage[isDaycare] = next ~/ _blocksPerPage;
       if (isDaycare) {
         _daycare = guide.copyWith(blocks: blocks);
       } else {

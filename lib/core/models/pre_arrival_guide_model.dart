@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/pre_arrival_appearance.dart';
 // 檔案名稱：lib/core/models/pre_arrival_guide_model.dart
 // 功能說明：入住前準備：店家公告圖文，不是法律條款。
 
@@ -109,11 +110,24 @@ class PreArrivalGuideBlock {
   }
 }
 
+class PreArrivalGuideStyle {
+  static const classic = 'classic';
+  static const packing = 'packing';
+  static const timeline = 'timeline';
+  static const minimal = 'minimal';
+  static const values = [classic, packing, timeline, minimal];
+  static String parse(dynamic value) =>
+      values.contains(value) ? value as String : classic;
+}
+
 class PreArrivalGuideModel {
+  static const presentationBlockId = '__petnest_pre_arrival_presentation_v1';
   const PreArrivalGuideModel({
     required this.shopId,
     required this.serviceType,
     this.enabled = false,
+    this.style = PreArrivalGuideStyle.classic,
+    this.appearance = const PreArrivalAppearance(),
     this.title = '入住前請準備',
     this.blocks = const <PreArrivalGuideBlock>[],
     this.inheritAccommodation = false,
@@ -124,6 +138,8 @@ class PreArrivalGuideModel {
   final String shopId;
   final String serviceType;
   final bool enabled;
+  final String style;
+  final PreArrivalAppearance appearance;
   final String title;
   final List<PreArrivalGuideBlock> blocks;
   final bool inheritAccommodation;
@@ -174,13 +190,29 @@ class PreArrivalGuideModel {
     final Map<String, dynamic> map = SafeParse.parseMap(data);
     final List<PreArrivalGuideBlock> blocks = <PreArrivalGuideBlock>[];
     final List<dynamic> rawBlocks = SafeParse.parseList(map['blocks']);
+    Map<String, dynamic>? presentation;
     for (int i = 0; i < rawBlocks.length; i++) {
+      final raw = SafeParse.parseMap(rawBlocks[i]);
+      if (raw['id'] == presentationBlockId &&
+          raw['type'] == 'text' &&
+          raw['text'] == '' &&
+          raw['presentation'] is Map &&
+          raw['presentation']['version'] == 1) {
+        presentation = SafeParse.parseMap(raw['presentation']);
+        continue;
+      }
       blocks.add(PreArrivalGuideBlock.fromMap(rawBlocks[i], fallbackOrder: i));
     }
     return PreArrivalGuideModel(
       shopId: shopId.trim(),
       serviceType: serviceType,
       enabled: SafeParse.parseBool(map['enabled']),
+      style: PreArrivalGuideStyle.parse(
+        presentation == null ? map['style'] : presentation['style'],
+      ),
+      appearance: PreArrivalAppearance.fromMap(
+        presentation == null ? map['appearance'] : presentation['appearance'],
+      ),
       title: SafeParse.parseString(map['title'], fallback: '入住前請準備'),
       blocks: blocks,
       inheritAccommodation: SafeParse.parseBool(map['inheritAccommodation']),
@@ -200,6 +232,8 @@ class PreArrivalGuideModel {
       'shopId': shopId.trim(),
       'serviceType': serviceType,
       'enabled': enabled,
+      'style': style,
+      if (!appearance.isDefault) 'appearance': appearance.toMap(),
       'title': displayTitle,
       'blocks': ordered
           .map((PreArrivalGuideBlock block) => block.toMap())
@@ -210,8 +244,34 @@ class PreArrivalGuideModel {
     };
   }
 
+  /// Preserve the deployed document contract. The reserved empty-text block is
+  /// hidden from customer content and the editor; old clients ignore it visually.
+  Map<String, dynamic> toStorageMap({required String updatedBy}) {
+    final data = toMap(updatedBy: updatedBy)
+      ..remove('style')
+      ..remove('appearance');
+    final stored = List<Map<String, dynamic>>.from(data['blocks'] as List);
+    if (style != PreArrivalGuideStyle.classic || !appearance.isDefault) {
+      stored.add({
+        'id': presentationBlockId,
+        'type': 'text',
+        'text': '',
+        'sortOrder': stored.length,
+        'presentation': {
+          'version': 1,
+          'style': style,
+          'appearance': appearance.toMap(),
+        },
+      });
+    }
+    data['blocks'] = stored;
+    return data;
+  }
+
   PreArrivalGuideModel copyWith({
     bool? enabled,
+    String? style,
+    PreArrivalAppearance? appearance,
     String? title,
     List<PreArrivalGuideBlock>? blocks,
     bool? inheritAccommodation,
@@ -220,6 +280,8 @@ class PreArrivalGuideModel {
       shopId: shopId,
       serviceType: serviceType,
       enabled: enabled ?? this.enabled,
+      style: style == null ? this.style : PreArrivalGuideStyle.parse(style),
+      appearance: appearance ?? this.appearance,
       title: title ?? this.title,
       blocks: blocks ?? this.blocks,
       inheritAccommodation: inheritAccommodation ?? this.inheritAccommodation,

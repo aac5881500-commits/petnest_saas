@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/models/home_about_section_setting.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
@@ -140,3 +141,43 @@ HomeSectionSpan homeSectionSpan({
       return HomeSectionSpan.full;
   }
 }
+
+/// Compatible placements use the same layout rules in the editor and homepage.
+Set<String> homeStorePlacementOptions({
+  required HomeRoomSectionSetting rooms,
+  required HomeEnvironmentSectionSetting environment,
+  required HomeAboutSectionSetting about,
+  required HomeNewsSectionSetting news,
+  required HomeInformationSectionsSetting information,
+  required HomeQuickBookingSectionSetting quickBooking,
+}) => {
+  for (final id in HomeStorePlacement.sections.keys)
+    if (homeSectionSpan(
+              sectionId: id,
+              rooms: rooms,
+              environment: environment,
+              about: about,
+              news: news,
+              information: information,
+              quickBooking: quickBooking,
+            ) ==
+            HomeSectionSpan.half ||
+        (id == 'announcements' && news.layout == HomeNewsLayouts.feature))
+      HomeStorePlacement.encode(HomeStorePlacement.side, id),
+  if (rooms.layout != HomeRoomSectionLayouts.simpleEntry) 'rooms',
+  if (news.showHeading && !news.isHalf) 'button:announcements',
+  if (environment.showTitle &&
+      environment.title.trim().isNotEmpty &&
+      environment.layout != HomeEnvironmentLayouts.simpleEntry)
+    'button:facilities',
+  if (about.layout == HomeAboutLayouts.editorial) 'button:about',
+  if (information.faq.layout == HomeFaqLayouts.minimalAccordion) 'button:faq',
+  if (information.policy.layout == HomePolicyLayouts.summary) 'button:policy',
+  if ([
+    HomeQuickBookingLayouts.spotlight,
+    HomeQuickBookingLayouts.serviceSplit,
+    HomeQuickBookingLayouts.heroCta,
+  ].contains(quickBooking.layout))
+    'button:quickBooking',
+  if (!information.reviews.isHalf) 'button:reviews',
+};

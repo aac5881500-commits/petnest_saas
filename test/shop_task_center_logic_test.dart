@@ -3,12 +3,51 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/camera_access_policy.dart';
+import 'package:petnest_saas/core/models/booking_medication_task.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/models/shop_task_item.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
 import 'package:petnest_saas/core/services/shop_task_center_service.dart';
 
 void main() {
+  test('用藥燈號按實際時刻切換，跨台北午夜仍歸正確日期', () {
+    final booking = <String, dynamic>{
+      'status': 'checked_in',
+      'pets': [
+        {'petId': 'p1', 'name': '小布'},
+      ],
+      'medication': {
+        'state': 'confirmed',
+        'request': {
+          'medicines': [
+            {'id': 'm0', 'type': 'topical'},
+          ],
+        },
+        'tasks': [
+          {
+            'id': 't0',
+            'petId': 'p1',
+            'scheduledAt': '2026-11-10T16:05:00Z',
+            'medicineIds': ['m0'],
+            'result': 'pending',
+          },
+        ],
+      },
+    };
+    final task = BookingMedicationTask.fromBooking(booking).single;
+    expect(BookingMedicationTask.canRecord(booking), isTrue);
+    expect(task.pet, '小布');
+    expect(task.types, '擦藥');
+    expect(task.day, '2026-11-11');
+    expect(task.urgencyAt(DateTime.parse('2026-11-10T15:49:59Z')), '');
+    expect(task.urgencyAt(DateTime.parse('2026-11-10T15:50:00Z')), 'soon');
+    expect(task.urgencyAt(DateTime.parse('2026-11-10T16:05:00Z')), 'due');
+    expect(
+      BookingMedicationTask.canRecord({...booking, 'settlementLocked': true}),
+      isFalse,
+    );
+  });
+
   test('缺少的照護紀錄不算完成，草稿也不算完成', () {
     final DateTime day = DateTime(2026, 10, 3);
     final String doneId = DailyCareRecordService.recordId(

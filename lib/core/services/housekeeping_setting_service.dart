@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/housekeeping_setting_model.dart';
+import '../models/room_status_palette.dart';
 
 class HousekeepingSettingService {
   HousekeepingSettingService._();
@@ -77,6 +78,7 @@ class HousekeepingSettingService {
   Future<void> saveSetting({
     required String shopId,
     required bool autoCleaningAfterCheckout,
+    RoomStatusPalette? roomStatusColors,
   }) async {
     final String normalizedShopId = shopId.trim();
 
@@ -84,13 +86,22 @@ class HousekeepingSettingService {
       throw ArgumentError('缺少店家 ID');
     }
 
-    final HousekeepingSettingModel setting = HousekeepingSettingModel(
-      autoCleaningAfterCheckout: autoCleaningAfterCheckout,
-    );
-
     await _shopReference(normalizedShopId).set(<String, dynamic>{
-      'housekeepingSetting': setting.toMap(),
+      'housekeepingSetting': housekeepingSettingsPatch(
+        autoCleaningAfterCheckout: autoCleaningAfterCheckout,
+        roomStatusColors: roomStatusColors,
+      ),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 }
+
+/// Merge only the controls actually edited here; preserve care settings and
+/// future/unknown shop settings. A full palette includes defaults on reset.
+Map<String, dynamic> housekeepingSettingsPatch({
+  required bool autoCleaningAfterCheckout,
+  RoomStatusPalette? roomStatusColors,
+}) => {
+  'autoCleaningAfterCheckout': autoCleaningAfterCheckout,
+  if (roomStatusColors != null) 'roomStatusColors': roomStatusColors.toMap(),
+};

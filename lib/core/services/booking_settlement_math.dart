@@ -29,6 +29,9 @@ class BookingSettlementMath {
           data['originalTotal'] ??
           data['estimateTotalPrice'],
     );
+    if (data['medication'] is Map && data['quotedTotalPrice'] != null) {
+      return SafeParse.parseMoney(data['quotedTotalPrice']);
+    }
     if (stored > 0) {
       return stored;
     }
@@ -50,8 +53,59 @@ class BookingSettlementMath {
     final int overtime = SafeParse.parseMoney(data['overtimeAmount']);
     final int manual =
         manualAdjustOverride ?? SafeParse.parseMoney(data['manualAdjust']);
-    final int expected = quoted + extra + overtime + manual;
+    final medication = data['medication'];
+    final advance =
+        medication is Map &&
+            medication['finalized'] != true &&
+            !['declined', 'cancelled'].contains(medication['state'])
+        ? advanceMedicationAmount(data)
+        : 0;
+    final int expected = quoted + extra + overtime + manual + advance;
     return expected < 0 ? 0 : expected;
+  }
+
+  static int advanceMedicationAmount(Map<String, dynamic> data) {
+    final medication = data['medication'];
+    return medication is Map
+        ? SafeParse.parseMoney(medication['advanceAmount'])
+        : 0;
+  }
+
+  /// Projected fee before the final charge enters extraCharges.
+  static int pendingMedicationEstimate(Map<String, dynamic> data) {
+    final medication = data['medication'];
+    if (medication is! Map ||
+        medication['finalized'] == true ||
+        ['declined', 'cancelled'].contains(medication['state']) ||
+        ['cancelled', 'completed'].contains(data['status']) ||
+        isSettlementConfirmed(data) ||
+        isSettlementLocked(data)) {
+      return 0;
+    }
+    final advance = advanceMedicationAmount(data);
+    if (advance > 0) return advance;
+    final agreedAmount = medication['agreedAmount'];
+    if (agreedAmount is num) {
+      return medication['state'] == 'confirmed'
+          ? SafeParse.parseMoney(agreedAmount)
+          : 0;
+    }
+    final estimate = medication['estimate'];
+    if (estimate is! Map || estimate['manual'] == true) return 0;
+    final setting = medication['setting'];
+    if (setting is Map && setting['mode'] == 'quote') return 0;
+    return SafeParse.parseMoney(estimate['amount']).clamp(0, 1 << 31);
+  }
+
+  static int orderDisplayTotal(Map<String, dynamic> data, int bookingTotal) {
+    final medication = data['medication'];
+    if (medication is Map &&
+        medication['finalized'] == true &&
+        !isSettlementConfirmed(data)) {
+      return expectedTotal(data: data);
+    }
+    if (advanceMedicationAmount(data) > 0) return bookingTotal;
+    return bookingTotal + pendingMedicationEstimate(data);
   }
 
   static int paidAmount(Map<String, dynamic> data) {

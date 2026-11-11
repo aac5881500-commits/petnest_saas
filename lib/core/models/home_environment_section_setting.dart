@@ -211,6 +211,7 @@ class HomeEnvironmentSectionSetting {
     this.title = '環境介紹',
     this.subtitle = '查看住宿環境與安心設備',
     this.showTitle = false,
+    this.headingAccent = true,
     this.showSubtitle = true,
     this.showEndEntryCard = true,
     this.endEntryStyle = HomeEnvironmentEndEntryStyles.minimal,
@@ -234,6 +235,7 @@ class HomeEnvironmentSectionSetting {
   final String title;
   final String subtitle;
   final bool showTitle;
+  final bool headingAccent;
   final bool showSubtitle;
   final bool showEndEntryCard;
   final String endEntryStyle;
@@ -281,6 +283,7 @@ class HomeEnvironmentSectionSetting {
     String? title,
     String? subtitle,
     bool? showTitle,
+    bool? headingAccent,
     bool? showSubtitle,
     bool? showEndEntryCard,
     String? endEntryStyle,
@@ -308,6 +311,7 @@ class HomeEnvironmentSectionSetting {
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
       showTitle: showTitle ?? this.showTitle,
+      headingAccent: headingAccent ?? this.headingAccent,
       showSubtitle: showSubtitle ?? this.showSubtitle,
       showEndEntryCard: showEndEntryCard ?? this.showEndEntryCard,
       endEntryStyle: endEntryStyle ?? this.endEntryStyle,
@@ -337,6 +341,7 @@ class HomeEnvironmentSectionSetting {
       'title': title,
       'subtitle': subtitle,
       'showTitle': showTitle,
+      'headingAccent': headingAccent,
       'showSubtitle': showSubtitle,
       'showEndEntryCard': showEndEntryCard,
       'endEntryStyle': HomeEnvironmentEndEntryStyles.migrate(endEntryStyle),
@@ -401,6 +406,7 @@ class HomeEnvironmentSectionSetting {
       title: map.containsKey('title') ? title : '環境介紹',
       subtitle: map.containsKey('subtitle') ? subtitle : '查看住宿環境與安心設備',
       showTitle: map['showTitle'] is bool ? map['showTitle'] as bool : false,
+      headingAccent: map['headingAccent'] != false,
       showSubtitle: map['showSubtitle'] is bool
           ? map['showSubtitle'] as bool
           : true,

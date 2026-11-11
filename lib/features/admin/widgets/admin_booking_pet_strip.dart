@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/admin/widgets/admin_booking_pet_strip.dart
-// 功能說明：店主訂單寵物區：桌面多欄小卡、手機橫向滑動，避免直排擠壓
+// 功能說明：店主訂單寵物區：依內容區實際寬度排列，不預留固定高度，保留所有寵物的安全提醒
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -67,36 +67,23 @@ class AdminBookingPetStrip extends StatelessWidget {
     BuildContext context,
     Map<String, Map<String, dynamic>> fallbacks,
   ) {
-    final AdminBookingDetailScope scope = AdminBookingDetailScope.of(context);
-    if (scope.isPhone) {
-      return SizedBox(
-        height: 198,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: pets.length,
-          separatorBuilder: (BuildContext context, int index) =>
-              const SizedBox(width: 10),
-          itemBuilder: (BuildContext context, int index) {
-            return SizedBox(width: 220, child: _card(pets[index], fallbacks));
-          },
-        ),
-      );
-    }
-    final int columns = scope.width >= 1200 ? 4 : (scope.width >= 900 ? 3 : 2);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double gap = 10;
+        const double gap = 10;
+        // Use the panel's actual width; never reserve a tall horizontal carousel.
+        final int columns = (constraints.maxWidth / 260).floor().clamp(
+          1,
+          pets.length.clamp(1, 4),
+        );
         final double width =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
-          children: pets
-              .map(
-                (Map<String, dynamic> pet) =>
-                    SizedBox(width: width, child: _card(pet, fallbacks)),
-              )
-              .toList(),
+          children: <Widget>[
+            for (final Map<String, dynamic> pet in pets)
+              SizedBox(width: width, child: _card(pet, fallbacks)),
+          ],
         );
       },
     );

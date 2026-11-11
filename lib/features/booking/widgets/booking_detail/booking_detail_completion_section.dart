@@ -11,16 +11,17 @@ class BookingDetailCompletionSection extends StatelessWidget {
     super.key,
     required this.view,
     required this.bookingId,
+    this.showNote = true,
   });
 
   final BookingDetailViewData view;
   final String bookingId;
+  final bool showNote;
 
   @override
   Widget build(BuildContext context) {
-    if (!view.showReview &&
-        view.status != 'completed' &&
-        !view.showCustomerNote) {
+    final showCustomerNote = showNote && view.showCustomerNote;
+    if (!view.showReview && view.status != 'completed' && !showCustomerNote) {
       return const SizedBox.shrink();
     }
 
@@ -34,7 +35,7 @@ class BookingDetailCompletionSection extends StatelessWidget {
             bookingStatus: view.status,
             titleOverride: view.reviewLabel,
           ),
-        if (view.showCustomerNote)
+        if (showCustomerNote)
           BookingDetailCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

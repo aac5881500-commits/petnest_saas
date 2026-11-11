@@ -29,6 +29,8 @@ class BookingAddonSection extends StatelessWidget {
     this.selectedDailyTimedServices = const {},
     this.theme = HomeThemeModel.classicDefault,
     this.addonTotal = 0,
+    this.medication,
+    this.medicationRate = '',
     required this.onToggleShowAddons,
     required this.onSelectTimeAddon,
     required this.onToggleValueService,
@@ -66,6 +68,16 @@ class BookingAddonSection extends StatelessWidget {
 
   final HomeThemeModel theme;
   final int addonTotal;
+  final Widget? medication;
+  final String medicationRate;
+
+  Widget _medicationCard(Widget content) => _AddonCategoryCard(
+    theme: theme,
+    title: '用藥協助',
+    description: medicationRate.isEmpty ? '選填・同一組時間可安排多種用藥及多天。' : '選填・$medicationRate',
+    selectedCount: 0,
+    children: [content],
+  );
 
   /// 舊版整區展開回呼仍由外層傳入。
   // ignore: unused_field
@@ -219,7 +231,9 @@ class BookingAddonSection extends StatelessWidget {
       String price, {
       bool? selected,
       VoidCallback? toggle,
+      bool checkboxOnly = false,
       Widget? controls,
+      IconData? leadingIcon,
     }) => Container(
       margin: cream ? const EdgeInsets.only(bottom: 12) : EdgeInsets.zero,
       padding: cream
@@ -237,14 +251,20 @@ class BookingAddonSection extends StatelessWidget {
               ),
       ),
       child: GestureDetector(
-        onTap: toggle,
+        onTap: checkboxOnly ? null : toggle,
         behavior: HitTestBehavior.opaque,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
               width: 30,
-              child: selected == null
+              child: leadingIcon != null
+                  ? Icon(
+                      leadingIcon,
+                      color: BookingEditorial.theme(context).primaryColor,
+                      size: 22,
+                    )
+                  : selected == null
                   ? Icon(
                       Icons.radio_button_checked,
                       color: BookingEditorial.theme(context).primaryColor,
@@ -298,19 +318,34 @@ class BookingAddonSection extends StatelessWidget {
     final available = pets
         .where((p) => selectedPetIds.contains(_petId(p)))
         .toList();
-    Widget chip(String label, bool selected, ValueChanged<bool> change) =>
-        FilterChip(
-          label: Text(label, style: BookingEditorial.body(14, context)),
-          selected: selected,
-          onSelected: change,
-          selectedColor: BookingEditorial.tint(context),
-          backgroundColor: BookingEditorial.theme(context).backgroundColor,
-          checkmarkColor: BookingEditorial.theme(context).primaryColor,
-          side: BorderSide(
-            color: BookingEditorial.theme(context).cardBorderColor,
-          ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-        );
+    Widget chip(
+      String label,
+      bool selected,
+      ValueChanged<bool> change, {
+      bool reserveCheckmarkSpace = false,
+    }) => FilterChip(
+      showCheckmark: !reserveCheckmarkSpace,
+      avatar: reserveCheckmarkSpace
+          ? SizedBox.square(
+              dimension: 16,
+              child: selected
+                  ? Icon(
+                      Icons.check,
+                      size: 16,
+                      color: BookingEditorial.theme(context).primaryColor,
+                    )
+                  : null,
+            )
+          : null,
+      label: Text(label, style: BookingEditorial.body(14, context)),
+      selected: selected,
+      onSelected: change,
+      selectedColor: BookingEditorial.tint(context),
+      backgroundColor: BookingEditorial.theme(context).backgroundColor,
+      checkmarkColor: BookingEditorial.theme(context).primaryColor,
+      side: BorderSide(color: BookingEditorial.theme(context).cardBorderColor),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+    );
     final times = items('timeOptions');
     final selectedIndex = times.indexWhere(
       (v) => v['label'] == selectedTimeAddon?['label'],
@@ -324,7 +359,7 @@ class BookingAddonSection extends StatelessWidget {
         ),
         BookingEditorial.heading('加購服務', subtitle: '加購選填，讓住宿體驗更完整。'),
         if (addonLoading) const LinearProgressIndicator(),
-        if (!addonLoading && addonData == null)
+        if (!addonLoading && addonData == null && medication == null)
           Text('目前尚未設定加購服務', style: BookingEditorial.body(15, context)),
         if (BookingAddonsHelper.parseBool(addonData?['enabled']) &&
             times.isNotEmpty)
@@ -408,6 +443,7 @@ class BookingAddonSection extends StatelessWidget {
                 '先選貓咪，再選日期與時段；每隻分開安排。',
                 'NT\$ ${v['price']}／時段',
                 selected: selection.isNotEmpty,
+                checkboxOnly: true,
                 toggle: () {
                   if (selection.isNotEmpty) {
                     selectedDailyTimedServices.remove(id);
@@ -522,6 +558,7 @@ class BookingAddonSection extends StatelessWidget {
                                     }
                                     onDailyTimedServicesChanged();
                                   },
+                                  reserveCheckmarkSpace: true,
                                 ),
                             ],
                           ),
@@ -531,6 +568,14 @@ class BookingAddonSection extends StatelessWidget {
                 ),
               );
             },
+          ),
+        if (medication case final Widget content)
+          row(
+            '用藥協助',
+            '選貓咪，再選時間、用藥類型與適用日期。',
+            medicationRate,
+            leadingIcon: Icons.medication_outlined,
+            controls: content,
           ),
       ],
     );
@@ -600,7 +645,7 @@ class BookingAddonSection extends StatelessWidget {
           const SizedBox(height: 10),
         ],
         if (addonLoading) const Center(child: CircularProgressIndicator()),
-        if (!addonLoading && addonData == null)
+        if (!addonLoading && addonData == null && medication == null)
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(
@@ -1249,6 +1294,7 @@ class BookingAddonSection extends StatelessWidget {
               ],
             ),
         ],
+        if (medication case final Widget content) _medicationCard(content),
         const SizedBox(height: 4),
         BookingThemedCard(
           theme: theme,

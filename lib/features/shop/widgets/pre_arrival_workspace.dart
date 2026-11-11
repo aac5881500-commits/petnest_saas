@@ -19,7 +19,10 @@ class PreArrivalWorkspace extends StatelessWidget {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Expanded(child: editor),
+          const VerticalDivider(width: 1),
           Expanded(
+            flex: 1,
             child: Column(
               children: [
                 Material(
@@ -40,7 +43,7 @@ class PreArrivalWorkspace extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w700),
                               ),
                               Text(
-                                '右側修改會同步顯示，尚未儲存也能預覽。',
+                                '左側修改即時同步；這就是客戶點進去看到的頁面。',
                                 style: TextStyle(fontSize: 12),
                               ),
                             ],
@@ -59,8 +62,6 @@ class PreArrivalWorkspace extends StatelessWidget {
               ],
             ),
           ),
-          const VerticalDivider(width: 1),
-          Expanded(child: editor),
         ],
       );
     },

@@ -78,6 +78,7 @@ class ModernHomeNewsSection extends StatelessWidget {
             title: setting.entryTitle,
             theme: theme,
             accent: setting.headingAccent,
+            accentColor: theme.headingAccentColor('announcements'),
           ),
           const SizedBox(height: 10),
           content,

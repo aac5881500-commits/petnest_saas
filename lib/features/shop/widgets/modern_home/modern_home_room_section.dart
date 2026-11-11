@@ -143,23 +143,12 @@ class ModernHomeRoomSection extends StatelessWidget {
             HomeRoomAllRoomsPlacements.titleRight;
     return Row(
       children: <Widget>[
-        Icon(
-          Icons.bedroom_parent_outlined,
-          size: 16,
-          color: theme.primaryColor,
-        ),
-        const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            _title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 16,
-              height: 1.2,
-              fontWeight: FontWeight.w800,
-              color: theme.textColor,
-            ),
+          child: EditorialSectionHeading(
+            title: _title,
+            theme: theme,
+            accent: setting.headingAccent,
+            accentColor: theme.headingAccentColor('rooms'),
           ),
         ),
         if (headerTrailing != null)

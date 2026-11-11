@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_feature_tour.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_navigation.dart';
 // 檔案名稱：lib/features/shop/pages/shop_addon_page.dart
@@ -32,10 +33,34 @@ class _ShopAddonPageState extends State<ShopAddonPage>
     with
         SingleTickerProviderStateMixin,
         ShopDashboardLeaveAware<ShopAddonPage> {
+  final _medicationSettingsKey = GlobalKey<MedicationSettingsPageState>();
+  bool _confirmingLeave = false;
+
   @override
-  bool get dashboardHasUnsavedChanges => _hasUnsavedChanges;
+  bool get dashboardHasUnsavedChanges =>
+      _hasUnsavedChanges ||
+      (_medicationSettingsKey.currentState?.hasUnsavedChanges ?? false);
+
   @override
-  bool get dashboardIsBusy => _saving;
+  bool get dashboardIsBusy =>
+      _saving || (_medicationSettingsKey.currentState?.isSaving ?? false);
+
+  @override
+  Future<bool> dashboardConfirmLeave() async {
+    if (_confirmingLeave) return false;
+    _confirmingLeave = true;
+    try {
+      return await super.dashboardConfirmLeave();
+    } finally {
+      _confirmingLeave = false;
+    }
+  }
+
+  Widget _medicationSettings() => MedicationSettingsPage(
+    key: _medicationSettingsKey,
+    shopId: widget.shopId,
+    embedded: true,
+  );
   late final TabController _tabController;
   bool _tourLoading = true;
   Object? _tourError;
@@ -109,7 +134,20 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this)
+      ..addListener(() {
+        if (!mounted) return;
+        final index = _tabController.index;
+        if (index != 1) {
+          _showInventory = index == 5;
+          if (index < 5) {
+            final nextKind = _AddonKind.values[index == 0 ? 0 : index - 1];
+            if (_focusKind != nextKind) _selectedKey = null;
+            _focusKind = nextKind;
+          }
+        }
+        setState(() {});
+      });
     _shopStream = ShopService.instance.streamShop(widget.shopId);
     _loadData();
   }
@@ -475,6 +513,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   }
 
   void _selectKind(_AddonKind kind) {
+    _tabController.index = kind.index == 0 ? 0 : kind.index + 1;
     setState(() {
       _focusKind = kind;
       _showInventory = false;
@@ -775,7 +814,8 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       onPoint: (point) async {
         if (!mounted) return;
         setState(() {
-          _tabController.index = shopTourPanel('ShopAddonPage', point);
+          final panel = shopTourPanel('ShopAddonPage', point);
+          _tabController.index = panel == 0 ? 0 : panel + 1;
           _showInventory = point == 4;
           _selectedKey = null;
           _focusKind = _AddonKind.values[point.clamp(0, 3)];
@@ -789,58 +829,66 @@ class _ShopAddonPageState extends State<ShopAddonPage>
               backgroundColor: const Color(0xFFF6F8FB),
               appBar: AppBar(
                 title: const Text('加購服務設定'),
-                actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-                bottom: desktop
-                    ? null
-                    : TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.start,
-                        labelPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                        ),
-                        labelStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        unselectedLabelStyle: const TextStyle(fontSize: 13),
-                        tabs: <Widget>[
-                          ShopTourAnchor(
-                            ids: ['ShopAddonPage.0'],
-                            ready: !_tourLoading,
-                            error: _tourError,
-                            child: Tab(text: '時間加購'),
-                          ),
-                          ShopTourAnchor(
-                            ids: ['ShopAddonPage.1'],
-                            ready: !_tourLoading,
-                            error: _tourError,
-                            child: Tab(text: '加值服務'),
-                          ),
-                          ShopTourAnchor(
-                            ids: const ['ShopAddonPage.2'],
-                            ready: !_tourLoading,
-                            error: _tourError,
-                            child: const Tab(text: '客製服務'),
-                          ),
-                          ShopTourAnchor(
-                            ids: const ['ShopAddonPage.3'],
-                            ready: !_tourLoading,
-                            error: _tourError,
-                            child: const Tab(text: '每日分時段'),
-                          ),
-                          ShopTourAnchor(
-                            ids: ['ShopAddonPage.4'],
-                            ready: !_tourLoading,
-                            error: _tourError,
-                            child: Tab(text: '庫存設定'),
-                          ),
-                        ],
-                      ),
+                actions: <Widget>[
+                  if (ShopDashboardNavigationScope.maybeOf(context) == null)
+                    ShopTaskCenterButton(shopId: widget.shopId),
+                ],
+                bottom: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+                  labelStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  unselectedLabelStyle: const TextStyle(fontSize: 13),
+                  tabs: <Widget>[
+                    ShopTourAnchor(
+                      ids: ['ShopAddonPage.0'],
+                      ready: !_tourLoading,
+                      error: _tourError,
+                      child: Tab(text: '時間加購'),
+                    ),
+                    const Tab(text: '用藥協助'),
+                    ShopTourAnchor(
+                      ids: ['ShopAddonPage.1'],
+                      ready: !_tourLoading,
+                      error: _tourError,
+                      child: Tab(text: '加值服務'),
+                    ),
+                    ShopTourAnchor(
+                      ids: const ['ShopAddonPage.2'],
+                      ready: !_tourLoading,
+                      error: _tourError,
+                      child: const Tab(text: '客製服務'),
+                    ),
+                    ShopTourAnchor(
+                      ids: const ['ShopAddonPage.3'],
+                      ready: !_tourLoading,
+                      error: _tourError,
+                      child: const Tab(text: '每日分時段'),
+                    ),
+                    ShopTourAnchor(
+                      ids: ['ShopAddonPage.4'],
+                      ready: !_tourLoading,
+                      error: _tourError,
+                      child: Tab(text: '庫存設定'),
+                    ),
+                  ],
+                ),
               ),
               body: AbsorbPointer(
                 absorbing: _saving,
-                child: desktop ? _desktopBody() : _mobileBody(),
+                child: desktop
+                    ? IndexedStack(
+                        index: _tabController.index == 1 ? 1 : 0,
+                        children: [
+                          _desktopBody(),
+                          _medicationSettings(),
+                        ],
+                      )
+                    : _mobileBody(),
               ),
             ),
           );
@@ -871,6 +919,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
             controller: _tabController,
             children: <Widget>[
               _mobileKindList(_AddonKind.time),
+              _medicationSettings(),
               _mobileKindList(_AddonKind.value),
               _mobileKindList(_AddonKind.custom),
               _mobileKindList(_AddonKind.daily),
@@ -878,7 +927,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
             ],
           ),
         ),
-        _saveBar(fullWidth: true),
+        if (_tabController.index != 1) _saveBar(fullWidth: true),
       ],
     );
   }
@@ -1214,7 +1263,10 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => setState(() => _showInventory = true),
+        onTap: () {
+          _tabController.index = 5;
+          setState(() => _showInventory = true);
+        },
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           decoration: BoxDecoration(

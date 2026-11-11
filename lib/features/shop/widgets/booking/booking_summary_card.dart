@@ -18,6 +18,9 @@ class BookingSummaryCard extends StatelessWidget {
     required this.totalPrice,
     this.theme = HomeThemeModel.classicDefault,
     this.depositAmount = 0,
+    this.medicationEstimate,
+    this.advanceMedication = false,
+    this.medicationNeedsQuote = false,
     this.roomAmount,
     this.addonAmount,
     this.couponSection,
@@ -57,6 +60,13 @@ class BookingSummaryCard extends StatelessWidget {
   final String roomTypeName;
   final int totalPrice;
   final int depositAmount;
+  final int? medicationEstimate;
+  final bool advanceMedication;
+  int get payableNow =>
+      totalPrice + (advanceMedication ? medicationEstimate ?? 0 : 0);
+  String get medicationFeeLabel =>
+      advanceMedication ? '用藥預估（先收費）' : '用藥預估（退房收費）';
+  final bool medicationNeedsQuote;
   final int? originalTotal;
   final int discountAmount;
   final int discountPercent;
@@ -323,7 +333,17 @@ class BookingSummaryCard extends StatelessWidget {
             pointAmount == 0)
           amount('優惠折抵', 0),
         Divider(color: t.primaryColor, height: 18),
-        amount('應付總額', totalPrice, strong: true),
+        if (medicationEstimate case final int estimate) ...[
+          amount(medicationFeeLabel, estimate),
+          if (!advanceMedication)
+            amount('預估總額', totalPrice + estimate, strong: true),
+        ] else if (medicationNeedsQuote)
+          Text('用藥協助待報價', style: BookingEditorial.body(14, context)),
+        amount(
+          advanceMedication || medicationEstimate == null ? '應付總額' : '住宿應付',
+          payableNow,
+          strong: true,
+        ),
         if (depositAmount > 0) amount('訂金', depositAmount),
       ],
     );
@@ -499,11 +519,27 @@ class BookingSummaryCard extends StatelessWidget {
               _infoRow('點數折抵', '-NT\$ $pointAmount'),
             ],
             const SizedBox(height: 10),
-            _infoRow('折後總額', 'NT\$ $totalPrice', emphasize: true),
+            if (medicationEstimate case final int estimate) ...[
+              _infoRow(medicationFeeLabel, 'NT\$ $estimate'),
+              if (!advanceMedication)
+                _infoRow(
+                  '預估總額',
+                  'NT\$ ${totalPrice + estimate}',
+                  emphasize: true,
+                ),
+            ] else if (medicationNeedsQuote)
+              _infoRow('用藥協助', '待報價'),
+            _infoRow(
+              advanceMedication || medicationEstimate == null
+                  ? '折後總額'
+                  : '住宿折後總額',
+              'NT\$ $payableNow',
+              emphasize: true,
+            ),
             const SizedBox(height: 6),
             _infoRow(
               depositAmount > 0 ? '應付訂金' : '應付金額',
-              'NT\$ ${depositAmount > 0 ? depositAmount : totalPrice}',
+              'NT\$ ${depositAmount > 0 ? depositAmount : payableNow}',
               emphasize: true,
             ),
           ],

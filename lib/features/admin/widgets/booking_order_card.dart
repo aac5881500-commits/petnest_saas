@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
 // 檔案名稱：lib/features/admin/widgets/booking_order_card.dart
 // 功能說明：後台訂單卡片（展開式升級版）
 // 功能：
@@ -144,6 +145,19 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
             final bool wideCard = constraints.maxWidth >= 980;
             return Column(
               children: [
+                if (medMap(data['medication']).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Chip(
+                        avatar: const Icon(Icons.medication_outlined, size: 18),
+                        label: Text(
+                          '用藥協助・${medMap(data['medication'])['finalized'] == true ? '已結算' : medicationStates[medMap(data['medication'])['state']] ?? '待確認'}',
+                        ),
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
                   child: wideCard
@@ -403,7 +417,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                                           ),
                                                     ),
                                                     child: Text(
-                                                      '🏷 滿${discountMinNights.toInt()}晚優惠 -NT\$ ${discountAmount.toInt()}',
+                                                      '🏷 ${discountMinNights > 0 ? '滿${discountMinNights.toInt()}晚優惠' : '優惠'} -NT\$ ${discountAmount.toInt()}',
                                                       style: TextStyle(
                                                         color: Colors
                                                             .green
@@ -445,6 +459,32 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                         ),
                 ),
 
+                Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Color(0xFFF0F1F5))),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 8,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => setState(() => _expanded = !_expanded),
+                        icon: Icon(
+                          _expanded ? Icons.expand_less : Icons.expand_more,
+                          size: 18,
+                        ),
+                        label: Text(_expanded ? '收合摘要' : '付款與訂單摘要'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: widget.onTap,
+                        icon: const Icon(Icons.arrow_forward, size: 18),
+                        label: const Text('開啟訂單'),
+                      ),
+                    ],
+                  ),
+                ),
                 AnimatedCrossFade(
                   duration: const Duration(milliseconds: 180),
                   crossFadeState: _expanded
@@ -468,13 +508,14 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                           expireTitle: payAmountType == 'full'
                               ? '付款期限'
                               : '訂金期限',
-                          depositText: !initialChoice.isFull && depositAmount <= 0
+                          depositText:
+                              !initialChoice.isFull && depositAmount <= 0
                               ? '無需訂金'
                               : paymentConfirmed
                               ? '已確認'
                               : '尚未確認',
-                          depositColor: !initialChoice.isFull &&
-                                  depositAmount <= 0
+                          depositColor:
+                              !initialChoice.isFull && depositAmount <= 0
                               ? Colors.grey
                               : paymentConfirmed
                               ? Colors.green
@@ -496,7 +537,9 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                 title: paymentTitle,
                                 value: paymentAmount > 0
                                     ? 'NT\$ $paymentAmount'
-                                    : (initialChoice.isFull ? 'NT\$ 0' : '無需訂金'),
+                                    : (initialChoice.isFull
+                                          ? 'NT\$ 0'
+                                          : '無需訂金'),
                                 color: paymentAmount > 0
                                     ? paymentConfirmed
                                           ? Colors.green
@@ -657,7 +700,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
               Text(
                 daycare
                     ? '優惠 -NT\$ ${discountAmount.toInt()}'
-                    : '滿${discountMinNights.toInt()}晚 -NT\$ ${discountAmount.toInt()}',
+                    : '${discountMinNights > 0 ? '滿${discountMinNights.toInt()}晚' : '優惠'} -NT\$ ${discountAmount.toInt()}',
                 style: TextStyle(
                   color: Colors.green.shade800,
                   fontSize: 12,
@@ -673,34 +716,35 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
   Widget _roomBox(String roomName) {
     return Container(
-      width: 68,
-      height: 68,
+      width: 64,
+      height: 64,
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blueGrey.shade900, Colors.blueGrey.shade700],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: const Color(0xFFEEF1F8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE1E6F0)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            roomName,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              height: 1,
+          const Icon(
+            Icons.meeting_room_outlined,
+            size: 20,
+            color: Color(0xFF526197),
+          ),
+          const SizedBox(height: 4),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                roomName,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF39465B),
+                ),
+              ),
             ),
           ),
         ],

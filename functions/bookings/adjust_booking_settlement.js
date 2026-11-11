@@ -3,6 +3,9 @@
 // 功能說明：調整最終應收、店內確認收退款、補款方式、轉帳核對與鎖單；冪等 requestId。
 
 const admin = require("firebase-admin");
+const {
+  checkoutGuard: medicationCheckoutGuard,
+} = require("../medication/medication_logic");
 const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   hasShopPermission,
@@ -373,6 +376,11 @@ exports.adjustBookingSettlement = onCall(
         }
         const booking = bookingSnap.data() || {};
         assertNotCancelled(booking);
+        if (["checkOutStay", "applyAdjust", "lock"].includes(action)) {
+          try { medicationCheckoutGuard(booking); } catch (error) {
+            throw new HttpsError("failed-precondition", error.message);
+          }
+        }
         assertNotLocked(booking);
 
         const now = admin.firestore.FieldValue.serverTimestamp();

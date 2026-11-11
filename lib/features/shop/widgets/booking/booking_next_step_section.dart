@@ -21,6 +21,7 @@ class BookingNextStepSection extends StatelessWidget {
     required this.selectedRoomType,
     required this.nights,
     required this.totalPrice,
+    this.advanceMedicationAmount = 0,
     required this.originalTotal,
     required this.discountAmount,
     required this.discountCampaignName,
@@ -41,6 +42,7 @@ class BookingNextStepSection extends StatelessWidget {
     required this.onSubmitWithData,
     this.theme = HomeThemeModel.classicDefault,
     this.compact = false,
+    this.shopName = '',
     this.selectedPets = const <Map<String, dynamic>>[],
   });
 
@@ -50,6 +52,7 @@ class BookingNextStepSection extends StatelessWidget {
   final Map<String, dynamic>? selectedRoomType;
   final int nights;
   final int totalPrice;
+  final int advanceMedicationAmount;
   final int originalTotal;
   final int discountAmount;
   final String discountCampaignName;
@@ -73,6 +76,7 @@ class BookingNextStepSection extends StatelessWidget {
 
   final HomeThemeModel theme;
   final bool compact;
+  final String shopName;
   final List<Map<String, dynamic>> selectedPets;
 
   @override
@@ -81,6 +85,8 @@ class BookingNextStepSection extends StatelessWidget {
       return const SizedBox();
     }
 
+    final appearance = BookingAppearanceScope.of(context);
+    final frontendTheme = BookingAppearanceScope.frontendOf(context);
     final enabled = canSubmit && !isBlacklisted && selectedRoomType != null;
 
     return Column(
@@ -192,6 +198,11 @@ class BookingNextStepSection extends StatelessWidget {
                         amount: -discountAmount,
                         kind: BookingFeeLineKind.discount,
                       ),
+                    if (advanceMedicationAmount > 0)
+                      BookingFeeLineItem(
+                        label: '用藥預估（隨預約收費）',
+                        amount: advanceMedicationAmount,
+                      ),
                     BookingFeeLineItem(
                       label: '預估總額',
                       amount: totalPrice,
@@ -215,7 +226,11 @@ class BookingNextStepSection extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => BookingFormPage(
                         shopId: shopId,
+                        appearance: appearance,
+                        frontendTheme: frontendTheme,
+                        shopName: shopName,
                         totalPrice: totalPrice,
+                        advanceMedicationAmount: advanceMedicationAmount,
                         originalTotal: originalTotal,
                         discountAmount: discountAmount,
                         discountCampaignName: discountCampaignName,

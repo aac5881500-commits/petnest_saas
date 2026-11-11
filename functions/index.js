@@ -470,6 +470,7 @@ exports.sendBookingMessageNotification = onDocumentCreated(
           body,
           data: {
             type: "booking_message",
+            section: ["care_service", "medication"].includes(message.source) ? "care" : "",
             bookingId,
             messageId: event.params.messageId,
             shopId,
@@ -670,6 +671,20 @@ exports.sendShopChatNotification = onDocumentCreated(
       await Promise.all(notificationTasks);
     },
 );
+
+exports.sendMedicationTaskReminders = onSchedule({
+  schedule: "* * * * *",
+  timeZone: "Asia/Taipei",
+  region: "asia-east1",
+  maxInstances: 1,
+}, async () => {
+  const {sendMedicationReminders} = require("./medication/medication_reminders");
+  const {sendServiceReminders} = require("./care/service_task_reminders");
+  await Promise.all([
+    sendMedicationReminders(admin.firestore(), sendNotificationToUser),
+    sendServiceReminders(admin.firestore(), sendNotificationToUser),
+  ]);
+});
 
 /**
  * 🏨 入住前一天提醒
@@ -1086,3 +1101,13 @@ exports.inspectionPreviewHeartbeat = require("./platform/inspection_owner_previe
 
 // Platform fees paid by shop owners; isolated from customer booking payments.
 Object.assign(exports, require("./platform_billing"));
+
+// 用藥協助：設定、預估與訂單生命週期。
+exports.saveMedicationSetting =
+  require("./medication/medication_functions").saveMedicationSetting;
+exports.quoteBookingMedication =
+  require("./medication/medication_functions").quoteBookingMedication;
+exports.recordBookingServiceTask = require("./care/service_task_functions").recordBookingServiceTask;
+
+exports.manageBookingMedication =
+  require("./medication/medication_functions").manageBookingMedication;

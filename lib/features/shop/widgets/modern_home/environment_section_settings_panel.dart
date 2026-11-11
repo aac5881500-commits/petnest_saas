@@ -161,6 +161,13 @@ class _EnvironmentSectionSettingsPanelState
             value: setting.showTitle,
             onChanged: (v) => _update(setting.copyWith(showTitle: v)),
           ),
+          if (setting.showTitle)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('顯示標題左側豎線'),
+              value: setting.headingAccent,
+              onChanged: (v) => _update(setting.copyWith(headingAccent: v)),
+            ),
           _text(
             _titleController,
             '區塊標題文字',

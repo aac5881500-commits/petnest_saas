@@ -11,6 +11,10 @@ import 'package:flutter/foundation.dart';
 
 import '../constants/shop_permission_keys.dart';
 import '../models/booking_kind.dart';
+import '../models/booking_medication_task.dart';
+import '../models/booking_service_task.dart';
+import '../models/daycare_settings_model.dart';
+import '../models/camera_entry_watch.dart';
 import '../models/daily_care_date_helper.dart';
 import '../models/daily_care_record_model.dart';
 import '../models/daily_care_report_center_item.dart';
@@ -23,6 +27,9 @@ import 'daily_care_record_service.dart';
 import 'daily_care_report_eligibility.dart';
 import 'daily_care_setting_service.dart';
 import 'shop_service.dart';
+import 'daycare_enabled.dart';
+import 'daycare_settings_service.dart';
+import 'stay_booking_readiness.dart';
 
 class ShopTaskAccess {
   const ShopTaskAccess({
@@ -172,15 +179,18 @@ class ShopTaskCenterBinding {
     _careLoading = canFillDailyCare;
     if (canFillDailyCare) {
       _listenSetting();
-      _listenCheckedIn();
     }
+    if (canViewBookings || canFillDailyCare) _listenCheckedIn();
     if (canViewBookings) {
+      _listenConfirmed();
+      _listenServices();
       _listenPending();
+      _medicationClock = Timer.periodic(
+        const Duration(seconds: 15),
+        (_) => _emit(),
+      );
     }
-    if (canManageDevices) {
-      _cameraLoading = true;
-      _listenCamera();
-    }
+    if (canViewBookings || canManageDevices) _listenShop();
     _emit();
   }
 
@@ -195,6 +205,170 @@ class ShopTaskCenterBinding {
   Stream<ShopTaskCenterSnapshot> get snapshots => controller.stream;
 
   DailyCareSettingModel _setting = const DailyCareSettingModel();
+  Map<String, dynamic>? _shop;
+  bool _shopLoading = false;
+  String _shopError = '';
+  StreamSubscription<Map<String, dynamic>?>? _shopSub;
+  StreamSubscription<DaycareSettingsModel>? _legacyDaycareSub;
+  bool _legacyDaycareOn = false;
+
+  List<Map<String, dynamic>> _confirmed = [];
+  bool _confirmedLoading = false;
+  String _confirmedError = '';
+  StreamSubscription<List<Map<String, dynamic>>>? _confirmedSub;
+  void _listenConfirmed() {
+    _confirmedSub?.cancel();
+    _confirmedLoading = true;
+    _confirmedError = '';
+    _confirmedSub = BookingService.instance
+        .streamShopBookingsByStatus(shopId: _shopId, status: 'confirmed')
+        .listen(
+          (items) {
+            _confirmed = items;
+            _confirmedLoading = false;
+            _confirmedError = '';
+            _emit();
+          },
+          onError: (Object error) {
+            _confirmed = [];
+            _confirmedLoading = false;
+            _confirmedError = firebaseFailureCode(error);
+            _emit();
+          },
+        );
+  }
+
+  bool _servicesOn = false;
+  bool _servicesLoading = true;
+  String _servicesError = '';
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _servicesSub;
+  void _listenServices() {
+    _servicesSub?.cancel();
+    _servicesLoading = true;
+    _servicesError = '';
+    _servicesSub = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(_shopId)
+        .collection('addons')
+        .doc('main')
+        .snapshots()
+        .listen(
+          (snap) {
+            final data = snap.data();
+            _servicesOn =
+                data?['enabled'] == true &&
+                BookingServiceTask.maps(data?['dailyTimedServices']).isNotEmpty;
+            _servicesLoading = false;
+            _servicesError = '';
+            _emit();
+          },
+          onError: (Object error) {
+            _servicesOn = false;
+            _servicesLoading = false;
+            _servicesError = firebaseFailureCode(error);
+            _emit();
+          },
+        );
+  }
+
+  void retryServices() {
+    if (_closed || !_canViewBookings) return;
+    _listenServices();
+    _listenCheckedIn();
+    _emit();
+  }
+
+  bool get _serviceEnabled => _canViewBookings && _servicesOn;
+
+  bool get _medicationEnabled {
+    final setting = _shop?['medicationSetting'];
+    return _canViewBookings && setting is Map && setting['enabled'] == true;
+  }
+
+  bool get _cameraEnabled =>
+      _canManageDevices && _shop != null && shopCameraSectionOn(_shop);
+  bool get _stayEnabled =>
+      _shop != null && StayBookingReadiness.requested(_shop!);
+  bool get _daycareEnabled =>
+      _shop != null &&
+      DaycareEnabled.isOn(shop: _shop, settingsEnabled: _legacyDaycareOn);
+  bool get _bookingEnabled =>
+      _canViewBookings && (_stayEnabled || _daycareEnabled);
+  bool get _careEnabled =>
+      _canFillDailyCare &&
+      _settingReady &&
+      (_setting.enabled || _setting.daycareEnabled);
+
+  void retryShop() {
+    if (_closed || !(_canViewBookings || _canManageDevices)) return;
+    _listenShop();
+    _emit();
+  }
+
+  void _listenShop() {
+    _shopSub?.cancel();
+    _shopLoading = true;
+    _shopError = '';
+    _shopSub = ShopService.instance
+        .streamShop(_shopId)
+        .listen(
+          (shop) {
+            final wasCameraEnabled = _cameraEnabled;
+            _shop = shop;
+            _syncLegacyDaycare();
+            _shopLoading = false;
+            _shopError = '';
+            if (_cameraEnabled && !wasCameraEnabled) {
+              retryCamera();
+            } else if (!_cameraEnabled) {
+              _resetCamera();
+            }
+            _emit();
+          },
+          onError: (Object error) {
+            _shop = null;
+            _syncLegacyDaycare();
+            _shopLoading = false;
+            _shopError = firebaseFailureCode(error);
+            _resetCamera();
+            _emit();
+          },
+        );
+  }
+
+  void _syncLegacyDaycare() {
+    if (!_canViewBookings ||
+        _shop == null ||
+        '${_shop?['daycareEnabled'] ?? ''}'.trim().isNotEmpty) {
+      _legacyDaycareSub?.cancel();
+      _legacyDaycareSub = null;
+      _legacyDaycareOn = false;
+      return;
+    }
+    _legacyDaycareSub ??= DaycareSettingsService.instance
+        .stream(_shopId)
+        .listen(
+          (setting) {
+            _legacyDaycareOn = setting.enabled;
+            _emit();
+          },
+          onError: (Object error) {
+            _legacyDaycareOn = false;
+            _log('daycare_settings', firebaseFailureCode(error));
+            _emit();
+          },
+        );
+  }
+
+  void _resetCamera() {
+    _cameraSub?.cancel();
+    _cameraSub = null;
+    _cameraRequests = [];
+    _cameraLoading = false;
+    _cameraErrorCode = '';
+    _cameraErrorSource = '';
+  }
+
   List<Map<String, dynamic>> _checkedIn = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _pending = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _cameraRequests = <Map<String, dynamic>>[];
@@ -202,6 +376,8 @@ class ShopTaskCenterBinding {
 
   bool _settingReady = false;
   bool _checkedInReady = false;
+  String _checkedInErrorCode = '';
+  Timer? _medicationClock;
   bool _bookingLoading = false;
   bool _careLoading = false;
   bool _cameraLoading = false;
@@ -246,7 +422,7 @@ class ShopTaskCenterBinding {
   }
 
   void retryCamera() {
-    if (_closed || !_canManageDevices) {
+    if (_closed || !_cameraEnabled) {
       return;
     }
     _cameraErrorCode = '';
@@ -261,6 +437,11 @@ class ShopTaskCenterBinding {
       return;
     }
     _closed = true;
+    _confirmedSub?.cancel();
+    _servicesSub?.cancel();
+    _medicationClock?.cancel();
+    _shopSub?.cancel();
+    _legacyDaycareSub?.cancel();
     _careGeneration++;
     _settingSub?.cancel();
     _checkedInSub?.cancel();
@@ -288,12 +469,27 @@ class ShopTaskCenterBinding {
             _bindCare();
           },
           onError: (Object error) {
+            _settingReady = false;
             _failCare(error, 'daily_care_settings');
           },
         );
   }
 
+  void retryMedication() {
+    if (_closed || !_canViewBookings) return;
+    _listenConfirmed();
+    _listenPending();
+    if (_canFillDailyCare) {
+      retryCare();
+    } else {
+      _listenCheckedIn();
+      _emit();
+    }
+  }
+
   void _listenCheckedIn() {
+    _checkedInErrorCode = '';
+    _checkedInReady = false;
     _checkedInSub?.cancel();
     _checkedInSub = BookingService.instance
         .streamShopBookingsByStatus(shopId: _shopId, status: 'checked_in')
@@ -301,10 +497,18 @@ class ShopTaskCenterBinding {
           (List<Map<String, dynamic>> next) {
             _checkedIn = next;
             _checkedInReady = true;
+            _checkedInErrorCode = '';
             _bindCare();
+            _emit();
           },
           onError: (Object error) {
-            _failCare(error, 'bookings.checked_in');
+            _checkedInReady = false;
+            _checkedInErrorCode = firebaseFailureCode(error);
+            if (_canFillDailyCare) {
+              _failCare(error, 'bookings.checked_in');
+            } else {
+              _emit();
+            }
           },
         );
   }
@@ -378,7 +582,7 @@ class ShopTaskCenterBinding {
       _emit();
       return;
     }
-    if (!_setting.enabled) {
+    if (!_careEnabled) {
       _filledRecordIds = <String>{};
       _careLoading = false;
       _careErrorCode = '';
@@ -448,6 +652,13 @@ class ShopTaskCenterBinding {
     controller.add(_buildSnapshot());
   }
 
+  String _petPhoto(Map<String, dynamic> booking, String petId) {
+    final pet = BookingServiceTask.maps(
+      booking['pets'],
+    ).where((p) => '${p['petId'] ?? p['id'] ?? ''}' == petId).firstOrNull;
+    return '${pet?['photoUrl'] ?? pet?['imageUrl'] ?? ''}';
+  }
+
   ShopTaskCenterSnapshot _buildSnapshot() {
     final DateTime today = DailyCareDateHelper.dateOnly(
       _careDate ?? DailyCareDateHelper.todayInTaipei(),
@@ -468,7 +679,7 @@ class ShopTaskCenterBinding {
       }
     }
 
-    if (careReady && _setting.enabled) {
+    if (careReady && _careEnabled) {
       for (final Map<String, dynamic> booking in _checkedIn) {
         try {
           final bool daycare = BookingKind.isDaycare(booking);
@@ -541,8 +752,11 @@ class ShopTaskCenterBinding {
       }
     }
 
-    if (_canViewBookings && _bookingErrorCode.isEmpty && !_bookingLoading) {
+    if (_bookingEnabled && _bookingErrorCode.isEmpty && !_bookingLoading) {
       for (final Map<String, dynamic> booking in _pending) {
+        if (BookingKind.isDaycare(booking) ? !_daycareEnabled : !_stayEnabled) {
+          continue;
+        }
         final String status = (booking['status'] ?? '').toString().trim();
         if (status == 'cancelled' || status == 'completed') {
           continue;
@@ -586,10 +800,149 @@ class ShopTaskCenterBinding {
       }
     }
 
-    if (_canManageDevices && _cameraErrorCode.isEmpty && !_cameraLoading) {
+    if (_cameraEnabled && _cameraErrorCode.isEmpty && !_cameraLoading) {
       items.addAll(
         cameraOwnerTasks(shopId: _shopId, requests: _cameraRequests),
       );
+    }
+
+    if (_serviceEnabled && _checkedInReady) {
+      final now = DateTime.now();
+      final date = BookingMedicationTask.dateKey(
+        BookingMedicationTask.taipei(now),
+      );
+      for (final booking in _checkedIn.where(BookingServiceTask.canRecord)) {
+        final id = '${booking['bookingId'] ?? ''}';
+        if (id.isEmpty) continue;
+        for (final task in BookingServiceTask.fromBooking(booking)) {
+          if (!task.pending) continue;
+          final urgency = task.urgencyAt(now);
+          if (task.day.compareTo(date) > 0 && urgency != 'soon') continue;
+          items.add(
+            ShopTaskItem(
+              id: 'service_${id}_${task.id}',
+              type: ShopTaskType.timedService,
+              shopId: _shopId,
+              title:
+                  '${BookingMedicationTask.timeLabel(task.scheduledAt)} · ${task.pet}',
+              subtitle:
+                  '${task.title} · ${booking['roomName'] ?? ''}${task.day != date ? ' · ${task.day}' : ''}',
+              statusLabel: task.petId.isEmpty
+                  ? '寵物資料待核對'
+                  : urgency == 'due'
+                  ? '已到點・尚未記錄'
+                  : urgency == 'soon'
+                  ? '即將到點'
+                  : '待到點',
+              priority: urgency == 'due'
+                  ? -3
+                  : urgency == 'soon'
+                  ? -2
+                  : 25,
+              createdAt: task.scheduledAt,
+              targetType: 'timedService',
+              targetId: id,
+              metadata: {
+                'needsIdentity': task.petId.isEmpty,
+                'petPhoto': _petPhoto(booking, task.petId),
+                'taskId': task.id,
+                'urgency': urgency,
+                'scheduledAt': task.scheduledAt.toUtc().toIso8601String(),
+              },
+            ),
+          );
+        }
+      }
+    }
+
+    if (_medicationEnabled) {
+      final unique = <String, Map<String, dynamic>>{
+        for (final b in [..._pending, ..._confirmed, ..._checkedIn])
+          '${b['bookingId'] ?? ''}': b,
+      };
+      for (final entry in unique.entries) {
+        final b = entry.value;
+        final raw = b['medication'];
+        final legacy = b['medicationRequest'];
+        final state = raw is Map
+            ? '${raw['state'] ?? ''}'
+            : legacy is Map && legacy.isNotEmpty
+            ? 'pending_shop'
+            : '';
+        if (entry.key.isEmpty ||
+            !{'pending_shop', 'pending_customer'}.contains(state)) {
+          continue;
+        }
+        final customer = state == 'pending_customer';
+        items.add(
+          ShopTaskItem(
+            id: 'medication_review_${entry.key}',
+            type: ShopTaskType.medication,
+            shopId: _shopId,
+            title: '${b['customerName'] ?? '訂單'} · 用藥安排',
+            subtitle: customer
+                ? '等待家長確認藥品、時程與費用，尚未開始執行'
+                : '核對藥品、用量、時程與費用，再送給家長確認',
+            statusLabel: customer ? '待客戶確認' : '待店家確認',
+            priority: customer ? 30 : 15,
+            targetType: 'booking',
+            targetId: entry.key,
+            metadata: {'reviewMedication': true, 'awaitingCustomer': customer},
+          ),
+        );
+      }
+    }
+
+    if (_medicationEnabled && _checkedInReady) {
+      final now = DateTime.now();
+      final date = BookingMedicationTask.dateKey(
+        BookingMedicationTask.taipei(now),
+      );
+      for (final booking in _checkedIn.where(BookingMedicationTask.canRecord)) {
+        final id = '${booking['bookingId'] ?? ''}';
+        if (id.isEmpty) continue;
+        for (final task in BookingMedicationTask.fromBooking(booking)) {
+          if (!task.pending) continue;
+          final urgency = task.urgencyAt(now);
+          if (task.day.compareTo(date) > 0 && urgency != 'soon') continue;
+          final due = urgency == 'due';
+          final soon = urgency == 'soon';
+          final time = BookingMedicationTask.timeLabel(task.scheduledAt);
+          final room = '${booking['roomName'] ?? ''}'.trim();
+          items.add(
+            ShopTaskItem(
+              id: 'medication_${id}_${task.id}',
+              type: ShopTaskType.medication,
+              shopId: _shopId,
+              title: '$time · ${task.pet}',
+              subtitle: [
+                task.types,
+                if (room.isNotEmpty) room,
+                if (task.day != date) task.day,
+              ].join(' · '),
+              statusLabel: due
+                  ? '已到點・尚未完成'
+                  : soon
+                  ? '即將到點'
+                  : '待到點',
+              priority: due
+                  ? -3
+                  : soon
+                  ? -2
+                  : 25,
+              createdAt: task.scheduledAt,
+              targetType: 'medication',
+              targetId: id,
+              metadata: {
+                'petPhoto': _petPhoto(booking, task.petId),
+                'taskId': task.id,
+                'urgency': urgency,
+                'scheduledAt': task.scheduledAt.toUtc().toIso8601String(),
+              },
+            ),
+          );
+        }
+      }
     }
 
     items.sort((ShopTaskItem a, ShopTaskItem b) {
@@ -601,6 +954,16 @@ class ShopTaskCenterBinding {
           a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final DateTime bTime =
           b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      if ({
+            ShopTaskType.medication,
+            ShopTaskType.timedService,
+          }.contains(a.type) &&
+          {
+            ShopTaskType.medication,
+            ShopTaskType.timedService,
+          }.contains(b.type)) {
+        return aTime.compareTo(bTime);
+      }
       return bTime.compareTo(aTime);
     });
 
@@ -610,17 +973,50 @@ class ShopTaskCenterBinding {
       checkedInRoomCount: checkedInRooms.isEmpty
           ? _checkedIn.length
           : checkedInRooms.length,
-      bookingEnabled: _canViewBookings,
+      settingsLoading:
+          (_canViewBookings && _servicesLoading) ||
+          _shopLoading ||
+          (_canFillDailyCare && !_settingReady && _careLoading),
+      settingsErrorCode: _shopError,
+      serviceEnabled: _serviceEnabled,
+      serviceLoading:
+          _canViewBookings &&
+          (_servicesLoading ||
+              (_servicesOn && !_checkedInReady && _checkedInErrorCode.isEmpty)),
+      serviceErrorCode: _servicesError.isNotEmpty
+          ? _servicesError
+          : _servicesOn
+          ? _checkedInErrorCode
+          : '',
+      medicationEnabled: _medicationEnabled,
+      medicationLoading:
+          _medicationEnabled &&
+          (_confirmedLoading ||
+              _bookingLoading ||
+              (!_checkedInReady && _checkedInErrorCode.isEmpty)),
+      medicationErrorCode: _medicationEnabled
+          ? (_checkedInErrorCode.isNotEmpty
+                ? _checkedInErrorCode
+                : _confirmedError.isNotEmpty
+                ? _confirmedError
+                : _bookingErrorCode)
+          : '',
+      bookingEnabled: _bookingEnabled,
       bookingLoading: _bookingLoading,
-      bookingErrorCode: _bookingErrorCode,
+      bookingErrorCode: _bookingEnabled ? _bookingErrorCode : '',
       bookingErrorSource: _bookingErrorSource,
-      careEnabled: _canFillDailyCare,
+      careEnabled: _careEnabled,
       careLoading: _careLoading,
       careErrorCode: _careErrorCode,
       careErrorSource: _careErrorSource,
-      cameraEnabled: _canManageDevices,
+      cameraEnabled:
+          _cameraEnabled &&
+          (_shop?['showCameraSection'] == true ||
+              items.any((item) => item.type == ShopTaskType.cameraShare)),
       cameraLoading: _cameraLoading,
-      cameraErrorCode: _cameraErrorCode,
+      cameraErrorCode: _shop?['showCameraSection'] == true
+          ? _cameraErrorCode
+          : '',
       cameraErrorSource: _cameraErrorSource,
     );
   }

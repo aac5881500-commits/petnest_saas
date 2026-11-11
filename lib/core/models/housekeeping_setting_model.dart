@@ -1,3 +1,4 @@
+import 'room_status_palette.dart';
 // 檔案名稱：lib/core/models/housekeeping_setting_model.dart
 // 功能說明：保存店家的房務、自動清潔與每日照護紀錄設定。
 // 🧹 房務設定 Model
@@ -5,6 +6,7 @@
 class HousekeepingSettingModel {
   const HousekeepingSettingModel({
     this.autoCleaningAfterCheckout = true,
+    this.roomStatusColors = RoomStatusPalette.defaults,
     this.dailyCareEnabled = false,
     this.dailyCareSessionCount = 2,
     this.carePhotoEnabled = true,
@@ -15,6 +17,7 @@ class HousekeepingSettingModel {
 
   /// 退房後自動進入清潔中
   final bool autoCleaningAfterCheckout;
+  final RoomStatusPalette roomStatusColors;
 
   /// 是否啟用每日照護紀錄
   final bool dailyCareEnabled;
@@ -44,6 +47,7 @@ class HousekeepingSettingModel {
     }
 
     return HousekeepingSettingModel(
+      roomStatusColors: RoomStatusPalette.fromMap(map['roomStatusColors']),
       autoCleaningAfterCheckout: map['autoCleaningAfterCheckout'] is bool
           ? map['autoCleaningAfterCheckout'] as bool
           : true,
@@ -74,6 +78,7 @@ class HousekeepingSettingModel {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'autoCleaningAfterCheckout': autoCleaningAfterCheckout,
+      'roomStatusColors': roomStatusColors.toMap(),
       'dailyCareEnabled': dailyCareEnabled,
       'dailyCareSessionCount': dailyCareSessionCount,
       'carePhotoEnabled': carePhotoEnabled,
@@ -85,6 +90,7 @@ class HousekeepingSettingModel {
 
   HousekeepingSettingModel copyWith({
     bool? autoCleaningAfterCheckout,
+    RoomStatusPalette? roomStatusColors,
     bool? dailyCareEnabled,
     int? dailyCareSessionCount,
     bool? carePhotoEnabled,
@@ -93,6 +99,7 @@ class HousekeepingSettingModel {
     int? downloadHoursAfterCheckout,
   }) {
     return HousekeepingSettingModel(
+      roomStatusColors: roomStatusColors ?? this.roomStatusColors,
       autoCleaningAfterCheckout:
           autoCleaningAfterCheckout ?? this.autoCleaningAfterCheckout,
       dailyCareEnabled: dailyCareEnabled ?? this.dailyCareEnabled,

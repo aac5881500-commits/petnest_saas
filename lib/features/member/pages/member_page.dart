@@ -1,3 +1,8 @@
+import 'package:petnest_saas/features/booking/widgets/pre_arrival_shortcut_cards.dart';
+import 'member_care_history_page.dart';
+import 'package:petnest_saas/features/member/widgets/member_shop_scope_label.dart';
+import 'package:petnest_saas/features/member/widgets/member_lifestyle_tile.dart';
+import 'package:petnest_saas/features/member/widgets/member_order_overview.dart';
 import 'package:petnest_saas/core/services/inspection_owner_context.dart';
 import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:petnest_saas/features/member/widgets/member_sign_in_prompt.dart';
@@ -17,8 +22,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
-import 'package:petnest_saas/core/models/daycare_settings_model.dart';
-import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/member_avatar_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
@@ -30,7 +33,6 @@ import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 import 'package:petnest_saas/features/shop/widgets/media/fixed_aspect_image_crop_page.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
-import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
 import 'package:petnest_saas/features/member/pages/member_coupon_page.dart';
 import 'package:petnest_saas/core/services/notification_service.dart';
@@ -41,6 +43,8 @@ import 'package:petnest_saas/core/widgets/member_point_history_visibility.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
+
+import 'package:petnest_saas/core/widgets/shop_point_rules_link.dart';
 
 class MemberPage extends StatelessWidget {
   const MemberPage({
@@ -1300,163 +1304,72 @@ class _MemberPageState extends State<_MemberPageBody> {
                                 ),
 
                               _buildSummaryCard(user, data),
-                              const SizedBox(height: 18),
-                              _buildBlockTitle('我的資料'),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: _miniFeatureCard(
-                                      icon: Icons.person_outline_rounded,
-                                      iconColor: const Color(0xFF6B8FBF),
-                                      title: '個人資料',
-                                      subtitle: '姓名與電話',
-                                      onTap: () => _openProfileEditor(user),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _miniFeatureCard(
-                                      icon: Icons.location_on_outlined,
-                                      iconColor: const Color(0xFF5AA37A),
-                                      title: '常用地址',
-                                      subtitle: _fullAddressText().isEmpty
-                                          ? '尚未填寫'
-                                          : '已設定',
-                                      onTap: () => _openAddressEditor(user),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _miniFeatureCard(
-                                      icon: Icons.emergency_outlined,
-                                      iconColor: const Color(0xFFC45C4A),
-                                      title: '緊急聯絡人',
-                                      subtitle:
-                                          _emergencySummary() == '尚未填寫緊急聯絡人'
-                                          ? '尚未填寫'
-                                          : '已設定',
-                                      onTap: () => _openEmergencyEditor(user),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 18),
-                              _buildBlockTitle('我的寵物', subtitle: '管理你的毛孩資料'),
-                              StreamBuilder<List<Map<String, dynamic>>>(
-                                stream: PetService.instance.streamMyPets(),
-                                builder: (context, snapshot) {
-                                  if (!snapshot.hasData) {
-                                    return const Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 18,
-                                      ),
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.4,
-                                          ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(4, 18, 4, 4),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '今天也要，好好寵牠。',
+                                        style: TextStyle(
+                                          fontSize: 25,
+                                          height: 1.25,
+                                          fontWeight: FontWeight.w900,
+                                          color: ShopFrontendTheme.of(
+                                            context,
+                                          ).home.textColor,
                                         ),
                                       ),
-                                    );
-                                  }
-
-                                  final List<Map<String, dynamic>> pets =
-                                      snapshot.data!;
-                                  return Column(
-                                    children: [
-                                      for (final pet in pets)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 10,
-                                          ),
-                                          child: SizedBox(
-                                            height: 108,
-                                            child: _petCard(pet),
-                                          ),
-                                        ),
-                                      SizedBox(
-                                        height: 64,
-                                        width: double.infinity,
-                                        child: _addPetDashedCard(),
+                                    ),
+                                    Transform.rotate(
+                                      angle: -0.18,
+                                      child: Icon(
+                                        Icons.pets_rounded,
+                                        size: 38,
+                                        color: ShopFrontendTheme.of(
+                                          context,
+                                        ).home.primaryColor,
                                       ),
-                                    ],
-                                  );
-                                },
+                                    ),
+                                  ],
+                                ),
                               ),
-
+                              const SizedBox(height: 14),
+                              PreArrivalShortcutCards(
+                                shopId: widget.shopId,
+                                memberId: user.uid,
+                                theme: ShopFrontendTheme.of(context).home,
+                              ),
+                              MemberOrderOverviewHost(
+                                shopId: widget.shopId,
+                                userId: user.uid,
+                                theme: ShopFrontendTheme.of(context).home,
+                              ),
+                              if (!InspectionOwnerContext.active)
+                                MemberCareHistoryEntry(
+                                  key: ValueKey(user.uid),
+                                  userId: user.uid,
+                                  theme: ShopFrontendTheme.of(context).home,
+                                ),
                               const SizedBox(height: 18),
-                              _buildBlockTitle('訂單中心'),
-                              Column(
+                              _buildBlockTitle(
+                                '你的專屬服務',
+                                subtitle: '優惠、訊息與店家會員權益',
+                              ),
+                              ShopPointRulesLink(
+                                shopId: widget.shopId,
+                                shopName: widget.shopName,
+                                theme: ShopFrontendTheme.of(context).home,
+                              ),
+                              Wrap(
+                                spacing: 0,
+                                runSpacing: 0,
                                 children: [
-                                  StreamBuilder<Map<String, dynamic>?>(
-                                    stream: ShopService.instance.streamShop(
-                                      widget.shopId,
-                                    ),
-                                    builder:
-                                        (
-                                          BuildContext context,
-                                          AsyncSnapshot<Map<String, dynamic>?>
-                                          shopSnap,
-                                        ) {
-                                          return StreamBuilder<
-                                            DaycareSettingsModel
-                                          >(
-                                            stream: DaycareSettingsService
-                                                .instance
-                                                .stream(widget.shopId),
-                                            builder:
-                                                (
-                                                  BuildContext context,
-                                                  AsyncSnapshot<
-                                                    DaycareSettingsModel
-                                                  >
-                                                  daycareSnap,
-                                                ) {
-                                                  final bool daycareOn =
-                                                      DaycareSettingsService
-                                                          .instance
-                                                          .isEnabledForShop(
-                                                            shop: shopSnap.data,
-                                                            settings:
-                                                                daycareSnap
-                                                                    .data,
-                                                          );
-                                                  return _memberNavTile(
-                                                    icon: Icons
-                                                        .receipt_long_outlined,
-                                                    iconColor:
-                                                        ShopFrontendTheme.of(
-                                                          context,
-                                                        ).primaryColor,
-                                                    title: '我的訂單',
-                                                    subtitle: daycareOn
-                                                        ? '查看住宿與安親預約'
-                                                        : '查看住宿預約',
-                                                    onTap: () {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute<void>(
-                                                          builder: (_) =>
-                                                              MyBookingsPage(
-                                                                returnShopId:
-                                                                    widget
-                                                                        .shopId,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    },
-                                                  );
-                                                },
-                                          );
-                                        },
-                                  ),
                                   _memberNavTile(
                                     icon: Icons.confirmation_number_outlined,
                                     iconColor: const Color(0xFF8A6BBF),
                                     title: '我的優惠券',
-                                    subtitle: '查看目前店家的可用與歷史優惠券',
+                                    subtitle: '查看此店可用與歷史優惠券',
                                     onTap: () {
                                       final currentShopId = widget.shopId
                                           .trim();
@@ -1539,7 +1452,7 @@ class _MemberPageState extends State<_MemberPageBody> {
                                     icon: Icons.rate_review_outlined,
                                     iconColor: const Color(0xFFC49A3A),
                                     title: '我的評價',
-                                    subtitle: '查看住宿評價、店家回覆與修改',
+                                    subtitle: '查看各店評價、回覆與修改',
                                     onTap: () {
                                       Navigator.push(
                                         context,
@@ -1650,6 +1563,102 @@ class _MemberPageState extends State<_MemberPageBody> {
                                 ],
                               ),
 
+                              _buildBlockTitle(
+                                '我的毛孩',
+                                subtitle: '每個小日常，都值得被好好照顧',
+                              ),
+                              StreamBuilder<List<Map<String, dynamic>>>(
+                                stream: PetService.instance.streamMyPets(),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.4,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final List<Map<String, dynamic>> pets =
+                                      snapshot.data!;
+                                  return SizedBox(
+                                    height: 224,
+                                    child: ScrollConfiguration(
+                                      behavior: ScrollConfiguration.of(context)
+                                          .copyWith(
+                                            dragDevices: {
+                                              ...ScrollConfiguration.of(
+                                                context,
+                                              ).dragDevices,
+                                              PointerDeviceKind.mouse,
+                                            },
+                                          ),
+                                      child: ListView.separated(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: pets.length + 1,
+                                        separatorBuilder: (_, index) =>
+                                            const SizedBox(width: 12),
+                                        itemBuilder: (context, index) =>
+                                            SizedBox(
+                                              width: 164,
+                                              child: index == pets.length
+                                                  ? _addPetDashedCard()
+                                                  : _petCard(pets[index]),
+                                            ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+
+                              const SizedBox(height: 18),
+                              _buildBlockTitle('我的資料'),
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: _miniFeatureCard(
+                                      icon: Icons.person_outline_rounded,
+                                      iconColor: const Color(0xFF6B8FBF),
+                                      title: '個人資料',
+                                      subtitle: '姓名與電話',
+                                      onTap: () => _openProfileEditor(user),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _miniFeatureCard(
+                                      icon: Icons.location_on_outlined,
+                                      iconColor: const Color(0xFF5AA37A),
+                                      title: '常用地址',
+                                      subtitle: _fullAddressText().isEmpty
+                                          ? '尚未填寫'
+                                          : '已設定',
+                                      onTap: () => _openAddressEditor(user),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _miniFeatureCard(
+                                      icon: Icons.emergency_outlined,
+                                      iconColor: const Color(0xFFC45C4A),
+                                      title: '緊急聯絡人',
+                                      subtitle:
+                                          _emergencySummary() == '尚未填寫緊急聯絡人'
+                                          ? '尚未填寫'
+                                          : '已設定',
+                                      onTap: () => _openEmergencyEditor(user),
+                                    ),
+                                  ),
+                                ],
+                              ),
                               const SizedBox(height: 18),
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
@@ -1821,22 +1830,17 @@ class _MemberPageState extends State<_MemberPageBody> {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: ShopFrontendTheme.of(context).home.cardBorderColor,
+        color: Color.alphaBlend(
+          ShopFrontendTheme.of(
+            context,
+          ).home.primaryColor.withValues(alpha: 0.06),
+          ShopFrontendTheme.of(context).home.cardColor,
         ),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Color.alphaBlend(
-              ShopFrontendTheme.of(
-                context,
-              ).home.primaryColor.withValues(alpha: 0.14),
-              ShopFrontendTheme.of(context).home.cardColor,
-            ),
-            ShopFrontendTheme.of(context).home.cardColor,
-          ],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
+          bottomLeft: Radius.circular(10),
+          bottomRight: Radius.circular(28),
         ),
       ),
       child: Padding(
@@ -1862,12 +1866,12 @@ class _MemberPageState extends State<_MemberPageBody> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    name.isEmpty ? '尚未填寫姓名' : name,
+                    name.isEmpty ? '嗨，歡迎回來！' : '嗨，$name！',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
                       color: ShopFrontendTheme.of(context).home.textColor,
                     ),
                   ),
@@ -1927,6 +1931,49 @@ class _MemberPageState extends State<_MemberPageBody> {
     bool muted = false,
   }) {
     final HomeThemeModel theme = ShopFrontendTheme.of(context).home;
+    if (!warning && !muted) {
+      final available = MediaQuery.sizeOf(context).width - 32;
+      final columns = available >= 800 ? 4 : 2;
+      final tint = title.contains('點數')
+          ? const Color(0xFFE9DEFF)
+          : title.contains('優惠')
+          ? const Color(0xFFEAF0C9)
+          : title.contains('訊息')
+          ? const Color(0xFFEDE2FA)
+          : title.contains('評價')
+          ? const Color(0xFFFFE7D3)
+          : title.contains('商品')
+          ? const Color(0xFFDDECE7)
+          : const Color(0xFFF1EADD);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(0, 0, 12, 12),
+        child: MemberLifestyleTile(
+          width: available / columns - 12,
+          theme: theme,
+          tint: tint,
+          icon: icon,
+          title: title,
+          subtitle: subtitle,
+          attribution:
+              title == '我的點數' ||
+                  title == '我的優惠券' ||
+                  title == '我的實體商品' ||
+                  title == '店家訊息' ||
+                  title == '通知設定'
+              ? MemberShopScopeLabel(
+                  shopId: widget.shopId,
+                  shopName: widget.shopName,
+                  note: title == '店家訊息'
+                      ? '與此店聯絡'
+                      : title == '通知設定'
+                      ? '管理此店通知'
+                      : '權益與紀錄依店家分開',
+                )
+              : null,
+          onTap: enabled ? onTap : null,
+        ),
+      );
+    }
     final Color border = warning ? Colors.red.shade200 : theme.cardBorderColor;
     final Color fill = warning
         ? ShopFrontendTheme.errorSoft
@@ -1938,7 +1985,7 @@ class _MemberPageState extends State<_MemberPageBody> {
         : theme.cardColor;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: warning || muted ? 8 : 0),
       child: Material(
         color: fill,
         borderRadius: BorderRadius.circular(16),
@@ -1949,10 +1996,16 @@ class _MemberPageState extends State<_MemberPageBody> {
             opacity: enabled ? 1 : 0.45,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: border),
+                border: warning || muted
+                    ? Border.all(color: border)
+                    : Border(
+                        bottom: BorderSide(
+                          color: border.withValues(alpha: 0.45),
+                        ),
+                      ),
               ),
               child: Row(
                 children: [
@@ -2121,7 +2174,7 @@ class _MemberPageState extends State<_MemberPageBody> {
 
     return Material(
       color: theme.cardColor,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
@@ -2134,16 +2187,13 @@ class _MemberPageState extends State<_MemberPageBody> {
           );
         },
         child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.cardBorderColor),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               SizedBox(
-                width: 104,
-                height: 108,
+                width: double.infinity,
+                height: 152,
                 child: photoUrl.isEmpty
                     ? ColoredBox(
                         color: theme.primaryColor.withValues(alpha: 0.1),
@@ -2170,7 +2220,7 @@ class _MemberPageState extends State<_MemberPageBody> {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2180,7 +2230,7 @@ class _MemberPageState extends State<_MemberPageBody> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: theme.textColor,
                         ),

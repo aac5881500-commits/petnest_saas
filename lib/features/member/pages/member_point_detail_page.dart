@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/member/widgets/member_shop_scope_label.dart';
 // 檔案名稱：lib/features/member/pages/member_point_detail_page.dart
 // 功能說明：會員店家點數詳細頁
 
@@ -13,6 +14,7 @@ import 'package:petnest_saas/core/services/point_platform_notice_store.dart';
 import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
 import 'package:petnest_saas/features/member/widgets/point_shop_notice_dialog.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
+import 'package:petnest_saas/core/widgets/shop_point_rules_link.dart';
 import 'package:petnest_saas/features/member/pages/point_exchange_page.dart';
 import 'package:petnest_saas/features/member/widgets/member_empty_state.dart';
 import 'package:petnest_saas/features/member/widgets/member_filter_chips.dart';
@@ -216,7 +218,17 @@ class _MemberPointDetailPageState extends State<_MemberPointDetailBody> {
                                 MemberUi.pagePadding,
                               ),
                               children: <Widget>[
+                                MemberShopScopeLabel(
+                                  shopId: widget.shopId,
+                                  shopName: widget.shopName,
+                                  note: '點數僅限此店使用，不與其他店家合併',
+                                ),
                                 _heroCard(point),
+                                ShopPointRulesLink(
+                                  shopId: widget.shopId,
+                                  shopName: widget.shopName,
+                                  theme: ShopFrontendTheme.of(context).home,
+                                ),
                                 const SizedBox(height: 12),
                                 PointModuleVisibility(
                                   shopId: widget.shopId,

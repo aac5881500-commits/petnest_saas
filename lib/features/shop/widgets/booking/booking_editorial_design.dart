@@ -198,14 +198,22 @@ class BookingEditorial {
       ),
     ),
   );
-  static Widget button(String label, VoidCallback? onPressed) => Builder(
+  static Widget button(
+    String label,
+    VoidCallback? onPressed, {
+    bool enabled = true,
+  }) => Builder(
     builder: (context) => SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: theme(context).primaryColor,
-          foregroundColor: Colors.white,
+          backgroundColor: enabled
+              ? theme(context).primaryColor
+              : theme(context).cardBorderColor,
+          foregroundColor: enabled
+              ? Colors.white
+              : theme(context).textColor.withValues(alpha: .4),
           disabledBackgroundColor: theme(context).cardBorderColor,
           minimumSize: const Size.fromHeight(48),
           elevation: 0,
@@ -223,7 +231,11 @@ class BookingEditorial {
           children: [
             Text(
               label,
-              style: title(19, context).copyWith(color: Colors.white),
+              style: title(19, context).copyWith(
+                color: enabled
+                    ? Colors.white
+                    : theme(context).textColor.withValues(alpha: .4),
+              ),
             ),
             const Icon(Icons.arrow_forward, size: 22),
           ],

@@ -5,6 +5,7 @@ import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 enum RoomOverviewFilter {
   all,
   needs,
+  housekeeping,
   checkedIn,
   vacant,
   inUse,
@@ -33,6 +34,8 @@ bool roomOverviewMatches({
   return switch (filter) {
     RoomOverviewFilter.all => true,
     RoomOverviewFilter.needs => needsAction,
+    RoomOverviewFilter.housekeeping =>
+      RoomStatusPresentation.countsAsHousekeepingTodo(status),
     RoomOverviewFilter.checkedIn =>
       status.label == RoomStatusPresentation.stayCheckedIn().label,
     RoomOverviewFilter.vacant =>
@@ -252,13 +255,17 @@ class RoomRecordWorkspaceLayout extends StatelessWidget {
     super.key,
     required this.calendar,
     required this.detail,
+    this.forceColumns = false,
   });
   final Widget calendar;
   final Widget detail;
+  final bool forceColumns;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      if (constraints.maxWidth >= 1000 && constraints.maxHeight >= 420) {
+      if ((forceColumns && constraints.maxWidth >= 650 ||
+              constraints.maxWidth >= 1000) &&
+          constraints.maxHeight >= 420) {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

@@ -1,3 +1,5 @@
+import 'package:petnest_saas/core/models/room_status_palette.dart';
+import 'package:petnest_saas/features/room/widgets/room_status_palette_editor.dart';
 // 檔案名稱：lib/features/room/pages/housekeeping_setting_page.dart
 // 功能說明：設定退房後是否自動將退房當日設為清潔中
 // 🧹 房務設定
@@ -21,6 +23,8 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
   bool _autoCleaningAfterCheckout = true;
   bool _loading = true;
   bool _saving = false;
+  bool _loadFailed = false;
+  RoomStatusPalette _roomStatusColors = RoomStatusPalette.defaults;
 
   @override
   void initState() {
@@ -37,6 +41,8 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
       if (!mounted) return;
 
       setState(() {
+        _roomStatusColors = setting.roomStatusColors;
+        _loadFailed = false;
         _autoCleaningAfterCheckout = setting.autoCleaningAfterCheckout;
         _loading = false;
       });
@@ -45,6 +51,7 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
 
       setState(() {
         _loading = false;
+        _loadFailed = true;
       });
 
       ScaffoldMessenger.of(
@@ -64,6 +71,7 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
       await HousekeepingSettingService.instance.saveSetting(
         shopId: widget.shopId,
         autoCleaningAfterCheckout: _autoCleaningAfterCheckout,
+        roomStatusColors: _roomStatusColors,
       );
 
       if (!mounted) return;
@@ -95,6 +103,22 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _loadFailed
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('房務設定讀取失敗，請重試後再編輯。'),
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _loading = true);
+                      _loadSetting();
+                    },
+                    child: const Text('重新載入'),
+                  ),
+                ],
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -127,6 +151,13 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
                             },
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                RoomStatusPaletteEditor(
+                  value: _roomStatusColors,
+                  enabled: !_saving,
+                  onChanged: (palette) =>
+                      setState(() => _roomStatusColors = palette),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(

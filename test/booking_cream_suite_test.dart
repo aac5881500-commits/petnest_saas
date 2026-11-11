@@ -55,10 +55,11 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(320, 740));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    const shopName = 'PetNest 測試旅館（請勿預約）';
     for (final child in [
-      const BookingArrivalPreview(appearance: suite),
-      const BookingServicePreview(appearance: suite),
-      const BookingConfirmationPreview(appearance: suite),
+      const BookingArrivalPreview(appearance: suite, shopName: shopName),
+      const BookingServicePreview(appearance: suite, shopName: shopName),
+      const BookingConfirmationPreview(appearance: suite, shopName: shopName),
     ]) {
       await tester.pumpWidget(
         MaterialApp(
@@ -72,6 +73,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text(shopName), findsOneWidget);
       expect(
         tester.takeException(),
         isNull,

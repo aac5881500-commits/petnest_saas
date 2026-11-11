@@ -98,6 +98,7 @@ class AdminBookingActionSection extends StatelessWidget {
     required this.onCheckIn,
     required this.onCheckOut,
     this.chrome = AdminBookingActionChrome.full,
+    this.compact = false,
   });
 
   final Map<String, dynamic> data;
@@ -113,6 +114,7 @@ class AdminBookingActionSection extends StatelessWidget {
   final Future<void> Function() onCheckIn;
   final Future<void> Function() onCheckOut;
   final AdminBookingActionChrome chrome;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +214,43 @@ class AdminBookingActionSection extends StatelessWidget {
       );
     }
 
+    if (compact && chrome == AdminBookingActionChrome.phoneInline) {
+      if (!flags.hasInline) return const SizedBox.shrink();
+      final InitialPaymentChoice choice =
+          BookingPaymentStatus.initialPaymentChoice(data);
+      return AdminBookingDetailCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (flags.pendingNotice)
+                    const Text(
+                      '確認訂單後即可安排房間',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  if (flags.assignNotice)
+                    const Text(
+                      '請先分房，再辦理入住',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  if (flags.confirmDeposit)
+                    Text(
+                      '${BookingPaymentLabels.method(data['paymentMethod'])}・${choice.typeLabel} NT\$ ${choice.amount}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                ],
+              ),
+            ),
+            if (flags.cancel) ...[const SizedBox(width: 8), cancelButton],
+          ],
+        ),
+      );
+    }
+
     if (chrome == AdminBookingActionChrome.phoneInline) {
       if (!flags.hasInline) {
         return const SizedBox.shrink();
@@ -293,9 +332,8 @@ class ManualPaymentConfirmSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final InitialPaymentChoice choice = BookingPaymentStatus.initialPaymentChoice(
-      data,
-    );
+    final InitialPaymentChoice choice =
+        BookingPaymentStatus.initialPaymentChoice(data);
     final List<String> lines = choice.confirmLines(
       BookingPaymentLabels.method(data['paymentMethod']),
     );
@@ -303,10 +341,7 @@ class ManualPaymentConfirmSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         for (final String line in lines)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Text(line),
-          ),
+          Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(line)),
       ],
     );
   }

@@ -75,7 +75,7 @@ const {
   commitSpendDeduct,
 } = require("../points/sync_booking_points");
 const {calculateDaycareSurcharge} = require("./special_date_surcharge");
-const {findBestDaycareCampaign} = require("./discount_campaign");
+const {findBestDaycareCampaign, campaignExplanationSnapshot} = require("./discount_campaign");
 const {
   attachTotalUsage,
   commitCampaignUsageReserve,
@@ -574,6 +574,7 @@ async function createDaycareBookingBody(params) {
       let discountAmount = 0;
       let discountCampaignId = "";
       let discountCampaignName = "";
+      let discountExplanation = null;
       if (surchargeCalc.allowCampaign) {
         const campSnap = await firestore.collection("shops").doc(shopId)
             .collection("discount_campaigns")
@@ -636,21 +637,22 @@ async function createDaycareBookingBody(params) {
             overtimeAmount: 0,
             manualAdjust: 0,
           }).timeCharge, 0);
-        const best = findBestDaycareCampaign({
-          campaigns,
-          input: {
-            checkInDate: startAt,
-            checkOutDate: new Date(startAt.getTime() + 24 * 60 * 60 * 1000),
-            roomTypeId: roomBased ? requestedRoomTypeId : normalizeString(plan.id),
-            roomAmount: planAmount + surchargeAmount,
-            petAmount: 0,
-            extraServiceAmount: addonAmount,
-            isFirstBooking,
-            memberJoinedAt,
-            memberCampaignUsage,
-          },
-        });
+        const campaignInput = {
+          checkInDate: startAt,
+          checkOutDate: new Date(startAt.getTime() + 24 * 60 * 60 * 1000),
+          roomTypeId: roomBased ? requestedRoomTypeId : normalizeString(plan.id),
+          roomAmount: planAmount + surchargeAmount,
+          petAmount: 0,
+          extraServiceAmount: addonAmount,
+          isFirstBooking,
+          memberJoinedAt,
+          memberCampaignUsage,
+        };
+        const best = findBestDaycareCampaign({campaigns, input: campaignInput});
         if (best) {
+          discountExplanation = campaignExplanationSnapshot(
+              best.campaign, campaignInput,
+          );
           discountAmount = best.discountAmount;
           discountCampaignId = best.campaign.id;
           discountCampaignName = normalizeString(best.campaign.name);
@@ -1169,6 +1171,7 @@ async function createDaycareBookingBody(params) {
             discountAmount: computed.discountAmount,
             discountCampaignId,
             discountCampaignName,
+            ...(discountExplanation ? {discountExplanation} : {}),
             couponId,
             couponName,
             couponDiscountAmount: computed.couponAmount,

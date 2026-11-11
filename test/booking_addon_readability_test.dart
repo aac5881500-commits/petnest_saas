@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/models/booking_page_appearance.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addon_section.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_appearance_scope.dart';
 
 Map<String, dynamic> data() => {
   'enabled': true,
@@ -142,6 +144,56 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  for (final style in ['cream', 'editorial']) {
+    testWidgets(
+      '$style daily slot taps stay stable and blank taps keep choices',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(390, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final daily = <String, Map<String, Map<String, List<String>>>>{};
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) => SingleChildScrollView(
+                  child: BookingAppearanceScope(
+                    appearance: BookingPageAppearance(
+                      style: style,
+                      serviceStyle: style,
+                    ),
+                    child: content(
+                      daily: daily,
+                      changed: () => setState(() {}),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.widgetWithText(FilterChip, '奶茶').last);
+        await tester.pumpAndSettle();
+        final first = find.widgetWithText(FilterChip, '10:00').first;
+        final second = find.widgetWithText(FilterChip, '16:00').first;
+        final secondPosition = tester.getCenter(second);
+        await tester.tap(first);
+        await tester.pumpAndSettle();
+        expect(tester.getCenter(second), secondPosition);
+        await tester.tapAt(secondPosition);
+        await tester.pumpAndSettle();
+        await tester.tapAt(Offset(20, secondPosition.dy));
+        await tester.pumpAndSettle();
+        expect(daily['play']?['p1']?['2026-11-04'], ['am', 'pm']);
+        expect(tester.widget<FilterChip>(first).selected, isTrue);
+        expect(tester.widget<FilterChip>(second).selected, isTrue);
+
+        await tester.tap(find.byType(Checkbox).last);
+        await tester.pumpAndSettle();
+        expect(daily, isEmpty);
+      },
+    );
+  }
+
   testWidgets('render expanded add-on content', (tester) async {
     final output = Platform.environment['BOOKING_ADDON_READABLE_OUTPUT'];
     if (output == null) return;

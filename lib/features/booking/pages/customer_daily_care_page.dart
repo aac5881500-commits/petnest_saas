@@ -8,6 +8,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/daily_care_medication_summary.dart';
 
 import '../../../core/constants/shop_permission_keys.dart';
 import '../../../core/models/booking_kind.dart';
@@ -573,9 +574,16 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
   }) {
     final bool photosOn =
         setting.photoEnabled && setting.journalDisplay.showPhotoSection;
-    final Widget footer = _journalServiceRow(
-      setting: setting,
-      bookingData: bookingData,
+    final Widget footer = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (record?.countsAsCompleted == true && !widget.previewMode)
+          DailyCareMedicationSummary(
+            booking: bookingData,
+            dateKey: selectedDateKey,
+          ),
+        _journalServiceRow(setting: setting, bookingData: bookingData),
+      ],
     );
     if (!photosOn) {
       return DailyCareJournalRenderer(

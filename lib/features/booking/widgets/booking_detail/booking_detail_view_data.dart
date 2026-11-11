@@ -1,3 +1,4 @@
+import 'booking_detail_explanations.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_view_data.dart
 // 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
@@ -591,7 +592,17 @@ class BookingDetailViewData {
     return isIndependentDaycare && status != 'completed';
   }
 
-  String get totalAmountLabel => showEstimateLabel ? '暫估金額' : '訂單總額';
+  int get pendingMedicationEstimate =>
+      BookingSettlementMath.pendingMedicationEstimate(raw);
+
+  int get displayOrderTotal =>
+      BookingSettlementMath.orderDisplayTotal(raw, totalAmount);
+
+  String get totalAmountLabel => pendingMedicationEstimate > 0
+      ? '預估總額（含用藥）'
+      : showEstimateLabel
+      ? '暫估金額'
+      : '訂單總額';
 
   String get daycareBillingRuleText {
     if (!isDaycare) {
@@ -974,14 +985,16 @@ class BookingDetailViewData {
         return '待退款處理';
       }
     }
-    if (depositAmount <= 0 ||
+    if ((depositAmount <= 0 && payAmountType != 'full') ||
         (isDaycare && !BookingPaymentStatus.requiresUpfrontPayment(raw))) {
       return '不需訂金，服務完成後結算尾款';
     }
     if (BookingPaymentStatus.isDepositConfirmed(raw)) {
       return '訂金已付，結算尾款待服務結束';
     }
-    return '尚需付款 NT\$ $remainingAmount';
+    if (dueNowAmount <= 0) return '本次無待付款';
+    final label = showDepositDue ? '本次應付訂金' : '本次應付';
+    return '$label NT\$ $dueNowAmount';
   }
 
   bool get stayDataComplete =>
@@ -1093,6 +1106,43 @@ class BookingDetailViewData {
     return sum;
   }
 
+  String _daycareFeeExplanation(BookingSettlementDisplayLine line) {
+    if (line.isDiscount && line.label == campaignLabel) {
+      return campaignExplanation(raw);
+    }
+    if (line.label == '退房追加費用') return _extraChargeExplanation;
+    if (line.isDiscount || line.isTotal || line.isReference) {
+      return line.subtitle;
+    }
+    for (final addon in BookingDetailParse.parseMapList(raw['addons'])) {
+      final amount = BookingDetailParse.parseMoney(
+        addon['amount'] ?? addon['total'],
+      );
+      if (addon['name'] != line.label || line.amount != amount) continue;
+      final detail = addonExplanation(addon, pets);
+      return [
+        line.subtitle,
+        detail,
+      ].where((text) => text.isNotEmpty).toSet().join(' ・ ');
+    }
+    return line.subtitle;
+  }
+
+  String get _extraChargeExplanation => extraCharges
+      .map((item) {
+        final label = BookingDetailParse.parseString(
+          item['title'] ?? item['name'],
+        );
+        final amount = BookingDetailParse.parseMoney(item['amount']);
+        return '${label.isEmpty ? '追加項目' : label}：NT\$ $amount';
+      })
+      .join('\n');
+
+  String get campaignLabel {
+    final name = BookingDetailParse.parseString(raw['discountCampaignName']);
+    return name.isEmpty ? '優惠活動折扣' : name;
+  }
+
   List<BookingDetailFeeLine> get feeLines {
     final List<BookingDetailFeeLine> lines = <BookingDetailFeeLine>[];
 
@@ -1132,7 +1182,7 @@ class BookingDetailViewData {
           BookingDetailFeeLine(
             label: line.label,
             amount: line.amount,
-            subtitle: line.subtitle,
+            subtitle: _daycareFeeExplanation(line),
             isDiscount: line.isDiscount,
             isTotal: line.isTotal,
             isReference: line.isReference,
@@ -1147,7 +1197,9 @@ class BookingDetailViewData {
     addLine(
       label: '房費',
       amount: room > 0 ? room : base * nightCount,
-      subtitle: '$nightCount 晚',
+      subtitle: base > 0 && (room == 0 || base * nightCount == room)
+          ? '每晚 NT\$ $base × $nightCount 晚'
+          : '$nightCount 晚住宿，依預約時的房費計算',
     );
     addLine(
       label: '多寵物加價',
@@ -1156,6 +1208,9 @@ class BookingDetailViewData {
           : BookingDetailParse.parseMoney(raw['extraPetPrice']) *
                 BookingDetailParse.parseMoney(raw['extraPetCount']) *
                 nightCount,
+      subtitle: BookingDetailParse.parseMoney(raw['extraPetCount']) > 0
+          ? '${BookingDetailParse.parseMoney(raw['extraPetCount'])} 隻加收 × $nightCount 晚'
+          : '依預約時的多寵物收費計算',
     );
 
     for (final Map<String, dynamic> addon in BookingDetailParse.parseMapList(
@@ -1183,7 +1238,7 @@ class BookingDetailViewData {
         amount: total > 0
             ? total
             : BookingDetailParse.parseMoney(addon['amount']),
-        subtitle: _addonSubtitle(addon, count),
+        subtitle: addonExplanation(addon, pets),
       );
     }
 
@@ -1196,9 +1251,8 @@ class BookingDetailViewData {
       );
     }
     addLine(
-      label: BookingDetailParse.parseString(raw['discountCampaignName']).isEmpty
-          ? '優惠活動折扣'
-          : BookingDetailParse.parseString(raw['discountCampaignName']),
+      label: campaignLabel,
+      subtitle: campaignExplanation(raw),
       amount: BookingDetailParse.parseMoney(raw['discountAmount']),
       isDiscount: true,
     );
@@ -1206,18 +1260,32 @@ class BookingDetailViewData {
       label: BookingDetailParse.parseString(raw['couponName']).isEmpty
           ? '優惠券折扣'
           : BookingDetailParse.parseString(raw['couponName']),
+      subtitle: '下單時使用的優惠券折抵',
       amount: BookingDetailParse.parseMoney(raw['couponDiscountAmount']),
       isDiscount: true,
     );
     addLine(
       label: '點數折抵',
+      subtitle: pointsUsedCount > 0 ? '使用 $pointsUsedCount 點' : '依下單時的點數折抵紀錄',
       amount: BookingDetailParse.parseMoney(
         raw['pointAmount'] ?? raw['pointsDiscountAmount'],
       ),
       isDiscount: true,
     );
+    if (pendingMedicationEstimate > 0) {
+      addLine(
+        label: '用藥預估',
+        amount: pendingMedicationEstimate,
+        subtitle: BookingSettlementMath.advanceMedicationAmount(raw) > 0
+            ? '已列入預約應付金額，退房依實際結果調整' : '退房時依實際執行結果收費',
+      );
+    }
     if (hasExtraCharges) {
-      addLine(label: '退房追加費用', amount: extraChargesTotal);
+      addLine(
+        label: '退房追加費用',
+        amount: extraChargesTotal,
+        subtitle: _extraChargeExplanation,
+      );
     }
     final int manual = SettlementAdjustDisplay.amountOf(raw);
     if (BookingSettlementMath.isSettlementConfirmed(raw) && manual != 0) {
@@ -1234,26 +1302,16 @@ class BookingDetailViewData {
       BookingDetailFeeLine(
         label: BookingSettlementMath.isSettlementConfirmed(raw)
             ? '最終結算應付'
-            : (showEstimateLabel ? '暫估總額' : '最終總額'),
+            : (showEstimateLabel || pendingMedicationEstimate > 0
+                  ? '預估總額'
+                  : '最終總額'),
         amount: BookingSettlementMath.isSettlementConfirmed(raw)
             ? BookingSettlementMath.expectedTotal(data: raw)
-            : totalAmount,
+            : displayOrderTotal,
         isTotal: true,
       ),
     );
     return lines;
-  }
-
-  String _addonSubtitle(Map<String, dynamic> addon, int count) {
-    final List<String> parts = <String>[];
-    if (count > 1) {
-      parts.add('x$count');
-    }
-    final List<dynamic> dates = BookingDetailParse.parseList(addon['dates']);
-    if (dates.isNotEmpty) {
-      parts.add('${dates.length} 日');
-    }
-    return parts.join(' ・ ');
   }
 
   List<BookingDetailTimelineItem> get timeline {

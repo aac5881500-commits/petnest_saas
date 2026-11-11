@@ -116,10 +116,11 @@ class PreArrivalGuideService {
       throw const PreArrivalGuideException('服務類型不正確');
     }
 
-    await _doc(
-      shopId: guide.shopId,
-      serviceType: guide.serviceType,
-    ).set(guide.toMap(updatedBy: user.uid), SetOptions(merge: true));
+    await _doc(shopId: guide.shopId, serviceType: guide.serviceType).set({
+      ...guide.toStorageMap(updatedBy: user.uid),
+      'style': FieldValue.delete(),
+      'appearance': FieldValue.delete(),
+    }, SetOptions(merge: true));
   }
 
   Future<XFile?> pickImage() async {

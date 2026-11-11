@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/booking/widgets/pre_arrival_shortcut_cards.dart';
 import 'package:petnest_saas/core/services/member_identity.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_entry_access_error.dart';
 import 'dart:async';
@@ -490,6 +491,12 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             ),
                           ),
 
+                        if (!widget.platformPreview &&
+                            !widget.embeddedInDashboard)
+                          PreArrivalShortcutCards(
+                            shopId: widget.shopId,
+                            theme: classicTheme,
+                          ),
                         if (banners.isNotEmpty) const SizedBox(height: 20),
 
                         if (isFreeMode) ...[

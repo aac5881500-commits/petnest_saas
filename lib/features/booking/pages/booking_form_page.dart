@@ -1,3 +1,6 @@
+import '../widgets/booking_form_presentation.dart';
+import 'package:petnest_saas/core/models/booking_page_appearance.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_editorial_design.dart';
 // 檔案名稱：lib/features/booking/pages/booking_form_page.dart
 // 功能說明：預約資料填寫頁（條款確認＋暖色卡片版）
 
@@ -48,6 +51,7 @@ class BookingFormPage extends StatefulWidget {
     required this.canSubmit,
     required this.isBlacklisted,
     required this.totalPrice,
+    this.advanceMedicationAmount = 0,
     this.originalTotal = 0,
     this.discountAmount = 0,
     this.discountCampaignName = '',
@@ -59,6 +63,9 @@ class BookingFormPage extends StatefulWidget {
     this.daycareDepositType,
     this.daycareDepositValue = 0,
     this.theme = HomeThemeModel.classicDefault,
+    this.appearance,
+    this.frontendTheme,
+    this.shopName = '',
     this.termsServiceType = PolicyApplicableService.accommodation,
     this.feeLineItems = const <BookingFeeLineItem>[],
     this.skipRemoteLoads = false,
@@ -71,6 +78,9 @@ class BookingFormPage extends StatefulWidget {
     this.selectedPets = const <Map<String, dynamic>>[],
   });
 
+  final BookingPageAppearance? appearance;
+  final HomeThemeModel? frontendTheme;
+  final String shopName;
   final GlobalKey<FormState> formKey;
   final TextEditingController customerNameController;
   final TextEditingController customerPhoneController;
@@ -87,6 +97,7 @@ class BookingFormPage extends StatefulWidget {
   final bool canSubmit;
   final bool isBlacklisted;
   final int totalPrice;
+  final int advanceMedicationAmount;
   final int originalTotal;
   final int discountAmount;
   final String discountCampaignName;
@@ -725,7 +736,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     final bool? confirmed = await showTermsConfirmationSheet(
       context: context,
       shopId: widget.shopId,
-      theme: widget.theme,
+      theme: _formTheme,
       serviceType: widget.termsServiceType,
     );
     if (confirmed == true) {
@@ -733,23 +744,38 @@ class _BookingFormPageState extends State<BookingFormPage> {
     }
   }
 
+  HomeThemeModel get _formTheme => BookingFormPresentation.resolve(
+    widget.appearance,
+    widget.theme,
+    widget.frontendTheme,
+  );
+  bool get _suiteStyled => BookingFormPresentation.enabled(widget.appearance);
+
   InputDecoration _filledDecoration(String label, {String? hint}) {
+    if (_suiteStyled) {
+      return BookingFormPresentation.field(
+        widget.appearance!,
+        _formTheme,
+        label,
+        hint: hint,
+      );
+    }
     return InputDecoration(
       labelText: label,
       hintText: hint,
       filled: true,
-      fillColor: widget.theme.cardColor,
+      fillColor: _formTheme.cardColor,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: widget.theme.cardBorderColor),
+        borderSide: BorderSide(color: _formTheme.cardBorderColor),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: widget.theme.cardBorderColor),
+        borderSide: BorderSide(color: _formTheme.cardBorderColor),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: widget.theme.primaryColor, width: 1.4),
+        borderSide: BorderSide(color: _formTheme.primaryColor, width: 1.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     );
@@ -780,7 +806,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
               children: <Widget>[
                 Text(
                   '表單載入失敗，請重試',
-                  style: TextStyle(color: widget.theme.textColor),
+                  style: TextStyle(color: _formTheme.textColor),
                 ),
                 TextButton(onPressed: _loadCustomForm, child: const Text('重試')),
               ],
@@ -818,7 +844,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       orderAnswers: _customAnswers,
       petAnswersByPetId: _petCustomAnswers,
       pets: widget.selectedPets,
-      theme: widget.theme,
+      theme: _formTheme,
       sectionKey: _customFormSectionKey,
       fieldKeys: _customQuestionKeys,
       onOrderChanged: (Map<String, dynamic> next) {
@@ -840,8 +866,15 @@ class _BookingFormPageState extends State<BookingFormPage> {
     String? subtitle,
     required List<Widget> children,
   }) {
+    if (_suiteStyled) {
+      return BookingFormSection(
+        title: title,
+        subtitle: subtitle,
+        children: children,
+      );
+    }
     return BookingThemedCard(
-      theme: widget.theme,
+      theme: _formTheme,
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -852,7 +885,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: widget.theme.textColor,
+              color: _formTheme.textColor,
             ),
           ),
           if (subtitle != null) ...<Widget>[
@@ -861,7 +894,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
               subtitle,
               style: TextStyle(
                 fontSize: 12,
-                color: widget.theme.textColor.withValues(alpha: 0.62),
+                color: _formTheme.textColor.withValues(alpha: 0.62),
               ),
             ),
           ],
@@ -888,13 +921,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
           child: Ink(
             decoration: BoxDecoration(
               color: selected
-                  ? widget.theme.primaryColor.withValues(alpha: 0.08)
-                  : widget.theme.cardColor,
+                  ? _formTheme.primaryColor.withValues(alpha: 0.08)
+                  : _formTheme.cardColor,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: selected
-                    ? widget.theme.primaryColor
-                    : widget.theme.cardBorderColor,
+                    ? _formTheme.primaryColor
+                    : _formTheme.cardBorderColor,
                 width: selected ? 1.6 : 1,
               ),
             ),
@@ -912,8 +945,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
                           ? Icons.radio_button_checked
                           : Icons.radio_button_off,
                       color: selected
-                          ? widget.theme.primaryColor
-                          : widget.theme.textColor.withValues(alpha: 0.45),
+                          ? _formTheme.primaryColor
+                          : _formTheme.textColor.withValues(alpha: 0.45),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -925,7 +958,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: widget.theme.textColor,
+                              color: _formTheme.textColor,
                             ),
                           ),
                           if (subtitle != null) ...<Widget>[
@@ -934,7 +967,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                               subtitle,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: widget.theme.textColor.withValues(
+                                color: _formTheme.textColor.withValues(
                                   alpha: 0.62,
                                 ),
                               ),
@@ -1474,7 +1507,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
               style: TextStyle(
                 fontSize: 13,
                 height: 1.4,
-                color: widget.theme.textColor.withValues(alpha: 0.75),
+                color: _formTheme.textColor.withValues(alpha: 0.75),
               ),
             ),
           );
@@ -1487,7 +1520,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
               widget.feeSummaryTitle,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: widget.theme.textColor,
+                color: _formTheme.textColor,
               ),
             ),
           rule,
@@ -1507,7 +1540,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
             widget.feeSummaryTitle,
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: widget.theme.textColor,
+              color: _formTheme.textColor,
             ),
           ),
         rule,
@@ -1538,10 +1571,10 @@ class _BookingFormPageState extends State<BookingFormPage> {
       fontSize: isPayable || isTotal ? 15 : 14,
       fontWeight: isPayable || isTotal ? FontWeight.w700 : FontWeight.w500,
       color: isDiscount
-          ? widget.theme.primaryColor
+          ? _formTheme.primaryColor
           : isPayable
-          ? widget.theme.primaryColor
-          : widget.theme.textColor,
+          ? _formTheme.primaryColor
+          : _formTheme.textColor,
     );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1559,7 +1592,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                     style: style.copyWith(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
-                      color: widget.theme.textColor.withValues(alpha: 0.65),
+                      color: _formTheme.textColor.withValues(alpha: 0.65),
                     ),
                   ),
               ],
@@ -1576,7 +1609,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     final User? user = _currentAuthUser();
     final int depositBasePrice = _depositBase == 'room'
         ? widget.roomPrice
-        : widget.totalPrice;
+        : widget.totalPrice - widget.advanceMedicationAmount;
     final int rawCalculatedDeposit;
     if (widget.depositOverrideAmount != null) {
       rawCalculatedDeposit = widget.depositOverrideAmount!;
@@ -1584,7 +1617,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       rawCalculatedDeposit = _depositEnabled
           ? (_depositRate > 0
                 ? (depositBasePrice * _depositRate).round()
-                : _depositAmount)
+                : _depositAmount) + widget.advanceMedicationAmount
           : 0;
     }
     final int calculatedDeposit = rawCalculatedDeposit > widget.totalPrice
@@ -1606,11 +1639,11 @@ class _BookingFormPageState extends State<BookingFormPage> {
         termsReady &&
         submitHint.isEmpty;
 
-    return Scaffold(
-      backgroundColor: widget.theme.backgroundColor,
+    final page = Scaffold(
+      backgroundColor: _formTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: widget.theme.backgroundColor,
-        foregroundColor: widget.theme.textColor,
+        backgroundColor: _formTheme.backgroundColor,
+        foregroundColor: _formTheme.textColor,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: const Text(
@@ -1626,6 +1659,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              if (_suiteStyled) BookingFormIntro(shopName: widget.shopName),
               _sectionCard(
                 title: '聯絡資料',
                 children: <Widget>[
@@ -1636,14 +1670,14 @@ class _BookingFormPageState extends State<BookingFormPage> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: widget.theme.backgroundColor,
+                      color: _formTheme.backgroundColor,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Text(
                       'Email：${user?.email ?? ''}',
                       style: TextStyle(
                         fontSize: 13,
-                        color: widget.theme.textColor.withValues(alpha: 0.62),
+                        color: _formTheme.textColor.withValues(alpha: 0.62),
                       ),
                     ),
                   ),
@@ -1772,7 +1806,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('同聯絡地址'),
                     value: _sameAddress,
-                    activeColor: widget.theme.primaryColor,
+                    activeColor: _formTheme.primaryColor,
                     onChanged: (bool? value) {
                       setState(() {
                         _sameAddress = value ?? false;
@@ -1821,7 +1855,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                         children: <Widget>[
                           Text(
                             '付款方式載入失敗',
-                            style: TextStyle(color: widget.theme.primaryColor),
+                            style: TextStyle(color: _formTheme.primaryColor),
                           ),
                           TextButton(
                             onPressed: () {
@@ -1843,7 +1877,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: widget.theme.textColor,
+                        color: _formTheme.textColor,
                       ),
                     ),
                     _choiceCard(
@@ -1864,7 +1898,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: widget.theme.textColor,
+                      color: _formTheme.textColor,
                     ),
                   ),
                   if (_paymentSettingsLoaded && _paymentLoadError == null)
@@ -1890,7 +1924,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                     children: <Widget>[
                       Text(
                         '條款載入失敗',
-                        style: TextStyle(color: widget.theme.textColor),
+                        style: TextStyle(color: _formTheme.textColor),
                       ),
                       TextButton(
                         onPressed: () {
@@ -1907,7 +1941,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 )
               else if (_termsStatus != null)
                 TermsConfirmationCard(
-                  theme: widget.theme,
+                  theme: _formTheme,
                   serviceType: widget.termsServiceType,
                   status: _termsStatus!,
                   onTap: _openTermsSheet,
@@ -1918,17 +1952,35 @@ class _BookingFormPageState extends State<BookingFormPage> {
         ),
       ),
       bottomNavigationBar: BookingStickyBar(
-        theme: widget.theme,
+        theme: _formTheme,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            if (_suiteStyled)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Builder(
+                  builder: (context) => Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 16,
+                    runSpacing: 5,
+                    children: [
+                      Text('本次應付', style: BookingEditorial.body(14, context)),
+                      Text(
+                        'NT\$ $payableAmount',
+                        style: BookingEditorial.title(24, context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (submitHint.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   submitHint,
                   style: TextStyle(
-                    color: widget.theme.primaryColor,
+                    color: _formTheme.primaryColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1938,7 +1990,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 if (widget.showStepBackButton) ...<Widget>[
                   Expanded(
                     child: BookingStepBackButton(
-                      theme: widget.theme,
+                      theme: _formTheme,
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
@@ -1946,7 +1998,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 ],
                 Expanded(
                   child: BookingPrimaryButton(
-                    theme: widget.theme,
+                    theme: _formTheme,
                     label: widget.submitLabel,
                     enabled: canPressSubmit,
                     onPressed: () {
@@ -1979,5 +2031,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
         ),
       ),
     );
+    return _suiteStyled
+        ? BookingFormSurface(
+            appearance: widget.appearance!,
+            frontendTheme: widget.frontendTheme,
+            theme: _formTheme,
+            child: page,
+          )
+        : page;
   }
 }

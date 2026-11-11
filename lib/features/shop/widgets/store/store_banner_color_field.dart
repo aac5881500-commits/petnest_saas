@@ -173,7 +173,9 @@ class _StoreBannerColorPickerDialogState
     super.initState();
     _hsv = HSVColor.fromColor(widget.initial);
     _hex = TextEditingController(
-      text: StoreBannerColorCodec.hexOf(widget.initial.toARGB32()),
+      text: widget.compare
+          ? _hexLabel(widget.initial.toARGB32())
+          : StoreBannerColorCodec.hexOf(widget.initial.toARGB32()),
     );
   }
 
@@ -230,6 +232,7 @@ class _StoreBannerColorPickerDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text(widget.compare ? '自訂顏色' : '選擇顏色'),
       content: SizedBox(
         width: 320,
@@ -277,38 +280,39 @@ class _StoreBannerColorPickerDialogState
               ),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 22,
-              child: LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  return GestureDetector(
-                    onPanDown: (DragDownDetails details) {
-                      _fromHue(details.localPosition.dx, constraints.maxWidth);
-                    },
-                    onPanUpdate: (DragUpdateDetails details) {
-                      _fromHue(details.localPosition.dx, constraints.maxWidth);
-                    },
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        gradient: const LinearGradient(
-                          colors: <Color>[
-                            Color(0xFFFF0000),
-                            Color(0xFFFFFF00),
-                            Color(0xFF00FF00),
-                            Color(0xFF00FFFF),
-                            Color(0xFF0000FF),
-                            Color(0xFFFF00FF),
-                            Color(0xFFFF0000),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text('色相'),
             ),
-            const SizedBox(height: 12),
+            _hueSlider(),
+            if (widget.compare) ...[
+              const Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text('常用色票'),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final swatch in [
+                    ...StoreBannerCommonColors.swatches,
+                    (id: 'yellow', label: '黃', argb: 0xFFFBC02D),
+                    (id: 'cyan', label: '青', argb: 0xFF00ACC1),
+                    (id: 'purple', label: '紫', argb: 0xFF8E24AA),
+                    (id: 'gray', label: '灰', argb: 0xFF757575),
+                  ])
+                    _ColorDot(
+                      color: Color(swatch.argb),
+                      label: swatch.label,
+                      selected: _color.toARGB32() == swatch.argb,
+                      onTap: () =>
+                          _setHsv(HSVColor.fromColor(Color(swatch.argb))),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ],
             if (widget.compare)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -383,9 +387,6 @@ class _StoreBannerColorPickerDialogState
         ),
         FilledButton(
           onPressed: () {
-            if (widget.compare && _hexError != null) {
-              return;
-            }
             if (widget.compare) {
               _applyHex(_hex.text);
               if (_hexError != null) {
@@ -414,7 +415,7 @@ class _StoreBannerColorPickerDialogState
             ),
           ),
           const SizedBox(width: 8),
-          Text(label),
+          Flexible(child: Text(label)),
         ],
       ),
     );
@@ -431,11 +432,55 @@ class _StoreBannerColorPickerDialogState
     );
   }
 
-  void _fromHue(double dx, double width) {
-    if (width <= 0) {
-      return;
-    }
-    _setHsv(_hsv.withHue(((dx / width).clamp(0.0, 1.0) * 360) % 360));
+  Widget _hueSlider() {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+                gradient: LinearGradient(
+                  begin: AlignmentDirectional.centerStart,
+                  end: AlignmentDirectional.centerEnd,
+                  colors: [
+                    Color(0xFFFF0000),
+                    Color(0xFFFFFF00),
+                    Color(0xFF00FF00),
+                    Color(0xFF00FFFF),
+                    Color(0xFF0000FF),
+                    Color(0xFFFF00FF),
+                    Color(0xFFFF0000),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Colors.transparent,
+              inactiveTrackColor: Colors.transparent,
+              thumbColor: Colors.white,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+            ),
+            child: Semantics(
+              label: '色相',
+              child: Slider(
+                max: 360,
+                value: _hsv.hue,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                semanticFormatterCallback: (value) => '${value.round()} 度',
+                onChanged: (value) => _setHsv(_hsv.withHue(value)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

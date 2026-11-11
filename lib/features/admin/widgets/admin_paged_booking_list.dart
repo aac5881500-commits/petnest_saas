@@ -10,10 +10,8 @@ import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/services/booking_list_query_service.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_daycare_booking_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_daycare_detail_page.dart';
-import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_search_bar.dart';
-import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 
 const double bookingListMaxWidth = 1400;
@@ -41,7 +39,6 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
   final TextEditingController _searchController = TextEditingController();
   late String _filter;
   String _keyword = '';
-  String _sortType = 'createdDesc';
   Timer? _searchDebounce;
   Timer? _countsDebounce;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _live;
@@ -340,37 +337,15 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
       onChanged: _onSearch,
       margin: const EdgeInsets.only(right: 8),
     );
-    final Widget tools = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        BookingAdvancedFilterButton(
-          onTap: () {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('此功能將於後續版本提供')));
-          },
-        ),
-        BookingSortBar(
-          totalCount: _docs.length,
-          sortType: _sortType,
-          isGridMode: false,
-          daycareLabels: _isDaycare,
-          showCount: false,
-          onSortChanged: (String value) {
-            setState(() => _sortType = value);
-          },
-          onToggleViewMode: () {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('格子檢視之後再開放')));
-          },
-        ),
-      ],
+    final Widget tools = IconButton.filledTonal(
+      tooltip: '重新整理訂單',
+      onPressed: _loading ? null : () => unawaited(_reload()),
+      icon: const Icon(Icons.refresh_rounded, size: 20),
     );
     if (!wide) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        child: Align(alignment: Alignment.centerLeft, child: tools),
+        child: Align(alignment: Alignment.centerRight, child: tools),
       );
     }
     return Padding(
@@ -588,6 +563,7 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
 
   Widget _filterBar() {
     return BookingStatusFilter(
+      grouped: true,
       selectedType: _filter,
       counts: _counts,
       countsIncomplete: _countError != null,

@@ -57,6 +57,8 @@ class BookingDetailFinanceSection extends StatefulWidget {
     required this.onDeleteTransferImage,
     required this.onPayOnline,
     this.onChangePayment,
+    this.showFeeDetailsInitially = false,
+    this.onOpenServices,
   });
 
   final BookingDetailViewData view;
@@ -70,6 +72,8 @@ class BookingDetailFinanceSection extends StatefulWidget {
   final void Function(String imageUrl) onDeleteTransferImage;
   final VoidCallback onPayOnline;
   final VoidCallback? onChangePayment;
+  final bool showFeeDetailsInitially;
+  final VoidCallback? onOpenServices;
 
   @override
   State<BookingDetailFinanceSection> createState() =>
@@ -78,24 +82,59 @@ class BookingDetailFinanceSection extends StatefulWidget {
 
 class _BookingDetailFinanceSectionState
     extends State<BookingDetailFinanceSection> {
-  bool _detailsOpen = true;
+  late bool _detailsOpen = widget.showFeeDetailsInitially;
   bool _paymentsOpen = false;
   bool _extraOpen = false;
 
   @override
   Widget build(BuildContext context) {
     final BookingDetailViewData view = widget.view;
-    return BookingDetailCard(
+    final medication = SafeParse.parseMap(view.raw['medication']);
+    final legacyRequest = SafeParse.parseMap(view.raw['medicationRequest']);
+    final activeMedication = ![
+      'declined',
+      'cancelled',
+    ].contains(medication['state']);
+    final hasMedication = medication.isNotEmpty || legacyRequest.isNotEmpty;
+    final payment = BookingDetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const BookingDetailSectionTitle('費用與付款'),
+          const BookingDetailSectionTitle('付款資訊'),
           const SizedBox(height: 12),
-          _kv(
-            view.totalAmountLabel,
-            'NT\$ ${view.totalAmount}',
-            emphasize: true,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: BookingDetailUi.of(
+                context,
+              ).iconSoft.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  view.totalAmountLabel,
+                  style: TextStyle(
+                    fontSize: BookingDetailUi.captionSize,
+                    color: BookingDetailUi.of(context).muted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'NT\$ ${view.displayOrderTotal}',
+                  style: TextStyle(
+                    fontSize: 30,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    color: BookingDetailUi.of(context).text,
+                  ),
+                ),
+              ],
+            ),
           ),
+          const SizedBox(height: 16),
           if (view.daycareBillingRuleText.isNotEmpty) ...<Widget>[
             const SizedBox(height: 4),
             Text(
@@ -111,7 +150,7 @@ class _BookingDetailFinanceSectionState
           if (view.showDepositDue)
             _kv(
               '本次應付訂金',
-              'NT\$ ${view.depositAmount}',
+              'NT\$ ${view.dueNowAmount}',
               valueColor: BookingDetailUi.of(context).primary,
             )
           else if (view.payAmountType == 'full' &&
@@ -177,6 +216,18 @@ class _BookingDetailFinanceSectionState
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: BookingDetailUi.of(context).text,
+                  minimumSize: const Size(0, 48),
+                  side: BorderSide(
+                    color: BookingDetailUi.of(
+                      context,
+                    ).border.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
                 onPressed: widget.loading ? null : widget.onChangePayment,
                 icon: const Icon(Icons.swap_horiz),
                 label: const Text('變更付款方式／付款金額'),
@@ -286,17 +337,6 @@ class _BookingDetailFinanceSectionState
               ),
             ],
           ],
-          const SizedBox(height: 8),
-          _toggle(
-            title: '查看費用明細',
-            open: _detailsOpen,
-            onTap: () {
-              setState(() {
-                _detailsOpen = !_detailsOpen;
-              });
-            },
-          ),
-          if (_detailsOpen) _feeDetails(view),
           _toggle(
             title: '付款紀錄',
             open: _paymentsOpen,
@@ -322,6 +362,63 @@ class _BookingDetailFinanceSectionState
         ],
       ),
     );
+    final receipt = BookingDetailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const BookingDetailSectionTitle('費用明細'),
+          const SizedBox(height: 8),
+          _toggle(
+            title: _detailsOpen ? '收起明細' : '展開明細',
+            open: _detailsOpen,
+            onTap: () {
+              setState(() {
+                _detailsOpen = !_detailsOpen;
+              });
+            },
+          ),
+          if (_detailsOpen) ...[
+            _feeDetails(view),
+            if (hasMedication) ...[
+              const Divider(height: 22),
+              Text(
+                _medicationFeeNote(medication, activeMedication),
+                style: TextStyle(
+                  color: BookingDetailUi.of(context).text,
+                  height: 1.5,
+                ),
+              ),
+            ],
+            if (widget.onOpenServices != null &&
+                (hasMedication ||
+                    SafeParse.parseMapList(view.raw['addons']).isNotEmpty))
+              TextButton.icon(
+                onPressed: widget.onOpenServices,
+                icon: const Icon(Icons.event_note_outlined),
+                label: const Text('查看各寵物的服務、時段與用藥'),
+              ),
+          ],
+        ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 780) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [payment, receipt],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 6, child: receipt),
+            const SizedBox(width: 20),
+            Expanded(flex: 5, child: payment),
+          ],
+        );
+      },
+    );
   }
 
   Widget _kv(
@@ -332,7 +429,7 @@ class _BookingDetailFinanceSectionState
   }) {
     final bool phone = MediaQuery.sizeOf(context).width < 600;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: <Widget>[
           Expanded(
@@ -393,6 +490,28 @@ class _BookingDetailFinanceSectionState
         ),
       ),
     );
+  }
+
+  String _medicationFeeNote(Map<String, dynamic> medication, bool active) {
+    final advance = SafeParse.parseMoney(medication['advanceAmount']);
+    final adjustment = advance > 0
+        ? ' 原有 NT\$ $advance 列入預約應付，差額以整筆退房結算為準。'
+        : '';
+    if (!active) return '用藥協助未成立。$adjustment';
+    if (medication['finalized'] == true && medication['finalAmount'] is num) {
+      final amount = SafeParse.parseMoney(medication['finalAmount']);
+      return '最終用藥費 NT\$ $amount，已帶入退房結算。$adjustment';
+    }
+    if (medication['agreedAmount'] is num) {
+      final amount = SafeParse.parseMoney(medication['agreedAmount']);
+      final agreed = medication['state'] == 'confirmed';
+      return '${agreed ? '已同意的報價上限' : '店家提出的報價'} NT\$ $amount，最終費用待確認。$adjustment';
+    }
+    final estimate = SafeParse.parseMap(medication['estimate']);
+    if (estimate['amount'] is num) {
+      return '用藥預估 NT\$ ${SafeParse.parseMoney(estimate['amount'])}，依實際執行紀錄確認最終費用。$adjustment';
+    }
+    return '用藥費待店家確認。$adjustment';
   }
 
   Widget _feeDetails(BookingDetailViewData view) {

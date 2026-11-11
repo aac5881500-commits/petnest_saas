@@ -152,9 +152,12 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (setting.showTitle && setting.title.trim().isNotEmpty) ...[
-          Text(
-            setting.title.trim(),
-            style: TextStyle(
+          EditorialSectionHeading(
+            title: setting.title.trim(),
+            theme: theme,
+            accent: setting.headingAccent,
+            accentColor: theme.headingAccentColor('facilities'),
+            titleStyle: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: displayStyle == null

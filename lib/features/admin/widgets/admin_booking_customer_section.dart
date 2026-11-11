@@ -13,11 +13,13 @@ class AdminBookingCustomerSection extends StatelessWidget {
     required this.data,
     required this.emergency,
     this.shopId = '',
+    this.compact = false,
   });
 
   final Map<String, dynamic> data;
   final Map<String, dynamic> emergency;
   final String shopId;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,51 @@ class AdminBookingCustomerSection extends StatelessWidget {
       _infoItem('緊急地址', emergency['address']),
     ].where((Widget item) => item is! SizedBox).toList();
 
+    if (compact) {
+      final List<Widget> rows = <Widget>[
+        if ((data['customerPhone'] ?? data['phone'] ?? '')
+            .toString()
+            .trim()
+            .isNotEmpty)
+          _quickPhone(
+            context,
+            name.isEmpty ? '顧客' : name,
+            (data['customerPhone'] ?? data['phone']).toString(),
+          ),
+        if ((emergency['phone'] ?? '').toString().trim().isNotEmpty)
+          _quickPhone(
+            context,
+            '緊急・${emergency['name'] ?? '聯絡人'}',
+            emergency['phone'].toString(),
+          ),
+      ];
+      return AdminBookingDetailCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (rows.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text('尚無聯絡資料，請至資料分頁確認'),
+              );
+            }
+            if (constraints.maxWidth >= 640 && rows.length == 2) {
+              return Row(
+                children: <Widget>[
+                  Expanded(child: rows[0]),
+                  const SizedBox(width: 24),
+                  Expanded(child: rows[1]),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: rows,
+            );
+          },
+        ),
+      );
+    }
     final bool phone = AdminBookingDetailScope.of(context).isPhone;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -104,6 +151,55 @@ class AdminBookingCustomerSection extends StatelessWidget {
             _contactGrid(contact, urgent),
         ],
       ),
+    );
+  }
+
+  Widget _quickPhone(BuildContext context, String label, String number) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                Text(
+                  number,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: '複製 $label 電話',
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: number));
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('已複製電話')));
+            }
+          },
+          icon: const Icon(Icons.copy_rounded, size: 18),
+        ),
+        IconButton(
+          tooltip: '撥打 $label',
+          onPressed: () async {
+            await launchUrl(
+              Uri(
+                scheme: 'tel',
+                path: number.replaceAll(RegExp(r'[^\d+]'), ''),
+              ),
+            );
+          },
+          icon: const Icon(Icons.call_outlined, size: 19),
+        ),
+      ],
     );
   }
 

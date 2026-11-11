@@ -30,22 +30,45 @@ import 'package:petnest_saas/features/shop/widgets/modern_home/modern_review_sec
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   testWidgets('簡潔FAQ讀回並能展開答案', (tester) async {
-    final setting = HomeFaqSectionSetting.fromMap(const HomeFaqSectionSetting(
-      layout: HomeFaqLayouts.minimalAccordion, headingAccent: false,
-      showOnHome: true, previewCount: 3).toMap());
+    final setting = HomeFaqSectionSetting.fromMap(
+      const HomeFaqSectionSetting(
+        layout: HomeFaqLayouts.minimalAccordion,
+        headingAccent: false,
+        showOnHome: true,
+        previewCount: 3,
+      ).toMap(),
+    );
     expect(setting.layout, HomeFaqLayouts.minimalAccordion);
     expect(setting.headingAccent, false);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SizedBox(width: 320,
-      child: ModernHomeFaqSection(theme: HomeThemeModel.modernDefault, setting: setting,
-        items: const [HomeFaqItem(id: 'one', sortOrder: 0, question: '需要準備什麼？', answer: '準備熟悉的日常用品。')],
-        phase: HomeInfoSectionPhase.ready, onOpen: () {})))));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            child: ModernHomeFaqSection(
+              theme: HomeThemeModel.modernDefault,
+              setting: setting,
+              items: const [
+                HomeFaqItem(
+                  id: 'one',
+                  sortOrder: 0,
+                  question: '需要準備什麼？',
+                  answer: '準備熟悉的日常用品。',
+                ),
+              ],
+              phase: HomeInfoSectionPhase.ready,
+              onOpen: () {},
+            ),
+          ),
+        ),
+      ),
+    );
     expect(find.text('準備熟悉的日常用品。'), findsNothing);
     await tester.tap(find.byKey(const Key('home-faq-item-one')));
     await tester.pump();
     expect(find.text('準備熟悉的日常用品。'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-
 
   test('入口圖庫與末端樣式保存、舊資料及未知值相容', () {
     const image = HomeCardImageSetting(
@@ -892,6 +915,50 @@ void main() {
         .width;
     expect(phoneWidth, greaterThan(320));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('switching focus reveals the room title above the cards', (
+    tester,
+  ) async {
+    const order = ['banners', 'rooms', 'announcements', 'about'];
+    Widget canvas(String focus) => MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 390,
+          height: 480,
+          child: HomeLayoutCanvas(
+            background: Colors.white,
+            sectionIds: order,
+            sectionOrder: order,
+            spanOf: (_) => HomeSectionSpan.full,
+            pinFooter: false,
+            shopInfo: null,
+            bottomInset: 0,
+            selectedSectionId: 'announcements',
+            onSelectSection: null,
+            onSectionOrderChanged: null,
+            focusSectionId: focus,
+            focusSectionToken: 0,
+            buildSection: (id) => SizedBox(
+              height: id == 'header' ? 55 : 320,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Text(id == 'rooms' ? '逛逛商城' : id),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(canvas('announcements'));
+    await tester.pumpAndSettle();
+    expect(find.text('逛逛商城').hitTestable(), findsNothing);
+
+    await tester.pumpWidget(canvas('rooms'));
+    await tester.pumpAndSettle();
+    final buttonY = tester.getCenter(find.text('逛逛商城')).dy;
+    expect(buttonY, inInclusiveRange(55.0, 110.0));
   });
 
   testWidgets('dragging policy updates order without a framework assertion', (

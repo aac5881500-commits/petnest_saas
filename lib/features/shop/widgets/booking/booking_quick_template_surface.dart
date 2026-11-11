@@ -23,7 +23,7 @@ class BookingQuickTemplateSurface extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (cream) ...[
-          BookingCreamHeader(shopName: shopName, step: 1),
+          const BookingCreamHeader(step: 1),
         ] else ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(24),

@@ -21,9 +21,11 @@ class BookingArrivalLayout extends StatefulWidget {
     required this.petCount,
     required this.dateLabel,
     this.coverUrl = '',
+    this.pointsRules,
   });
   final String style, shopName, dateLabel, coverUrl;
   final Widget dateSection, petsSection, reminder, campaign, calendar;
+  final Widget? pointsRules;
   final bool hasDates;
   final int petCount;
   static HomeThemeModel themeFor(
@@ -298,7 +300,12 @@ class _BookingArrivalLayoutState extends State<BookingArrivalLayout> {
         body = BookingQuickTemplateSurface(
           style: widget.style,
           shopName: widget.shopName,
-          pets: widget.petsSection,
+          pets: widget.pointsRules == null
+              ? widget.petsSection
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [widget.pointsRules!, widget.petsSection],
+                ),
           dates: widget.dateSection,
           reminder: widget.reminder,
           campaign: widget.campaign,
@@ -571,7 +578,13 @@ class _BookingArrivalLayoutState extends State<BookingArrivalLayout> {
               ? Colors.transparent
               : t.backgroundColor,
           padding: EdgeInsets.all(widget.style == 'original' ? 0 : 8),
-          child: body,
+          child: widget.pointsRules == null ||
+                  const ['cream', 'house'].contains(widget.style)
+              ? body
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [widget.pointsRules!, body],
+                ),
         ),
       ),
     );

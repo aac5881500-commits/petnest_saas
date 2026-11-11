@@ -1,3 +1,4 @@
+import 'booking_editor_tabs.dart';
 import 'booking_confirmation_preview.dart';
 import '../platform_media_asset_picker.dart';
 import 'package:petnest_saas/core/models/platform_media_asset.dart';
@@ -491,25 +492,6 @@ class BookingAppearanceEditorState extends State<BookingAppearanceEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 5,
-                    children: [
-                      for (final e in {
-                        1: '1 日期與貓咪',
-                        2: '2 房型與服務',
-                        3: '3 費用確認',
-                      }.entries)
-                        ChoiceChip(
-                          key: ValueKey('suite-preview-${e.key}'),
-                          label: Text(e.value),
-                          selected: _previewStep == e.key,
-                          onSelected: (_) =>
-                              setState(() => _previewStep = e.key),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Column(
                     children: [
                       Offstage(
@@ -561,73 +543,101 @@ class BookingAppearanceEditorState extends State<BookingAppearanceEditor> {
             onPresentation: (v) => setState(() => _calendarPresentation = v),
             onDensity: (v) => setState(() => _calendarDensity = v),
           );
-          final workspaceTabs = Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final entry in {0: '外觀設定', 2: '月曆設定', 1: '即時預覽'}.entries)
-                ChoiceChip(
-                  label: Text(entry.value),
-                  selected: _workspace == entry.key,
-                  onSelected: (_) {
-                    FocusScope.of(context).unfocus();
-                    setState(() => _workspace = entry.key);
-                  },
+          final workspaceTabs = BookingEditorTabs(
+            selected: _workspace,
+            labels: const {0: '模板與配色', 2: '日期選擇器', 1: '頁面預覽'},
+            onSelected: (value) {
+              FocusScope.of(context).unfocus();
+              setState(() => _workspace = value);
+            },
+          );
+          final previewTabs = BookingEditorTabs(
+            selected: _previewStep,
+            labels: const {1: '日期與貓咪', 2: '房型與服務', 3: '費用確認'},
+            numbered: true,
+            onSelected: (value) => setState(() => _previewStep = value),
+          );
+          final toolbar = Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                workspaceTabs,
+                const SizedBox(height: 8),
+                Text(
+                  '目前套裝：${BookingPageAppearance.styles[_style]}${hasChanges ? ' · 尚未儲存' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-            ],
+                if (_workspace == 1) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    '預覽步驟',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  previewTabs,
+                ],
+              ],
+            ),
           );
           if (desktop) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  workspaceTabs,
-                  const SizedBox(height: 20),
-                  if (_workspace == 2) ...[
-                    calendarSettings,
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: FilledButton(
-                        onPressed: hasChanges && !_saving && !_uploadingHero
-                            ? _save
-                            : null,
-                        child: Text(_saving ? '儲存中…' : '儲存設定'),
-                      ),
-                    ),
-                  ] else if (_workspace == 1)
-                    preview
-                  else
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            return Column(
+              children: [
+                toolbar,
+                const Divider(height: 1),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(child: settings),
-                        const SizedBox(width: 32),
-                        SizedBox(width: 380, child: preview),
+                        if (_workspace == 2) ...[
+                          calendarSettings,
+                          const SizedBox(height: 16),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton(
+                              onPressed:
+                                  hasChanges && !_saving && !_uploadingHero
+                                  ? _save
+                                  : null,
+                              child: Text(_saving ? '儲存中…' : '儲存設定'),
+                            ),
+                          ),
+                        ] else if (_workspace == 1)
+                          preview
+                        else
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: settings),
+                              const SizedBox(width: 32),
+                              SizedBox(
+                                width: 380,
+                                child: Column(
+                                  children: [
+                                    previewTabs,
+                                    const SizedBox(height: 12),
+                                    preview,
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             );
           }
           return Column(
             children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+              Material(
                 color: Theme.of(context).colorScheme.surface,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    workspaceTabs,
-                    const SizedBox(height: 8),
-                    Text(
-                      '目前版型：${BookingPageAppearance.styles[_style]}${hasChanges ? ' · 尚未儲存' : ''}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                child: toolbar,
               ),
+              const Divider(height: 1),
               Expanded(
                 child: IndexedStack(
                   index: _workspace,

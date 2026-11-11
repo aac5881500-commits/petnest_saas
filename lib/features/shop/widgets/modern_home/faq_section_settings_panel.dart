@@ -186,7 +186,7 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
                 ),
                 if (layout == HomeFaqLayouts.minimalAccordion)
                   HomeDraftSwitch(
-                    title: '標題左側主題色豎線（暖橘色槓）',
+                    title: '顯示標題左側豎線',
                     value: setting.headingAccent,
                     onChanged: (v) =>
                         _update(setting.copyWith(headingAccent: v)),

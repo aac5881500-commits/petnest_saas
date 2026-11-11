@@ -372,12 +372,30 @@ function quoteAccommodationCampaign(campaign, input, now) {
   };
 }
 
+// Keep the conditions used at checkout with the order, even if the
+// campaign is later edited or removed. This does not affect the quote.
+function campaignExplanationSnapshot(campaign, input, baseAmount) {
+  return {
+    type: String(campaign.type || ""),
+    description: String(campaign.description || "").trim(),
+    minimumAmount: toInt(campaign.minimumAmount, 0),
+    minimumNights: toInt(campaign.minimumNights, 0),
+    eligibleAmount: toInt(input.roomAmount) + toInt(input.petAmount) +
+      toInt(input.extraServiceAmount),
+    baseAmount: baseAmount ?? discountBase(campaign, input),
+    valueType: String(campaign.valueType || ""),
+    value: Number(campaign.discountValue || 0),
+    maximumDiscountAmount: toInt(campaign.maximumDiscountAmount, 0),
+  };
+}
+
 function isOrderWindowOpen(campaign, now) {
   return withinPeriod(campaign, now || new Date());
 }
 
 module.exports = {
   parseApplicableServices,
+  campaignExplanationSnapshot,
   findBestDaycareCampaign,
   calculateCampaign,
   quoteAccommodationCampaign,

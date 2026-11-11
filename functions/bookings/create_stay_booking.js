@@ -3,6 +3,7 @@ const {loadEligiblePets} = require("./pet_species_guard");
 // 功能說明：住宿建單／分房 transaction：共用房型可賣數與未分房保留
 
 const admin = require("firebase-admin");
+const medicationLogic = require("../medication/medication_logic");
 const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   BOOKING_KIND_ACCOMMODATION,
@@ -40,6 +41,7 @@ const {
   commitSpendDeduct,
 } = require("../points/sync_booking_points");
 const {
+  campaignExplanationSnapshot,
   quoteAccommodationCampaign,
 } = require("../daycare/discount_campaign");
 const {
@@ -271,6 +273,7 @@ async function resolveStayCampaign(firestore, input) {
   const campaignId = normalizeString(booking.discountCampaignId);
   const clientDiscount = toInt(booking.discountAmount, 0);
   if (!campaignId) {
+    delete booking.discountExplanation;
     booking.discountAmount = 0;
     booking.discountCampaignId = "";
     booking.discountCampaignName = "";
@@ -332,7 +335,7 @@ async function resolveStayCampaign(firestore, input) {
         .collection("members").doc(input.userId).get();
     memberJoinedAt = toDate((memberSnap.data() || {}).createdAt);
   }
-  const quote = quoteAccommodationCampaign(campaign, {
+  const campaignInput = {
     checkInDate: input.startDate,
     checkOutDate: input.endDate,
     roomTypeId: input.roomTypeId,
@@ -344,7 +347,8 @@ async function resolveStayCampaign(firestore, input) {
     memberCampaignUsage,
     memberCampaignUsedNights,
     hasVerifiedGoogleReview: false,
-  }, new Date());
+  };
+  const quote = quoteAccommodationCampaign(campaign, campaignInput, new Date());
   if (!quote) {
     throw new HttpsError("failed-precondition", "此優惠活動目前無法使用");
   }
@@ -359,6 +363,9 @@ async function resolveStayCampaign(firestore, input) {
   booking.discountValue = campaign.discountValue || 0;
   booking.discountUsedNights = quote.discountUsedNights || 0;
   booking.discountBase = quote.discountBaseAmount || 0;
+  booking.discountExplanation = campaignExplanationSnapshot(
+      campaign, campaignInput, quote.discountBaseAmount,
+  );
   booking.allowCouponTogether = campaign.allowCouponTogether === true;
   return campaign;
 }
@@ -519,6 +526,18 @@ exports.createStayBooking = onCall(
             payableAfterCoupon,
             operatorUid: uid,
           });
+          let medication = null;
+          try {
+            medication = medicationLogic.initial(booking.medicationRequest,
+                {...booking, shopId, startDate, endDate},
+                (shopInTx.data() || {}).medicationSetting, userId);
+            const expected = booking.medicationRequest?.expectedAdvanceAmount;
+            if (expected != null && expected !== (medication?.advanceAmount || 0)) {
+              throw new Error("店家的用藥收費已變更，請返回確認新的費用");
+            }
+          } catch (error) {
+            throw new HttpsError("invalid-argument", error.message);
+          }
           const bookingCode = await generateBookingCode(transaction, shopId);
           commitCampaignUsageReserve(transaction, firestore, campaignPlan);
           commitSpendDeduct(transaction, spendPlan);
@@ -526,7 +545,8 @@ exports.createStayBooking = onCall(
           const depositExpireAt = toDate(booking.depositExpireAt);
           const pointAmount = spendPlan.pointAmount || 0;
           const pointsUsed = spendPlan.pointsUsed || 0;
-          const totalPrice = Math.max(0, payableAfterCoupon - pointAmount);
+          const stayTotal = Math.max(0, payableAfterCoupon - pointAmount);
+          const totalPrice = stayTotal + (medication?.advanceAmount || 0);
           let depositAmount = toInt(booking.depositAmount, 0);
           if (depositAmount < 0) {
             depositAmount = 0;
@@ -544,6 +564,10 @@ exports.createStayBooking = onCall(
           }, {isAppMember: memberState.isAppMember, preview: true});
           transaction.set(bookingRef, {
             ...booking,
+            careServiceRecords: {},
+            medicationRequest: null,
+            medication,
+            ...(medication ? {quotedTotalPrice: stayTotal} : {}),
             autoCleaningAfterCheckout: stayAutoCleaning,
             requestId: requestId || bookingRef.id,
             bookingId: bookingRef.id,
@@ -817,6 +841,25 @@ exports.manageStayInventory = onCall(
           await firestore.runTransaction(async (transaction) => {
             const live = await transaction.get(bookingRef);
             const liveData = live.data() || {};
+            const medication = liveData.medication;
+            if (action === "changeDates" && medication &&
+                !["declined", "cancelled"].includes(medication.state)) {
+              const care = medication.request;
+              if (care && (
+                medicationLogic.key(care.careStart) <
+                  medicationLogic.key(nextStart) ||
+                medicationLogic.key(care.careEnd) >
+                  medicationLogic.key(nextEnd)
+              )) {
+                throw new HttpsError(
+                    "failed-precondition",
+                    "新日期超出用藥交接安排，請先處理用藥需求再改期",
+                );
+              }
+            }
+            if (action === "changeDates" && !require("../care/service_tasks").fitsStayDates(liveData, nextStart, nextEnd)) {
+              throw new HttpsError("failed-precondition", "新日期不包含已預約的陪玩／定時服務，請先與客人確認服務安排再改期");
+            }
             const assignedRoomId = normalizeString(liveData.roomId);
             const oldReads = assignedRoomId ? await readCalendarDocs(
                 transaction,

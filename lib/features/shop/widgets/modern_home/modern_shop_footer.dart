@@ -22,6 +22,7 @@ class ModernShopFooter extends StatelessWidget {
     required this.cardColor,
     required this.borderColor,
     this.isPreview = false,
+    this.headingAccentColor,
     this.setting = const HomeShopInfoSetting(),
   });
   final String shopId, shopName;
@@ -32,6 +33,7 @@ class ModernShopFooter extends StatelessWidget {
       cardColor,
       borderColor;
   final bool isPreview;
+  final Color? headingAccentColor;
   final HomeShopInfoSetting setting;
   ShopInfoPreset get preset => shopInfoPresets.firstWhere(
     (p) => p.id == setting.preset,
@@ -1078,6 +1080,7 @@ class ModernShopFooter extends StatelessWidget {
             EditorialSectionHeading(
               title: setting.sectionTitle,
               theme: localTheme,
+              accentColor: headingAccentColor,
             ),
             SizedBox(height: 12 * u),
           ],

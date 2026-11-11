@@ -43,15 +43,13 @@ class BookingConfirmationPreview extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              BookingEditorial.brand(shopName: shopName),
               if (appearance.style == 'cream')
-                BookingCreamHeader(
-                  shopName: shopName,
+                const BookingCreamHeader(
                   step: 3,
                   title: '確認貓咪的小旅行',
                   subtitle: '最後核對住宿安排與本次費用。',
-                )
-              else
-                BookingEditorial.brand(shopName: shopName),
+                ),
               BookingStepIndicator(currentStep: 3, theme: t),
               BookingSummaryHelper.buildSummary(
                 theme: t,

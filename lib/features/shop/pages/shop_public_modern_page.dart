@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/booking/widgets/pre_arrival_shortcut_cards.dart';
 import '../widgets/modern_home/home_store_action.dart';
 import 'package:petnest_saas/core/models/home_desktop_layout_setting.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/home_desktop_layout.dart';
@@ -645,6 +646,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required HomeThemeModel theme,
   }) {
     return ModernShopFooter(
+      headingAccentColor: theme.headingAccentColors.containsKey('shopInfo')
+          ? theme.headingAccentColor('shopInfo')
+          : null,
       shopId: widget.shopId,
       shop: shop,
       shopName: shopName,
@@ -974,11 +978,44 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               aboutVisible && visibility.shows(HomeSharedEntrySources.about),
           showSharedEntries: sharedEntry.enabled,
         );
+        if (!editorPreview && visibleSections.remove('dailyCare')) {
+          visibleSections.insert(
+            visibleSections.indexOf('banners') + 1,
+            'dailyCare',
+          );
+        }
+        final placement = storeHomeSetting.storeEntryPlacement;
+        final target = HomeStorePlacement.section(placement);
+        final attached =
+            visibleSections.contains('storeEntrance') &&
+            visibleSections.contains(target) &&
+            homeStorePlacementOptions(
+              rooms: roomSection,
+              environment: environmentSection,
+              about: aboutSection,
+              news: newsSection,
+              information: informationSections,
+              quickBooking: quickBookingSection,
+            ).contains(placement) &&
+            (target != 'announcements' ||
+                newsPhase == HomeNewsSectionPhase.ready) &&
+            (target != 'rooms' ||
+                HomeRoomSectionSetting.hasPublishedRooms(
+                  _roomTypes ?? const [],
+                )) &&
+            (target != 'faq' || faqPhase == HomeInfoSectionPhase.ready) &&
+            (target != 'policy' || policyPhase == HomeInfoSectionPhase.ready);
+        final effectiveStoreSetting = attached
+            ? storeHomeSetting
+            : storeHomeSetting.copyWith(
+                storeEntryPlacement: HomeStorePlacement.standalone,
+              );
+        if (attached) visibleSections.remove('storeEntrance');
+
         Widget sectionBody(String sectionId) {
-          return _homeSection(
+          final content = _homeSection(
             sectionId: sectionId,
             shop: shop,
-            visibleSectionIds: visibleSections,
             shopName: shopName,
             headerSubtitle: headerSubtitle,
             brandStyle: brandStyle,
@@ -986,7 +1023,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             theme: modernTheme,
             facilityKeys: facilityKeys,
             banners: banners,
-            storeHomeSetting: storeHomeSetting,
+            storeHomeSetting: effectiveStoreSetting,
             frameSetting: bannerFrameSetting,
             useBottomBar: useBottomBar,
             roomSection: roomSection,
@@ -1015,9 +1052,53 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             quickActionsAtStart: quickActions.atStart,
             sharedEntry: sharedEntry,
           );
+          if (!attached ||
+              sectionId != target ||
+              (placement == 'news' &&
+                  newsSection.layout == HomeNewsLayouts.feature) ||
+              placement == 'rooms') {
+            return content;
+          }
+          final side =
+              HomeStorePlacement.mode(placement) == HomeStorePlacement.side;
+          return StoreEntranceBanner(
+            shopId: widget.shopId,
+            shop: shop,
+            theme: modernTheme,
+            setting: effectiveStoreSetting,
+            whenClosed: content,
+            builder: (open) {
+              final action = HomeStoreAction(
+                setting: effectiveStoreSetting,
+                theme: modernTheme,
+                onTap: open,
+                photoCard: side,
+              );
+              if (!side) {
+                return HomeStoreHeadingAction(
+                  action: Padding(
+                    padding: EdgeInsets.only(
+                      right: widget.layoutCanvas ? 36 : 0,
+                    ),
+                    child: action,
+                  ),
+                  child: content,
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: content),
+                  const SizedBox(width: 8),
+                  Expanded(child: SizedBox(height: 152, child: action)),
+                ],
+              );
+            },
+          );
         }
 
         HomeSectionSpan spanOf(String sectionId) {
+          if (attached && sectionId == target) return HomeSectionSpan.full;
           return homeSectionSpan(
             sectionId: sectionId,
             rooms: roomSection,
@@ -1532,7 +1613,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   }
 
   Widget _homeSection({
-    required List<String> visibleSectionIds,
     required String sectionId,
     required Map<String, dynamic> shop,
     required String shopName,
@@ -1600,41 +1680,57 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           theme: theme,
           frameSetting: frameSetting,
         );
-        if (!informationSections.reviews.overlaysBanner(banners.isNotEmpty)) {
-          return banner;
-        }
-        return Stack(
-          children: [
-            banner,
-            Positioned(
-              right: 18,
-              top:
-                  informationSections.reviews.miniPlacement ==
-                      'bannerBottomRight'
-                  ? null
-                  : 12,
-              bottom:
-                  informationSections.reviews.miniPlacement ==
-                      'bannerBottomRight'
-                  ? 32
-                  : null,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 230),
-                child: ModernReviewSection(
-                  theme: theme,
-                  setting: informationSections.reviews,
-                  reviews: reviewItems,
-                  phase: _reviewsFailed
-                      ? HomeInfoSectionPhase.unavailable
-                      : !_reviewsReady
-                      ? HomeInfoSectionPhase.loading
-                      : HomeInfoSectionPhase.ready,
-                  onOpen: () => _openPage(
-                    ShopReviewListPage(shopId: widget.shopId, theme: theme),
+        final hero =
+            !informationSections.reviews.overlaysBanner(banners.isNotEmpty)
+            ? banner
+            : Stack(
+                children: [
+                  banner,
+                  Positioned(
+                    right: 18,
+                    top:
+                        informationSections.reviews.miniPlacement ==
+                            'bannerBottomRight'
+                        ? null
+                        : 12,
+                    bottom:
+                        informationSections.reviews.miniPlacement ==
+                            'bannerBottomRight'
+                        ? 32
+                        : null,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 230),
+                      child: ModernReviewSection(
+                        theme: theme,
+                        setting: informationSections.reviews,
+                        reviews: reviewItems,
+                        phase: _reviewsFailed
+                            ? HomeInfoSectionPhase.unavailable
+                            : !_reviewsReady
+                            ? HomeInfoSectionPhase.loading
+                            : HomeInfoSectionPhase.ready,
+                        onOpen: () => _openPage(
+                          ShopReviewListPage(
+                            shopId: widget.shopId,
+                            theme: theme,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
+                ],
+              );
+        if (widget.platformPreview ||
+            widget.isPreview ||
+            widget.layoutCanvas ||
+            widget.isEmbeddedAdminPreview) {
+          return hero;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            hero,
+            PreArrivalShortcutCards(shopId: widget.shopId, theme: theme),
           ],
         );
       case 'about':
@@ -1692,6 +1788,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           },
         );
         if (storeHomeSetting.storeEntryPlacement == 'news' &&
+            newsSection.layout == HomeNewsLayouts.feature &&
             newsItems.isNotEmpty) {
           return StoreEntranceBanner(
             shopId: widget.shopId,
@@ -1714,7 +1811,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         return ModernStayingDailyCareSection(
           shopId: widget.shopId,
           theme: theme,
-          platformPreview: widget.platformPreview,
+          platformPreview:
+              widget.platformPreview || widget.isPreview || widget.layoutCanvas,
         );
       case 'rooms':
         if (storeHomeSetting.storeEntryPlacement == 'rooms' &&
@@ -1732,10 +1830,14 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             builder: (open) => _buildPopularRoomSection(
               theme: theme,
               roomSection: roomSection,
-              headerTrailing: HomeStoreAction(
-                setting: storeHomeSetting,
-                theme: theme,
-                onTap: open,
+              headerTrailing: Padding(
+                // Leave space for the editor's room section drag handle.
+                padding: EdgeInsets.only(right: widget.layoutCanvas ? 36 : 0),
+                child: HomeStoreAction(
+                  setting: storeHomeSetting,
+                  theme: theme,
+                  onTap: open,
+                ),
               ),
             ),
           );
@@ -1755,18 +1857,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           setting: storeHomeSetting,
         );
       case 'storeEntrance':
-        if ((storeHomeSetting.storeEntryPlacement == 'news' &&
-                visibleSectionIds.contains('announcements') &&
-                newsItems.isNotEmpty &&
-                newsPhase != HomeNewsSectionPhase.hidden) ||
-            (storeHomeSetting.storeEntryPlacement == 'rooms' &&
-                visibleSectionIds.contains('rooms') &&
-                roomSection.layout != HomeRoomSectionLayouts.simpleEntry &&
-                HomeRoomSectionSetting.hasPublishedRooms(
-                  _roomTypes ?? const [],
-                ))) {
-          return const SizedBox.shrink();
-        }
         return StoreEntranceBanner(
           shopId: widget.shopId,
           shop: shop,

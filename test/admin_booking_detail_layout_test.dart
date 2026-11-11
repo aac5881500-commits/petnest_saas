@@ -111,10 +111,12 @@ void main() {
 
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpWidth(1920);
     await pumpWidth(1440);
     await pumpWidth(1024);
     await pumpWidth(768);
     await pumpWidth(390);
+    await pumpWidth(320);
   });
 
   testWidgets('手機訂單進度在獨立分頁，主要操作固定在底部', (WidgetTester tester) async {
@@ -154,6 +156,15 @@ void main() {
     await tester.pump();
     expect(find.text('完整時間軸'), findsOneWidget);
     expect(find.text('顧客資訊'), findsNothing);
+    await tester.tap(find.text('付款'));
+    await tester.pump();
+    expect(find.text('付款'), findsNWidgets(2));
+    expect(find.text('完整時間軸'), findsNothing);
+    expect(find.text('辦理退房／結算'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('訂單'));
+    await tester.pump();
+    expect(find.text('顧客資訊'), findsOneWidget);
   });
 
   testWidgets('桌機保留右側訂單進度', (WidgetTester tester) async {

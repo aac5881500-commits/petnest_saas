@@ -282,15 +282,15 @@ class _BookingServicePreviewState extends State<BookingServicePreview> {
               style: TextStyle(fontSize: 12),
             ),
             const SizedBox(height: 16),
+            if (const ['editorial', 'cream'].contains(style))
+              BookingEditorial.brand(shopName: widget.shopName),
             if (style == 'cream')
-              BookingCreamHeader(
-                shopName: widget.shopName,
+              const BookingCreamHeader(
                 step: 2,
                 title: '挑選安心的小房間',
                 subtitle: '選擇房型，再搭配貓咪喜歡的服務。',
               ),
             if (style == 'editorial') ...[
-              BookingEditorial.brand(shopName: widget.shopName),
               const BookingEditorialProgress(step: 2),
               BookingEditorial.trip('11/12—11/15 · 2 隻'),
             ] else

@@ -1,3 +1,8 @@
+import '../../medication/medication_widgets.dart';
+import '../widgets/admin_booking_schedule.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_order_workspace.dart';
 // 檔案名稱：lib/features/admin/pages/admin_daycare_detail_page.dart
 // 功能說明：安親訂單詳情與操作
 
@@ -178,9 +183,9 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         ).isFull;
         await _confirmDepositFromProof();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(full ? '全額已確認' : '訂金已確認')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(full ? '全額已確認' : '訂金已確認')));
         }
       } else {
         await DaycareFunctionService.instance.manage(
@@ -294,8 +299,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     final InitialPaymentChoice initialChoice =
         BookingPaymentStatus.initialPaymentChoice(data);
     Widget? primaryAction() {
-      if (!locked &&
-          BookingPaymentStatus.needsInitialPaymentConfirm(data)) {
+      if (!locked && BookingPaymentStatus.needsInitialPaymentConfirm(data)) {
         return FilledButton(
           style: daycareTap,
           onPressed: _busy
@@ -472,6 +476,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             readOnly: settlementLocked,
           ),
           overview: AdminBookingHeaderCard(
+            dense: true,
             data: data,
             bookingId: widget.bookingId,
           ),
@@ -519,126 +524,155 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
           phoneStickyActions: daycareSettlementSticky
               ? daycareNextView(bar: true)
               : (widget.canEdit && hasDaycareSticky ? daycareSticky : null),
-          left: <Widget>[
-            if (status == 'pending' || status == 'pending_confirmation')
-              const Text('請先確認訂單，確認後才能分配房間'),
-            if (status == 'confirmed' &&
-                (data['assignStatus'] ?? 'unassigned') != 'assigned')
-              const Text('訂單已確認，請完成分房後再辦理入住'),
-            AdminBookingDetailSection(
-              title: '顧客資訊',
-              child: AdminBookingCustomerSection(
-                data: data,
-                emergency: emergency,
-                shopId: widget.shopId,
-              ),
+          left: const <Widget>[],
+          workspace: AdminBookingWorkspaceContent(
+            alerts: [if (pets.any(PetSnapshot.hasDiseaseAlert)) '寵物健康注意事項'],
+            preferenceScope:
+                '${widget.shopId}:${FirebaseAuth.instance.currentUser?.uid ?? 'local'}',
+            balance: AdminBookingWorkspaceBalance(data: data),
+            pets: AdminBookingPetStrip(
+              pets: pets,
+              shopId: widget.shopId,
+              userId: PetShopFormAnswers.bookingUserId(data),
             ),
-            AdminBookingDetailSection(
-              title: '寵物資訊（${pets.length}隻）',
-              child: AdminBookingPetStrip(
-                pets: pets,
-                shopId: widget.shopId,
-                userId: PetShopFormAnswers.bookingUserId(data),
-              ),
+            contacts: AdminBookingCustomerSection(
+              compact: true,
+              data: data,
+              emergency: emergency,
+              shopId: widget.shopId,
             ),
-            AdminBookingDetailSection(
-              title: '點數',
-              showHeading: false,
-              child: AdminBookingPointsCard(
-                shopId: widget.shopId,
-                bookingId: widget.bookingId,
-                booking: data,
-                lookupMember: true,
-              ),
+            schedule: AdminBookingScheduleData(
+              shopId: widget.shopId,
+              bookingId: widget.bookingId,
+              booking: data,
+              canEdit: widget.canEdit,
             ),
-            AdminBookingDetailSection(
-              title: '安親時間',
-              child: AdminBookingDetailCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      '安親日期：${data['serviceDate'] ?? (start == null ? '未填' : DaycareTimeHelper.formatDate(start))}',
-                    ),
-                    Text(
-                      '預約送達：${DaycareTimeHelper.formatDateTimeOrUnrecorded(start)}',
-                    ),
-                    Text(
-                      '預約接回：${DaycareTimeHelper.formatDateTimeOrUnrecorded(end)}',
-                    ),
-                    Text(
-                      '預計時數：${DaycareTimeHelper.durationLabel(durationMinutes)}',
-                    ),
-                    const SizedBox(height: 8),
-                    Text(hourlyDisplay.reservationText),
-                    Text(hourlyDisplay.thisChargeText),
-                    Text(
-                      '實際送達：${DaycareTimeHelper.formatDateTimeOrUnrecorded(actualStart)}',
-                    ),
-                    Text(
-                      '實際接回／結算完成：${DaycareTimeHelper.formatDateTimeOrUnrecorded(actualEnd)}',
-                    ),
-                  ],
+            medicationDetails: BookingMedicationPanel(
+              bookingId: widget.bookingId,
+              booking: data,
+              staff: true,
+              canManage: widget.canEdit,
+            ),
+            careReport: AdminDaycareCareReportSection(
+              shopId: widget.shopId,
+              bookingId: widget.bookingId,
+              booking: data,
+            ),
+            charges: <Widget>[
+              AdminBookingDetailSection(
+                title: '服務與費用明細',
+                child: AdminBookingPriceSection(
+                  data: data,
+                  pets: pets,
+                  lineItemsOnly: true,
+                  bookingId: widget.bookingId,
                 ),
               ),
-            ),
-            AdminBookingDetailSection(
-              title: '安親方案與房間安排',
-              child: AdminBookingDetailCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(hourlyDisplay.billingModeLabel),
-                    if (hourlyDisplay.startRuleText.isNotEmpty)
-                      Text(hourlyDisplay.startRuleText),
-                    if (hourlyDisplay.extraRuleText.isNotEmpty)
-                      Text(hourlyDisplay.extraRuleText),
-                    if (hourlyDisplay.capText.isNotEmpty)
-                      Text(hourlyDisplay.capText),
-                    if (hourlyDisplay.ruleText.isNotEmpty)
-                      Text(hourlyDisplay.ruleText),
-                    if (!roomBased)
-                      Text(
-                        '安親方案：${data['daycarePlanSnapshot'] is Map ? ((data['daycarePlanSnapshot']['name'] ?? '').toString().trim().isEmpty ? '未填' : data['daycarePlanSnapshot']['name']) : '未填'}',
-                      ),
-                    if (roomBased)
-                      Text(
-                        '客戶選擇房型：${(data['requestedRoomTypeName'] ?? '').toString().trim().isEmpty ? '未填' : data['requestedRoomTypeName']}',
-                      )
-                    else
-                      Text(
-                        '分配房型：${(data['roomTypeName'] ?? '').toString().trim().isEmpty ? '尚未選擇' : data['roomTypeName']}',
-                      ),
-                    Text(
-                      '實際房間：${(data['roomName'] ?? '').toString().trim().isEmpty ? '尚未分房' : data['roomName']}',
-                    ),
-                    Text('分房狀態：${DaycareStatusLabels.assignLabel(data)}'),
-                    if ((data['convertedBookingId'] ?? '')
-                        .toString()
-                        .isNotEmpty)
-                      Text('已轉住宿：${data['convertedBookingId']}'),
-                  ],
+              AdminBookingDetailSection(
+                title: '點數',
+                showHeading: false,
+                child: AdminBookingPointsCard(
+                  shopId: widget.shopId,
+                  bookingId: widget.bookingId,
+                  booking: data,
+                  lookupMember: true,
                 ),
               ),
-            ),
-            AdminBookingDetailSection(
-              title: '服務與費用明細',
-              child: AdminBookingPriceSection(
-                data: data,
-                pets: pets,
-                lineItemsOnly: true,
-                bookingId: widget.bookingId,
+            ],
+            details: <Widget>[
+              AdminBookingDetailSection(
+                title: '顧客資訊',
+                child: AdminBookingCustomerSection(
+                  data: data,
+                  emergency: emergency,
+                  shopId: widget.shopId,
+                ),
               ),
-            ),
-            AdminBookingDetailSection(
-              title: '每日照護摘要',
-              child: AdminDaycareCareReportSection(
-                shopId: widget.shopId,
-                bookingId: widget.bookingId,
-                booking: data,
+              AdminBookingDetailSection(
+                title: '安親時間',
+                child: AdminBookingDetailCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '安親日期：${data['serviceDate'] ?? (start == null ? '未填' : DaycareTimeHelper.formatDate(start))}',
+                      ),
+                      Text(
+                        '預約送達：${DaycareTimeHelper.formatDateTimeOrUnrecorded(start)}',
+                      ),
+                      Text(
+                        '預約接回：${DaycareTimeHelper.formatDateTimeOrUnrecorded(end)}',
+                      ),
+                      Text(
+                        '預計時數：${DaycareTimeHelper.durationLabel(durationMinutes)}',
+                      ),
+                      const SizedBox(height: 8),
+                      Text(hourlyDisplay.reservationText),
+                      Text(hourlyDisplay.thisChargeText),
+                      Text(
+                        '實際送達：${DaycareTimeHelper.formatDateTimeOrUnrecorded(actualStart)}',
+                      ),
+                      Text(
+                        '實際接回／結算完成：${DaycareTimeHelper.formatDateTimeOrUnrecorded(actualEnd)}',
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
+              AdminBookingDetailSection(
+                title: '安親方案與房間安排',
+                child: AdminBookingDetailCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(hourlyDisplay.billingModeLabel),
+                      if (hourlyDisplay.startRuleText.isNotEmpty)
+                        Text(hourlyDisplay.startRuleText),
+                      if (hourlyDisplay.extraRuleText.isNotEmpty)
+                        Text(hourlyDisplay.extraRuleText),
+                      if (hourlyDisplay.capText.isNotEmpty)
+                        Text(hourlyDisplay.capText),
+                      if (hourlyDisplay.ruleText.isNotEmpty)
+                        Text(hourlyDisplay.ruleText),
+                      if (!roomBased)
+                        Text(
+                          '安親方案：${data['daycarePlanSnapshot'] is Map ? ((data['daycarePlanSnapshot']['name'] ?? '').toString().trim().isEmpty ? '未填' : data['daycarePlanSnapshot']['name']) : '未填'}',
+                        ),
+                      if (roomBased)
+                        Text(
+                          '客戶選擇房型：${(data['requestedRoomTypeName'] ?? '').toString().trim().isEmpty ? '未填' : data['requestedRoomTypeName']}',
+                        )
+                      else
+                        Text(
+                          '分配房型：${(data['roomTypeName'] ?? '').toString().trim().isEmpty ? '尚未選擇' : data['roomTypeName']}',
+                        ),
+                      Text(
+                        '實際房間：${(data['roomName'] ?? '').toString().trim().isEmpty ? '尚未分房' : data['roomName']}',
+                      ),
+                      Text('分房狀態：${DaycareStatusLabels.assignLabel(data)}'),
+                      if ((data['convertedBookingId'] ?? '')
+                          .toString()
+                          .isNotEmpty)
+                        Text('已轉住宿：${data['convertedBookingId']}'),
+                    ],
+                  ),
+                ),
+              ),
+              AdminBookingWorkspaceOrigin(data: data),
+              AdminBookingDetailPolicyCard(data: data),
+            ],
+            activity: <Widget>[
+              AdminBookingDetailSection(
+                title: '操作紀錄',
+                collapsible: true,
+                initiallyExpanded: false,
+                child: AdminBookingActionLogSection(
+                  shopId: widget.shopId,
+                  bookingId: widget.bookingId,
+                ),
+              ),
+            ],
+          ),
           progress: AdminBookingDetailSection(
             title: '訂單進度',
             collapsible: true,
@@ -735,16 +769,6 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                           .join('\n'),
                     )
                   : null,
-            ),
-            AdminBookingDetailPolicyCard(data: data),
-            AdminBookingDetailSection(
-              title: '操作紀錄',
-              collapsible: true,
-              initiallyExpanded: false,
-              child: AdminBookingActionLogSection(
-                shopId: widget.shopId,
-                bookingId: widget.bookingId,
-              ),
             ),
           ],
         );

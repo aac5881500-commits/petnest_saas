@@ -400,7 +400,13 @@ class _ShopBookingSetupCenterPageState extends State<ShopBookingSetupCenterPage>
                             );
                             return Expanded(child: chip);
                           }).toList();
-                          return Row(children: chips);
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 680),
+                              child: Row(children: chips),
+                            ),
+                          );
                         },
                   ),
                 ),

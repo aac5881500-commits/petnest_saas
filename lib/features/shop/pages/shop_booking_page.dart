@@ -11,11 +11,13 @@ import 'package:petnest_saas/core/services/stay_booking_readiness.dart';
 // 功能說明：前台住宿預約主頁，負責日期、寵物、房型、加值服務、優惠與送單流程。
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/shop_point_rules_link.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/services/shop_report_format.dart';
@@ -23,6 +25,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
 import 'package:petnest_saas/features/booking/widgets/customer_active_campaigns_section.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
@@ -173,6 +176,28 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   int _currentStep = 1;
 
   final List<String> _selectedPetIds = [];
+  final _medicationFormKey = GlobalKey<FormState>();
+  Map<String, dynamic> _medicationDraft = {};
+
+  Map<String, dynamic> get _medicationRequest {
+    final preferences = medList(_medicationDraft['preferences'])
+        .where((entry) => _selectedPetIds.contains(entry['petId']))
+        .toList();
+    return preferences.isEmpty ? {} : {'preferences': preferences};
+  }
+
+  void _resetMedicationIfDatesChanged(DateTime? start, DateTime? end) {
+    if ((_startDate == start && _endDate == end) || _medicationDraft.isEmpty) {
+      return;
+    }
+    final hadRequest = _medicationRequest.isNotEmpty;
+    _medicationDraft = {};
+    if (hadRequest) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('住宿日期已變更，請重新確認用藥安排。')),
+      );
+    }
+  }
   List<Map<String, dynamic>> _pets = [];
 
   Future<void> _loadMemberData() async {
@@ -494,6 +519,21 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   }
 
   void _goToStep(int step) {
+    if (_currentStep == 2 &&
+        step == 3 &&
+        _medicationFormKey.currentState?.validate() == false) {
+      final medicationContext = _medicationFormKey.currentContext;
+      if (medicationContext != null) {
+        Scrollable.ensureVisible(
+          medicationContext,
+          duration: const Duration(milliseconds: 250),
+        );
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請為已勾選的貓咪選擇用藥類型與時段，或取消勾選。')),
+      );
+      return;
+    }
     setState(() {
       _currentStep = step.clamp(1, 3);
     });
@@ -565,11 +605,26 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     );
   }
 
+  int? _medicationEstimate(Map<String, dynamic> shop) =>
+      medicationPreferenceAmount(
+        medMap(shop['medicationSetting']),
+        medList(_medicationRequest['preferences']),
+        _nights,
+      );
+
+  int _advanceMedicationAmount(Map<String, dynamic> shop) =>
+      medicationCollectsAdvance(medMap(shop['medicationSetting']))
+      ? _medicationEstimate(shop) ?? 0
+      : 0;
+
+  int _initialPaymentTotal(Map<String, dynamic> shop) =>
+      _payableTotal(shop) + _advanceMedicationAmount(shop);
+
   int _estimatedTotal(Map<String, dynamic> shop) {
-    if (_selectedRoomType == null) {
-      return _addonTotalAmount();
-    }
-    return _payableTotal(shop);
+    final base = _selectedRoomType == null
+        ? _addonTotalAmount()
+        : _payableTotal(shop);
+    return base + (_medicationEstimate(shop) ?? 0);
   }
 
   String? get _step1Hint {
@@ -905,6 +960,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         style: appearance.style,
         shopName: shop['name']?.toString() ?? '貓咪旅店',
         coverUrl: shop['coverUrl']?.toString() ?? '',
+        pointsRules: ShopPointRulesLink(
+          shopId: widget.shopId,
+          shopName: shop['name']?.toString() ?? '',
+          theme: layoutTheme,
+        ),
         hasDates: _startDate != null && _endDate != null,
         petCount: _selectedPetIds.length,
         dateLabel: _startDate != null && _endDate != null
@@ -923,6 +983,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             lastDate: DateTime(month.year, month.month + 1, 0),
           ),
           onApply: (start, end) => setState(() {
+            _resetMedicationIfDatesChanged(start, end);
             _startDate = start;
             _endDate = end;
             _selectedRoomType = null;
@@ -1031,6 +1092,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     if (_currentStep == 2) {
+      final medicationSetting = medMap(shop['medicationSetting']);
       final serviceTheme = BookingArrivalLayout.themeFor(
         BookingPageAppearance.fromShop(shop).style,
         appearance: BookingPageAppearance.fromShop(shop),
@@ -1043,8 +1105,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           if (BookingPageAppearance.fromShop(shop).style == 'cream')
-            BookingCreamHeader(
-              shopName: shop['name']?.toString() ?? '貓咪旅館',
+            const BookingCreamHeader(
               step: 2,
               title: '挑選安心的小房間',
               subtitle: '選擇房型，再搭配貓咪喜歡的服務。',
@@ -1106,6 +1167,26 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             selectedDailyTimedServices: _selectedDailyTimedServices,
             theme: serviceTheme,
             addonTotal: _addonTotalAmount(),
+            medicationRate: medicationBookingRate(medicationSetting),
+            medication: medicationSetting['enabled'] == true &&
+                    _startDate != null &&
+                    _endDate != null &&
+                    _selectedPetIds.isNotEmpty
+                ? Form(
+                    key: _medicationFormKey,
+                    child: BookingMedicationRequestSection(
+                      theme: serviceTheme,
+                      pets: _pets
+                          .where((pet) => _selectedPetIds.contains(medPetId(pet)))
+                          .toList(),
+                      setting: medicationSetting,
+                      startDate: _startDate!,
+                      endDate: _endDate!,
+                      initial: _medicationDraft,
+                      onChanged: (draft) => setState(() => _medicationDraft = draft),
+                    ),
+                  )
+                : null,
             onDailyTimedServicesChanged: () {
               setState(() {});
             },
@@ -1186,8 +1267,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             _startDate != null &&
             _endDate != null) ...<Widget>[
           if (BookingPageAppearance.fromShop(shop).style == 'cream')
-            BookingCreamHeader(
-              shopName: shop['name']?.toString() ?? '貓咪旅館',
+            const BookingCreamHeader(
               step: 3,
               title: '確認貓咪的小旅行',
               subtitle: '最後核對住宿安排與本次費用。',
@@ -1256,7 +1336,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     if (_editorialActive) {
       final hint = _currentStep == 1 ? _step1Hint : _step2Hint;
       return BookingEditorialFooter(
-        left: _currentStep == 1 ? '已選 ${_selectedPetIds.length} 隻貓咪' : '預估總額',
+        left: _currentStep == 1
+            ? '已選 ${_selectedPetIds.length} 隻貓咪'
+            : (_medicationEstimate(shop) ?? 0) > 0
+            ? '預估總額（含用藥）'
+            : '預估總額',
         right: _currentStep == 1
             ? '$_nights 晚住宿'
             : ShopReportFormat.money(_estimatedTotal(shop)),
@@ -1353,6 +1437,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     return BookingNextStepSection(
+      shopName: shop['name']?.toString() ?? '',
       selectedPetIds: _selectedPetIds,
       startDate: _startDate,
       endDate: _endDate,
@@ -1366,7 +1451,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               'selectedPetCount': _selectedPetIds.length,
             },
       nights: _nights,
-      totalPrice: _selectedRoomType == null ? 0 : _payableTotal(shop),
+      totalPrice: _selectedRoomType == null ? 0 : _initialPaymentTotal(shop),
+      advanceMedicationAmount: _advanceMedicationAmount(shop),
       originalTotal: _selectedRoomType == null
           ? 0
           : (_calculateDiscountInfo(shop)['originalTotal'] ?? 0).toInt(),
@@ -1419,6 +1505,10 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           termsConsent: data.termsConsent,
           customFormAnswers: data.customFormAnswers,
           petFormAnswersByPetId: data.petFormAnswersByPetId,
+          medicationRequest: _medicationRequest.isEmpty ? {} : {
+            ..._medicationRequest,
+            'expectedAdvanceAmount': _advanceMedicationAmount(shop),
+          },
         );
       },
     );
@@ -1736,6 +1826,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     required int depositAmount,
     required String paymentMethod,
     required String payAmountType,
+    required Map<String, dynamic> medicationRequest,
   }) {
     final List<String> sortedPetIds = List<String>.from(_selectedPetIds)
       ..sort();
@@ -1771,6 +1862,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       valueServices.join('|'),
       customServices.join('|'),
       _selectedDailyTimedServices.toString(),
+      jsonEncode(medicationRequest),
       (_selectedTimeAddon?['id'] ?? _selectedTimeAddon?['name'] ?? '')
           .toString(),
       _selectedMemberCoupon?.id ?? '',
@@ -1803,6 +1895,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     TermsConsentSnapshot? termsConsent,
     CustomFormAnswerSnapshot? customFormAnswers,
     Map<String, dynamic> petFormAnswersByPetId = const <String, dynamic>{},
+    Map<String, dynamic> medicationRequest = const <String, dynamic>{},
   }) async {
     debugPrint('[BookingSubmit] 11 parent submit entered');
     if (_submitting) {
@@ -1875,6 +1968,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       depositAmount: depositAmount,
       paymentMethod: paymentMethod,
       payAmountType: resolvedPayAmountType,
+      medicationRequest: medicationRequest,
     );
 
     setState(() {
@@ -1982,6 +2076,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         termsConsent: termsConsent,
         customFormAnswers: customFormAnswers,
         petFormAnswersByPetId: petFormAnswersByPetId,
+        medicationRequest: medicationRequest,
       );
       debugPrint('[BookingSubmit] 13 booking created: $createdBookingId');
       if (!mounted) return;
@@ -1995,7 +2090,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
       if (isEcpayPayment) {
         debugPrint('[BookingSubmit] 14 processing payment');
-        final int finalTotal = _payableTotal(shop);
+        final int finalTotal = _initialPaymentTotal(shop);
 
         final int requestedAmount =
             resolvedPayAmountType == PaymentAmountType.deposit
@@ -2053,12 +2148,26 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
       debugPrint('[BookingSubmit] skip ecpay paymentMethod=$paymentMethod');
       debugPrint('[BookingSubmit] 15 opening success page');
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.clearSnackBars();
+      messenger?.removeCurrentSnackBar();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => BookingSuccessPage(
             shopName: shop['name'] ?? '',
             shopId: widget.shopId,
+            appearance: BookingPageAppearance.fromShop(shop),
+            theme: _suiteTheme(shop),
+            frontendTheme: BookingPageAppearance.frontendThemeFromShop(
+              shop,
+              fallback: widget.theme,
+            ),
+            startDate: _startDate,
+            endDate: _endDate,
+            petCount: _selectedPetIds.length,
+            roomTypeName: _selectedRoomType?['name']?.toString(),
+            totalPrice: _initialPaymentTotal(shop),
           ),
         ),
       );
@@ -2259,6 +2368,10 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
                   onConfirm: () async {
                     setState(() {
+                      _resetMedicationIfDatesChanged(
+                        _tempStartDate,
+                        _tempEndDate,
+                      );
                       _startDate = _tempStartDate;
                       _endDate = _tempEndDate;
                       _selectedDailyCareAddonId = null;
@@ -2411,6 +2524,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   Map<String, dynamic> _calculateDiscountInfo(Map<String, dynamic>? shop) {
     final priceParts = BookingSummaryHelper.calculatePriceParts(
+      dailyCareAmount: _dailyCareQuote()?.amount ?? 0,
       selectedRoomType: _selectedRoomType!,
       nights: _nights,
       selectedPetIds: _selectedPetIds,
@@ -2875,6 +2989,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         BookingSummaryHelper.buildSummary(
+          dailyCare: _dailyCareQuote(),
           theme: _suiteTheme(shop),
           couponSection:
               const [
@@ -2890,6 +3005,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           pets: _pets,
           selectedRoomType: _selectedRoomType!,
           totalPrice: totalPrice,
+          medicationEstimate: _medicationEstimate(shop),
+          advanceMedication: _advanceMedicationAmount(shop) > 0,
+          medicationNeedsQuote: _medicationRequest.isNotEmpty &&
+              medMap(shop['medicationSetting'])['enabled'] == true &&
+              _medicationEstimate(shop) == null,
           originalTotal: discountInfo['originalTotal'],
           discountAmount: discountInfo['discountAmount'] ?? 0,
           discountPercent: discountInfo['discountPercent'] ?? 0,

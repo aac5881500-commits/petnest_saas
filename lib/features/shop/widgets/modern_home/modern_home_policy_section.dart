@@ -1,3 +1,4 @@
+import 'home_store_action.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
@@ -153,15 +154,17 @@ class ModernHomePolicySection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                setting.entryTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.2,
-                  fontWeight: FontWeight.w800,
-                  color: theme.textColor,
+              HomeStoreOptionalHeading(
+                title: Text(
+                  setting.entryTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    color: theme.textColor,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),

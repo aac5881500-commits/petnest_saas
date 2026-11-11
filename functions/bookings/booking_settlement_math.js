@@ -32,6 +32,9 @@ function quotedTotal(booking) {
       data.quotedTotalPrice || data.originalTotal || data.estimateTotalPrice,
       0,
   );
+  if (data.medication && data.quotedTotalPrice != null) {
+    return Math.max(0, toInt(data.quotedTotalPrice, 0));
+  }
   if (stored > 0) {
     return stored;
   }
@@ -50,7 +53,11 @@ function expectedTotal(booking, manualAdjustOverride) {
   const overtime = toInt(data.overtimeAmount, 0);
   const manual = manualAdjustOverride == null ?
     toInt(data.manualAdjust, 0) : toInt(manualAdjustOverride, 0);
-  return Math.max(0, quoted + extra + overtime + manual);
+  const medication = data.medication;
+  const advance = medication && !medication.finalized &&
+    !["declined", "cancelled"].includes(medication.state) ?
+    Math.max(0, toInt(medication.advanceAmount, 0)) : 0;
+  return Math.max(0, quoted + extra + overtime + manual + advance);
 }
 
 function paidAmount(booking) {

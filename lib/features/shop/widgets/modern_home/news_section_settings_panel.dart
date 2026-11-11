@@ -145,7 +145,7 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
                     title: HomeNewsLayouts.label(item),
                     description: switch (item) {
                       HomeNewsLayouts.imageCarousel => '每頁兩張圖卡，可滑動並點擊頁點',
-                      HomeNewsLayouts.feature => '焦點消息圖文，可於商城入口選擇右側並排',
+                      HomeNewsLayouts.feature => '焦點消息圖文，可在「首頁商城入口」設定搭配',
                       HomeNewsLayouts.multiLine => '展示多則消息與摘要',
                       HomeNewsLayouts.singleLine => '精簡呈現最新消息、類型與日期',
                       _ => '半寬入口，連結既有消息頁面',
@@ -205,7 +205,7 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
           (value) => _update(setting.copyWith(showHeading: value)),
         ),
         _switch(
-          '標題左側主題色豎線（暖橘色槓）',
+          '顯示標題左側豎線',
           setting.headingAccent,
           (value) => _update(setting.copyWith(headingAccent: value)),
         ),

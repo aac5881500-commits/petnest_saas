@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
@@ -101,7 +102,12 @@ class AdminBookingPriceSection extends StatelessWidget {
     final int pointAmount = _safeNtd(
       data['pointAmount'] ?? data['pointsDiscountAmount'],
     );
-    final int displayTotal = _safeNtd(data['totalPrice']);
+    final int medicationEstimate =
+        BookingSettlementMath.pendingMedicationEstimate(data);
+    final int displayTotal = BookingSettlementMath.orderDisplayTotal(
+      data,
+      _safeNtd(data['totalPrice']),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,9 +567,9 @@ class AdminBookingPriceSection extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    '總價',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  Text(
+                    medicationEstimate > 0 ? '預估總額（含用藥）' : '總價',
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   Text(
                     'NT\$ $displayTotal',
@@ -576,6 +582,8 @@ class AdminBookingPriceSection extends StatelessWidget {
                 ],
               ),
 
+              if (medicationEstimate > 0)
+                Text('用藥預估 NT\$ $medicationEstimate（${BookingSettlementMath.advanceMedicationAmount(data) > 0 ? '先收費' : '退房收費'}）'),
               const SizedBox(height: 10),
 
               Row(

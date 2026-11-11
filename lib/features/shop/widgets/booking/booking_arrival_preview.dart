@@ -110,7 +110,7 @@ class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
                   style: TextStyle(fontSize: 11),
                 ),
               ),
-              if (a.style == 'editorial') ...[
+              if (const ['editorial', 'cream'].contains(a.style))
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -118,8 +118,8 @@ class _BookingArrivalPreviewState extends State<BookingArrivalPreview> {
                   ),
                   child: BookingEditorial.brand(shopName: widget.shopName),
                 ),
+              if (a.style == 'editorial')
                 const BookingEditorialProgress(step: 1),
-              ],
               if (a.style == 'original')
                 BookingStepIndicator(currentStep: 1, theme: t),
               BookingArrivalLayout(

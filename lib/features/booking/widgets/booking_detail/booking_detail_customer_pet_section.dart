@@ -12,10 +12,12 @@ class BookingDetailCustomerPetSection extends StatefulWidget {
     super.key,
     required this.data,
     this.view,
+    this.showFullDetails = false,
   });
 
   final Map<String, dynamic> data;
   final BookingDetailViewData? view;
+  final bool showFullDetails;
 
   @override
   State<BookingDetailCustomerPetSection> createState() =>
@@ -32,6 +34,7 @@ class _BookingDetailCustomerPetSectionState
         widget.view ??
         BookingDetailViewData.fromBooking(data: widget.data, docId: '');
 
+    if (widget.showFullDetails) return _fullDetails(view);
     return BookingDetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,6 +135,88 @@ class _BookingDetailCustomerPetSectionState
           ],
         ],
       ),
+    );
+  }
+
+  Widget _fullDetails(BookingDetailViewData view) {
+    final theme = BookingDetailUi.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BookingDetailCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const BookingDetailSectionTitle('本次預約的寵物'),
+              const SizedBox(height: 12),
+              if (view.petInfos.isEmpty)
+                Text(view.petNames.isEmpty ? '這筆訂單未保存寵物資料。' : view.petNames),
+              for (final pet in view.petInfos)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      BookingDetailSoftNetworkImage(
+                        url: pet.photoUrl,
+                        width: 48,
+                        height: 48,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pet.name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: theme.text,
+                              ),
+                            ),
+                            if (pet.careSummary.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  pet.careSummary,
+                                  style: TextStyle(
+                                    height: 1.55,
+                                    color: theme.muted,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        BookingDetailCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const BookingDetailSectionTitle('預約與緊急聯絡資料'),
+              const SizedBox(height: 14),
+              _row('顧客姓名', view.customerName),
+              _row('電話', view.customerPhone, phone: true),
+              _row('地址', view.address),
+              _row('緊急聯絡人', view.emergencyName),
+              _row('關係', view.emergencyRelation),
+              _row('緊急電話', view.emergencyPhone, phone: true),
+              _row(
+                '緊急備用電話',
+                (view.emergency['phone2'] ?? '').toString(),
+                phone: true,
+              ),
+              _row('緊急聯絡地址', (view.emergency['address'] ?? '').toString()),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

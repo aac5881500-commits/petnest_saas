@@ -52,20 +52,26 @@ class _ShopTaskCenterPageState extends State<ShopTaskCenterPage> {
   Widget build(BuildContext context) {
     final ShopTaskAccess? access = _access;
     return Scaffold(
-      appBar: AppBar(title: const Text('全部待辦')),
+      appBar: AppBar(title: const Text('今日待辦')),
       body: access == null
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: ShopTaskCenterPanel(
-                shopId: widget.shopId,
-                canViewBookings: access.canViewBookings,
-                canFillDailyCare: access.canFillDailyCare,
-                canManageDevices: access.canManageDevices,
-                showViewAll: false,
-                closeBeforeOpen: false,
-                onOpenCamera: (ShopTaskItem item) {
-                  openShopCameraAccessRequest(context, item);
-                },
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: SingleChildScrollView(
+                  child: ShopTaskCenterPanel(
+                    shopId: widget.shopId,
+                    canViewBookings: access.canViewBookings,
+                    canFillDailyCare: access.canFillDailyCare,
+                    canManageDevices: access.canManageDevices,
+                    showViewAll: false,
+                    closeBeforeOpen: false,
+                    onOpenCamera: (ShopTaskItem item) {
+                      openShopCameraAccessRequest(context, item);
+                    },
+                  ),
+                ),
               ),
             ),
     );

@@ -428,10 +428,8 @@ class ModernStoreHomeSetting {
         map['storeBannerContentPosition'],
         ModernStoreCardPositions.centerLeft,
       ),
-      storeEntryPlacement: pick(
-        const ['standalone', 'news', 'rooms'],
+      storeEntryPlacement: HomeStorePlacement.normalize(
         map['storeEntryPlacement'],
-        'standalone',
       ),
       storeSectionTitle: (map['storeSectionTitle'] ?? '').toString().trim(),
       storeHeadingAccent: map['storeHeadingAccent'] != false,
@@ -541,5 +539,53 @@ class ModernStoreHomeSetting {
   static String _textOrDefault(dynamic value, String fallback) {
     final String text = (value ?? '').toString().trim();
     return text.isEmpty ? fallback : text;
+  }
+}
+
+/// Saved IDs keep existing news and room placements readable.
+abstract final class HomeStorePlacement {
+  static const standalone = 'standalone';
+  static const side = 'side';
+  static const button = 'button';
+
+  static const sections = <String, String>{
+    'announcements': '消息展示',
+    'rooms': '房型介紹',
+    'facilities': '環境介紹',
+    'about': '關於我們',
+    'quickBooking': '快速預約',
+    'policy': '入住須知',
+    'faq': '常見問題',
+    'reviews': '顧客評價',
+  };
+
+  static String mode(String value) => switch (value) {
+    'news' => side,
+    'rooms' => button,
+    _ => value.split(':').first,
+  };
+
+  static String? section(String value) => switch (value) {
+    'news' => 'announcements',
+    'rooms' => 'rooms',
+    _ => value.contains(':') ? value.split(':').last : null,
+  };
+
+  static String encode(String mode, String section) =>
+      switch ((mode, section)) {
+        (side, 'announcements') => 'news',
+        (button, 'rooms') => 'rooms',
+        _ => '$mode:$section',
+      };
+
+  static String normalize(Object? raw) {
+    final value = raw?.toString().trim() ?? '';
+    final target = section(value);
+    final kind = mode(value);
+    return sections.containsKey(target) &&
+            (kind == side || kind == button) &&
+            value == encode(kind, target!)
+        ? value
+        : standalone;
   }
 }

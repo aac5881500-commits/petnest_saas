@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models/shop_task_item.dart';
 import '../services/shop_task_center_service.dart';
-import '../../features/shop/pages/shop_camera_access_page.dart';
 import '../../features/shop/pages/shop_task_center_page.dart';
-import 'shop_task_center_panel.dart';
 
 class ShopTaskCenterButton extends StatefulWidget {
   const ShopTaskCenterButton({super.key, required this.shopId});
@@ -67,85 +65,11 @@ class _ShopTaskCenterButtonState extends State<ShopTaskCenterButton> {
     });
   }
 
-  Future<void> _openPanel() async {
-    final bool isWide = MediaQuery.sizeOf(context).width >= 800;
-
-    void openAll() {
-      Navigator.of(context).pop();
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ShopTaskCenterPage(shopId: widget.shopId),
-        ),
-      );
-    }
-
-    final ShopTaskAccess access = _access ?? ShopTaskAccess.none;
-    Widget panel() {
-      return ShopTaskCenterPanel(
-        shopId: widget.shopId,
-        canViewBookings: access.canViewBookings,
-        canFillDailyCare: access.canFillDailyCare,
-        canManageDevices: access.canManageDevices,
-        onViewAll: openAll,
-        onOpenCamera: (ShopTaskItem item) {
-          openShopCameraAccessRequest(context, item);
-        },
-      );
-    }
-
-    if (isWide) {
-      await showDialog<void>(
-        context: context,
-        barrierColor: Colors.black26,
-        builder: (context) {
-          return Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Material(
-                color: Colors.white,
-                elevation: 8,
-                borderRadius: BorderRadius.circular(16),
-                child: SizedBox(
-                  width: 420,
-                  height: MediaQuery.sizeOf(context).height - 32,
-                  child: Column(
-                    children: <Widget>[
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ),
-                      Expanded(child: SingleChildScrollView(child: panel())),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-      return;
-    }
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.82,
-            ),
-            child: SingleChildScrollView(child: panel()),
-          ),
-        );
-      },
-    );
-  }
+  Future<void> _openPanel() => Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => ShopTaskCenterPage(shopId: widget.shopId),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -154,20 +78,53 @@ class _ShopTaskCenterButtonState extends State<ShopTaskCenterButton> {
       return IconButton(
         tooltip: '今日待辦',
         onPressed: _access == null ? null : _openPanel,
-        icon: const Icon(Icons.pets_outlined),
+        icon: const Icon(Icons.checklist_rounded),
       );
     }
     return StreamBuilder<ShopTaskCenterSnapshot>(
       stream: binding.snapshots,
       builder: (context, snapshot) {
         final int count = snapshot.data?.totalCount ?? 0;
+        final medication =
+            snapshot.data?.items
+                .where(
+                  (item) => {
+                    ShopTaskType.medication,
+                    ShopTaskType.timedService,
+                  }.contains(item.type),
+                )
+                .toList() ??
+            [];
+        final due = medication.any((item) => item.metadata['urgency'] == 'due');
+        final soon = medication.any(
+          (item) => item.metadata['urgency'] == 'soon',
+        );
+        final colors = Theme.of(context).colorScheme;
         return IconButton(
-          tooltip: '今日待辦',
+          tooltip: due
+              ? '今日待辦・照護已到點'
+              : soon
+              ? '今日待辦・照護即將到點'
+              : '今日待辦',
           onPressed: _openPanel,
           icon: Badge(
             isLabelVisible: count > 0,
             label: Text(count > 99 ? '99+' : '$count'),
-            child: const Icon(Icons.pets_outlined),
+            backgroundColor: due
+                ? colors.error
+                : soon
+                ? Colors.orange.shade900
+                : colors.primary,
+            textColor: due
+                ? colors.onError
+                : soon
+                ? Colors.white
+                : colors.onPrimary,
+            child: Icon(
+              due || soon
+                  ? Icons.notifications_active_outlined
+                  : Icons.checklist_rounded,
+            ),
           ),
         );
       },

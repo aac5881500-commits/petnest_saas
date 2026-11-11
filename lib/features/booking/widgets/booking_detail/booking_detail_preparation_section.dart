@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/booking/models/pre_arrival_shortcut.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart
 // 功能說明：下一步／入住前事項：入住前準備、條款、付款。
@@ -12,19 +13,16 @@ class BookingDetailPreparationSection extends StatelessWidget {
   const BookingDetailPreparationSection({
     super.key,
     required this.view,
-    required this.guide,
     required this.onOpenTerms,
     required this.onOpenPayment,
   });
 
   final BookingDetailViewData view;
-  final PreArrivalGuideModel? guide;
   final VoidCallback onOpenTerms;
   final VoidCallback onOpenPayment;
 
   @override
   Widget build(BuildContext context) {
-    final bool showGuide = guide != null && guide!.hasCustomerContent;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -39,24 +37,6 @@ class BookingDetailPreparationSection extends StatelessWidget {
             ),
           ),
         ),
-        if (showGuide)
-          BookingDetailEntryRow(
-            icon: Icons.checklist_outlined,
-            title: guide!.displayTitle,
-            subtitle: '查看準備清單、勾選已備妥物品',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => PreArrivalGuidePage(
-                    guide: guide!,
-                    progressScope:
-                        '${FirebaseAuth.instance.currentUser?.uid ?? ''}/${view.shopId}/${view.docId}',
-                  ),
-                ),
-              );
-            },
-          ),
         BookingDetailEntryRow(
           icon: Icons.gavel_outlined,
           title: view.isDaycare ? '安親條款' : '住宿條款',
@@ -91,6 +71,51 @@ class BookingDetailPreparationSection extends StatelessWidget {
             onTap: onOpenPayment,
           ),
       ],
+    );
+  }
+}
+
+class BookingDetailGuideEntry extends StatelessWidget {
+  const BookingDetailGuideEntry({
+    super.key,
+    required this.view,
+    required this.guide,
+  });
+
+  final BookingDetailViewData view;
+  final PreArrivalGuideModel? guide;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentGuide = guide;
+    if (currentGuide == null ||
+        !currentGuide.hasCustomerContent ||
+        !PreArrivalShortcut.canPrepare(view)) {
+      return const SizedBox.shrink();
+    }
+    return BookingDetailEntryRow(
+      icon: Icons.checklist_outlined,
+      title: currentGuide.displayTitle,
+      subtitle: '查看準備清單、勾選已備妥物品',
+      onTap: () {
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final shortcut = PreArrivalShortcut(uid, view.shopId, view.docId);
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => PreArrivalGuidePage(
+              guide: currentGuide,
+              progressScope: uid.isEmpty ? null : shortcut.scope,
+              shortcut:
+                  uid.isNotEmpty &&
+                      view.shopId.isNotEmpty &&
+                      PreArrivalShortcut.eligible(view)
+                  ? shortcut
+                  : null,
+            ),
+          ),
+        );
+      },
     );
   }
 }

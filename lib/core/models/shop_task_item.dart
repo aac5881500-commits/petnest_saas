@@ -7,6 +7,8 @@ import 'camera_access_policy.dart';
 import 'camera_brand.dart';
 
 enum ShopTaskType {
+  medication,
+  timedService,
   dailyCare,
   booking,
   cameraShare,
@@ -50,6 +52,10 @@ class ShopTaskItem {
 
   String get groupLabel {
     switch (type) {
+      case ShopTaskType.timedService:
+        return '預約服務';
+      case ShopTaskType.medication:
+        return '用藥';
       case ShopTaskType.dailyCare:
         return '每日照護';
       case ShopTaskType.booking:
@@ -95,6 +101,14 @@ class ShopTaskCenterSnapshot {
     this.checkedInRoomCount = 0,
     this.hasError = false,
     this.errorMessage = '',
+    this.settingsLoading = false,
+    this.settingsErrorCode = '',
+    this.serviceEnabled = false,
+    this.serviceLoading = false,
+    this.serviceErrorCode = '',
+    this.medicationEnabled = false,
+    this.medicationLoading = false,
+    this.medicationErrorCode = '',
     this.bookingEnabled = false,
     this.bookingLoading = false,
     this.bookingErrorCode = '',
@@ -114,6 +128,13 @@ class ShopTaskCenterSnapshot {
   final int checkedInRoomCount;
   final bool hasError;
   final String errorMessage;
+  final bool settingsLoading;
+  final String settingsErrorCode;
+  final bool serviceEnabled, serviceLoading;
+  final String serviceErrorCode;
+  final bool medicationEnabled;
+  final bool medicationLoading;
+  final String medicationErrorCode;
   final bool bookingEnabled;
   final bool bookingLoading;
   final String bookingErrorCode;
@@ -128,20 +149,31 @@ class ShopTaskCenterSnapshot {
   final String cameraErrorSource;
 
   bool get hasLaneLoading {
-    return (bookingEnabled && bookingLoading) ||
+    return settingsLoading ||
+        (serviceEnabled && serviceLoading) ||
+        (medicationEnabled && medicationLoading) ||
+        (bookingEnabled && bookingLoading) ||
         (careEnabled && careLoading) ||
         (cameraEnabled && cameraLoading);
   }
 
   bool get hasLaneError {
-    return bookingErrorCode.isNotEmpty ||
+    return settingsErrorCode.isNotEmpty ||
+        serviceErrorCode.isNotEmpty ||
+        medicationErrorCode.isNotEmpty ||
+        bookingErrorCode.isNotEmpty ||
         careErrorCode.isNotEmpty ||
         cameraErrorCode.isNotEmpty;
   }
 
   /// 已訂閱的分類都讀完、都沒有錯誤，而且沒有待辦，才算全部完成。
   bool get isAllClear {
-    final bool anyLane = bookingEnabled || careEnabled || cameraEnabled;
+    final bool anyLane =
+        serviceEnabled ||
+        medicationEnabled ||
+        bookingEnabled ||
+        careEnabled ||
+        cameraEnabled;
     return anyLane && !hasLaneLoading && !hasLaneError && items.isEmpty;
   }
 

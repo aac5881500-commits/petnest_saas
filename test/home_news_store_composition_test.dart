@@ -25,6 +25,43 @@ final items = List.generate(
 const theme = HomeThemeModel.modernDefault;
 void main() {
   test(
+    'saved heading colors are independent and follow the theme by default',
+    () {
+      final original = theme.copyWith(
+        headingAccentColors: {
+          'facilities': 0xFF007766,
+          'announcements': 0xFF224488,
+        },
+      );
+      final restored = HomeThemeModel.fromMap(
+        original.toMap(),
+        fallback: theme,
+      );
+      expect(
+        restored.headingAccentColor('facilities'),
+        const Color(0xFF007766),
+      );
+      expect(
+        restored.headingAccentColor('announcements'),
+        const Color(0xFF224488),
+      );
+      expect(restored.headingAccentColor('rooms'), theme.primaryColor);
+      final reset = restored.copyWith(
+        headingAccentColors: {'announcements': 0xFF224488},
+      );
+      expect(reset.headingAccentColor('facilities'), theme.primaryColor);
+      expect(
+        (reset.toMap()['headingAccentColors'] as Map)['facilities'],
+        isNull,
+      );
+      expect(
+        reset.headingAccentColor('announcements'),
+        const Color(0xFF224488),
+      );
+    },
+  );
+
+  test(
     'new layout choices and heading controls round-trip without deleting photos',
     () {
       final news = const HomeNewsSectionSetting(

@@ -21,12 +21,13 @@ void main() {
   test(
     'entry draft saves text image and style without overwriting newer products',
     () {
-      const loaded = ModernStoreHomeSetting();
+      const loaded = ModernStoreHomeSetting(storeEntryPlacement: 'news');
       final latest = loaded.copyWith(
         featuredTitle: '最新商品標題',
         showFeaturedProducts: false,
       );
       final draft = loaded.copyWith(
+        storeEntryPlacement: 'standalone',
         storeBannerTitle: '貓咪好物',
         storeBannerImageUrl: 'https://example.com/photo.jpg',
         storeBannerImageStoragePath: 'shops/1/home/photo.jpg',
@@ -47,6 +48,7 @@ void main() {
       expect(saved.featuredTitle, '最新商品標題');
       expect(saved.showFeaturedProducts, false);
       final reopened = ModernStoreHomeSetting.fromMap(saved.toMap());
+      expect(reopened.storeEntryPlacement, 'standalone');
       expect(reopened.storeBannerTitle, draft.storeBannerTitle);
       expect(reopened.storeEntryLayout, draft.storeEntryLayout);
     },
@@ -112,6 +114,11 @@ void main() {
                   canManage: true,
                   entryOnly: true,
                   initialSetting: value,
+                  compatiblePlacements: const {
+                    'side:facilities',
+                    'rooms',
+                    'button:about',
+                  },
                   onChanged: (next) => setState(() => value = next),
                 ),
               ),
@@ -122,6 +129,34 @@ void main() {
       await tester.pump();
       expect(find.text('商城入口樣式'), findsOneWidget);
       expect(find.text('首頁顯示精選商品'), findsNothing);
+      final placement = find.widgetWithText(
+        DropdownButtonFormField<String>,
+        '商城入口呈現方式',
+      );
+      await tester.ensureVisible(placement);
+      await tester.tap(placement);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('與其他區塊並排').last);
+      await tester.pumpAndSettle();
+      expect(value.storeEntryPlacement, 'side:facilities');
+      await tester.tap(placement);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('區塊標題右側小按鈕').last);
+      await tester.pumpAndSettle();
+      final target = find.widgetWithText(
+        DropdownButtonFormField<String>,
+        '搭配的首頁區塊',
+      );
+      await tester.ensureVisible(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('關於我們').last);
+      await tester.pumpAndSettle();
+      expect(value.storeEntryPlacement, 'button:about');
+      expect(
+        ModernStoreHomeSetting.fromMap(value.toMap()).storeEntryPlacement,
+        'button:about',
+      );
       final field = find.widgetWithText(TextField, '卡片標題');
       await tester.ensureVisible(field);
       await tester.enterText(field, '貓咪好物');

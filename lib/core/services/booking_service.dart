@@ -101,6 +101,7 @@ class BookingService {
     String requestId = '',
     Map<String, dynamic>? customFormAnswers,
     Map<String, dynamic>? petFormAnswersByPetId,
+    Map<String, dynamic> medicationRequest = const <String, dynamic>{},
     Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     final user = _currentUser;
@@ -272,6 +273,7 @@ class BookingService {
       'accountNumber': accountNumber,
       'depositExpireHours': depositExpireHours,
       if (depositExpireIso != null) 'depositExpireAt': depositExpireIso,
+      'medicationRequest': medicationRequest,
       'cameraAccessEnabled': false,
       if (customFormAnswers != null && customFormAnswers.isNotEmpty)
         'customFormAnswers': customFormAnswers,

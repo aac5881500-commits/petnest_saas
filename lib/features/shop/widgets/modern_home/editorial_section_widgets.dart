@@ -1,3 +1,4 @@
+import 'home_store_action.dart';
 import '../environment/environment_photo.dart';
 import 'home_desktop_layout.dart';
 import '../room/room_feature_tags.dart';
@@ -44,12 +45,16 @@ class EditorialSectionHeading extends StatelessWidget {
     required this.title,
     required this.theme,
     this.trailing,
+    this.accentColor,
+    this.titleStyle,
     this.accent = true,
     this.fontFamily,
   });
   final String title;
   final HomeThemeModel theme;
   final Widget? trailing;
+  final Color? accentColor;
+  final TextStyle? titleStyle;
   final bool accent;
   final String? fontFamily;
   @override
@@ -61,20 +66,23 @@ class EditorialSectionHeading extends StatelessWidget {
           height: HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 24,
           margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
-            color: theme.primaryColor,
+            color: accentColor ?? theme.primaryColor,
             borderRadius: BorderRadius.circular(3),
           ),
         ),
       Expanded(
-        child: editorialText(
-          title,
-          HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 22,
-          theme,
-          bold: true,
-          fontFamily: fontFamily,
-        ),
+        child: titleStyle != null
+            ? Text(title, style: titleStyle)
+            : editorialText(
+                title,
+                HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 22,
+                theme,
+                bold: true,
+                fontFamily: fontFamily,
+              ),
       ),
       ?trailing,
+      ?HomeStoreHeadingAction.of(context),
     ],
   );
 }
@@ -222,6 +230,7 @@ class EditorialRoomStrip extends StatelessWidget {
             title: title,
             theme: theme,
             accent: headingAccent,
+            accentColor: theme.headingAccentColor('rooms'),
             fontFamily: fontFamily,
             trailing:
                 headerTrailing ??
@@ -471,7 +480,11 @@ class EditorialAboutCard extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          EditorialSectionHeading(title: sectionTitle, theme: theme),
+          EditorialSectionHeading(
+            title: sectionTitle,
+            theme: theme,
+            accentColor: theme.headingAccentColor('about'),
+          ),
           SizedBox(height: 14 * u),
           if (!showImage)
             copy

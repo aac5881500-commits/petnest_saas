@@ -1,3 +1,5 @@
+import '../widgets/modern_home/home_section_span.dart';
+import '../widgets/store/store_banner_color_field.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_front_home_settings_section.dart';
 import 'package:petnest_saas/core/models/home_desktop_layout_setting.dart';
 import 'package:petnest_saas/core/models/home_shop_info_setting.dart';
@@ -163,6 +165,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   int _environmentFocusToken = 0;
   int _aboutFocusToken = 0;
   int _newsFocusToken = 0;
+  String? _storePreviewSectionId;
+  int _storePreviewFocusToken = 0;
   int _quickBookingFocusToken = 0;
   StreamSubscription<DaycareSettingsModel>? _daycareSettingsSub;
   DaycareSettingsModel? _daycareSettings;
@@ -1395,6 +1399,61 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
+  Widget _headingAccentColorSetting(String sectionId) {
+    final custom = _modernTheme.headingAccentColors[sectionId];
+    final useShopInfoPalette =
+        sectionId == 'shopInfo' && !_shopInfo.followTheme;
+    final defaultLabel = useShopInfoPalette ? '跟隨店家資訊配色' : '跟隨主題色';
+    final color = custom == null && useShopInfoPalette
+        ? Color(
+            shopInfoPresets
+                .firstWhere(
+                  (preset) => preset.id == _shopInfo.preset,
+                  orElse: () => shopInfoPresets.first,
+                )
+                .accent,
+          )
+        : _modernTheme.headingAccentColor(sectionId);
+    void update(int? value) {
+      final colors = Map<String, int>.of(_modernTheme.headingAccentColors);
+      if (value == null) {
+        colors.remove(sectionId);
+      } else {
+        colors[sectionId] = value;
+      }
+      setState(() {
+        _modernTheme = _modernTheme.copyWith(headingAccentColors: colors);
+        _appearanceDirty = true;
+      });
+    }
+
+    return ListTile(
+      dense: true,
+      leading: Icon(Icons.circle, color: color, size: 18),
+      title: const Text('標題左側豎線顏色'),
+      subtitle: Text(custom == null ? defaultLabel : '使用自訂色'),
+      onTap: _isSaving
+          ? null
+          : () async {
+              final value = await showHomeColorPicker(context, initial: color);
+              if (mounted && value != null && !_isSaving) update(value);
+            },
+      trailing: custom == null
+          ? null
+          : TextButton(
+              onPressed: _isSaving ? null : () => update(null),
+              child: Text(defaultLabel),
+            ),
+    );
+  }
+
+  Widget _withHeadingAccentColor(String sectionId, Widget settings) => Column(
+    children: [
+      _headingAccentColorSetting(sectionId),
+      Expanded(child: settings),
+    ],
+  );
+
   Widget _buildRoomPane(bool desktopModern) {
     if (_selectedLayout != 'modern') {
       return ListView(
@@ -1421,7 +1480,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
     final Widget roomSettings = _withSectionDisplay(
       HomeSharedEntrySources.rooms,
-      settings,
+      _withHeadingAccentColor('rooms', settings),
     );
     if (desktopModern) {
       return Padding(
@@ -1536,7 +1595,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
-    final Widget environmentSettings = settings;
+    final Widget environmentSettings = _withHeadingAccentColor(
+      'facilities',
+      settings,
+    );
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1660,7 +1722,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         });
       },
     );
-    final Widget aboutSettings = settings;
+    final Widget aboutSettings = _withHeadingAccentColor('about', settings);
     if (desktopModern) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
@@ -1762,7 +1824,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
     final Widget newsSettings = _withSectionDisplay(
       HomeSharedEntrySources.announcements,
-      settings,
+      _withHeadingAccentColor('announcements', settings),
     );
     if (desktopModern) {
       return Padding(
@@ -2003,29 +2065,32 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       focusSectionToken: _faqFocusToken,
       canvasMode: 'faq',
       sharedSourceId: HomeSharedEntrySources.faq,
-      settings: FaqSectionSettingsPanel(
-        setting: _informationSections,
-        theme: _modernTheme,
-        locked: _loadedShop['showFaqSection'] == false,
-        onOpenFeatures: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ShopFaqManagePage(shopId: widget.shopId),
-            ),
-          );
-        },
-        onChanged: (HomeInformationSectionsSetting value) {
-          setState(() {
-            if (_informationSections.faq.showOnHome != value.faq.showOnHome) {
-              _sectionVisibility = _sectionVisibility.withValue(
-                'faq',
-                value.faq.showOnHome,
-              );
-            }
-            _informationSections = value;
-            _appearanceDirty = true;
-          });
-        },
+      settings: _withHeadingAccentColor(
+        'faq',
+        FaqSectionSettingsPanel(
+          setting: _informationSections,
+          theme: _modernTheme,
+          locked: _loadedShop['showFaqSection'] == false,
+          onOpenFeatures: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ShopFaqManagePage(shopId: widget.shopId),
+              ),
+            );
+          },
+          onChanged: (HomeInformationSectionsSetting value) {
+            setState(() {
+              if (_informationSections.faq.showOnHome != value.faq.showOnHome) {
+                _sectionVisibility = _sectionVisibility.withValue(
+                  'faq',
+                  value.faq.showOnHome,
+                );
+              }
+              _informationSections = value;
+              _appearanceDirty = true;
+            });
+          },
+        ),
       ),
     );
   }
@@ -2184,32 +2249,35 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
       return const Center(child: Text('請先在外觀設定改用新版首頁，再設定店家資訊。'));
     }
     final intro = _loadedShop['environmentIntro'];
-    final settings = ShopInfoSettingsPanel(
-      shopId: widget.shopId,
-      defaultIntro:
-          (_loadedShop['aboutDescription'] ?? '').toString().trim().isNotEmpty
-          ? _loadedShop['aboutDescription'].toString()
-          : (_loadedShop['description'] ?? _loadedShop['aboutSubtitle'] ?? '')
-                .toString(),
-      onBusyChanged: (busy) {
-        if (mounted) setState(() => _isUploadingSectionPhoto = busy);
-      },
-      setting: _shopInfo,
-      imageChoices: HomeAboutSectionSetting.imageChoices(
-        shop: _loadedShop,
-        environmentIntro: intro is Map
-            ? Map<String, dynamic>.from(intro)
-            : const {},
+    final settings = _withHeadingAccentColor(
+      'shopInfo',
+      ShopInfoSettingsPanel(
+        shopId: widget.shopId,
+        defaultIntro:
+            (_loadedShop['aboutDescription'] ?? '').toString().trim().isNotEmpty
+            ? _loadedShop['aboutDescription'].toString()
+            : (_loadedShop['description'] ?? _loadedShop['aboutSubtitle'] ?? '')
+                  .toString(),
+        onBusyChanged: (busy) {
+          if (mounted) setState(() => _isUploadingSectionPhoto = busy);
+        },
+        setting: _shopInfo,
+        imageChoices: HomeAboutSectionSetting.imageChoices(
+          shop: _loadedShop,
+          environmentIntro: intro is Map
+              ? Map<String, dynamic>.from(intro)
+              : const {},
+        ),
+        onManage: () => _openAppearanceContent(
+          ShopPermissionKeys.manageFrontendContent,
+          (_) => ShopAboutManagePage(shopId: widget.shopId),
+        ),
+        onChanged: (value) => setState(() {
+          _shopInfo = value;
+          _appearanceDirty = true;
+          _shopInfoFocusToken++;
+        }),
       ),
-      onManage: () => _openAppearanceContent(
-        ShopPermissionKeys.manageFrontendContent,
-        (_) => ShopAboutManagePage(shopId: widget.shopId),
-      ),
-      onChanged: (value) => setState(() {
-        _shopInfo = value;
-        _appearanceDirty = true;
-        _shopInfoFocusToken++;
-      }),
     );
     Widget preview() => _homeCanvasPreview(
       showCaption: desktopModern,
@@ -2581,6 +2649,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 child: _homeCanvasPreview(
                   showCaption: true,
                   canvasMode: 'desktop',
+                  focusSectionId:
+                      _appearanceCategory == AppearanceCategories.store
+                      ? _storePreviewSectionId
+                      : null,
+                  focusSectionToken: _storePreviewFocusToken,
                 ),
               ),
               const SizedBox(width: 12),
@@ -2695,6 +2768,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                   child: _homeCanvasPreview(
                     showCaption: false,
                     canvasMode: 'mobile',
+                    focusSectionId:
+                        _appearanceCategory == AppearanceCategories.store
+                        ? _storePreviewSectionId
+                        : null,
+                    focusSectionToken: _storePreviewFocusToken,
                   ),
                 )
               : Padding(
@@ -2765,6 +2843,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   List<Widget> _storeEntryCategory() => [
+    _headingAccentColorSetting('storeEntrance'),
     KeyedSubtree(
       key: _storeSettingsKey,
       child: _editorCard(
@@ -2775,6 +2854,14 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           shopId: widget.shopId,
           canManage: !_isSaving,
           entryOnly: true,
+          compatiblePlacements: homeStorePlacementOptions(
+            rooms: _roomSection,
+            environment: _environmentSection,
+            about: _aboutSection,
+            news: _newsSection,
+            information: _informationSections,
+            quickBooking: _quickBookingSection,
+          ),
           fallbackImageUrl:
               ((_loadedShop['coverUrl'] ?? '').toString().trim().isNotEmpty
                       ? _loadedShop['coverUrl']
@@ -2787,6 +2874,12 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
           },
           onChanged: (value) {
             setState(() {
+              if (_storeEntryPlacement != value.storeEntryPlacement) {
+                _storePreviewSectionId =
+                    HomeStorePlacement.section(value.storeEntryPlacement) ??
+                    'storeEntrance';
+                _storePreviewFocusToken++;
+              }
               _setStoreHomeDraft(
                 value.copyWith(
                   showFeaturedProducts: _showFeaturedStoreProducts,

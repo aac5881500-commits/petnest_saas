@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/room/widgets/room_status_palette_state.dart';
+import 'package:petnest_saas/features/room/widgets/room_status_legend.dart';
 import 'package:petnest_saas/features/room/widgets/room_workbench_layout.dart';
 // 檔案名稱：lib/features/auth/pages/room_calendar_page.dart
 // 功能說明：房間日曆（最終完整版 訂單自動上色）
@@ -55,6 +57,8 @@ class RoomCalendarPage extends StatefulWidget {
     required this.roomTypeName,
     required this.roomImageUrl,
     this.embedded = false,
+    this.embeddedDetailsOnly = false,
+    this.compactWorkbench = false,
     this.embeddedHeader,
     this.room = const <String, dynamic>{},
     this.embeddedDetail,
@@ -71,6 +75,8 @@ class RoomCalendarPage extends StatefulWidget {
   /// 為 true 時只回傳單房紀錄內容，不建立 Scaffold／AppBar。
   /// 既有單獨開啟的頁面維持完整頁面。
   final bool embedded;
+  final bool embeddedDetailsOnly;
+  final bool compactWorkbench;
 
   /// 桌機房務總覽右欄月曆區頂端的房間識別。手機完整頁不使用。
   final Widget? embeddedHeader;
@@ -92,7 +98,10 @@ class RoomCalendarPage extends StatefulWidget {
   State<RoomCalendarPage> createState() => _RoomCalendarPageState();
 }
 
-class _RoomCalendarPageState extends State<RoomCalendarPage> {
+class _RoomCalendarPageState extends State<RoomCalendarPage>
+    with RoomStatusPaletteState<RoomCalendarPage> {
+  @override
+  String get roomPaletteShopId => widget.shopId;
   DateTime _currentMonth = DateTime.now();
   DateTime? _selectedDate;
   String _selectedStatus = 'available';
@@ -659,6 +668,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
                             final RoomDayStatus dayStatus =
                                 resolveRoomDayStatus(
+                                  palette: roomPalette,
                                   date: date,
                                   today: today,
                                   room: widget.room,
@@ -684,7 +694,10 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                             /// 圓點顏色只走 RoomDayStatus，桌機與手機同一套。
                             Color color = dayStatus.color;
                             if (isDisabled) {
-                              color = Colors.grey.shade300;
+                              // Non-interactive dates retain their original neutral dot;
+                              // follow the historical-date swatch rather than
+                              // implying that the physical room is disabled.
+                              color = roomPalette.color('history');
                             }
 
                             return GestureDetector(
@@ -773,9 +786,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                       width: widget.embedded ? 8 : 10,
                                       height: widget.embedded ? 8 : 10,
                                       decoration: BoxDecoration(
-                                        color: isDisabled
-                                            ? Colors.grey.shade400
-                                            : color,
+                                        color: color,
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -808,6 +819,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 final RoomDayStatus? selectedDayStatus = panelDate == null
                     ? null
                     : resolveRoomDayStatus(
+                        palette: roomPalette,
                         date: panelDate,
                         today: today,
                         room: widget.room,
@@ -869,16 +881,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.grey.shade200),
                       ),
-                      child: Wrap(
-                        spacing: 16,
-                        runSpacing: 8,
-                        children: RoomStatusPresentation.legendItems()
-                            .map(
-                              (RoomStatusPresentation item) =>
-                                  _legend(item.color, item.label),
-                            )
-                            .toList(),
-                      ),
+                      child: RoomStatusLegend(palette: roomPalette),
                     ),
                   ],
                 );
@@ -928,7 +931,18 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     required _CalendarDayFacts? facts,
     required RoomDayStatus? dayStatus,
   }) {
+    if (widget.embeddedDetailsOnly) {
+      return Column(
+        children: [
+          if (widget.embeddedHeader != null) widget.embeddedHeader!,
+          Expanded(
+            child: _embeddedDetailScroll(facts: facts, dayStatus: dayStatus),
+          ),
+        ],
+      );
+    }
     return RoomRecordWorkspaceLayout(
+      forceColumns: widget.compactWorkbench,
       calendar: Column(
         children: [
           if (widget.embeddedHeader != null) widget.embeddedHeader!,
@@ -1004,40 +1018,10 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
-  Widget _embeddedLegend() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 2,
-        children: <Widget>[
-          ...RoomStatusPresentation.legendItems().map(
-            (RoomStatusPresentation item) =>
-                _embeddedLegendItem(item.color, item.label),
-          ),
-          _embeddedLegendItem(roomDayHistoryColor, roomDayHistoryLabel),
-        ],
-      ),
-    );
-  }
-
-  Widget _embeddedLegendItem(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Colors.black54),
-        ),
-      ],
-    );
-  }
+  Widget _embeddedLegend() => Padding(
+    padding: const EdgeInsets.all(10),
+    child: RoomStatusLegend(palette: roomPalette, fontSize: 11),
+  );
 
   Widget _embeddedDetailScroll({
     required _CalendarDayFacts? facts,
@@ -1202,7 +1186,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '恢復開放',
-                    color: RoomStatusPresentation.availableColor,
+                    color: roomPalette.color('available'),
                     status: 'available',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1212,7 +1196,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '轉為維修中',
-                    color: RoomStatusPresentation.maintenanceColor,
+                    color: roomPalette.color('maintenance'),
                     status: 'maintenance',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1228,7 +1212,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '維修完成並開放',
-                    color: RoomStatusPresentation.availableColor,
+                    color: roomPalette.color('available'),
                     status: 'available',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1238,7 +1222,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '維修完成但今日關閉',
-                    color: RoomStatusPresentation.closedColor,
+                    color: roomPalette.color('closed'),
                     status: 'closed',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1252,7 +1236,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '關閉此日',
-                    color: RoomStatusPresentation.closedColor,
+                    color: roomPalette.color('closed'),
                     status: 'closed',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1262,7 +1246,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '設為維修中',
-                    color: RoomStatusPresentation.maintenanceColor,
+                    color: roomPalette.color('maintenance'),
                     status: 'maintenance',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1426,7 +1410,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
               width: double.infinity,
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: RoomStatusPresentation.cleaningColor,
+                  backgroundColor: roomPalette.color('cleaning'),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
@@ -1463,7 +1447,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '恢復開放',
-                    color: RoomStatusPresentation.availableColor,
+                    color: roomPalette.color('available'),
                     status: 'available',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1473,7 +1457,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '轉為維修中',
-                    color: RoomStatusPresentation.maintenanceColor,
+                    color: roomPalette.color('maintenance'),
                     status: 'maintenance',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1491,7 +1475,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '維修完成並開放',
-                    color: RoomStatusPresentation.availableColor,
+                    color: roomPalette.color('available'),
                     status: 'available',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1501,7 +1485,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '維修完成但今日關閉',
-                    color: RoomStatusPresentation.closedColor,
+                    color: roomPalette.color('closed'),
                     status: 'closed',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1523,7 +1507,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '關閉此日',
-                    color: RoomStatusPresentation.closedColor,
+                    color: roomPalette.color('closed'),
                     status: 'closed',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1533,7 +1517,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '設為維修中',
-                    color: RoomStatusPresentation.maintenanceColor,
+                    color: roomPalette.color('maintenance'),
                     status: 'maintenance',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -1655,16 +1639,14 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                   padding: EdgeInsets.all(dense ? 8 : 12),
                   decoration: BoxDecoration(
                     color: completed
-                        ? RoomStatusPresentation.availableColor.withValues(
-                            alpha: 0.04,
-                          )
+                        ? roomPalette.color('available').withValues(alpha: 0.04)
                         : Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: completed
-                          ? RoomStatusPresentation.availableColor.withValues(
-                              alpha: 0.20,
-                            )
+                          ? roomPalette
+                                .color('available')
+                                .withValues(alpha: 0.20)
                           : Colors.grey.shade200,
                     ),
                   ),
@@ -1675,7 +1657,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                         height: dense ? 28 : 38,
                         decoration: BoxDecoration(
                           color: completed
-                              ? RoomStatusPresentation.availableColor
+                              ? roomPalette
+                                    .color('available')
                                     .withValues(alpha: 0.12)
                               : const Color(0xFF3D6F9F).withValues(alpha: 0.10),
                           shape: BoxShape.circle,
@@ -1689,7 +1672,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                 ),
                           size: 20,
                           color: completed
-                              ? RoomStatusPresentation.availableColor
+                              ? roomPalette.color('available')
                               : const Color(0xFF3D6F9F),
                         ),
                       ),
@@ -1715,8 +1698,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: completed
-                                    ? RoomStatusPresentation.availableColor
-                                    : RoomStatusPresentation.cleaningColor,
+                                    ? roomPalette.color('available')
+                                    : roomPalette.color('cleaning'),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -2024,35 +2007,35 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     switch (type) {
       case 'room_cleaning_started':
         icon = Icons.cleaning_services_outlined;
-        iconColor = RoomStatusPresentation.cleaningColor;
+        iconColor = roomPalette.color('cleaning');
         title = '開始清潔';
         detail = '房間已進入清潔中';
         break;
 
       case 'room_cleaning_completed':
         icon = Icons.check_circle_outline;
-        iconColor = RoomStatusPresentation.availableColor;
+        iconColor = roomPalette.color('available');
         title = '清潔完成';
         detail = reopened ? '完成後已立即開放' : '完成後今日維持關閉';
         break;
 
       case 'room_maintenance_started':
         icon = Icons.build_outlined;
-        iconColor = RoomStatusPresentation.maintenanceColor;
+        iconColor = roomPalette.color('maintenance');
         title = '開始維修';
         detail = '$fromStatus → 維修中';
         break;
 
       case 'room_maintenance_completed':
         icon = Icons.handyman_outlined;
-        iconColor = RoomStatusPresentation.availableColor;
+        iconColor = roomPalette.color('available');
         title = '維修完成';
         detail = '維修完成並恢復開放';
         break;
 
       case 'room_maintenance_completed_closed':
         icon = Icons.handyman_outlined;
-        iconColor = RoomStatusPresentation.closedColor;
+        iconColor = roomPalette.color('closed');
         title = '維修完成';
         detail = '維修完成，但今日維持關閉';
         break;
@@ -2356,7 +2339,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     final bool busy = _busyActionKey == 'clean:$dateKey';
     return FilledButton.icon(
       style: FilledButton.styleFrom(
-        backgroundColor: RoomStatusPresentation.cleaningColor,
+        backgroundColor: roomPalette.color('cleaning'),
         foregroundColor: Colors.white,
         visualDensity: VisualDensity.compact,
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -2438,21 +2421,6 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
       ).label;
     }
     return RoomStatusPresentation.calendarDot(status).label;
-  }
-
-  Widget _legend(Color color, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(text),
-      ],
-    );
   }
 }
 

@@ -13,12 +13,14 @@ class BookingCurrentRoomPanel extends StatelessWidget {
     this.compact = false,
     this.tight = false,
     this.unassignedStaffLabel,
+    this.inline = false,
   });
 
   final Map<String, dynamic> data;
   final BookingCurrentRoomAudience audience;
   final bool compact;
   final bool tight;
+  final bool inline;
   final String? unassignedStaffLabel;
 
   @override
@@ -80,6 +82,47 @@ class BookingCurrentRoomPanel extends StatelessWidget {
     final ColorScheme scheme = theme.colorScheme;
     final Color ink = scheme.onSurface;
     final Color muted = ink.withValues(alpha: 0.62);
+    if (inline) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: scheme.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              room.hasPhysicalRoom
+                  ? Icons.vpn_key_outlined
+                  : Icons.meeting_room_outlined,
+              size: 20,
+              color: scheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Wrap(
+                spacing: 20,
+                runSpacing: 6,
+                children: <Widget>[
+                  Text(
+                    '房型：${room.typeDisplay()}',
+                    style: TextStyle(fontSize: 13, color: ink),
+                  ),
+                  Text(
+                    '房間：$physical',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: room.hasPhysicalRoom ? scheme.primary : ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final bool dense = tight || compact;
     final double pad = tight ? 13 : (compact ? 10 : 12);
     return Container(

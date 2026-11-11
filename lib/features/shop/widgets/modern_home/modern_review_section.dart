@@ -1,3 +1,4 @@
+import 'home_store_action.dart';
 import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -79,6 +80,7 @@ class ModernReviewSection extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              ?HomeStoreHeadingAction.of(context),
               TextButton(
                 key: const Key('home-review-see-all'),
                 onPressed: onOpen,

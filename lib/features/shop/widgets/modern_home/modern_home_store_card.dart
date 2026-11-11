@@ -46,6 +46,7 @@ class ModernHomeStoreCard extends StatelessWidget {
           title: setting.storeSectionTitle,
           theme: theme,
           accent: setting.storeHeadingAccent,
+          accentColor: theme.headingAccentColor('storeEntrance'),
         ),
         const SizedBox(height: 10),
         body,

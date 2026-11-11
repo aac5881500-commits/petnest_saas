@@ -156,13 +156,20 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
     if (sectionId == null || sectionId.isEmpty) {
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
+    final int token = widget.focusSectionToken;
+    final binding = WidgetsBinding.instance;
+    binding.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // The section reporters publish their new positions after layout.
+      binding.addPostFrameCallback((_) {
+        if (!mounted ||
+            widget.focusSectionId != sectionId ||
+            widget.focusSectionToken != token) {
           return;
         }
         _revealSection(sectionId);
       });
+      binding.ensureVisualUpdate();
     });
   }
 
@@ -490,54 +497,58 @@ class _HomeLayoutCanvasState extends State<HomeLayoutCanvas> {
             children: <Widget>[
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
-                  return ListView(
+                  // Lay out every section so the editor can locate a section
+                  // even before it has been scrolled into view.
+                  return SingleChildScrollView(
                     controller: _scrollController,
-                    primary: false,
                     physics: _dragSectionId == null
                         ? const ClampingScrollPhysics()
                         : const NeverScrollableScrollPhysics(),
                     padding: EdgeInsets.fromLTRB(12, 5, 12, widget.bottomInset),
-                    children: <Widget>[
-                      ...buildHomeSectionRows(
-                        sectionIds: widget.sectionIds,
-                        spanOf: widget.spanOf,
-                        gap:
-                            HomeDesktopLayoutScope.maybeOf(
-                              context,
-                            )?.sectionGap ??
-                            (constraints.maxWidth < 760 ? 8 : 10),
-                        itemBuilder: _orderedSection,
-                      ),
-                      if (widget.shopInfo != null)
-                        Padding(
-                          key: _shopInfoAnchor,
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Semantics(
-                            button: true,
-                            label: '設定店家資訊',
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () =>
-                                  widget.onSelectSection?.call('shopInfo'),
-                              child: Stack(
-                                children: [
-                                  widget.shopInfo!,
-                                  Positioned(
-                                    top: 4,
-                                    right: 4,
-                                    child: IconButton.filledTonal(
-                                      tooltip: '設定店家資訊',
-                                      icon: const Icon(Icons.tune, size: 18),
-                                      onPressed: () => widget.onSelectSection
-                                          ?.call('shopInfo'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        ...buildHomeSectionRows(
+                          sectionIds: widget.sectionIds,
+                          spanOf: widget.spanOf,
+                          gap:
+                              HomeDesktopLayoutScope.maybeOf(
+                                context,
+                              )?.sectionGap ??
+                              (constraints.maxWidth < 760 ? 8 : 10),
+                          itemBuilder: _orderedSection,
+                        ),
+                        if (widget.shopInfo != null)
+                          Padding(
+                            key: _shopInfoAnchor,
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Semantics(
+                              button: true,
+                              label: '設定店家資訊',
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () =>
+                                    widget.onSelectSection?.call('shopInfo'),
+                                child: Stack(
+                                  children: [
+                                    widget.shopInfo!,
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: IconButton.filledTonal(
+                                        tooltip: '設定店家資訊',
+                                        icon: const Icon(Icons.tune, size: 18),
+                                        onPressed: () => widget.onSelectSection
+                                            ?.call('shopInfo'),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               ),

@@ -23,6 +23,7 @@ class BookingStatusFilter extends StatelessWidget {
     required this.onChanged,
     required this.items,
     this.countsIncomplete = false,
+    this.grouped = false,
   });
 
   final String selectedType;
@@ -30,6 +31,7 @@ class BookingStatusFilter extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final List<BookingFilterChipSpec> items;
   final bool countsIncomplete;
+  final bool grouped;
 
   static const List<BookingFilterChipSpec> stayItems = <BookingFilterChipSpec>[
     BookingFilterChipSpec(type: 'active', label: '全部'),
@@ -74,6 +76,7 @@ class BookingStatusFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (grouped) return _dashboard(context);
     return SizedBox(
       height: 48,
       child: ListView.separated(
@@ -143,6 +146,198 @@ class BookingStatusFilter extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  String _count(String type) =>
+      '${counts[type] ?? (countsIncomplete ? '—' : 0)}';
+
+  Widget _dashboard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final today = items.where((item) => item.type.startsWith('today')).toList()
+      ..addAll(items.where((item) => item.type == 'checked_in'));
+    final other = items.where((item) => !today.contains(item)).toList();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '今日營運',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF273349),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (var i = 0; i < today.length; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                Expanded(
+                  child: Semantics(
+                    selected: selectedType == today[i].type,
+                    button: true,
+                    label: '${today[i].label}  ${_count(today[i].type)}',
+                    child: Material(
+                      color: selectedType == today[i].type
+                          ? colors.primaryContainer
+                          : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: selectedType == today[i].type
+                              ? colors.primary
+                              : const Color(0xFFE5E8F0),
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => onChanged(today[i].type),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                i == 0
+                                    ? Icons.login_rounded
+                                    : i == 1
+                                    ? Icons.logout_rounded
+                                    : Icons.hotel_outlined,
+                                size: 21,
+                                color: colors.primary,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _count(today[i].type),
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  height: 1.1,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF273349),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                today[i].label,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E8F0)),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 600) {
+                  return PopupMenuButton<String>(
+                    onSelected: onChanged,
+                    itemBuilder: (_) => other
+                        .map(
+                          (item) => PopupMenuItem(
+                            value: item.type,
+                            child: Text(
+                              '${item.type == 'active' ? '進行中全部' : item.label}  ${_count(item.type)}',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.filter_list_rounded,
+                          size: 20,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            items
+                                        .firstWhere(
+                                          (item) => item.type == selectedType,
+                                          orElse: () => items.first,
+                                        )
+                                        .label ==
+                                    '全部'
+                                ? '進行中全部'
+                                : items
+                                      .firstWhere(
+                                        (item) => item.type == selectedType,
+                                        orElse: () => items.first,
+                                      )
+                                      .label,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Text(
+                          _count(selectedType),
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Icon(Icons.expand_more),
+                      ],
+                    ),
+                  );
+                }
+                return Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: other.map((item) {
+                    final selected = selectedType == item.type;
+                    return TextButton(
+                      onPressed: () => onChanged(item.type),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        backgroundColor: selected
+                            ? colors.primary
+                            : Colors.transparent,
+                        foregroundColor: selected
+                            ? Colors.white
+                            : const Color(0xFF566176),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        '${item.type == 'active' ? '進行中全部' : item.label}  ${_count(item.type)}',
+                        style: TextStyle(
+                          fontWeight: selected
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

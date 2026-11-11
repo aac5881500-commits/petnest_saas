@@ -22,7 +22,7 @@ PreArrivalGuideModel preArrivalExample({
       const PreArrivalGuideBlock(
         id: 'essentials',
         type: PreArrivalGuideBlockType.heading,
-        text: '出發前，先準備這些物品',
+        text: '必須攜帶',
         sortOrder: 1,
       ),
       PreArrivalGuideBlock(
@@ -38,28 +38,40 @@ PreArrivalGuideModel preArrivalExample({
         sortOrder: 3,
       ),
       const PreArrivalGuideBlock(
+        id: 'optional',
+        type: PreArrivalGuideBlockType.heading,
+        text: '視需要攜帶',
+        sortOrder: 4,
+      ),
+      const PreArrivalGuideBlock(
         id: 'comfort',
         type: PreArrivalGuideBlockType.checklist,
         text: '經店家確認可攜帶的熟悉毛毯或安撫物',
-        sortOrder: 4,
+        sortOrder: 5,
       ),
       const PreArrivalGuideBlock(
         id: 'special',
         type: PreArrivalGuideBlockType.heading,
-        text: '有特殊需求的貓咪',
-        sortOrder: 5,
+        text: '店家提供',
+        sortOrder: 6,
       ),
       const PreArrivalGuideBlock(
         id: 'contact',
         type: PreArrivalGuideBlockType.text,
-        text: '若有用藥或特殊照顧需求，請提前與店家確認可提供的服務，再依雙方確認的方式準備物品與說明。',
-        sortOrder: 6,
+        text: '請店家填寫實際提供的貓砂、砂盆與餐碗；若需自備特殊用品，請在此說明。',
+        sortOrder: 7,
+      ),
+      const PreArrivalGuideBlock(
+        id: 'arrival',
+        type: PreArrivalGuideBlockType.heading,
+        text: '到店前提醒',
+        sortOrder: 8,
       ),
       const PreArrivalGuideBlock(
         id: 'notes',
         type: PreArrivalGuideBlockType.checklist,
         text: '如有特殊需求，已與店家確認並備妥相關說明',
-        sortOrder: 7,
+        sortOrder: 9,
       ),
     ],
   );

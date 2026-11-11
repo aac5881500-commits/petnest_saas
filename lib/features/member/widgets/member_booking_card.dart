@@ -1,3 +1,5 @@
+import 'package:petnest_saas/features/member/widgets/member_order_room_image.dart';
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
 // 檔案名稱：lib/features/member/widgets/member_booking_card.dart
 // 功能說明：會員訂單列表卡：沿用 BookingDetailViewData 顯示，不重算價格。
 
@@ -41,6 +43,10 @@ class MemberBookingCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
+            if (medMap(view.raw['medication']).isNotEmpty)
+              Text(
+                '用藥協助・${medMap(view.raw['medication'])['finalized'] == true ? '已結算' : medicationStates[medMap(view.raw['medication'])['state']] ?? '待確認'}',
+              ),
             Row(
               children: <Widget>[
                 MemberStatusChip(
@@ -73,15 +79,23 @@ class MemberBookingCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              view.roomAssignmentLabel,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: MemberUi.bodySize,
-                fontWeight: FontWeight.w600,
-                color: MemberUi.of(context).text,
-              ),
+            Row(
+              children: [
+                MemberOrderRoomImage(data: view.raw),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    view.roomAssignmentLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: MemberUi.bodySize,
+                      fontWeight: FontWeight.w600,
+                      color: MemberUi.of(context).text,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(

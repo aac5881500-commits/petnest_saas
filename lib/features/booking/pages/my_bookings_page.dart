@@ -23,6 +23,7 @@ import 'package:petnest_saas/features/member/widgets/member_list_helpers.dart';
 import 'package:petnest_saas/features/member/widgets/member_page_scaffold.dart';
 import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 
 class MyBookingsPage extends StatelessWidget {
   const MyBookingsPage({super.key, this.returnShopId});
@@ -131,11 +132,26 @@ class _MyBookingsPageState extends State<_MyBookingsBody> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final returnShopId = widget.returnShopId?.trim() ?? '';
+    final actions = [
+      if (returnShopId.isNotEmpty)
+        TextButton.icon(
+          icon: const Icon(Icons.home_outlined),
+          label: const Text('回首頁'),
+          onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute<void>(
+              builder: (_) => ShopPublicPage(shopId: returnShopId),
+            ),
+            (route) => false,
+          ),
+        ),
+    ];
 
     if (user == null) {
-      return const MemberPageScaffold(
+      return MemberPageScaffold(
         title: '我的訂單',
-        body: MemberEmptyState(
+        actions: actions,
+        body: const MemberEmptyState(
           icon: Icons.lock_outline,
           title: '請先登入',
           message: '登入後即可查看訂單。',
@@ -145,6 +161,7 @@ class _MyBookingsPageState extends State<_MyBookingsBody> {
 
     return MemberPageScaffold(
       title: '我的訂單',
+      actions: actions,
       body: StreamBuilder<QuerySnapshot>(
         stream: () {
           Query<Map<String, dynamic>> query = FirebaseFirestore.instance
@@ -156,7 +173,7 @@ class _MyBookingsPageState extends State<_MyBookingsBody> {
 
           final String currentShopId = InspectionOwnerContext.active
               ? InspectionOwnerContext.shopId
-              : widget.returnShopId?.trim() ?? '';
+              : '';
 
           if (currentShopId.isNotEmpty) {
             query = query.where('shopId', isEqualTo: currentShopId);
@@ -274,7 +291,20 @@ class _MyBookingsPageState extends State<_MyBookingsBody> {
                 if (index == 0) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _filterBar(docs),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '各店訂單依成立時間排列，最新訂單在最上方',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: MemberUi.of(context).muted,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _filterBar(docs),
+                      ],
+                    ),
                   );
                 }
                 if (index == visibleDocs.length + 1) {

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
 // 檔案名稱：lib/features/admin/pages/admin_booking_list_page.dart
 // 功能說明：店家訂單列表頁（住宿／安親分頁）
 
@@ -141,6 +142,16 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
               )
             : null,
         actions: <Widget>[
+          IconButton(
+            tooltip: '今日用藥待辦',
+            icon: const Icon(Icons.medication_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => MedicationTodayPage(shopId: widget.shopId),
+              ),
+            ),
+          ),
           ShopTaskCenterButton(shopId: widget.shopId),
           _CreateOrderButton(shopId: widget.shopId, shop: _shop),
         ],

@@ -1,3 +1,7 @@
+import '../widgets/admin_booking_schedule.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_order_workspace.dart';
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
 // 檔案名稱：lib/features/admin/pages/admin_booking_detail_page.dart
 // 功能說明：訂單詳細頁（後台版）
 //  店主自己的後台店家詳細頁
@@ -185,6 +189,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                         depositAmount: stayDeposit,
                         depositPaid: stayDepositPaid,
                         chrome: chrome,
+                        compact: true,
                         onAssignRoom: () async {
                           await showAdminAssignRoomDialog(
                             context: context,
@@ -285,6 +290,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                           ),
                       ],
                       overview: AdminBookingHeaderCard(
+                        dense: true,
                         data: data,
                         bookingId: bookingId,
                       ),
@@ -303,63 +309,99 @@ class AdminBookingDetailPage extends StatelessWidget {
                                     AdminBookingActionChrome.phoneSticky,
                                   )
                                 : null),
-                      left: <Widget>[
-                        AdminBookingDetailSection(
-                          title: '顧客資訊',
-                          child: AdminBookingCustomerSection(
-                            data: data,
-                            emergency: emergency,
-                            shopId: shopId,
-                          ),
+                      left: const <Widget>[],
+                      workspace: AdminBookingWorkspaceContent(
+                        alerts: [
+                          if (pets.any(PetSnapshot.hasDiseaseAlert)) '寵物健康注意事項',
+                        ],
+                        preferenceScope:
+                            '$shopId:${FirebaseAuth.instance.currentUser?.uid ?? 'local'}',
+                        balance: AdminBookingWorkspaceBalance(data: data),
+                        pets: AdminBookingPetStrip(
+                          pets: pets,
+                          shopId: shopId,
+                          userId: PetShopFormAnswers.bookingUserId(data),
                         ),
-                        AdminBookingDetailSection(
-                          title: '寵物資訊（${pets.length}隻）',
-                          child: AdminBookingPetStrip(
-                            pets: pets,
-                            shopId: shopId,
-                            userId: PetShopFormAnswers.bookingUserId(data),
-                          ),
+                        contacts: AdminBookingCustomerSection(
+                          compact: true,
+                          data: data,
+                          emergency: emergency,
+                          shopId: shopId,
                         ),
-                        AdminBookingDetailSection(
-                          title: '入住／退房日期',
-                          child: AdminBookingStayMetaSection(data: data),
+                        schedule: AdminBookingScheduleData(
+                          shopId: shopId,
+                          bookingId: bookingId,
+                          booking: data,
+                          canEdit: canEdit,
                         ),
-                        AdminBookingDetailSection(
-                          title: '點數',
-                          showHeading: false,
-                          child: AdminBookingPointsCard(
-                            shopId: shopId,
-                            bookingId: bookingId,
-                            booking: data,
-                            lookupMember: true,
-                          ),
+                        medicationDetails: BookingMedicationPanel(
+                          bookingId: bookingId,
+                          booking: data,
+                          staff: true,
+                          canManage: canEdit,
                         ),
-                        AdminBookingDetailSection(
-                          title: '服務與費用明細',
-                          child: AdminBookingPriceSection(
-                            data: data,
-                            pets: pets,
-                            lineItemsOnly: true,
-                            bookingId: bookingId,
-                          ),
+                        careReport: AdminDailyCareReportShortcut(
+                          shopId: shopId,
+                          bookingId: bookingId,
+                          booking: data,
                         ),
-                        AdminBookingDetailSection(
-                          title: '每日照護摘要',
-                          child: AdminDailyCareReportShortcut(
-                            shopId: shopId,
-                            bookingId: bookingId,
-                            booking: data,
-                          ),
-                        ),
-                        if (data['extraCharges'] is List &&
-                            (data['extraCharges'] as List).isNotEmpty)
+                        charges: <Widget>[
                           AdminBookingDetailSection(
-                            title: '退房額外費用',
+                            title: '點數',
+                            showHeading: false,
+                            child: AdminBookingPointsCard(
+                              shopId: shopId,
+                              bookingId: bookingId,
+                              booking: data,
+                              lookupMember: true,
+                            ),
+                          ),
+                          AdminBookingDetailSection(
+                            title: '服務與費用明細',
+                            child: AdminBookingPriceSection(
+                              data: data,
+                              pets: pets,
+                              lineItemsOnly: true,
+                              bookingId: bookingId,
+                            ),
+                          ),
+                          if (data['extraCharges'] is List &&
+                              (data['extraCharges'] as List).isNotEmpty)
+                            AdminBookingDetailSection(
+                              title: '退房額外費用',
+                              collapsible: true,
+                              initiallyExpanded: false,
+                              child: AdminBookingExtraChargeSection(data: data),
+                            ),
+                        ],
+                        details: <Widget>[
+                          AdminBookingDetailSection(
+                            title: '顧客資訊',
+                            child: AdminBookingCustomerSection(
+                              data: data,
+                              emergency: emergency,
+                              shopId: shopId,
+                            ),
+                          ),
+                          AdminBookingDetailSection(
+                            title: '入住／退房日期',
+                            child: AdminBookingStayMetaSection(data: data),
+                          ),
+                          AdminBookingWorkspaceOrigin(data: data),
+                          AdminBookingDetailPolicyCard(data: data),
+                        ],
+                        activity: <Widget>[
+                          AdminBookingDetailSection(
+                            title: '操作紀錄',
                             collapsible: true,
                             initiallyExpanded: false,
-                            child: AdminBookingExtraChargeSection(data: data),
+                            child: AdminBookingActionLogSection(
+                              shopId: shopId,
+                              bookingId: bookingId,
+                            ),
                           ),
-                      ],
+                        ],
+                      ),
                       progress: AdminBookingDetailSection(
                         title: '訂單進度',
                         collapsible: true,
@@ -457,16 +499,6 @@ class AdminBookingDetailPage extends StatelessWidget {
                                   )
                               ? () => _confirmDepositAndBooking(context, data)
                               : null,
-                        ),
-                        AdminBookingDetailPolicyCard(data: data),
-                        AdminBookingDetailSection(
-                          title: '操作紀錄',
-                          collapsible: true,
-                          initiallyExpanded: false,
-                          child: AdminBookingActionLogSection(
-                            shopId: shopId,
-                            bookingId: bookingId,
-                          ),
                         ),
                       ],
                       handover: AdminInternalHandoverCard(
@@ -644,8 +676,7 @@ class AdminBookingDetailPage extends StatelessWidget {
         final Map<String, dynamic> updatedBookingData =
             updatedBookingSnapshot.data() ?? <String, dynamic>{};
         final bool daycare =
-            (updatedBookingData['bookingKind'] ?? '').toString() ==
-                'daycare' ||
+            (updatedBookingData['bookingKind'] ?? '').toString() == 'daycare' ||
             (updatedBookingData['serviceType'] ?? '').toString() == 'daycare';
         final dynamic rawServiceEnd = daycare
             ? updatedBookingData['actualEndAt'] ??

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/member/widgets/member_shop_scope_label.dart';
 // 檔案名稱：lib/features/member/pages/member_coupon_page.dart
 // 功能說明：顯示會員在目前店家持有的優惠券與使用狀態
 // 🎟️ 會員中心：我的優惠券
@@ -142,7 +143,19 @@ class MemberCouponPage extends StatelessWidget {
                         ),
                       ],
                     ),
-                    body: body,
+                    body: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: MemberShopScopeLabel(
+                            shopId: normalizedShopId,
+                            shopName: shopName,
+                            note: '優惠券僅限所屬店家，使用條件以各券說明為準',
+                          ),
+                        ),
+                        Expanded(child: body),
+                      ],
+                    ),
                   );
                 },
               ),

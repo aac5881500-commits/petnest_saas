@@ -10,6 +10,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/models/booking_medication_task.dart';
+import '../../../core/models/booking_service_task.dart';
+import '../../../core/services/booking_service.dart';
 import '../../../core/models/daily_care_entitlement.dart';
 import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_photo_model.dart';
@@ -23,6 +26,7 @@ import '../../../core/services/daily_care_report_eligibility.dart';
 import '../../../core/services/daily_care_report_write_access.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
+import '../../../core/widgets/daily_care_medication_summary.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
 
 class DailyCareRecordEditor extends StatefulWidget {
@@ -317,8 +321,62 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
     }
   }
 
+  bool _checkingCare = false;
+  Future<bool> _reviewDueCare() async {
+    _checkingCare = true;
+    try {
+      final booking = await BookingService.instance.getBooking(
+        widget.bookingId,
+      );
+      if (booking == null) throw StateError('訂單已不存在');
+      final day = BookingMedicationTask.dateKey(widget.recordDate);
+      final now = DateTime.now();
+      final pending = <String>[
+        for (final t in BookingMedicationTask.fromBooking(booking))
+          if (t.day == day && t.pending && !t.scheduledAt.isAfter(now))
+            '${BookingMedicationTask.timeLabel(t.scheduledAt)} ${t.pet} · ${t.types}',
+        for (final t in BookingServiceTask.fromBooking(booking))
+          if (t.day == day && t.pending && !t.scheduledAt.isAfter(now))
+            '${BookingMedicationTask.timeLabel(t.scheduledAt)} ${t.pet} · ${t.title}',
+      ];
+      if (!mounted) return false;
+      if (pending.isEmpty) return true;
+      return await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('還有 ${pending.length} 項到點照護尚未記錄'),
+              content: SingleChildScrollView(
+                child: Text(
+                  '${pending.join('\n')}\n\n可以先補齊結果再送出；若先送出本場回報，後續紀錄仍會同步更新，尚未記錄的項目不會被標成已完成。',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('先補紀錄'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('先送出本場回報'),
+                ),
+              ],
+            ),
+          ) ==
+          true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('無法核對照護時程，請確認連線後重試')));
+      }
+      return false;
+    } finally {
+      _checkingCare = false;
+    }
+  }
+
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _checkingCare) return;
     if (_locked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(DailyCareReportWriteAccess.lockedMessage)),
@@ -364,6 +422,8 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
       ).showSnackBar(const SnackBar(content: Text('室內濕度請輸入 0～100')));
       return;
     }
+
+    if (!await _reviewDueCare() || !mounted) return;
 
     if (_pendingPhotos.isNotEmpty) {
       final bool? confirmed = await showDialog<bool>(
@@ -550,6 +610,11 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
       padding: widget.padding,
       children: <Widget>[
         if (widget.showHeaderCard) _headerCard(dateText),
+        StaffDailyCareMedicationSummary(
+          key: ValueKey(widget.bookingId),
+          bookingId: widget.bookingId,
+          recordDate: widget.recordDate,
+        ),
         if (_locked) ...<Widget>[
           if (widget.showHeaderCard) const SizedBox(height: 12),
           _lockBanner(),

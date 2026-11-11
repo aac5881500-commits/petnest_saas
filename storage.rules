@@ -236,6 +236,12 @@ service firebase.storage {
         );
     }
 
+    match /medication_uploads/{uid}/{shopId}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == uid || hasShopPermission(shopId, 'manage_bookings'));
+      allow create: if resource == null && signedIn() && request.auth.uid == uid && request.resource.contentType == 'image/jpeg' && isUnder5MB();
+      allow update, delete: if false;
+    }
+
     // 🐾 會員頭像與寵物照片：pets/{uid}/{fileName}
     // App 上傳前已轉成 JPEG。寵物既有上限是小於 6MB，頭像 App 自己先擋 5MB。
     match /pets/{uid}/{fileName} {

@@ -38,30 +38,44 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            view.statusTitle,
-            style: TextStyle(
-              fontSize: BookingDetailUi.statusSize,
-              fontWeight: FontWeight.w800,
-              color: view.status == 'cancelled'
-                  ? BookingDetailUi.of(context).danger
-                  : BookingDetailUi.of(context).text,
+          BookingDetailSectionTitle(view.isDaycare ? '安親安排' : '住宿安排'),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: BookingDetailUi.of(
+                context,
+              ).iconSoft.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '目前提醒',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: BookingDetailUi.of(context).text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  view.nextStepHint,
+                  style: TextStyle(
+                    fontSize: BookingDetailUi.bodySize,
+                    color: BookingDetailUi.of(context).text,
+                    height: 1.6,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          const SizedBox(height: 10),
+          const SizedBox(height: 18),
           BookingCurrentRoomPanel(
             data: view.raw,
             audience: BookingCurrentRoomAudience.customer,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            view.nextStepHint,
-            style: TextStyle(
-              fontSize: BookingDetailUi.bodySize,
-              color: BookingDetailUi.of(context).muted,
-              height: 1.4,
-            ),
           ),
           if (view.status == 'cancelled' &&
               view.cancelReason.isNotEmpty) ...<Widget>[
@@ -171,21 +185,24 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
                 _expanded = !_expanded;
               });
             },
-            child: Row(
-              children: <Widget>[
-                Text(
-                  '查看完整進度',
-                  style: TextStyle(
-                    fontSize: BookingDetailUi.bodySize,
-                    color: BookingDetailUi.of(context).primary,
-                    fontWeight: FontWeight.w600,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: <Widget>[
+                  Text(
+                    _expanded ? '收起訂單進度' : '查看完整進度',
+                    style: TextStyle(
+                      fontSize: BookingDetailUi.bodySize,
+                      color: BookingDetailUi.of(context).primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  color: BookingDetailUi.of(context).primary,
-                ),
-              ],
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    color: BookingDetailUi.of(context).primary,
+                  ),
+                ],
+              ),
             ),
           ),
           if (_expanded) ...<Widget>[
@@ -233,7 +250,7 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

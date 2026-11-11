@@ -79,12 +79,23 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
       if (!mounted) return;
 
       switch (notification.type) {
+        case 'staff_service_task':
+        case 'staff_medication_task':
+          await FcmMessageService.instance.openMedicationTask(
+            service: notification.type == 'staff_service_task',
+            shopId: notification.shopId,
+            bookingId: notification.bookingId,
+            taskId: '${notification.data['taskId'] ?? ''}',
+            scheduledAt: '${notification.data['scheduledAt'] ?? ''}',
+          );
+          break;
         case 'booking_status':
         case 'booking_message':
         case 'check_in':
           if (notification.bookingId.isNotEmpty) {
             await FcmMessageService.instance.openBookingDetail(
               notification.bookingId,
+              care: notification.data['section'] == 'care',
             );
           }
           break;
@@ -950,6 +961,11 @@ bool notificationInCustomerView(
 
 bool notificationCanOpen(AppNotificationModel notification) {
   switch (notification.type) {
+    case 'staff_medication_task':
+    case 'staff_service_task':
+      return notification.shopId.isNotEmpty &&
+          notification.bookingId.isNotEmpty &&
+          '${notification.data['taskId'] ?? ''}'.isNotEmpty;
     case 'booking_status':
     case 'booking_message':
     case 'check_in':

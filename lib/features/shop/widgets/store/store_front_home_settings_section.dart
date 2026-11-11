@@ -23,6 +23,7 @@ class StoreFrontHomeSettingsSection extends StatefulWidget {
     this.onBusyChanged,
     this.entryOnly = false,
     this.fallbackImageUrl = '',
+    this.compatiblePlacements,
   });
 
   final String shopId;
@@ -33,6 +34,7 @@ class StoreFrontHomeSettingsSection extends StatefulWidget {
   final ValueChanged<bool>? onBusyChanged;
   final bool entryOnly;
   final String fallbackImageUrl;
+  final Set<String>? compatiblePlacements;
 
   @override
   State<StoreFrontHomeSettingsSection> createState() =>
@@ -417,6 +419,98 @@ class StoreFrontHomeSettingsSectionState
     }
   }
 
+  Widget _placementControls(bool enabled) {
+    final placements = widget.compatiblePlacements!;
+    final mode = HomeStorePlacement.mode(_entryPlacement);
+    final target = HomeStorePlacement.section(_entryPlacement);
+    final compatible =
+        mode == HomeStorePlacement.standalone ||
+        placements.contains(_entryPlacement);
+    const labels = {
+      HomeStorePlacement.standalone: '獨立區塊',
+      HomeStorePlacement.side: '與其他區塊並排',
+      HomeStorePlacement.button: '區塊標題右側小按鈕',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('store-mode-$mode'),
+          initialValue: mode,
+          decoration: const InputDecoration(labelText: '商城入口呈現方式'),
+          items: [
+            for (final entry in labels.entries)
+              DropdownMenuItem(
+                value: entry.key,
+                enabled:
+                    entry.key == HomeStorePlacement.standalone ||
+                    placements.any(
+                      (p) => HomeStorePlacement.mode(p) == entry.key,
+                    ),
+                child: Text(entry.value),
+              ),
+          ],
+          onChanged: !enabled
+              ? null
+              : (value) {
+                  if (value == null || value == mode) return;
+                  final next = value == HomeStorePlacement.standalone
+                      ? value
+                      : placements.firstWhere(
+                          (p) => HomeStorePlacement.mode(p) == value,
+                        );
+                  _edit(() => _entryPlacement = next);
+                },
+        ),
+        if (target != null) ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            key: ValueKey(_entryPlacement),
+            initialValue: target,
+            decoration: const InputDecoration(labelText: '搭配的首頁區塊'),
+            items: [
+              for (final section in HomeStorePlacement.sections.entries)
+                DropdownMenuItem(
+                  value: section.key,
+                  enabled: placements.contains(
+                    HomeStorePlacement.encode(mode, section.key),
+                  ),
+                  child: Text(
+                    placements.contains(
+                          HomeStorePlacement.encode(mode, section.key),
+                        )
+                        ? section.value
+                        : '${section.value}（目前版型不支援）',
+                  ),
+                ),
+            ],
+            onChanged: !enabled
+                ? null
+                : (value) {
+                    if (value != null) {
+                      _edit(
+                        () => _entryPlacement = HomeStorePlacement.encode(
+                          mode,
+                          value,
+                        ),
+                      );
+                    }
+                  },
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text(switch (mode) {
+          HomeStorePlacement.side => '可搭配半寬小卡或焦點圖文消息。',
+          HomeStorePlacement.button => '可搭配有相容標題列的版型，小按鈕沿用下方的按鈕文字。',
+          _ => '可在首頁畫布單獨拖曳商城區塊。並排支援半寬小卡與焦點圖文消息，小按鈕需要相容的標題列。',
+        }),
+        if (!compatible) const Text('目前版型不相容，商城會以獨立區塊顯示。'),
+        if (target != null) const Text('搭配區塊未顯示時，商城會以獨立區塊顯示。'),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -505,28 +599,13 @@ class StoreFrontHomeSettingsSectionState
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('標題左側主題色豎線（暖橘色槓）'),
+            title: const Text('顯示標題左側豎線'),
             value: _headingAccent,
             onChanged: enabled
                 ? (value) => _edit(() => _headingAccent = value)
                 : null,
           ),
-          DropdownButtonFormField<String>(
-            initialValue: _entryPlacement,
-            decoration: const InputDecoration(labelText: '商城入口位置'),
-            items: const [
-              DropdownMenuItem(value: 'standalone', child: Text('獨立區塊')),
-              DropdownMenuItem(value: 'news', child: Text('消息右側並排卡')),
-              DropdownMenuItem(value: 'rooms', child: Text('房型標題右側按鈕')),
-            ],
-            onChanged: enabled
-                ? (value) => _edit(() => _entryPlacement = value!)
-                : null,
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('並排模式的區塊標題在「消息展示」設定；房型標題右側按鈕沿用下方按鈕文字。'),
-          ),
+          if (widget.compatiblePlacements != null) _placementControls(enabled),
           _quickTemplates(enabled),
           const Text('商城入口樣式', style: TextStyle(fontWeight: FontWeight.w700)),
           _option(

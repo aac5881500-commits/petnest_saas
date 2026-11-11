@@ -1,10 +1,12 @@
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 // 檔案名稱：lib/features/shop/pages/shop_announcement_page.dart
-// 功能說明：客戶端最新公告：店家公告與目前啟用優惠活動雙分頁
+// 功能說明：客戶端最新公告：店家公告、優惠活動與點數規則
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/point_setting_model.dart';
+import 'package:petnest_saas/core/widgets/shop_point_rules_link.dart';
 import 'package:petnest_saas/features/booking/widgets/customer_active_campaigns_section.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_detail_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
@@ -35,9 +37,12 @@ class ShopAnnouncementPage extends StatelessWidget {
   final Map<String, int> memberCampaignUsedNights;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ShopPointSettings(shopId: shopId, builder: _buildTabs);
+
+  Widget _buildTabs(BuildContext context, PointSettingModel? setting) {
     return DefaultTabController(
-      length: 2,
+      length: setting == null ? 2 : 3,
       initialIndex: initialSection == ShopAnnouncementSection.campaigns ? 1 : 0,
       child: Scaffold(
         backgroundColor: theme.backgroundColor,
@@ -57,9 +62,10 @@ class ShopAnnouncementPage extends StatelessWidget {
             labelColor: theme.primaryColor,
             unselectedLabelColor: theme.textColor.withValues(alpha: 0.55),
             indicatorColor: theme.primaryColor,
-            tabs: const <Widget>[
-              Tab(text: '店家公告'),
-              Tab(text: '優惠活動'),
+            tabs: <Widget>[
+              const Tab(text: '店家公告'),
+              const Tab(text: '優惠活動'),
+              if (setting != null) const Tab(text: '點數規則'),
             ],
           ),
         ),
@@ -88,6 +94,33 @@ class ShopAnnouncementPage extends StatelessWidget {
                 );
               },
             ),
+            if (setting != null)
+              ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 580),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        color: theme.cardColor,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: theme.cardBorderColor),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: ShopPointRulesDetails(
+                            setting: setting,
+                            theme: theme,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

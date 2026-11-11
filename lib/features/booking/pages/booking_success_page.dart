@@ -1,3 +1,6 @@
+import '../widgets/booking_success_content.dart';
+import 'package:petnest_saas/core/models/booking_page_appearance.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 // 檔案名稱：lib/features/booking/pages/booking_success_page.dart
 // 功能說明：顯示預約成功結果，並提供回到店家首頁、查看我的訂單
 // 🎉 訂單成功頁
@@ -15,6 +18,14 @@ class BookingSuccessPage extends StatelessWidget {
     required this.shopId,
     this.message,
     this.bookingId,
+    this.appearance,
+    this.theme,
+    this.frontendTheme,
+    this.startDate,
+    this.endDate,
+    this.petCount,
+    this.roomTypeName,
+    this.totalPrice,
   });
 
   final String shopName;
@@ -22,101 +33,92 @@ class BookingSuccessPage extends StatelessWidget {
   final String? message;
   final String? bookingId;
 
+  final BookingPageAppearance? appearance;
+  final HomeThemeModel? theme, frontendTheme;
+  final DateTime? startDate, endDate;
+  final int? petCount, totalPrice;
+  final String? roomTypeName;
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('預約完成'),
+    final t = BookingSuccessContent.resolveTheme(
+      appearance,
+      theme,
+      frontendTheme,
+    );
+    return Theme(
+      data: Theme.of(context).copyWith(
+        textTheme: Theme.of(context).textTheme.apply(
+          fontFamily: BookingSuccessContent.font(appearance),
+          bodyColor: t.textColor,
+          displayColor: t.textColor,
+        ),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 80),
-              const SizedBox(height: 20),
-              const Text(
-                '預約成功 🎉',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                message ?? '已送出至 $shopName',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
-              if (message != null) ...<Widget>[
-                const SizedBox(height: 8),
-                Text('已送出至 $shopName', style: const TextStyle(fontSize: 16)),
-              ],
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ShopPublicPage(shopId: shopId),
-                      ),
-                      (route) => false,
-                    );
-                  },
-                  child: const Text('回到店家'),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () async {
-                    if ((bookingId ?? '').trim().isNotEmpty) {
-                      final DocumentSnapshot<Map<String, dynamic>> snap =
-                          await FirebaseFirestore.instance
-                              .collection('bookings')
-                              .doc(bookingId)
-                              .get();
-                      if (!context.mounted) {
-                        return;
-                      }
-                      final Map<String, dynamic>? data = snap.data();
-                      if (data != null) {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => BookingDetailPage(
-                              data: data,
-                              docId: bookingId!,
-                            ),
-                          ),
-                          (Route<dynamic> route) => false,
-                        );
-                        return;
-                      }
-                    }
-                    if (!context.mounted) {
-                      return;
-                    }
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MyBookingsPage(returnShopId: shopId),
-                      ),
-                      (route) => false,
-                    );
-                  },
-                  child: Text(
-                    (bookingId ?? '').trim().isNotEmpty ? '查看此訂單' : '查看訂單',
-                  ),
-                ),
-              ),
-            ],
+      child: Scaffold(
+        backgroundColor: t.backgroundColor,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: t.backgroundColor,
+          foregroundColor: t.textColor,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: const Text(
+            '預約完成',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
+        ),
+        body: BookingSuccessContent(
+          shopName: shopName,
+          message: message,
+          bookingId: bookingId,
+          appearance: appearance,
+          theme: theme,
+          frontendTheme: frontendTheme,
+          startDate: startDate,
+          endDate: endDate,
+          petCount: petCount,
+          roomTypeName: roomTypeName,
+          totalPrice: totalPrice,
+          onReturnToShop: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => ShopPublicPage(shopId: shopId)),
+              (route) => false,
+            );
+          },
+          onViewOrder: () async {
+            if ((bookingId ?? '').trim().isNotEmpty) {
+              final DocumentSnapshot<Map<String, dynamic>> snap =
+                  await FirebaseFirestore.instance
+                      .collection('bookings')
+                      .doc(bookingId)
+                      .get();
+              if (!context.mounted) {
+                return;
+              }
+              final Map<String, dynamic>? data = snap.data();
+              if (data != null) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        BookingDetailPage(data: data, docId: bookingId!),
+                  ),
+                  (Route<dynamic> route) => false,
+                );
+                return;
+              }
+            }
+            if (!context.mounted) {
+              return;
+            }
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MyBookingsPage(returnShopId: shopId),
+              ),
+              (route) => false,
+            );
+          },
         ),
       ),
     );

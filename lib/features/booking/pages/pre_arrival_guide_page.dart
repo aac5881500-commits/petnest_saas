@@ -1,4 +1,8 @@
-import 'dart:convert';
+import 'package:petnest_saas/features/booking/models/pre_arrival_shortcut.dart';
+import 'package:petnest_saas/features/booking/models/pre_arrival_item_presentation.dart';
+import 'package:petnest_saas/features/booking/widgets/pre_arrival_appearance_surface.dart';
+import 'package:petnest_saas/core/services/shop_contact_shortcut_service.dart';
+import 'package:petnest_saas/features/booking/widgets/pre_arrival_styled_content.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // 檔案名稱：lib/features/booking/pages/pre_arrival_guide_page.dart
 // 功能說明：客戶端入住前準備完整內容（標題／文字／圖片），支援個人準備清單。
@@ -14,10 +18,14 @@ class PreArrivalGuidePage extends StatefulWidget {
     required this.guide,
     this.progressScope,
     this.embedded = false,
+    this.shortcut,
+    this.backLabel = '返回訂單',
   });
 
   final PreArrivalGuideModel guide;
   final bool embedded;
+  final PreArrivalShortcut? shortcut;
+  final String backLabel;
 
   /// Null for shop previews: preview checks never alter customer progress.
   final String? progressScope;
@@ -31,17 +39,22 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
   final Set<String> _checked = <String>{};
   SharedPreferences? _preferences;
   bool _ready = false;
+  bool _leaving = false;
+  late final Future<void> _progressLoad;
   Future<void> _writeQueue = Future<void>.value();
   String? get _storageKey => widget.progressScope == null
       ? null
-      : 'preparation/v1/${widget.progressScope}/${guide.serviceType}';
+      : PreArrivalShortcut.progressKey(
+          widget.progressScope!,
+          guide.serviceType,
+        );
   String _itemKey(PreArrivalGuideBlock block) =>
-      jsonEncode(<String>[block.id, block.text]);
+      PreArrivalShortcut.itemKey(block);
 
   @override
   void initState() {
     super.initState();
-    _loadProgress();
+    _progressLoad = _loadProgress();
   }
 
   Future<void> _loadProgress() async {
@@ -80,6 +93,7 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
       } catch (_) {
         /* Report local storage failures below. */
       }
+      if (saved) PreArrivalShortcut.changes.value++;
       if (!saved && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('目前無法保留勾選進度，離開後可能需要重新勾選。')),
@@ -87,6 +101,65 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
       }
     });
     await _writeQueue;
+  }
+
+  Future<void> _returnToOrder() async {
+    if (_leaving) return;
+    _leaving = true;
+    try {
+      await _progressLoad;
+      await _writeQueue;
+      if (!mounted) return;
+      final shortcut = widget.shortcut;
+      final prefs = _preferences;
+      if (shortcut != null && prefs != null && shortcut.choice(prefs) == null) {
+        final choice = await showModalBottomSheet<bool>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (sheetContext) => SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '下次更快找到準備清單',
+                      style: Theme.of(sheetContext).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('加到這間店的首頁，入住前可以直接接著準備。'),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(sheetContext, true),
+                      child: const Text('加到店家首頁'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      child: const Text('不用了，返回訂單'),
+                    ),
+                    const Text('辦理入住後，首頁卡片會自動收起。', textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        if (choice == null || !mounted) return;
+        final saved = await shortcut.saveChoice(prefs, choice);
+        if (!mounted) return;
+        if (!saved) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('目前無法儲存首頁設定')));
+        }
+      }
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      _leaving = false;
+    }
   }
 
   @override
@@ -99,99 +172,193 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
     return ShopFrontendThemeScope(
       shopId: guide.shopId,
       builder: (BuildContext context) {
-        return Scaffold(
-          backgroundColor: BookingDetailUi.of(context).background,
-          appBar: AppBar(
-            automaticallyImplyLeading: !widget.embedded,
-            title: Text(guide.displayTitle),
-            backgroundColor: BookingDetailUi.of(context).background,
-          ),
-          body: BookingDetailUi.constrain(
-            ListView(
-              padding: const EdgeInsets.all(BookingDetailUi.pagePadding),
-              children: <Widget>[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 20),
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEDF6F2),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFD5E8DF)),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.pets_rounded,
-                        color: Color(0xFF537C6B),
-                        size: 36,
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        '小貓的出發準備',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF354F45),
+        return PreArrivalAppearanceSurface(
+          guide: guide,
+          builder: (context) {
+            final page = Scaffold(
+              backgroundColor: PreArrivalAppearanceScope.of(context).paper,
+              appBar: guide.style == PreArrivalGuideStyle.classic
+                  ? AppBar(
+                      automaticallyImplyLeading: !widget.embedded,
+                      title: Text(guide.displayTitle),
+                      backgroundColor: PreArrivalAppearanceScope.of(
+                        context,
+                      ).paper,
+                    )
+                  : null,
+              body: guide.style != PreArrivalGuideStyle.classic
+                  ? PreArrivalStyledContent(
+                      guide: guide,
+                      palette: PreArrivalAppearanceScope.of(context),
+                      done: done,
+                      total: items.length,
+                      isChecked: (block) => _checked.contains(_itemKey(block)),
+                      onToggle: _ready
+                          ? (block, value) => _toggle(block, value)
+                          : null,
+                      imageBuilder: (block) => _block(context, block),
+                      preview: widget.progressScope == null,
+                      backLabel: widget.backLabel,
+                      onBack: () {
+                        if (widget.embedded) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('此為客戶畫面預覽；正式頁面可返回訂單。'),
+                            ),
+                          );
+                        } else {
+                          if (widget.shortcut == null) {
+                            Navigator.of(context).maybePop();
+                          } else {
+                            _returnToOrder();
+                          }
+                        }
+                      },
+                      onContact: () async {
+                        if (widget.progressScope == null ||
+                            guide.shopId.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('預覽模式：正式頁面會開啟店家設定的聯絡方式。'),
+                            ),
+                          );
+                          return;
+                        }
+                        try {
+                          await ShopContactShortcutService.instance.contactShop(
+                            context: context,
+                            shopId: guide.shopId,
+                          );
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('目前無法開啟聯絡資訊，請稍後再試。'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    )
+                  : BookingDetailUi.constrain(
+                      ListView(
+                        padding: const EdgeInsets.all(
+                          BookingDetailUi.pagePadding,
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        '把需要的物品準備好，安心出發囉！',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF52695F), height: 1.5),
-                      ),
-                      if (items.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        Text(
-                          '準備進度 $done / ${items.length}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF354F45),
+                        children: <Widget>[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            padding: const EdgeInsets.all(22),
+                            decoration: BoxDecoration(
+                              color: PreArrivalAppearanceScope.of(context).card,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: const Color(0xFFD5E8DF),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.pets_rounded,
+                                  color: PreArrivalAppearanceScope.of(
+                                    context,
+                                  ).accent,
+                                  size: 36,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  '小貓的出發準備',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 23,
+                                    fontWeight: FontWeight.w800,
+                                    color: PreArrivalAppearanceScope.of(
+                                      context,
+                                    ).ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '把需要的物品準備好，安心出發囉！',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: PreArrivalAppearanceScope.of(
+                                      context,
+                                    ).ink,
+                                    height: 1.5,
+                                  ),
+                                ),
+                                if (items.isNotEmpty) ...[
+                                  const SizedBox(height: 18),
+                                  Text(
+                                    '準備進度 $done / ${items.length}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: PreArrivalAppearanceScope.of(
+                                        context,
+                                      ).ink,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: LinearProgressIndicator(
+                                      value: done / items.length,
+                                      minHeight: 9,
+                                      color: PreArrivalAppearanceScope.of(
+                                        context,
+                                      ).accent,
+                                      backgroundColor: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    done == items.length
+                                        ? '都準備好了，出發前再確認一次吧！'
+                                        : '準備好一項，就點一下物品卡片。',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: PreArrivalAppearanceScope.of(
+                                        context,
+                                      ).ink,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    widget.progressScope == null
+                                        ? '預覽模式：可試勾，不會儲存進度。'
+                                        : '勾選已準備好的物品，進度保留在此裝置，供自己整理使用。',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: PreArrivalAppearanceScope.of(
+                                        context,
+                                      ).ink,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: LinearProgressIndicator(
-                            value: done / items.length,
-                            minHeight: 9,
-                            color: const Color(0xFF648F79),
-                            backgroundColor: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          done == items.length
-                              ? '都準備好了，出發前再確認一次吧！'
-                              : '準備好一項，就點一下物品卡片。',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Color(0xFF52695F)),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.progressScope == null
-                              ? '預覽模式：可試勾，不會儲存進度。'
-                              : '勾選已準備好的物品，進度保留在此裝置，供自己整理使用。',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF52695F),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (blocks.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('尚未新增準備內容'),
-                  ),
-                ..._content(context, blocks),
-              ],
-            ),
-          ),
+                          if (blocks.isEmpty)
+                            Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text('尚未新增準備內容'),
+                            ),
+                          ..._content(context, blocks),
+                        ],
+                      ),
+                    ),
+            );
+            if (widget.shortcut == null) return page;
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) _returnToOrder();
+              },
+              child: page,
+            );
+          },
         );
       },
     );
@@ -243,7 +410,7 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
                   for (int n = 0; n < group.length; n++)
                     SizedBox(
                       width: width,
-                      child: _itemCard(group[n], start + n + 1),
+                      child: _itemCard(context, group[n], start + n + 1),
                     ),
                 ],
               );
@@ -255,19 +422,36 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
     return result;
   }
 
-  Widget _itemCard(PreArrivalGuideBlock block, int number) {
+  Widget _itemCard(
+    BuildContext context,
+    PreArrivalGuideBlock block,
+    int number,
+  ) {
     final checked = _checked.contains(_itemKey(block));
-    final (icon, tint) = _itemStyle(block.text);
+    final presentation = PreArrivalItemPresentation.forBlock(block);
+    final icon = presentation.icon;
+    final tint = PreArrivalAppearanceScope.of(
+      context,
+    ).accent.withValues(alpha: .1);
     return Semantics(
       checked: checked,
       enabled: _ready,
       label: block.text,
       child: Material(
-        color: checked ? const Color(0xFFEAF4EE) : Colors.white,
+        color: checked
+            ? Color.alphaBlend(
+                PreArrivalAppearanceScope.of(
+                  context,
+                ).accent.withValues(alpha: .08),
+                PreArrivalAppearanceScope.of(context).card,
+              )
+            : PreArrivalAppearanceScope.of(context).card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: checked ? const Color(0xFF648F79) : const Color(0xFFE5E8E1),
+            color: checked
+                ? PreArrivalAppearanceScope.of(context).accent
+                : const Color(0xFFE5E8E1),
             width: checked ? 2 : 1,
           ),
         ),
@@ -284,10 +468,12 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
                   children: [
                     CircleAvatar(
                       radius: 13,
-                      backgroundColor: const Color(0xFF638878),
+                      backgroundColor: PreArrivalAppearanceScope.of(
+                        context,
+                      ).accent,
                       child: Text(
                         '$number',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -299,7 +485,7 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
                           ? Icons.check_circle_rounded
                           : Icons.radio_button_unchecked_rounded,
                       color: checked
-                          ? const Color(0xFF557F68)
+                          ? PreArrivalAppearanceScope.of(context).accent
                           : const Color(0xFFADB9B0),
                       size: 24,
                     ),
@@ -313,15 +499,29 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
                     color: tint,
                     borderRadius: BorderRadius.circular(24),
                   ),
-                  child: Icon(icon, size: 37, color: const Color(0xFF665D50)),
+                  child: Icon(
+                    icon,
+                    size: 37,
+                    color: PreArrivalAppearanceScope.of(context).ink,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
+                  presentation.title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: PreArrivalAppearanceScope.of(context).ink,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
                   block.text,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF3E4C43),
+                    color: PreArrivalAppearanceScope.of(context).ink,
                     height: 1.5,
                   ),
                 ),
@@ -332,8 +532,8 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
                   style: TextStyle(
                     fontSize: 11,
                     color: checked
-                        ? const Color(0xFF557F68)
-                        : const Color(0xFF737E76),
+                        ? PreArrivalAppearanceScope.of(context).accent
+                        : PreArrivalAppearanceScope.of(context).ink,
                   ),
                 ),
               ],
@@ -344,33 +544,15 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
     );
   }
 
-  (IconData, Color) _itemStyle(String text) {
-    if (RegExp('藥|特殊|需求|說明').hasMatch(text)) {
-      return (Icons.medical_services_outlined, const Color(0xFFF4E9EF));
-    }
-    if (RegExp('飼料|食|餐|罐頭').hasMatch(text)) {
-      return (Icons.restaurant_rounded, const Color(0xFFFFEDD6));
-    }
-    if (RegExp('籠|提袋|背包').hasMatch(text)) {
-      return (Icons.work_outline_rounded, const Color(0xFFE3EDF8));
-    }
-    if (RegExp('毛毯|墊|被|安撫').hasMatch(text)) {
-      return (Icons.bed_rounded, const Color(0xFFF7E4D9));
-    }
-    if (RegExp('碗|水').hasMatch(text)) {
-      return (Icons.water_drop_outlined, const Color(0xFFE1F1F2));
-    }
-    if (RegExp('玩具').hasMatch(text)) {
-      return (Icons.sports_baseball_outlined, const Color(0xFFF4EACF));
-    }
-    return (Icons.pets_rounded, const Color(0xFFEDE9F6));
-  }
-
   Widget _block(BuildContext context, PreArrivalGuideBlock block) {
     if (block.type == PreArrivalGuideBlockType.heading) {
       return Row(
         children: [
-          const Icon(Icons.pets_rounded, size: 18, color: Color(0xFF648F79)),
+          Icon(
+            Icons.pets_rounded,
+            size: 18,
+            color: PreArrivalAppearanceScope.of(context).accent,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -378,7 +560,7 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
               style: TextStyle(
                 fontSize: BookingDetailUi.sectionTitleSize,
                 fontWeight: FontWeight.w700,
-                color: BookingDetailUi.of(context).text,
+                color: PreArrivalAppearanceScope.of(context).ink,
               ),
             ),
           ),
@@ -386,11 +568,46 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
       );
     }
     if (block.type == PreArrivalGuideBlockType.text) {
+      if (block.id.startsWith('catalog-')) {
+        final item = PreArrivalItemPresentation.forBlock(block);
+        final palette = PreArrivalAppearanceScope.of(context);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(item.icon, color: palette.accent, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: palette.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    block.text,
+                    style: TextStyle(
+                      fontSize: BookingDetailUi.bodySize,
+                      color: palette.ink,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      }
       return Text(
         block.text,
         style: TextStyle(
           fontSize: BookingDetailUi.bodySize,
-          color: BookingDetailUi.of(context).text,
+          color: PreArrivalAppearanceScope.of(context).ink,
           height: 1.5,
         ),
       );
@@ -427,7 +644,9 @@ class _PreArrivalGuidePageState extends State<PreArrivalGuidePage> {
               block.caption,
               style: TextStyle(
                 fontSize: BookingDetailUi.captionSize,
-                color: BookingDetailUi.of(context).muted,
+                color: PreArrivalAppearanceScope.of(
+                  context,
+                ).ink.withValues(alpha: .7),
               ),
             ),
           ),

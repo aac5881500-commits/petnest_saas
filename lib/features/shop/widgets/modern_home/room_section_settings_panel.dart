@@ -329,7 +329,7 @@ class _RoomSectionSettingsPanelState extends State<RoomSectionSettingsPanel> {
         if (!simple)
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('標題左側主題色豎線（暖橘色槓）'),
+            title: const Text('顯示標題左側豎線'),
             value: widget.setting.headingAccent,
             onChanged: (value) =>
                 widget.onChanged(widget.setting.copyWith(headingAccent: value)),

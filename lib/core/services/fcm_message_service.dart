@@ -1,3 +1,4 @@
+import '../../features/medication/service_task_page.dart';
 import 'package:petnest_saas/features/notifications/pages/shop_campaign_notice_page.dart';
 // 檔案名稱：lib/core/services/fcm_message_service.dart
 // 功能說明：監聽前景通知、背景通知點擊、App 關閉後通知點擊
@@ -11,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/medication/medication_task_page.dart';
 import 'package:petnest_saas/core/navigation/app_navigator.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
@@ -111,6 +113,11 @@ class FcmMessageService {
     final bool canOpenCampaign =
         type == 'shop_campaign' && '${data['campaignId'] ?? ''}'.isNotEmpty;
     final bool canOpenReview = type == 'review';
+    final bool canOpenMedication =
+        {'staff_medication_task', 'staff_service_task'}.contains(type) &&
+        shopId.isNotEmpty &&
+        bookingId.isNotEmpty &&
+        '${data['taskId'] ?? ''}'.isNotEmpty;
     final bool canOpenChat =
         type == 'shop_chat' && shopId.isNotEmpty && threadId.isNotEmpty;
 
@@ -131,10 +138,24 @@ class FcmMessageService {
           ],
         ),
         action:
-            canOpenBooking || canOpenReview || canOpenChat || canOpenCampaign
+            canOpenBooking ||
+                canOpenReview ||
+                canOpenChat ||
+                canOpenCampaign ||
+                canOpenMedication
             ? SnackBarAction(
                 label: '查看',
                 onPressed: () {
+                  if (canOpenMedication) {
+                    openMedicationTask(
+                      service: type == 'staff_service_task',
+                      shopId: shopId,
+                      bookingId: bookingId,
+                      taskId: '${data['taskId'] ?? ''}',
+                      scheduledAt: '${data['scheduledAt'] ?? ''}',
+                    );
+                    return;
+                  }
                   if (canOpenCampaign) {
                     openCampaignNotice('${data['campaignId']}');
                     return;
@@ -149,7 +170,7 @@ class FcmMessageService {
                     return;
                   }
 
-                  openBookingDetail(bookingId);
+                  openBookingDetail(bookingId, care: data['section'] == 'care');
                 },
               )
             : null,
@@ -176,10 +197,20 @@ class FcmMessageService {
     final String threadId = (data['threadId'] ?? '').toString();
 
     switch (type) {
+      case 'staff_service_task':
+      case 'staff_medication_task':
+        await openMedicationTask(
+          service: type == 'staff_service_task',
+          shopId: shopId,
+          bookingId: bookingId,
+          taskId: '${data['taskId'] ?? ''}',
+          scheduledAt: '${data['scheduledAt'] ?? ''}',
+        );
+        return;
       case 'booking_status':
       case 'booking_message':
       case 'check_in':
-        await openBookingDetail(bookingId);
+        await openBookingDetail(bookingId, care: data['section'] == 'care');
         return;
 
       case 'review':
@@ -196,6 +227,42 @@ class FcmMessageService {
       default:
         debugPrint('➡ 未知通知類型：$type');
     }
+  }
+
+  Future<void> openMedicationTask({
+    required String shopId,
+    required String bookingId,
+    required String taskId,
+    String scheduledAt = '',
+    bool service = false,
+  }) async {
+    if (_auth.currentUser == null ||
+        shopId.isEmpty ||
+        bookingId.isEmpty ||
+        taskId.isEmpty ||
+        shopId.contains('/') ||
+        bookingId.contains('/')) {
+      return;
+    }
+    final navigator = await _waitForNavigator();
+    if (navigator == null || !navigator.mounted) return;
+    await navigator.push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => service
+            ? ServiceTaskPage(
+                shopId: shopId,
+                bookingId: bookingId,
+                taskId: taskId,
+                scheduledAt: scheduledAt,
+              )
+            : MedicationTaskPage(
+                shopId: shopId,
+                bookingId: bookingId,
+                taskId: taskId,
+                scheduledAt: scheduledAt,
+              ),
+      ),
+    );
   }
 
   Future<void> openCampaignNotice(String campaignId) async {
@@ -271,7 +338,7 @@ class FcmMessageService {
   }
 
   /// 開啟指定訂單詳細頁
-  Future<void> openBookingDetail(String bookingId) async {
+  Future<void> openBookingDetail(String bookingId, {bool care = false}) async {
     if (bookingId.trim().isEmpty) {
       debugPrint('FCM 導頁失敗：通知沒有 bookingId');
       return;
@@ -339,7 +406,11 @@ class FcmMessageService {
         await navigator.push(
           MaterialPageRoute<void>(
             builder: (_) {
-              return BookingDetailPage(data: bookingData, docId: bookingId);
+              return BookingDetailPage(
+                data: bookingData,
+                docId: bookingId,
+                showCare: care,
+              );
             },
           ),
         );

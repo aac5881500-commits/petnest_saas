@@ -116,7 +116,7 @@ class FrontendNavigationRegistry {
     FrontendNavigationItem(
       id: 'orders',
       label: '我的訂單',
-      shortLabel: '訂單',
+      shortLabel: '我的訂單',
       icon: Icons.receipt_long,
       action: FrontendNavAction.orders,
       group: FrontendNavGroup.member,

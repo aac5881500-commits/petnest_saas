@@ -204,7 +204,7 @@ class BookingPrimaryButton extends StatelessWidget {
       'editorial',
       'cream',
     ].contains(BookingAppearanceScope.of(context).style)) {
-      return BookingEditorial.button(label, enabled ? onPressed : null);
+      return BookingEditorial.button(label, onPressed, enabled: enabled);
     }
     final bool canTap = onPressed != null;
     final bool visuallyEnabled = canTap && enabled;

@@ -1,3 +1,4 @@
+import 'package:petnest_saas/core/models/room_status_palette.dart';
 // 檔案名稱：lib/core/presentation/room_day_status.dart
 // 功能說明：單一房間單一日期的顯示狀態與可否操作，桌機房務總覽左右兩側共用。
 
@@ -153,11 +154,13 @@ class RoomDayStatus {
     required this.presentation,
     required this.isPast,
     required this.hasActiveBooking,
+    this.historyColor = roomDayHistoryColor,
   });
 
   final RoomStatusPresentation presentation;
   final bool isPast;
   final bool hasActiveBooking;
+  final Color historyColor;
 
   /// 過去而且沒有有效訂單，就只是歷史日期，不再用營運色強調。
   bool get isHistory => isPast && !hasActiveBooking;
@@ -165,7 +168,7 @@ class RoomDayStatus {
   /// 過去日期一律唯讀，有訂單也不開放變更房間狀態。
   bool get canEditStatus => !isPast;
 
-  Color get color => isHistory ? roomDayHistoryColor : presentation.color;
+  Color get color => isHistory ? historyColor : presentation.color;
 
   String get label => isHistory ? roomDayHistoryLabel : presentation.label;
 }
@@ -177,15 +180,19 @@ RoomDayStatus resolveRoomDayStatus({
   Map<String, dynamic> room = const <String, dynamic>{},
   String calendarStatus = '',
   Map<String, dynamic>? booking,
+  RoomStatusPalette palette = RoomStatusPalette.defaults,
 }) {
   final Map<String, dynamic>? activeBooking = isActiveRoomDayBooking(booking)
       ? booking
       : null;
   return RoomDayStatus(
-    presentation: roomDayPresentation(
-      room: room,
-      calendarStatus: calendarStatus,
-      booking: activeBooking,
+    historyColor: palette.color('history'),
+    presentation: palette.apply(
+      roomDayPresentation(
+        room: room,
+        calendarStatus: calendarStatus,
+        booking: activeBooking,
+      ),
     ),
     isPast: roomDayOnly(date).isBefore(roomDayOnly(today)),
     hasActiveBooking: activeBooking != null,

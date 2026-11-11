@@ -22,10 +22,12 @@ class AdminBookingHeaderCard extends StatelessWidget {
     super.key,
     required this.data,
     required this.bookingId,
+    this.dense = false,
   });
 
   final Map<String, dynamic> data;
   final String bookingId;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +55,101 @@ class AdminBookingHeaderCard extends StatelessWidget {
       audience: BookingCurrentRoomAudience.staff,
       compact: daycare ? phone : true,
       tight: !daycare,
+      inline: dense,
       unassignedStaffLabel: daycare ? null : '尚未安排房間',
     );
+    if (dense) {
+      final dates = daycare
+          ? _dateRow(context, daycare: true, phone: false)
+          : _stayDateJourney(context, theme, phone: phone);
+      return Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE7E9EF)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              color: Color.alphaBlend(
+                theme.primaryColor.withValues(alpha: 0.08),
+                Colors.white,
+              ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Icon(
+                    daycare ? Icons.wb_sunny_outlined : Icons.hotel_outlined,
+                    size: 19,
+                    color: theme.primaryColor,
+                  ),
+                  Text(
+                    daycare ? '安親預約' : '住宿預約',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: theme.titleColor,
+                    ),
+                  ),
+                  _pill(_durationLabel(data, daycare), theme.primaryColor),
+                  AdminBookingStatusChip(
+                    status: (data['status'] ?? 'pending').toString(),
+                    daycare: daycare,
+                    paymentPending: _paymentPending(data),
+                    depositConfirmed: BookingPaymentStatus.isDepositConfirmed(
+                      data,
+                    ),
+                    data: data,
+                  ),
+                  if ((data['source'] ?? '').toString() == 'admin')
+                    _pill('手動建立', ShopFrontendTheme.warningColor),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final schedule = Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F6F8),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: dates,
+                  );
+                  if (constraints.maxWidth < 540) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        identity,
+                        const SizedBox(height: 16),
+                        schedule,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(flex: 2, child: identity),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 3, child: schedule),
+                    ],
+                  );
+                },
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+              child: roomPanel,
+            ),
+          ],
+        ),
+      );
+    }
     return AdminBookingDetailCard(
       tint: panel,
       padding: EdgeInsets.symmetric(
@@ -184,7 +279,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
           shopId: (data['shopId'] ?? '').toString(),
           userId: (data['userId'] ?? '').toString(),
           name: name.isEmpty ? '會員' : name,
-          size: phone ? 40 : 48,
+          size: dense ? 36 : (phone ? 40 : 48),
           booking: data,
         ),
         const SizedBox(width: 12),
@@ -202,35 +297,36 @@ class AdminBookingHeaderCard extends StatelessWidget {
                   color: theme.titleColor,
                 ),
               ),
-              const SizedBox(height: 2),
-              InkWell(
-                onTap: () async {
-                  await Clipboard.setData(ClipboardData(text: code));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('已複製訂單編號')));
-                  }
-                },
-                child: Row(
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        code,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: theme.muted,
+              if (!dense) const SizedBox(height: 2),
+              if (!dense)
+                InkWell(
+                  onTap: () async {
+                    await Clipboard.setData(ClipboardData(text: code));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('已複製訂單編號')));
+                    }
+                  },
+                  child: Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          code,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: theme.muted,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.copy_rounded, size: 14, color: theme.muted),
-                  ],
+                      const SizedBox(width: 4),
+                      Icon(Icons.copy_rounded, size: 14, color: theme.muted),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -264,25 +360,26 @@ class AdminBookingHeaderCard extends StatelessWidget {
             Expanded(child: _stayDateCell(theme, '退房', end, alignEnd: true)),
           ],
         ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              '晚數 $nights',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: theme.primaryColor,
+        if (!dense) const SizedBox(height: 8),
+        if (!dense)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.primaryColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '晚數 $nights',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: theme.primaryColor,
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

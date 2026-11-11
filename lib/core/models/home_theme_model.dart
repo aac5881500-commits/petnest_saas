@@ -90,6 +90,7 @@ class HomeThemeModel {
     this.buttonBackgroundColorValue,
     this.buttonTextMode = 'auto',
     this.buttonTextColorValue,
+    this.headingAccentColors = const {},
     this.drawerSetting = const ModernDrawerSettingModel(),
     this.appBackgroundMode = ShopAppBackground.modeColor,
     this.appBackgroundAssetId = '',
@@ -104,6 +105,10 @@ class HomeThemeModel {
   final int cardColorValue;
   final int cardBorderColorValue;
   final int primaryColorValue;
+  final Map<String, int> headingAccentColors;
+
+  Color headingAccentColor(String sectionId) =>
+      Color(headingAccentColors[sectionId] ?? primaryColorValue);
   final int textColorValue;
 
   /// 未設定時由主要文字色推算，不寫回舊資料。
@@ -182,6 +187,19 @@ class HomeThemeModel {
       'cardColor': cardColorValue,
       'cardBorderColor': cardBorderColorValue,
       'primaryColor': primaryColorValue,
+      // Explicit null clears a saved override during a Firestore merge.
+      'headingAccentColors': <String, int?>{
+        for (final id in const [
+          'rooms',
+          'facilities',
+          'about',
+          'announcements',
+          'faq',
+          'storeEntrance',
+          'shopInfo',
+        ])
+          id: headingAccentColors[id],
+      },
       'textColor': textColorValue,
       if (secondaryTextColorValue != null)
         'secondaryTextColor': secondaryTextColorValue,
@@ -213,8 +231,18 @@ class HomeThemeModel {
     }
 
     final map = Map<String, dynamic>.from(rawData);
+    final accentColors = map['headingAccentColors'];
 
     return HomeThemeModel(
+      headingAccentColors: {
+        if (accentColors is Map)
+          for (final entry in accentColors.entries)
+            if (entry.key is String &&
+                entry.value is int &&
+                entry.value >= 0 &&
+                entry.value <= 0xFFFFFFFF)
+              entry.key as String: entry.value as int,
+      },
       backgroundColorValue: _readColorValue(
         map['backgroundColor'],
         fallback.backgroundColorValue,
@@ -268,6 +296,7 @@ class HomeThemeModel {
     int? cardColorValue,
     int? cardBorderColorValue,
     int? primaryColorValue,
+    Map<String, int>? headingAccentColors,
     int? textColorValue,
     Object? secondaryTextColorValue = _keep,
     Object? buttonBackgroundColorValue = _keep,
@@ -285,6 +314,7 @@ class HomeThemeModel {
       cardColorValue: cardColorValue ?? this.cardColorValue,
       cardBorderColorValue: cardBorderColorValue ?? this.cardBorderColorValue,
       primaryColorValue: primaryColorValue ?? this.primaryColorValue,
+      headingAccentColors: headingAccentColors ?? this.headingAccentColors,
       textColorValue: textColorValue ?? this.textColorValue,
       secondaryTextColorValue: identical(secondaryTextColorValue, _keep)
           ? this.secondaryTextColorValue

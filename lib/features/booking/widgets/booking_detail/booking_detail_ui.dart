@@ -10,15 +10,15 @@ class BookingDetailUi {
   static ShopFrontendTheme of(BuildContext context) =>
       ShopFrontendTheme.of(context);
 
-  static const double radius = 16;
+  static const double radius = 20;
   static const double pagePadding = 16;
-  static const double cardGap = 12;
-  static const double cardPadding = 16;
-  static const double maxContentWidth = 720;
+  static const double cardGap = 18;
+  static const double cardPadding = 22;
+  static const double maxContentWidth = 1160;
 
-  static const double bodySize = 14.5;
-  static const double captionSize = 12.5;
-  static const double sectionTitleSize = 16.5;
+  static const double bodySize = 15;
+  static const double captionSize = 13;
+  static const double sectionTitleSize = 17;
   static const double statusSize = 23;
   static const double moneySize = 26;
 
@@ -29,14 +29,16 @@ class BookingDetailUi {
   }) {
     final ShopFrontendTheme theme = of(context);
     return BoxDecoration(
-      color: color ?? theme.cardColor,
+      color: color ?? Color.lerp(theme.cardColor, theme.background, 0.15),
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: borderColor ?? theme.borderColor),
+      border: Border.all(
+        color: borderColor ?? theme.borderColor.withValues(alpha: 0.38),
+      ),
       boxShadow: const <BoxShadow>[
         BoxShadow(
-          color: Color(0x0A3A2A20),
-          blurRadius: 10,
-          offset: Offset(0, 3),
+          color: Color(0x073A2A20),
+          blurRadius: 24,
+          offset: Offset(0, 6),
         ),
       ],
     );
@@ -111,6 +113,15 @@ class BookingDetailSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
+        Container(
+          width: 4,
+          height: 18,
+          margin: const EdgeInsets.only(right: 10),
+          decoration: BoxDecoration(
+            color: BookingDetailUi.of(context).primary.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
         Expanded(
           child: Text(
             text,
@@ -273,6 +284,64 @@ class BookingDetailSoftNetworkImage extends StatelessWidget {
     return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.circular(12),
       child: SizedBox(width: width, height: height, child: image),
+    );
+  }
+}
+
+/// One scroll surface keeps payment/message anchors reachable in both layouts.
+class BookingDetailResponsiveLayout extends StatelessWidget {
+  const BookingDetailResponsiveLayout({
+    super.key,
+    required this.children,
+    required this.paymentIndex,
+    this.controller,
+  });
+
+  final List<Widget> children;
+  final int paymentIndex;
+  final ScrollController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool wide = constraints.maxWidth >= 960;
+        final double inset = constraints.maxWidth < 600 ? 16 : 32;
+        Widget column(List<Widget> items) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: items,
+        );
+        return SingleChildScrollView(
+          controller: controller,
+          padding: EdgeInsets.fromLTRB(inset, wide ? 28 : 16, inset, 40),
+          child: BookingDetailUi.constrain(
+            wide
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: column([
+                          ...children.take(paymentIndex),
+                          ...children.skip(paymentIndex + 2),
+                        ]),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        flex: 2,
+                        child: column(
+                          children.sublist(paymentIndex, paymentIndex + 2),
+                        ),
+                      ),
+                    ],
+                  )
+                : ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: column(children),
+                  ),
+          ),
+        );
+      },
     );
   }
 }

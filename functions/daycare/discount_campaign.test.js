@@ -79,3 +79,24 @@ test("long stay never applies to daycare", () => {
   });
   assert.equal(best, null);
 });
+
+test("snapshot separates eligibility threshold from the actual discount base", () => {
+  const {campaignExplanationSnapshot} = require("./discount_campaign");
+  const campaign = {
+    type: "minimumAmount",
+    minimumAmount: 2500,
+    applyTarget: "roomAndPet",
+    valueType: "percent",
+    discountValue: 10,
+    maximumDiscountAmount: 200,
+  };
+  const input = {roomAmount: 2200, petAmount: 200, extraServiceAmount: 500};
+  const snapshot = campaignExplanationSnapshot(campaign, input);
+  campaign.minimumAmount = 3500;
+  assert.equal(snapshot.minimumAmount, 2500);
+  assert.equal(snapshot.eligibleAmount, 2900);
+  assert.equal(snapshot.baseAmount, 2400);
+  assert.equal(snapshot.value, 10);
+  assert.equal(snapshot.maximumDiscountAmount, 200);
+  assert.equal(campaignExplanationSnapshot(campaign, input, 1100).baseAmount, 1100);
+});

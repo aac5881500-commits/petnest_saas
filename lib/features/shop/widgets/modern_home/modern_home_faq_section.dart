@@ -367,6 +367,7 @@ class _FaqPreviewState extends State<_FaqPreview> {
                   title: widget.setting.entryTitle,
                   theme: widget.theme,
                   accent: widget.setting.headingAccent,
+                  accentColor: widget.theme.headingAccentColor('faq'),
                 )
               else
                 Text(

@@ -11,6 +11,8 @@ import '../services/daily_care_setting_service.dart';
 import '../services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import '../../features/room/daily_care_record_edit_launcher.dart';
+import '../../features/medication/medication_task_page.dart';
+import '../../features/medication/service_task_page.dart';
 
 class ShopTaskCenterPanel extends StatefulWidget {
   const ShopTaskCenterPanel({
@@ -21,6 +23,7 @@ class ShopTaskCenterPanel extends StatefulWidget {
     this.canManageDevices = false,
     this.showViewAll = true,
     this.closeBeforeOpen = true,
+    this.careOnly = false,
     this.onViewAll,
     this.onOpenCamera,
   });
@@ -29,6 +32,7 @@ class ShopTaskCenterPanel extends StatefulWidget {
   final bool canViewBookings;
   final bool canFillDailyCare;
   final bool canManageDevices;
+  final bool careOnly;
   final bool showViewAll;
   final bool closeBeforeOpen;
   final VoidCallback? onViewAll;
@@ -101,12 +105,16 @@ class _ShopTaskCenterPanelState extends State<ShopTaskCenterPanel> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        return _TaskList(
+        return ShopTaskCenterContent(
           snapshot: snapshot.data!,
+          careOnly: widget.careOnly,
+          onRetryServices: binding.retryServices,
           showViewAll: widget.showViewAll,
           closeBeforeOpen: widget.closeBeforeOpen,
           onViewAll: widget.onViewAll,
           onOpenCamera: widget.onOpenCamera,
+          onRetrySettings: binding.retryShop,
+          onRetryMedication: binding.retryMedication,
           onRetryBooking: binding.retryBooking,
           onRetryCare: binding.retryCare,
           onRetryCamera: binding.retryCamera,
@@ -132,179 +140,387 @@ Widget _laneMessage(String message, {VoidCallback? onRetry}) {
   );
 }
 
-class _TaskList extends StatelessWidget {
-  const _TaskList({
+class ShopTaskCenterContent extends StatefulWidget {
+  const ShopTaskCenterContent({
+    super.key,
     required this.snapshot,
     required this.showViewAll,
     required this.closeBeforeOpen,
+    this.careOnly = false,
     this.onViewAll,
     this.onOpenCamera,
+    this.onRetrySettings,
+    this.onRetryServices,
+    this.onRetryMedication,
     this.onRetryBooking,
     this.onRetryCare,
     this.onRetryCamera,
   });
 
   final ShopTaskCenterSnapshot snapshot;
+  final bool careOnly;
   final bool showViewAll;
   final bool closeBeforeOpen;
   final VoidCallback? onViewAll;
   final void Function(ShopTaskItem item)? onOpenCamera;
+  final VoidCallback? onRetrySettings;
+  final VoidCallback? onRetryServices;
+  final VoidCallback? onRetryMedication;
   final VoidCallback? onRetryBooking;
   final VoidCallback? onRetryCare;
   final VoidCallback? onRetryCamera;
 
   @override
-  Widget build(BuildContext context) {
-    final List<ShopTaskItem> careItems = snapshot.ofType(
-      ShopTaskType.dailyCare,
-    );
-    final List<ShopTaskItem> bookingItems = snapshot.ofType(
-      ShopTaskType.booking,
-    );
-    final List<ShopTaskItem> cameraItems = snapshot.ofType(
-      ShopTaskType.cameraShare,
-    );
+  State<ShopTaskCenterContent> createState() => _ShopTaskCenterContentState();
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  '今日待辦',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
-              ),
-              Text(
-                snapshot.hasLaneLoading
-                    ? '${snapshot.totalCount}（部分讀取中）'
-                    : '${snapshot.totalCount}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
+class _ShopTaskCenterContentState extends State<ShopTaskCenterContent> {
+  ShopTaskType? _filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final snapshot = widget.snapshot;
+    final colors = Theme.of(context).colorScheme;
+    final medicationItems = snapshot.ofType(ShopTaskType.medication);
+    final serviceItems = snapshot.ofType(ShopTaskType.timedService);
+    final careItems = snapshot.ofType(ShopTaskType.dailyCare);
+    final bookingItems = snapshot.ofType(ShopTaskType.booking);
+    final cameraItems = snapshot.ofType(ShopTaskType.cameraShare);
+    final categories = [
+      if (snapshot.serviceEnabled)
+        (
+          ShopTaskType.timedService,
+          '陪玩／預約服務',
+          Icons.event_available_outlined,
+          serviceItems.length,
         ),
-        if (snapshot.careEnabled && snapshot.careLoading)
-          _laneMessage('每日照護讀取中'),
-        if (snapshot.careErrorCode.isNotEmpty)
-          _laneMessage(
-            shopTaskLaneErrorMessage(
-              laneLabel: '每日照護',
-              code: snapshot.careErrorCode,
-            ),
-            onRetry: onRetryCare,
-          ),
-        if (snapshot.bookingEnabled && snapshot.bookingLoading)
-          _laneMessage('訂單讀取中'),
-        if (snapshot.bookingErrorCode.isNotEmpty)
-          _laneMessage(
-            shopTaskLaneErrorMessage(
-              laneLabel: '訂單',
-              code: snapshot.bookingErrorCode,
-            ),
-            onRetry: onRetryBooking,
-          ),
-        if (snapshot.cameraEnabled && snapshot.cameraLoading)
-          _laneMessage('攝影機分享讀取中'),
-        if (snapshot.cameraErrorCode.isNotEmpty)
-          _laneMessage(
-            shopTaskLaneErrorMessage(
-              laneLabel: '攝影機分享',
-              code: snapshot.cameraErrorCode,
-            ),
-            onRetry: onRetryCamera,
-          ),
-        if (!snapshot.bookingEnabled &&
-            !snapshot.careEnabled &&
-            !snapshot.cameraEnabled)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 28, 20, 32),
-            child: Text('目前沒有你可處理的待辦'),
-          ),
-        if (snapshot.isAllClear)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 28, 20, 32),
+      if (snapshot.medicationEnabled)
+        (
+          ShopTaskType.medication,
+          '用藥',
+          Icons.medication_outlined,
+          medicationItems.length,
+        ),
+      if (snapshot.careEnabled)
+        (ShopTaskType.dailyCare, '照護回報', Icons.pets_outlined, careItems.length),
+      if (snapshot.bookingEnabled && !widget.careOnly)
+        (
+          ShopTaskType.booking,
+          '訂單確認',
+          Icons.receipt_long_outlined,
+          bookingItems.length,
+        ),
+      if (snapshot.cameraEnabled && !widget.careOnly)
+        (
+          ShopTaskType.cameraShare,
+          '攝影機',
+          Icons.videocam_outlined,
+          cameraItems.length,
+        ),
+    ];
+    final filter = categories.any((entry) => entry.$1 == _filter)
+        ? _filter
+        : null;
+    return ColoredBox(
+      color: colors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: colors.surfaceContainerLow,
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
             child: Column(
-              children: <Widget>[
-                Icon(
-                  Icons.check_circle_outline,
-                  size: 36,
-                  color: Color(0xFF2E7D32),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.checklist_rounded, color: colors.primary),
+                    const SizedBox(width: 10),
+                    Text(
+                      widget.careOnly ? '照護待辦' : '今日待辦',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 6),
                 Text(
-                  '✓ 今日待辦已完成',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  snapshot.hasLaneLoading
+                      ? '正在更新店內待辦'
+                      : snapshot.hasLaneError
+                      ? '部分分類讀取失敗，已載入的待辦仍可處理'
+                      : '${categories.fold<int>(0, (sum, category) => sum + category.$4)} 項待處理 · 點選分類查看明細',
+                  style: TextStyle(color: colors.onSurfaceVariant),
                 ),
-                SizedBox(height: 6),
-                Text(
-                  '目前沒有需要處理的項目',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
+                if (categories.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      ChoiceChip(
+                        label: Text(
+                          '全部 ${categories.fold<int>(0, (sum, category) => sum + category.$4)}',
+                        ),
+                        selected: filter == null,
+                        onSelected: (_) => setState(() => _filter = null),
+                      ),
+                      for (final (type, label, icon, count) in categories)
+                        ChoiceChip(
+                          avatar: Icon(icon, size: 16),
+                          label: Text('$label $count'),
+                          selected: filter == type,
+                          onSelected: (selected) =>
+                              setState(() => _filter = selected ? type : null),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
-        if (!snapshot.isAllClear) ...<Widget>[
-          if (careItems.isNotEmpty)
-            _GroupBlock(
-              title: '每日照護',
-              count: careItems.length,
-              children: careItems
-                  .map(
-                    (ShopTaskItem item) =>
-                        _CareTile(item: item, closeBeforeOpen: closeBeforeOpen),
-                  )
-                  .toList(),
+          if (snapshot.settingsErrorCode.isNotEmpty)
+            _laneMessage(
+              shopTaskLaneErrorMessage(
+                laneLabel: '店家功能設定',
+                code: snapshot.settingsErrorCode,
+              ),
+              onRetry: widget.onRetrySettings,
             ),
-          if (bookingItems.isNotEmpty)
-            _GroupBlock(
-              title: '訂單',
-              count: bookingItems.length,
-              children: bookingItems
-                  .map(
-                    (ShopTaskItem item) => _BookingTile(
-                      item: item,
-                      closeBeforeOpen: closeBeforeOpen,
-                    ),
-                  )
-                  .toList(),
+          if (snapshot.serviceEnabled && snapshot.serviceLoading)
+            _laneMessage('預約服務讀取中'),
+          if (snapshot.medicationEnabled && snapshot.medicationLoading)
+            _laneMessage('用藥待辦讀取中'),
+          if (snapshot.medicationErrorCode.isNotEmpty)
+            _laneMessage(
+              shopTaskLaneErrorMessage(
+                laneLabel: '用藥',
+                code: snapshot.medicationErrorCode,
+              ),
+              onRetry: widget.onRetryMedication,
             ),
-          if (cameraItems.isNotEmpty)
-            _GroupBlock(
-              title: '攝影機分享',
-              count: cameraItems.length,
-              children: cameraItems
-                  .map(
-                    (ShopTaskItem item) => _CameraTile(
-                      item: item,
-                      closeBeforeOpen: closeBeforeOpen,
-                      onOpen: onOpenCamera,
-                    ),
-                  )
-                  .toList(),
+          if (snapshot.careEnabled && snapshot.careLoading)
+            _laneMessage('每日照護讀取中'),
+          if (snapshot.careErrorCode.isNotEmpty)
+            _laneMessage(
+              shopTaskLaneErrorMessage(
+                laneLabel: '每日照護',
+                code: snapshot.careErrorCode,
+              ),
+              onRetry: widget.onRetryCare,
             ),
-        ],
-        if (showViewAll && onViewAll != null) ...<Widget>[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: onViewAll,
-                child: const Text('查看全部待辦'),
+          if (snapshot.bookingEnabled && snapshot.bookingLoading)
+            _laneMessage('訂單讀取中'),
+          if (snapshot.bookingErrorCode.isNotEmpty)
+            _laneMessage(
+              shopTaskLaneErrorMessage(
+                laneLabel: '訂單',
+                code: snapshot.bookingErrorCode,
+              ),
+              onRetry: widget.onRetryBooking,
+            ),
+          if (snapshot.cameraEnabled && snapshot.cameraLoading)
+            _laneMessage('攝影機分享讀取中'),
+          if (snapshot.cameraErrorCode.isNotEmpty)
+            _laneMessage(
+              shopTaskLaneErrorMessage(
+                laneLabel: '攝影機分享',
+                code: snapshot.cameraErrorCode,
+              ),
+              onRetry: widget.onRetryCamera,
+            ),
+          if (snapshot.serviceErrorCode.isNotEmpty)
+            _laneMessage(
+              shopTaskLaneErrorMessage(
+                laneLabel: '預約服務',
+                code: snapshot.serviceErrorCode,
+              ),
+              onRetry: widget.onRetryServices,
+            ),
+          if (!snapshot.hasLaneLoading &&
+              !snapshot.hasLaneError &&
+              !snapshot.serviceEnabled &&
+              !snapshot.medicationEnabled &&
+              !snapshot.bookingEnabled &&
+              !snapshot.careEnabled &&
+              !snapshot.cameraEnabled)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 28, 20, 32),
+              child: Text('目前沒有你可處理的待辦'),
+            ),
+          if ((widget.careOnly &&
+                  !snapshot.hasLaneLoading &&
+                  !snapshot.hasLaneError &&
+                  medicationItems.isEmpty &&
+                  serviceItems.isEmpty &&
+                  careItems.isEmpty) ||
+              snapshot.isAllClear ||
+              (filter != null &&
+                  !snapshot.hasLaneLoading &&
+                  !snapshot.hasLaneError &&
+                  snapshot.ofType(filter).isEmpty))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: colors.secondaryContainer,
+                    foregroundColor: colors.onSecondaryContainer,
+                    child: const Icon(Icons.check_circle_outline),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    filter == null ? '目前沒有待處理事項' : '這個分類目前沒有待辦',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '有新項目時會自動更新',
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
-          ),
+          if (!snapshot.isAllClear) ...<Widget>[
+            if ((filter == null ||
+                    filter == ShopTaskType.medication ||
+                    filter == ShopTaskType.timedService) &&
+                (medicationItems.isNotEmpty || serviceItems.isNotEmpty))
+              _GroupBlock(
+                title: filter == ShopTaskType.medication
+                    ? '用藥待辦'
+                    : filter == ShopTaskType.timedService
+                    ? '陪玩與預約服務'
+                    : '照護時程',
+                count: filter == ShopTaskType.medication
+                    ? medicationItems.length
+                    : filter == ShopTaskType.timedService
+                    ? serviceItems.length
+                    : medicationItems.length + serviceItems.length,
+                children: [
+                  for (final item
+                      in ([...medicationItems, ...serviceItems]..sort((a, b) {
+                            final priority = a.priority.compareTo(b.priority);
+                            return priority != 0
+                                ? priority
+                                : (a.createdAt ?? DateTime(1970)).compareTo(
+                                    b.createdAt ?? DateTime(1970),
+                                  );
+                          }))
+                          .where(
+                            (item) => filter == null || item.type == filter,
+                          ))
+                    _TaskCard(
+                      icon: item.type == ShopTaskType.medication
+                          ? Icons.medication_outlined
+                          : Icons.pets_outlined,
+                      photo: '${item.metadata['petPhoto'] ?? ''}',
+                      title: item.title,
+                      subtitle: item.subtitle,
+                      statusLabel: item.statusLabel,
+                      urgency: '${item.metadata['urgency'] ?? ''}',
+                      actionLabel: item.metadata['reviewMedication'] == true
+                          ? (item.metadata['awaitingCustomer'] == true
+                                ? '查看安排'
+                                : '確認安排')
+                          : item.metadata['needsIdentity'] == true
+                          ? '核對寵物'
+                          : '填寫結果',
+                      onAction: () {
+                        final navigator = Navigator.of(context);
+                        if (widget.closeBeforeOpen) navigator.pop();
+                        navigator.push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                item.metadata['reviewMedication'] == true ||
+                                    item.metadata['needsIdentity'] == true
+                                ? AdminBookingRouteGate(
+                                    bookingId: item.targetId,
+                                  )
+                                : item.type == ShopTaskType.medication
+                                ? MedicationTaskPage(
+                                    shopId: item.shopId,
+                                    bookingId: item.targetId,
+                                    taskId: '${item.metadata['taskId']}',
+                                    scheduledAt:
+                                        '${item.metadata['scheduledAt']}',
+                                  )
+                                : ServiceTaskPage(
+                                    shopId: item.shopId,
+                                    bookingId: item.targetId,
+                                    taskId: '${item.metadata['taskId']}',
+                                    scheduledAt:
+                                        '${item.metadata['scheduledAt']}',
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            if (careItems.isNotEmpty &&
+                (filter == null || filter == ShopTaskType.dailyCare))
+              _GroupBlock(
+                title: '每日照護',
+                count: careItems.length,
+                children: careItems
+                    .map(
+                      (ShopTaskItem item) => _CareTile(
+                        item: item,
+                        closeBeforeOpen: widget.closeBeforeOpen,
+                      ),
+                    )
+                    .toList(),
+              ),
+            if (!widget.careOnly &&
+                bookingItems.isNotEmpty &&
+                (filter == null || filter == ShopTaskType.booking))
+              _GroupBlock(
+                title: '訂單',
+                count: bookingItems.length,
+                children: bookingItems
+                    .map(
+                      (ShopTaskItem item) => _BookingTile(
+                        item: item,
+                        closeBeforeOpen: widget.closeBeforeOpen,
+                      ),
+                    )
+                    .toList(),
+              ),
+            if (!widget.careOnly &&
+                cameraItems.isNotEmpty &&
+                (filter == null || filter == ShopTaskType.cameraShare))
+              _GroupBlock(
+                title: '攝影機分享',
+                count: cameraItems.length,
+                children: cameraItems
+                    .map(
+                      (ShopTaskItem item) => _CameraTile(
+                        item: item,
+                        closeBeforeOpen: widget.closeBeforeOpen,
+                        onOpen: widget.onOpenCamera,
+                      ),
+                    )
+                    .toList(),
+              ),
+          ],
+          if (widget.showViewAll && widget.onViewAll != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: widget.onViewAll,
+                  icon: const Icon(Icons.open_in_new, size: 17),
+                  label: const Text('查看全部待辦'),
+                ),
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -512,6 +728,8 @@ class _TaskCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.statusLabel,
+    this.photo = '',
+    this.urgency = '',
     this.actionLabel,
     this.onAction,
   });
@@ -520,70 +738,123 @@ class _TaskCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String statusLabel;
+  final String photo;
+  final String urgency;
   final String? actionLabel;
   final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final statusColor = switch (urgency) {
+      'due' => colors.errorContainer,
+      'soon' => const Color(0xFFFFE4B9),
+      _ => colors.tertiaryContainer,
+    };
+    final statusInk = switch (urgency) {
+      'due' => colors.onErrorContainer,
+      'soon' => const Color(0xFF743900),
+      _ => colors.onTertiaryContainer,
+    };
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            if (photo.isNotEmpty)
+              ClipOval(
+                child: Image.network(
+                  photo,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, e, s) => Icon(icon, size: 32),
+                ),
+              )
+            else
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: colors.primaryContainer,
+                foregroundColor: colors.onPrimaryContainer,
+                child: Icon(icon, size: 17),
+              ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: statusInk,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (subtitle.trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+    final action = actionLabel == null || onAction == null
+        ? null
+        : FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!));
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE6E8EC)),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: urgency.isEmpty ? colors.outlineVariant : statusInk,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Icon(
-                icon,
-                size: 18,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                statusLabel,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFC62828),
-                ),
-              ),
-            ],
-          ),
-          if (subtitle.trim().isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12.5,
-                height: 1.45,
-                color: Colors.black54,
-              ),
+      child: action == null
+          ? details
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 560) {
+                  return Row(
+                    children: [
+                      Expanded(child: details),
+                      const SizedBox(width: 16),
+                      action,
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    details,
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerRight, child: action),
+                  ],
+                );
+              },
             ),
-          ],
-          if (actionLabel != null && onAction != null) ...<Widget>[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(onPressed: onAction, child: Text(actionLabel!)),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

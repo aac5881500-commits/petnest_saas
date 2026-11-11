@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/admin/widgets/admin_booking_order_workspace.dart';
 // 檔案名稱：lib/features/admin/widgets/admin_booking_detail_layout.dart
 // 功能說明：店主端住宿／安親訂單詳細共用響應式版型：依可用寬度切桌面／平板／手機
 
@@ -97,6 +98,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.communication = const <Widget>[],
     this.progress,
     this.petCareFuture,
+    this.workspace,
   });
 
   final String title;
@@ -118,6 +120,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final List<Widget> communication;
   final Widget? progress;
   final Future<List<BookingPetCareFormItem>>? petCareFuture;
+  final AdminBookingWorkspaceContent? workspace;
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +132,11 @@ class AdminBookingDetailScaffold extends StatelessWidget {
           width,
         );
         final bool phone = mode == AdminBookingDetailMode.phone;
-        final Widget? inlineActions = phone && splitPhoneActions
+        final Widget? inlineActions =
+            (phone ||
+                    (workspace != null &&
+                        !(mode == AdminBookingDetailMode.desktop))) &&
+                splitPhoneActions
             ? phoneInlineActions
             : actions;
         return AdminBookingDetailScope(
@@ -180,8 +187,14 @@ class AdminBookingDetailScaffold extends StatelessWidget {
               communication: communication,
               progress: progress,
               petCareFuture: petCareFuture,
+              workspace: workspace,
             ),
-            bottomNavigationBar: phone ? phoneStickyActions : null,
+            bottomNavigationBar:
+                (phone ||
+                    (workspace != null &&
+                        mode != AdminBookingDetailMode.desktop))
+                ? phoneStickyActions
+                : null,
           ),
         );
       },
@@ -214,6 +227,7 @@ class _DetailBody extends StatefulWidget {
     required this.communication,
     this.progress,
     this.petCareFuture,
+    this.workspace,
   });
 
   final AdminBookingDetailMode mode;
@@ -230,6 +244,7 @@ class _DetailBody extends StatefulWidget {
   final List<Widget> communication;
   final Widget? progress;
   final Future<List<BookingPetCareFormItem>>? petCareFuture;
+  final AdminBookingWorkspaceContent? workspace;
 
   @override
   State<_DetailBody> createState() => _DetailBodyState();
@@ -237,6 +252,8 @@ class _DetailBody extends StatefulWidget {
 
 class _DetailBodyState extends State<_DetailBody> {
   int _tab = 0;
+  final GlobalKey<AdminBookingOrderWorkspaceState> _workspaceKey =
+      GlobalKey<AdminBookingOrderWorkspaceState>();
   final Set<AdminBookingFormAnchor> _expanded = <AdminBookingFormAnchor>{};
   final Map<AdminBookingFormAnchor, GlobalKey> _anchorKeys =
       <AdminBookingFormAnchor, GlobalKey>{
@@ -263,6 +280,7 @@ class _DetailBodyState extends State<_DetailBody> {
   }
 
   void _focusForm(AdminBookingFormAnchor anchor) {
+    if (widget.workspace != null) _workspaceKey.currentState?.showDocuments();
     setState(() {
       _expanded.add(anchor);
       if (widget.mode == AdminBookingDetailMode.phone) {
@@ -293,7 +311,9 @@ class _DetailBodyState extends State<_DetailBody> {
       if (widget.handover != null) widget.handover!,
       ...widget.communication,
     ];
-    final Widget body = phone
+    final Widget body = widget.workspace != null
+        ? _workspaceBody(comm)
+        : phone
         ? _phoneBody(theme: theme, comm: comm)
         : desktop
         ? _desktopBody(theme: theme, comm: comm)
@@ -303,10 +323,44 @@ class _DetailBodyState extends State<_DetailBody> {
       child: AdminBookingFormFocusScope(
         requestFocus: _focusForm,
         expanded: Set<AdminBookingFormAnchor>.from(_expanded),
-        desktop: desktop,
+        desktop: desktop && widget.workspace == null,
         anchorKeys: _anchorKeys,
         child: body,
       ),
+    );
+  }
+
+  Widget _workspaceBody(List<Widget> comm) {
+    final List<Widget> finance = widget.right
+        .where((Widget item) => item.key != SettlementNextActionView.slotKey)
+        .toList();
+    final List<Widget> next = widget.right
+        .where((Widget item) => item.key == SettlementNextActionView.slotKey)
+        .toList();
+    return AdminBookingOrderWorkspace(
+      key: _workspaceKey,
+      content: widget.workspace!,
+      overview: widget.overview,
+      banners: widget.banners,
+      actions: widget.actions is AdminBookingDetailCard
+          ? (widget.actions as AdminBookingDetailCard).child
+          : widget.actions,
+      nextAction: next.isEmpty ? null : next.first,
+      finance: finance,
+      documents: <Widget>[
+        if (widget.formSummary != null) widget.formSummary!,
+        if (widget.forms.isNotEmpty)
+          Column(
+            key: _formsSectionKey,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _withGaps(widget.forms),
+          ),
+      ],
+      activity: <Widget>[
+        if (widget.progress != null) widget.progress!,
+        ...comm,
+      ],
+      handoverHasContent: widget.handoverHasContent,
     );
   }
 
@@ -355,13 +409,14 @@ class _DetailBodyState extends State<_DetailBody> {
                 _TwoColumn(left: _leftForSingleColumn, right: widget.right)
               else
                 _SingleColumn(
-                  leading: _leftForSingleColumn,
-                  trailing: widget.right,
+                  leading: widget.right,
+                  trailing: _leftForSingleColumn,
                 ),
               if (widget.forms.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 20),
                 Text(
                   '表單資料',
+                  key: _formsSectionKey,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -400,88 +455,94 @@ class _DetailBodyState extends State<_DetailBody> {
         final double height = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : MediaQuery.sizeOf(context).height - kToolbarHeight;
-        return SizedBox(
-          height: height,
-          child: Row(
-            key: const ValueKey<String>('admin-booking-desktop-split'),
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Expanded(
-                flex: 3,
-                child: Scrollbar(
-                  controller: _leftScroll,
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _leftScroll,
-                    padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            '訂單管理  >  訂單詳細',
-                            style: TextStyle(
-                              color: theme.muted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1600),
+            child: SizedBox(
+              height: height,
+              child: Row(
+                key: const ValueKey<String>('admin-booking-desktop-split'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Expanded(
+                    child: Scrollbar(
+                      controller: _leftScroll,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _leftScroll,
+                        padding: AdminBookingDetailMetrics.pagePadding(
+                          widget.mode,
                         ),
-                        ...widget.banners,
-                        _mergedOverview(),
-                        const SizedBox(height: 16),
-                        ..._withGaps(widget.left),
-                        if (widget.forms.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 20),
-                          Text(
-                            '表單資料',
-                            key: _formsSectionKey,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: theme.titleColor,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text(
+                                '訂單管理  >  訂單詳細',
+                                style: TextStyle(
+                                  color: theme.muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          ..._withGaps(widget.forms),
-                        ],
-                        if (comm.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 20),
-                          Text(
-                            '交接與溝通',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: theme.titleColor,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ..._withGaps(comm),
-                        ],
-                      ],
+                            ...widget.banners,
+                            _mergedOverview(),
+                            const SizedBox(height: 16),
+                            ..._withGaps(widget.left),
+                            if (widget.forms.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 20),
+                              Text(
+                                '表單資料',
+                                key: _formsSectionKey,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ..._withGaps(widget.forms),
+                            ],
+                            if (comm.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 20),
+                              Text(
+                                '交接與溝通',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ..._withGaps(comm),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: Scrollbar(
-                  controller: _rightScroll,
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _rightScroll,
-                    padding: AdminBookingDetailMetrics.pagePadding(
-                      widget.mode,
-                    ).copyWith(left: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: _withGaps(_desktopAside()),
+                  SizedBox(
+                    width: (constraints.maxWidth * 0.30).clamp(320.0, 400.0),
+                    child: Scrollbar(
+                      controller: _rightScroll,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _rightScroll,
+                        padding: AdminBookingDetailMetrics.pagePadding(
+                          widget.mode,
+                        ).copyWith(left: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: _withGaps(_desktopAside()),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -496,8 +557,8 @@ class _DetailBodyState extends State<_DetailBody> {
     final int paymentCount = rest.length >= 2 ? 2 : rest.length;
     return <Widget>[
       if (hasNext) right.first,
-      if (widget.progress != null) widget.progress!,
       ...rest.take(paymentCount),
+      if (widget.progress != null) widget.progress!,
       if (widget.formSummary != null) widget.formSummary!,
       ...rest.skip(paymentCount),
     ];
@@ -520,15 +581,7 @@ class _DetailBodyState extends State<_DetailBody> {
                 widget.actions!,
               ],
               const SizedBox(height: 16),
-              _SingleColumn(
-                leading: widget.left,
-                trailing: widget.right
-                    .where(
-                      (Widget item) =>
-                          item.key != SettlementNextActionView.slotKey,
-                    )
-                    .toList(),
-              ),
+              ..._withGaps(widget.left),
             ]),
           ),
         ),
@@ -550,6 +603,7 @@ class _DetailBodyState extends State<_DetailBody> {
             segments: <ButtonSegment<int>>[
               const ButtonSegment<int>(value: 0, label: Text('訂單')),
               const ButtonSegment<int>(value: 1, label: Text('進度')),
+              const ButtonSegment<int>(value: 4, label: Text('付款')),
               const ButtonSegment<int>(value: 2, label: Text('表單')),
               ButtonSegment<int>(
                 value: 3,
@@ -557,7 +611,7 @@ class _DetailBodyState extends State<_DetailBody> {
                 tooltip: widget.handoverHasContent ? '交接與溝通，有內容' : '交接與溝通',
               ),
             ],
-            selected: <int>{_tab.clamp(0, 3)},
+            selected: <int>{_tab.clamp(0, 4)},
             onSelectionChanged: (Set<int> next) {
               setState(() => _tab = next.first);
             },
@@ -565,7 +619,7 @@ class _DetailBodyState extends State<_DetailBody> {
         ),
         Expanded(
           child: IndexedStack(
-            index: _tab.clamp(0, 3),
+            index: _tab.clamp(0, 4),
             children: <Widget>[
               orderScroll,
               ListView(
@@ -600,6 +654,13 @@ class _DetailBodyState extends State<_DetailBody> {
                         ),
                       ]
                     : _withGaps(comm),
+              ),
+              ListView(
+                key: const PageStorageKey<String>('booking-payment'),
+                padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
+                children: widget.right.isEmpty
+                    ? const <Widget>[Text('目前沒有付款資料')]
+                    : _withGaps(widget.right),
               ),
             ],
           ),
@@ -823,6 +884,72 @@ class AdminBookingDetailSection extends StatelessWidget {
           children: <Widget>[child],
         ),
       ),
+    );
+  }
+}
+
+class AdminBookingDetailGroup extends StatelessWidget {
+  const AdminBookingDetailGroup({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 16),
+          child: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: theme.primarySoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 20, color: theme.primaryColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: theme.titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.5,
+                        color: theme.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        ..._withGaps(children),
+      ],
     );
   }
 }

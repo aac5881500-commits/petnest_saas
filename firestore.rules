@@ -5277,6 +5277,18 @@ allow update: if
 
       // 🧳 入住前準備（不是條款）
 
+      function validPreArrivalColor(a, key) {
+        return !(key in a) || a[key] == null || (a[key] is int && a[key] >= 4278190080 && a[key] <= 4294967295);
+      }
+      function validPreArrivalAppearance(a) {
+        return a is map
+          && a.keys().hasOnly(['colorMode','fontFamily','fontScale','accentColor','textColor','backgroundColor','cardColor'])
+          && a.get('colorMode','style') in ['style','theme','custom']
+          && a.get('fontFamily','style') in ['style','theme','jfOpenHuninn','NotoSansTC','NotoSerifTC','KleeOne','ChironSungHK']
+          && a.get('fontScale',1) is number && a.get('fontScale',1) >= 0.85 && a.get('fontScale',1) <= 1.4
+          && validPreArrivalColor(a,'accentColor') && validPreArrivalColor(a,'textColor')
+          && validPreArrivalColor(a,'backgroundColor') && validPreArrivalColor(a,'cardColor');
+      }
       match /pre_arrival_guides/{serviceType} {
 
         allow read: if
@@ -5325,6 +5337,10 @@ allow update: if
 
             'title',
 
+            'style',
+
+            'appearance',
+
             'blocks',
 
             'inheritAccommodation',
@@ -5338,6 +5354,11 @@ allow update: if
           && request.resource.data.enabled is bool
 
           && request.resource.data.title is string
+
+          && request.resource.data.get('style', 'classic') in ['classic', 'packing', 'timeline', 'minimal']
+
+
+          && validPreArrivalAppearance(request.resource.data.get('appearance', {}))
 
           && request.resource.data.blocks is list
 
@@ -6547,6 +6568,8 @@ allow read: if signedIn() && (
 
 allow create: if signedIn()
 
+  && !request.resource.data.keys().hasAny(['medication', 'medicationRequest', 'careServiceRecords'])
+
   && validCatBooking(request.resource.data)
 
   &&
@@ -6568,6 +6591,8 @@ allow create: if signedIn()
 
 
 allow update: if signedIn() &&
+
+  !request.resource.data.diff(resource.data).affectedKeys().hasAny(['careServiceRecords']) &&
 
   (
 

@@ -80,3 +80,41 @@ class HomeStoreAction extends StatelessWidget {
     );
   }
 }
+
+/// Supplies a store shortcut to the existing heading of one homepage section.
+class HomeStoreHeadingAction extends InheritedWidget {
+  const HomeStoreHeadingAction({
+    super.key,
+    required this.action,
+    required super.child,
+  });
+
+  final Widget action;
+
+  static Widget? of(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<HomeStoreHeadingAction>()
+      ?.action;
+
+  @override
+  bool updateShouldNotify(HomeStoreHeadingAction oldWidget) =>
+      action != oldWidget.action;
+}
+
+/// Keeps existing typography and adds a shortcut only when this section hosts it.
+class HomeStoreOptionalHeading extends StatelessWidget {
+  const HomeStoreOptionalHeading({super.key, required this.title});
+  final Widget title;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = HomeStoreHeadingAction.of(context);
+    if (action == null) return title;
+    return Row(
+      children: [
+        Expanded(child: title),
+        const SizedBox(width: 8),
+        action,
+      ],
+    );
+  }
+}

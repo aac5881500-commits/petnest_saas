@@ -1,3 +1,8 @@
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_tabs.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_booked_services.dart';
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
+import '../../../core/widgets/booking_care_activity.dart';
+import '../../../core/models/booking_service_task.dart';
 // 檔案名稱：lib/features/booking/pages/booking_detail_page.dart
 // 功能說明：客戶端住宿／安親訂單詳細頁（暖色系、共用元件編排）。
 // 安親費用明細由 BookingDetailViewData 依訂單快照組裝，本頁不重算歷史金額。
@@ -108,7 +113,13 @@ class BookingPaymentChoicePatch {
 }
 
 class BookingDetailPage extends StatelessWidget {
-  const BookingDetailPage({super.key, required this.data, required this.docId});
+  const BookingDetailPage({
+    super.key,
+    required this.data,
+    required this.docId,
+    this.showCare = false,
+  });
+  final bool showCare;
 
   final Map<String, dynamic> data;
   final String docId;
@@ -118,14 +129,19 @@ class BookingDetailPage extends StatelessWidget {
     return ShopFrontendThemeScope(
       shopId: SafeParse.parseString(data['shopId']),
       builder: (BuildContext context) {
-        return _BookingDetailBody(data: data, docId: docId);
+        return _BookingDetailBody(data: data, docId: docId, showCare: showCare);
       },
     );
   }
 }
 
 class _BookingDetailBody extends StatefulWidget {
-  const _BookingDetailBody({required this.data, required this.docId});
+  const _BookingDetailBody({
+    required this.data,
+    required this.docId,
+    this.showCare = false,
+  });
+  final bool showCare;
 
   final Map<String, dynamic> data;
   final String docId;
@@ -134,7 +150,13 @@ class _BookingDetailBody extends StatefulWidget {
   State<_BookingDetailBody> createState() => _BookingDetailPageState();
 }
 
-class _BookingDetailPageState extends State<_BookingDetailBody> {
+class _BookingDetailPageState extends State<_BookingDetailBody>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+    length: BookingDetailTab.values.length,
+    initialIndex: widget.showCare ? BookingDetailTab.services.index : 0,
+    vsync: this,
+  );
   final TextEditingController _last5Controller = TextEditingController();
   final FocusNode _last5FocusNode = FocusNode();
   final GlobalKey _messageSectionKey = GlobalKey();
@@ -150,6 +172,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
 
   @override
   void dispose() {
+    _tabs.dispose();
     _expireTimer?.cancel();
     _last5Controller.dispose();
     _last5FocusNode.dispose();
@@ -319,22 +342,90 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                   ),
                 ],
               ),
-              body: BookingDetailUi.constrain(
-                ListView(
-                  controller: _scrollController,
-                  padding: EdgeInsets.all(
-                    MediaQuery.sizeOf(context).width < 600
-                        ? 12
-                        : BookingDetailUi.pagePadding,
-                  ),
-                  children: <Widget>[
-                    BookingDetailSummaryCard(
+              body: BookingDetailTabs(
+                controller: _tabs,
+                overviewController: _scrollController,
+                view: view,
+                overview: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final summary = BookingDetailSummaryCard(
                       view: view,
                       onCancel: () => _onCancel(view),
                       onContactShop: _scrollToMessageSection,
                       onRequestRefund: () => _onRequestRefund(view),
+                    );
+                    final next = <Widget>[
+                      if (BookingServiceTask.fromBooking(view.raw).isNotEmpty ||
+                          SafeParse.parseMap(
+                            view.raw['medication'],
+                          ).isNotEmpty ||
+                          SafeParse.parseMap(
+                            view.raw['medicationRequest'],
+                          ).isNotEmpty)
+                        BookingDetailCard(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.event_available_outlined),
+                            title: const Text('照護時程與結果'),
+                            subtitle: const Text('查看用藥、陪玩與服務紀錄'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () =>
+                                _tabs.index = BookingDetailTab.services.index,
+                          ),
+                        ),
+                      FutureBuilder<PreArrivalGuideModel>(
+                        future: _guideFuture,
+                        builder: (context, snapshot) => BookingDetailGuideEntry(
+                          view: view,
+                          guide: snapshot.data,
+                        ),
+                      ),
+                      BookingDetailPreparationSection(
+                        view: view,
+                        onOpenTerms: () => _openTerms(view),
+                        onOpenPayment: _scrollToFinance,
+                      ),
+                      BookingDetailMessagePreview(
+                        view: view,
+                        bookingId: widget.docId,
+                        sectionKey: _messageSectionKey,
+                      ),
+                      BookingDetailCompletionSection(
+                        showNote: false,
+                        view: view,
+                        bookingId: widget.docId,
+                      ),
+                    ];
+                    if (constraints.maxWidth < 760) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [summary, ...next],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 3, child: summary),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: next,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                guests: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    BookingDetailCustomerPetSection(
+                      data: data,
+                      view: view,
+                      showFullDetails: true,
                     ),
-                    BookingDetailCustomerPetSection(data: data, view: view),
                     if (view.showCustomerSubmitFormOnCustomerPage)
                       OrderFormAnswersView(
                         orderRaw: view.customerSubmitFormRaw,
@@ -342,9 +433,52 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                         pets: view.pets,
                         theme: ShopFrontendTheme.of(context).home,
                         orderTitle: '訂單資訊',
-                        collapsible: true,
+                        collapsible: false,
                         initiallyExpanded: false,
                       ),
+                    if (view.showCustomerNote)
+                      BookingDetailCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const BookingDetailSectionTitle('預約備註'),
+                            const SizedBox(height: 8),
+                            Text(view.customerNote),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                services: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    BookingCareActivity(
+                      bookingId: widget.docId,
+                      booking: view.raw,
+                    ),
+                    BookingDetailBookedServices(view: view),
+                    _customerMedicationPanel(view),
+                    FutureBuilder<DailyCareSettingModel>(
+                      future: _dailyCareSettingFuture,
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<DailyCareSettingModel> careSnap,
+                          ) {
+                            final DailyCareSettingModel setting =
+                                careSnap.data ?? const DailyCareSettingModel();
+                            return BookingDetailStayServicesSection(
+                              view: view,
+                              bookingId: widget.docId,
+                              daycareCareEnabled: setting.daycareEnabled,
+                            );
+                          },
+                    ),
+                  ],
+                ),
+                payment: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       stream: shopId.isEmpty
                           ? const Stream.empty()
@@ -391,6 +525,9 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             return KeyedSubtree(
                               key: _financeKey,
                               child: BookingDetailFinanceSection(
+                                showFeeDetailsInitially: true,
+                                onOpenServices: () => _tabs.index =
+                                    BookingDetailTab.services.index,
                                 view: view,
                                 bookingId: widget.docId,
                                 shopFlags: flags,
@@ -415,51 +552,37 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                           },
                     ),
                     BookingDetailPointsCard(booking: data),
-                    FutureBuilder<DailyCareSettingModel>(
-                      future: _dailyCareSettingFuture,
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<DailyCareSettingModel> careSnap,
-                          ) {
-                            final DailyCareSettingModel setting =
-                                careSnap.data ?? const DailyCareSettingModel();
-                            return BookingDetailStayServicesSection(
-                              view: view,
-                              bookingId: widget.docId,
-                              daycareCareEnabled: setting.daycareEnabled,
-                            );
-                          },
-                    ),
-                    FutureBuilder<PreArrivalGuideModel>(
-                      future: _guideFuture,
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<PreArrivalGuideModel> guideSnap,
-                          ) {
-                            return BookingDetailPreparationSection(
-                              view: view,
-                              guide: guideSnap.data,
-                              onOpenTerms: () => _openTerms(view),
-                              onOpenPayment: _scrollToFinance,
-                            );
-                          },
-                    ),
-                    BookingDetailMessagePreview(
-                      view: view,
-                      bookingId: widget.docId,
-                      sectionKey: _messageSectionKey,
-                    ),
-                    BookingDetailCompletionSection(
-                      view: view,
-                      bookingId: widget.docId,
-                    ),
                   ],
                 ),
               ),
             );
           },
+    );
+  }
+
+  Widget _customerMedicationPanel(BookingDetailViewData view) {
+    Widget panel([Map<String, dynamic> reference = const {}]) =>
+        BookingMedicationPanel(
+          bookingId: widget.docId,
+          booking: view.raw,
+          customerDetails: true,
+          referencePricing: reference,
+        );
+
+    final medication = SafeParse.parseMap(view.raw['medication']);
+    final request = SafeParse.parseMap(view.raw['medicationRequest']);
+    if (view.shopId.isEmpty || medication.isNotEmpty || request.isEmpty) {
+      return panel();
+    }
+    // Historical requests may predate server-side rate snapshots.
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('shops')
+          .doc(view.shopId)
+          .snapshots(),
+      builder: (context, snapshot) => panel(
+        SafeParse.parseMap(snapshot.data?.data()?['medicationSetting']),
+      ),
     );
   }
 
@@ -493,6 +616,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
   }
 
   void _scrollToMessageSection() {
+    _tabs.index = BookingDetailTab.overview.index;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final BuildContext? target = _messageSectionKey.currentContext;
       if (target != null) {
@@ -515,6 +639,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
   }
 
   void _scrollToFinance() {
+    _tabs.index = BookingDetailTab.payment.index;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final BuildContext? target = _financeKey.currentContext;
       if (target == null) {

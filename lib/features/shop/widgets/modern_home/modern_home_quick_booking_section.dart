@@ -1,3 +1,4 @@
+import 'home_store_action.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_quick_booking_section_setting.dart';
@@ -261,16 +262,18 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
             crossAxisAlignment: _crossAlign,
             children: <Widget>[
               if (imageUrl.isNotEmpty) _visual(imageUrl),
-              Text(
-                setting.entryTitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: _textAlign,
-                style: TextStyle(
-                  fontSize: 20,
-                  height: 1.25,
-                  fontWeight: FontWeight.w800,
-                  color: theme.textColor,
+              HomeStoreOptionalHeading(
+                title: Text(
+                  setting.entryTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: _textAlign,
+                  style: TextStyle(
+                    fontSize: 20,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                    color: theme.textColor,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -342,14 +345,16 @@ class ModernHomeQuickBookingSection extends StatelessWidget {
           crossAxisAlignment: _crossAlign,
           children: <Widget>[
             if (hero && imageUrl.isNotEmpty) _visual(imageUrl),
-            Text(
-              setting.entryTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: _textAlign,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: theme.textColor,
+            HomeStoreOptionalHeading(
+              title: Text(
+                setting.entryTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: _textAlign,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: theme.textColor,
+                ),
               ),
             ),
             const SizedBox(height: 4),

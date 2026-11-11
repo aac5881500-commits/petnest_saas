@@ -5,6 +5,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 
 void main() {
+  test('用藥先列預估總額，退房以實際費用取代，付款不重複計價', () {
+    final data = <String, dynamic>{
+      'status': 'checked_in',
+      'totalPrice': 2100,
+      'quotedTotalPrice': 2100,
+      'medication': {
+        'state': 'pending_shop',
+        'setting': {'mode': 'visit'},
+        'estimate': {'amount': 200},
+      },
+    };
+    expect(BookingSettlementMath.orderDisplayTotal(data, 2100), 2300);
+    expect(BookingSettlementMath.expectedTotal(data: data), 2100);
+
+    final medication = data['medication'] as Map<String, Object>;
+    medication['agreedAmount'] = 150;
+    expect(BookingSettlementMath.orderDisplayTotal(data, 2100), 2100);
+    medication['state'] = 'confirmed';
+    expect(BookingSettlementMath.orderDisplayTotal(data, 2100), 2250);
+
+    medication['finalized'] = true;
+    data['extraCharges'] = [{'id': 'medication', 'amount': 100}];
+    expect(BookingSettlementMath.orderDisplayTotal(data, 2100), 2200);
+    data['settlementConfirmed'] = true;
+    data['totalPrice'] = 2200;
+    expect(BookingSettlementMath.orderDisplayTotal(data, 2200), 2200);
+  });
+
   test('已收 1600，應收 1800 → 待補 200', () {
     expect(
       BookingSettlementMath.balanceDelta(
