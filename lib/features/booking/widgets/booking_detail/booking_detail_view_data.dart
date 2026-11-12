@@ -438,30 +438,12 @@ class BookingDetailViewData {
   }
 
   bool get _needsPaymentAction {
-    if (status == 'cancelled') {
+    const pendingStatuses = {'pending', 'pending_confirmation', 'unpaid'};
+    if (!pendingStatuses.contains(status)) return false;
+    if (isDaycare && !BookingPaymentStatus.requiresUpfrontPayment(raw)) {
       return false;
     }
-    if (BookingSettlementMath.balanceDelta(data: raw) > 0) {
-      return true;
-    }
-    if (status == 'completed') {
-      return false;
-    }
-    if (remainingAmount > 0 &&
-        (paymentMethod == PaymentMethodType.bankTransfer ||
-            PaymentMethodType.isOnlinePayment(paymentMethod) ||
-            depositStatus == 'unpaid' ||
-            depositStatus == 'pending' ||
-            depositStatus.isEmpty)) {
-      if (depositStatus == 'pending_review' || depositStatus == 'confirmed') {
-        return remainingAmount > 0 && depositStatus != 'pending_review';
-      }
-      if (status == 'pending' || status == 'unpaid') {
-        return remainingAmount > 0 ||
-            BookingDetailParse.parseMoney(raw['depositAmount']) > 0;
-      }
-    }
-    return status == 'unpaid';
+    return BookingPaymentStatus.needsInitialPaymentConfirm(raw);
   }
 
   String get nextStepHint {
@@ -500,7 +482,11 @@ class BookingDetailViewData {
       return isDaycare ? '預約已確認，請於送達前完成相關資料。' : '房間已保留，請於入住前完成相關資料。';
     }
     if (statusTitle == '等待付款') {
-      return '請在期限內完成付款，以保留本次預約。';
+      final payment = BookingPaymentStatus.initialPaymentChoice(raw);
+      return '請前往「費用與付款」查看${payment.dueLabel} NT\$${payment.amount} 與付款方式。';
+    }
+    if (!isDaycare && BookingPaymentStatus.isDepositConfirmed(raw)) {
+      return '訂金已入帳，店家確認預約後會通知您。';
     }
     return '預約已送出，店家確認後會通知您。';
   }
@@ -992,6 +978,9 @@ class BookingDetailViewData {
     if (BookingPaymentStatus.isDepositConfirmed(raw)) {
       return '訂金已付，結算尾款待服務結束';
     }
+    if (depositStatus == 'pending_review') {
+      return '付款資料已送出，待店家確認入帳';
+    }
     if (dueNowAmount <= 0) return '本次無待付款';
     final label = showDepositDue ? '本次應付訂金' : '本次應付';
     return '$label NT\$ $dueNowAmount';
@@ -1277,7 +1266,8 @@ class BookingDetailViewData {
         label: '用藥預估',
         amount: pendingMedicationEstimate,
         subtitle: BookingSettlementMath.advanceMedicationAmount(raw) > 0
-            ? '已列入預約應付金額，退房依實際結果調整' : '退房時依實際執行結果收費',
+            ? '已列入預約應付金額，退房依實際結果調整'
+            : '退房時依實際執行結果收費',
       );
     }
     if (hasExtraCharges) {

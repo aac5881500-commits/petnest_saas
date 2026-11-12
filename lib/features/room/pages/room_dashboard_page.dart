@@ -105,6 +105,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
   bool _hasPermission = false;
   bool _canManageCameras = false;
   bool _canManageCare = false;
+  bool _canManageDaycare = false;
   bool _medicationOn = false, _servicesOn = false;
   bool get _careTasksOn => _canManageCare && (_medicationOn || _servicesOn);
   StreamSubscription<Map<String, dynamic>?>? _careShopSub;
@@ -267,6 +268,10 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       _canManageCare = ShopService.instance.hasPermission(
         memberData,
         ShopPermissionKeys.manageBookings,
+      );
+      _canManageDaycare = ShopService.instance.hasPermission(
+        memberData,
+        ShopPermissionKeys.manageDaycareBookings,
       );
     });
   }
@@ -594,16 +599,16 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
 
   Widget _viewSwitcher() {
     final List<ButtonSegment<_DeskView>> segments = <ButtonSegment<_DeskView>>[
-      ButtonSegment<_DeskView>(value: _DeskView.rooms, label: Text('房務總覽')),
+      ButtonSegment<_DeskView>(value: _DeskView.rooms, label: Text('房況')),
       if (_careTasksOn)
         const ButtonSegment<_DeskView>(
           value: _DeskView.care,
-          label: Text('照護待辦'),
+          label: Text('照護'),
         ),
       if (_reportsOn)
         const ButtonSegment<_DeskView>(
           value: _DeskView.reports,
-          label: Text('每日回報'),
+          label: Text('照護回報'),
         ),
     ];
     final _DeskView selected = segments.any((s) => s.value == _deskView)
@@ -1139,7 +1144,26 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         bookingId: choice.id,
         data: choice.data,
         shopId: widget.shopId,
+        canEdit:
+            _canManageCare ||
+            (_canManageDaycare &&
+                AdminBookingRoute.isDaycareBooking(choice.data)),
+        fromWorkbench: true,
       ),
+      onOrderCare: _canManageCare || _canManageDaycare || _reportsOn
+          ? (choice) => AdminBookingRoute.open(
+              context,
+              bookingId: choice.id,
+              data: choice.data,
+              shopId: widget.shopId,
+              canEdit:
+                  _canManageCare ||
+                  (_canManageDaycare &&
+                      AdminBookingRoute.isDaycareBooking(choice.data)),
+              fromWorkbench: true,
+              initialSection: 1,
+            )
+          : null,
       onRoomRecord: (room) => _openCalendar(room.data),
       onRoomStatus: (room, status) => _polishedRoomAction(
         room: room,

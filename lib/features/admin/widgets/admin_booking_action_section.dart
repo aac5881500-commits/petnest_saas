@@ -145,7 +145,12 @@ class AdminBookingActionSection extends StatelessWidget {
 
     final List<Widget> notices = <Widget>[
       if (flags.pendingNotice)
-        _notice(color: Colors.orange, text: '請先確認訂單，確認後才能選擇房間'),
+        _notice(
+          color: Colors.orange,
+          text: flags.confirmDeposit
+              ? '請先核對是否收到款項，入帳並確認訂單後即可分房'
+              : '請先確認訂單，確認後才能選擇房間',
+        ),
       if (flags.assignNotice)
         _notice(color: Colors.blue, text: '訂單已確認，請完成分房後再辦理入住'),
       if (chrome != AdminBookingActionChrome.phoneSticky &&

@@ -38,7 +38,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('預約成功'), findsOneWidget);
+        expect(find.text('預約已送出'), findsOneWidget);
         expect(find.text('預約成功 🎉'), findsNothing);
         expect(find.text('2 隻'), findsOneWidget);
         expect(find.text('標準雙貓房'), findsOneWidget);
@@ -120,7 +120,7 @@ void main() {
       find.byKey(const ValueKey('success-view-order')),
     );
     expect(button.style!.backgroundColor!.resolve({}), const Color(0xFF6554A5));
-    final title = tester.widget<Text>(find.text('預約成功'));
+    final title = tester.widget<Text>(find.text('預約已送出'));
     expect(title.style!.fontFamily, 'NotoSansTC');
     expect(title.style!.fontWeight, FontWeight.w700);
     expect(tester.takeException(), isNull);

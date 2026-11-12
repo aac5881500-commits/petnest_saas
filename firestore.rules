@@ -1516,6 +1516,42 @@ function shopText(data, field) {
     match /shop_binding_transfers/{id} { allow read, write: if false; }
     match /shop_customer_bindings/{uid} { allow read, write: if false; }
     match /shops/{shopId} {
+      match /internal_handover_notes/{bookingId} {
+        function bookingPath() {
+          return /databases/$(database)/documents/bookings/$(bookingId);
+        }
+        function order() {
+          return get(bookingPath()).data;
+        }
+        function mayReadNote() {
+          return signedIn() && exists(bookingPath()) && order().shopId == shopId
+            && (canManageShopBookings(shopId)
+              || ((order().get('bookingKind', '') == 'daycare' || order().get('serviceType', '') == 'daycare')
+                && hasShopPermissionKey(shopId, 'manage_daycare_bookings')));
+        }
+        function validNote(data) {
+          return data.keys().hasOnly(['shopId', 'bookingId', 'text', 'revision', 'updatedAt',
+                'updatedByUid', 'updatedByEmail'])
+            && data.shopId == shopId && data.bookingId == bookingId
+            && data.text is string && data.text.size() <= 4000
+            && data.revision is int && data.revision > 0
+            && data.updatedAt == request.time && data.updatedByUid == request.auth.uid
+            && data.updatedByEmail == request.auth.token.get('email', '');
+        }
+        allow get: if mayReadNote();
+        allow create: if mayReadNote() && !order().get('settlementLocked', false)
+          && validNote(request.resource.data) && request.resource.data.revision == 1;
+        allow update: if mayReadNote() && !order().get('settlementLocked', false)
+          && validNote(request.resource.data)
+          && request.resource.data.revision == resource.data.get('revision', 0) + 1;
+
+        match /history/{entryId} {
+          allow read: if mayReadNote();
+          allow create: if mayReadNote() && !order().get('settlementLocked', false)
+            && validNote(request.resource.data)
+            && getAfter(/databases/$(database)/documents/shops/$(shopId)/internal_handover_notes/$(bookingId)).data == request.resource.data;
+        }
+      }
       // Private monthly ledger: never expose salary to shop staff.
       match /owner_finance_months/{month}/entries/{entryId} {
         function ownerLedgerAccess() {

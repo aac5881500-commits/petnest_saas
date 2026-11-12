@@ -52,11 +52,13 @@ class AdminDaycareDetailPage extends StatelessWidget {
     required this.shopId,
     required this.bookingId,
     this.canEdit = true,
+    this.initialSection = 0,
   });
 
   final String shopId;
   final String bookingId;
   final bool canEdit;
+  final int initialSection;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +86,7 @@ class AdminDaycareDetailPage extends StatelessWidget {
               bookingId: bookingId,
               data: data,
               canEdit: canEdit,
+              initialSection: initialSection,
             );
           },
     );
@@ -96,12 +99,14 @@ class _DaycareDetailBody extends StatefulWidget {
     required this.bookingId,
     required this.data,
     this.canEdit = true,
+    this.initialSection = 0,
   });
 
   final String shopId;
   final String bookingId;
   final Map<String, dynamic> data;
   final bool canEdit;
+  final int initialSection;
 
   @override
   State<_DaycareDetailBody> createState() => _DaycareDetailBodyState();
@@ -473,7 +478,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
           handover: AdminInternalHandoverCard(
             shopId: widget.shopId,
             bookingId: widget.bookingId,
-            readOnly: settlementLocked,
+            readOnly: !widget.canEdit || settlementLocked,
           ),
           overview: AdminBookingHeaderCard(
             dense: true,
@@ -526,6 +531,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               : (widget.canEdit && hasDaycareSticky ? daycareSticky : null),
           left: const <Widget>[],
           workspace: AdminBookingWorkspaceContent(
+            initialSection: widget.initialSection,
             alerts: [if (pets.any(PetSnapshot.hasDiseaseAlert)) '寵物健康注意事項'],
             preferenceScope:
                 '${widget.shopId}:${FirebaseAuth.instance.currentUser?.uid ?? 'local'}',

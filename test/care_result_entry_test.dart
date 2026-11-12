@@ -92,6 +92,23 @@ void main() {
     );
   });
 
+  test('服務結果允許同一入住分鐘，並分別提示早於入住或晚於現在', () {
+    final start = serviceBookingStart({
+      'actualStartAt': 'invalid',
+      'checkInAt': Timestamp.fromDate(DateTime.parse('2026-11-12T21:00:35+08:00')),
+      'startDate': '2026-11-12',
+    });
+    final now = DateTime.parse('2026-11-12T21:05:00+08:00');
+    String? error(String time) => serviceActualTimeError(
+      actual: DateTime.parse(time), checkIn: start, now: now,
+    );
+    expect(error('2026-11-12T21:00:00+08:00'), isNull);
+    expect(error('2026-11-12T20:59:00+08:00'), contains('早於入住時間 2026-11-12 21:00'));
+    expect(error('2026-11-12T21:07:00+08:00'), contains('晚於現在'));
+    expect(serviceBookingStart({'startDate': '2026-11-12'}),
+        DateTime.parse('2026-11-11T16:00:00Z'));
+  });
+
   testWidgets('實際時間直接開時間選擇器，確認後保留原日期', (tester) async {
     final scheduled = DateTime.parse('2026-11-11T01:30:00Z');
     DateTime? saved;
@@ -124,9 +141,14 @@ void main() {
     expect(find.byTooltip('記錄結果'), findsNothing);
     await tester.tap(find.text('核對藥品與安排'));
     await tester.pumpAndSettle();
+    expect(find.text('核對用藥安排'), findsOneWidget);
+    expect(find.text('送客人確認'), findsOneWidget);
+    await tester.ensureVisible(find.text('調整安排'));
+    await tester.tap(find.text('調整安排'));
+    await tester.pumpAndSettle();
     expect(find.byType(MedicationRequestEditor), findsOneWidget);
     expect(find.text('新增藥品／保健品'), findsOneWidget);
-    expect(find.text('送客人確認'), findsOneWidget);
+    expect(find.text('返回核對'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

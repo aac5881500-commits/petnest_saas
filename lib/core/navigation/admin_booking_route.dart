@@ -19,6 +19,7 @@ class AdminBookingRoute {
     Map<String, dynamic>? data,
     String shopId = '',
     bool canEdit = true,
+    int initialSection = 0,
   }) {
     final String resolvedShopId = shopId.trim().isNotEmpty
         ? shopId.trim()
@@ -28,9 +29,14 @@ class AdminBookingRoute {
         shopId: resolvedShopId,
         bookingId: bookingId,
         canEdit: canEdit,
+        initialSection: initialSection,
       );
     }
-    return AdminBookingDetailPage(bookingId: bookingId, canEdit: canEdit);
+    return AdminBookingDetailPage(
+      bookingId: bookingId,
+      canEdit: canEdit,
+      initialSection: initialSection,
+    );
   }
 
   static Future<void> open(
@@ -39,7 +45,36 @@ class AdminBookingRoute {
     Map<String, dynamic>? data,
     String shopId = '',
     bool canEdit = true,
+    bool fromWorkbench = false,
+    int initialSection = 0,
   }) {
+    if (fromWorkbench &&
+        data != null &&
+        MediaQuery.sizeOf(context).width >= 1200) {
+      return showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: '關閉訂單詳情',
+        barrierColor: Colors.black26,
+        pageBuilder: (_, animation, secondaryAnimation) => Align(
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: 1000,
+            height: double.infinity,
+            child: SafeArea(
+              left: false,
+              child: page(
+                bookingId: bookingId,
+                data: data,
+                shopId: shopId,
+                canEdit: canEdit,
+                initialSection: initialSection,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
@@ -50,12 +85,14 @@ class AdminBookingRoute {
               data: data,
               shopId: shopId,
               canEdit: canEdit,
+              initialSection: initialSection,
             );
           }
           return AdminBookingRouteGate(
             bookingId: bookingId,
             shopId: shopId,
             canEdit: canEdit,
+            initialSection: initialSection,
           );
         },
       ),
@@ -69,11 +106,13 @@ class AdminBookingRouteGate extends StatelessWidget {
     required this.bookingId,
     this.shopId = '',
     this.canEdit = true,
+    this.initialSection = 0,
   });
 
   final String bookingId;
   final String shopId;
   final bool canEdit;
+  final int initialSection;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +140,7 @@ class AdminBookingRouteGate extends StatelessWidget {
               data: data,
               shopId: shopId,
               canEdit: canEdit,
+              initialSection: initialSection,
             );
           },
     );

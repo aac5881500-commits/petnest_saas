@@ -644,26 +644,29 @@ void main() {
       await tapVisible(inDialog('用藥'));
       await tapVisible(inDialog('口服藥'));
       await tapVisible(inDialog('日期'));
+      expect(find.textContaining('請確認用藥時間在辦理入住後'), findsNothing);
       await tapVisible(inDialog('全選住宿日'));
+      expect(find.textContaining('請確認用藥時間在辦理入住後'), findsOneWidget);
       final checkoutDay = find.widgetWithText(FilterChip, '11/11（退房日）');
       expect(tester.widget<FilterChip>(checkoutDay).selected, isFalse);
+      expect(find.textContaining('請確認用藥時間在接回貓咪前'), findsNothing);
       await tapVisible(checkoutDay);
-      await tapVisible(inDialog('儲存安排'));
-      expect(inDialog('請為每個已選日期選擇至少一個時段'), findsOneWidget);
+      expect(find.textContaining('請確認用藥時間在接回貓咪前'), findsOneWidget);
       await tapVisible(inDialog('調整個別日期'));
-      final dayItems = tester.widget<DropdownButton<String>>(menu).items!;
-      expect(dayItems.first.value, '15:30');
-      await pickTime('15:30');
+      expect(
+        tester.widget<DropdownButton<String>>(menu).items!.first.value,
+        '09:00',
+      );
       await tapVisible(find.widgetWithText(ChoiceChip, '11/11'));
       expect(
         tester.widget<DropdownButton<String>>(menu).items!.last.value,
-        '11:30',
+        '21:00',
       );
       await tapVisible(inDialog('儲存安排'));
       expect((draft['preferences'] as List).single['dates'], [
         {
           'date': '2026-11-09',
-          'times': ['15:30'],
+          'times': ['09:30'],
         },
         {
           'date': '2026-11-10',

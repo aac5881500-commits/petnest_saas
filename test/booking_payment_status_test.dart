@@ -7,6 +7,33 @@ import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
 
 void main() {
+  test('住宿訂單區分待付訂金、審核中與入帳後待接單', () {
+    final data = <String, dynamic>{
+      'bookingKind': 'accommodation',
+      'status': 'pending_confirmation',
+      'paymentMethod': 'bank_transfer',
+      'totalPrice': 2000,
+      'depositAmount': 500,
+    };
+    BookingDetailViewData view() =>
+        BookingDetailViewData.fromBooking(data: data, docId: 'stay');
+
+    expect(view().statusTitle, '等待付款');
+    expect(view().nextStepHint, contains('訂金 NT\$500'));
+
+    data['depositStatus'] = 'pending_review';
+    expect(view().statusTitle, '付款資料審核中');
+    expect(view().paymentProgressSubtitle, contains('待店家確認'));
+
+    data['depositStatus'] = 'confirmed';
+    expect(view().statusTitle, '等待店家確認');
+    expect(view().nextStepHint, contains('訂金已入帳'));
+
+    data.remove('depositStatus');
+    data['depositAmount'] = 0;
+    expect(view().statusTitle, '等待店家確認');
+  });
+
   test('已確認訂金但 paidAmount 缺漏時，已付金額至少為訂金', () {
     final Map<String, dynamic> data = <String, dynamic>{
       'bookingKind': 'daycare',

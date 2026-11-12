@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import '../models/booking_medication_task.dart';
@@ -46,14 +47,19 @@ class StaffDailyCareMedicationSummary extends StatefulWidget {
 
 class _StaffDailyCareMedicationSummaryState
     extends State<StaffDailyCareMedicationSummary> {
-  late final _booking = BookingService.instance.streamBooking(widget.bookingId);
+  late final _booking = Firebase.apps.isEmpty
+      ? null
+      : BookingService.instance.streamBooking(widget.bookingId);
 
   @override
   Widget build(BuildContext context) => StreamBuilder<Map<String, dynamic>?>(
     stream: _booking,
     builder: (context, snapshot) {
       if (snapshot.hasError) return const Text('照護時程讀取失敗，請重新開啟回報');
-      if (!snapshot.hasData) return const LinearProgressIndicator();
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const LinearProgressIndicator();
+      }
+      if (!snapshot.hasData) return const SizedBox.shrink();
       return _StaffCareActions(
         booking: snapshot.data!,
         bookingId: widget.bookingId,

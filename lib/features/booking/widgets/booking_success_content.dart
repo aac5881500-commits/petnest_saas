@@ -192,7 +192,7 @@ class BookingSuccessContent extends StatelessWidget {
                       const SizedBox(height: 18),
                       Semantics(
                         liveRegion: true,
-                        child: Text('預約成功', style: text(30, bold: true)),
+                        child: Text('預約已送出', style: text(30, bold: true)),
                       ),
                       const SizedBox(height: 8),
                       Text(

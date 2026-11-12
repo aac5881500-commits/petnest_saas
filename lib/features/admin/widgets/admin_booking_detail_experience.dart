@@ -22,6 +22,7 @@ class AdminBookingDetailExperience extends StatefulWidget {
     required this.sectionBuilder,
     this.alerts = const [],
     this.hasCareDisplay = false,
+    this.initialSection = 0,
   });
   final String scope;
   final Widget Function(
@@ -31,6 +32,7 @@ class AdminBookingDetailExperience extends StatefulWidget {
   )
   sectionBuilder;
   final bool hasCareDisplay;
+  final int initialSection;
   final List<String> alerts;
   @override
   State<AdminBookingDetailExperience> createState() =>
@@ -41,9 +43,9 @@ class AdminBookingDetailExperienceState
     extends State<AdminBookingDetailExperience> {
   BookingDetailExperience experience = BookingDetailExperience.tabs;
   BookingCareDisplay careDisplay = const BookingCareDisplay();
-  int selected = 0;
-  bool _mobileDetail = false;
-  final Set<int> _visited = {0};
+  late int selected = widget.initialSection;
+  late bool _mobileDetail = selected != 0;
+  late final Set<int> _visited = {0, selected};
   final Set<int> _expanded = {0};
   final List<GlobalKey> _sections = List.generate(5, (_) => GlobalKey());
   final ScrollController _scroll = ScrollController();
@@ -75,6 +77,7 @@ class AdminBookingDetailExperienceState
   @override
   void initState() {
     super.initState();
+    _expanded.add(_stageFor(selected));
     _load();
   }
 

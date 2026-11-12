@@ -4,10 +4,10 @@ import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
 // 店主單筆訂單工作區：依工作切換資料，保留已開啟分頁的編輯與捲動狀態。
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/booking_medication_task.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'admin_booking_medication_fees.dart';
 import 'admin_booking_schedule.dart';
+import 'admin_internal_handover_card.dart';
 import 'booking_care_display.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
@@ -29,11 +29,13 @@ class AdminBookingWorkspaceContent {
     this.schedule,
     this.medicationDetails,
     this.careReport,
+    this.initialSection = 0,
     this.contacts,
   });
   final List<Widget> summary, care, charges, details, activity;
   final Widget? balance, pets, carePreview, contacts;
   final String preferenceScope;
+  final int initialSection;
   final List<String> alerts;
   final AdminBookingScheduleData? schedule;
   final Widget? medicationDetails, careReport;
@@ -72,8 +74,6 @@ class AdminBookingOrderWorkspaceState
 
   Stream<Map<String, dynamic>?>? _shopStream;
   String? _scheduleShopId;
-  String? _focusScheduleDay;
-  int _scheduleFocus = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -94,48 +94,26 @@ class AdminBookingOrderWorkspaceState
 
   Widget _workspace(BuildContext context, Map<String, dynamic>? shop) {
     final schedule = widget.content.schedule;
-    final medicationOn =
-        schedule != null &&
-        schedule.hasMedication &&
-        schedule.medicationEnabled(shop);
+    final medicationOn = schedule?.hasMedication == true;
     final entries =
         schedule?.entries(showMedication: medicationOn) ??
         const <BookingScheduleEntry>[];
+    final requests = entries
+        .where((entry) => entry.requestStatus != null)
+        .toList();
+    final timeline = entries
+        .where((entry) => entry.requestStatus == null)
+        .toList();
     Widget scheduleView(
       AdminBookingScheduleView view,
       BookingCareDisplay display,
     ) => AdminBookingSchedule(
       display: display,
       onViewFinance: () => select(2),
-      key: view == AdminBookingScheduleView.timeline
-          ? ValueKey(_scheduleFocus)
-          : null,
-      initialDay: _focusScheduleDay,
       data: schedule!,
-      entries: entries,
+      entries: timeline,
       view: view,
-      onViewTimeline: () {
-        if (view == AdminBookingScheduleView.progress) {
-          final medication = entries.where(
-            (entry) => entry.kind == BookingScheduleKind.medication,
-          );
-          final request = medication
-              .where((entry) => entry.requestStatus != null)
-              .firstOrNull;
-          final today = BookingMedicationTask.dateKey(
-            BookingMedicationTask.taipei(DateTime.now()),
-          );
-          final current = medication
-              .where((entry) => entry.day == today)
-              .firstOrNull;
-          setState(() {
-            _focusScheduleDay =
-                (request ?? current ?? medication.firstOrNull)?.day;
-            _scheduleFocus++;
-          });
-        }
-        select(1);
-      },
+      onViewTimeline: () => select(1),
     );
     final brand = ShopFrontendTheme.of(context);
     final theme = ShopFrontendTheme(
@@ -175,6 +153,7 @@ class AdminBookingOrderWorkspaceState
           child: AdminBookingDetailExperience(
             key: _experienceKey,
             scope: widget.content.preferenceScope,
+            initialSection: widget.content.initialSection,
             alerts: [
               ...widget.content.alerts,
               if (widget.content.carePreview != null) '有用藥／照護資料',
@@ -186,15 +165,19 @@ class AdminBookingOrderWorkspaceState
                 return _overviewLayout(
                   theme,
                   experience,
-                  featured: entries.isEmpty || schedule!.ended
+                  featured: timeline.isEmpty || schedule!.ended
                       ? null
                       : scheduleView(AdminBookingScheduleView.next, display),
-                  progress:
-                      entries.any(
-                        (entry) => entry.kind == BookingScheduleKind.medication,
-                      )
-                      ? scheduleView(AdminBookingScheduleView.progress, display)
-                      : null,
+                  progress: requests.isEmpty
+                      ? null
+                      : _surface(
+                          theme,
+                          title: '用藥需求待確認',
+                          icon: Icons.medication_outlined,
+                          action: '查看照護',
+                          onTap: () => select(1),
+                          child: const Text('可先在照護分頁留下店內速記。'),
+                        ),
                 );
               }
               final hasMedicationFees =
@@ -202,32 +185,41 @@ class AdminBookingOrderWorkspaceState
                   AdminBookingMedicationFees.hasFeeData(schedule.booking);
               final panels = <int, List<Widget>>{
                 1: [
-                  if (entries.isNotEmpty)
-                    scheduleView(AdminBookingScheduleView.timeline, display),
-                  if (medicationOn && hasMedicationFees)
-                    AdminBookingMedicationFees(booking: schedule.booking),
+                  if (schedule != null &&
+                      schedule.canEdit &&
+                      (medicationOn || schedule.arrived))
+                    Card(
+                      child: ExpansionTile(
+                        key: PageStorageKey('care-note-${schedule.bookingId}'),
+                        leading: const Icon(Icons.edit_note),
+                        title: const Text('用藥與照護速記'),
+                        subtitle: const Text('藥名、每次用量、剩餘數量與交接事項'),
+                        children: [
+                          AdminInternalHandoverCard(
+                            shopId: schedule.shopId,
+                            bookingId: schedule.bookingId,
+                            readOnly: BookingSettlementMath.isSettlementLocked(
+                              schedule.booking,
+                            ),
+                            compact: true,
+                          ),
+                        ],
+                      ),
+                    ),
                   if (medicationOn && widget.content.medicationDetails != null)
-                    if (entries.any(
-                      (entry) => entry.kind == BookingScheduleKind.medication,
-                    ))
-                      Card(
-                        child: ExpansionTile(
-                          key: ValueKey(
-                            'medication-${(schedule.booking['medication'] as Map?)?['state']}',
-                          ),
-                          initiallyExpanded: entries.any(
-                            (entry) => entry.requestStatus != null,
-                          ),
-                          title: Text(
-                            entries.any((entry) => entry.requestStatus != null)
-                                ? '處理用藥申請與備註'
-                                : '用藥安排與完整紀錄',
-                          ),
-                          children: [widget.content.medicationDetails!],
+                    Card(
+                      child: ExpansionTile(
+                        key: PageStorageKey(
+                          'care-medicines-${schedule!.bookingId}',
                         ),
-                      )
-                    else
-                      widget.content.medicationDetails!,
+                        leading: const Icon(Icons.medication_outlined),
+                        title: Text(requests.isEmpty ? '用藥安排與紀錄' : '用藥需求待確認'),
+                        subtitle: requests.isEmpty
+                            ? null
+                            : const Text('查看飼主需求，需要時再送出正式安排'),
+                        children: [widget.content.medicationDetails!],
+                      ),
+                    ),
                   if (schedule?.reportsEnabled(shop) == true &&
                       widget.content.careReport != null)
                     _surface(
@@ -236,6 +228,8 @@ class AdminBookingOrderWorkspaceState
                       icon: Icons.assignment_outlined,
                       child: widget.content.careReport!,
                     ),
+                  if (timeline.isNotEmpty)
+                    scheduleView(AdminBookingScheduleView.timeline, display),
                   ...widget.content.care,
                 ],
                 2: [
@@ -300,7 +294,7 @@ class AdminBookingOrderWorkspaceState
           child: widget.content.pets!,
         ),
       'progress': ?progress,
-      if (widget.content.carePreview != null)
+      if (widget.content.carePreview != null && widget.content.schedule == null)
         'care': _surface(
           theme,
           title: '照護待辦',
@@ -329,11 +323,6 @@ class AdminBookingOrderWorkspaceState
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlinedButton.icon(
-              onPressed: () => select(1),
-              icon: const Icon(Icons.pets_outlined),
-              label: const Text('完整照護'),
-            ),
             OutlinedButton.icon(
               onPressed: () => select(2),
               icon: const Icon(Icons.receipt_long_outlined),

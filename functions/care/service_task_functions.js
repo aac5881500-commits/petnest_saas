@@ -26,9 +26,24 @@ exports.recordBookingServiceTask = onCall({region: "asia-east1"}, async (req) =>
     check(task.petId, "failed-precondition", "舊預約缺少可辨識的寵物資料，請先與店家核對");
     check(!task.record, "already-exists", "此項已有結果，請勿重複執行");
     const actual = new Date(actualAt); const now = Date.now();
-    const startRaw = b.actualStartAt || b.checkInAt || b.checkedInAt || b.scheduledStartAt || b.startAt || b.startDate;
-    const start = startRaw && startRaw.toDate ? startRaw.toDate() : new Date(startRaw);
-    check(Number.isFinite(actual.getTime()) && Number.isFinite(start.getTime()) && actual >= start && actual.getTime() <= now + 60000, "invalid-argument", "實際時間不得在入住前或未來");
+    const start = [b.actualStartAt, b.checkInAt, b.checkedInAt, b.scheduledStartAt, b.startAt, b.startDate]
+        .filter((value) => value != null && value !== "")
+        .map((value) => {
+          if (typeof value.toDate === "function") return value.toDate();
+          if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return new Date(value + "T00:00:00+08:00");
+          }
+          return new Date(value);
+        })
+        .find((value) => Number.isFinite(value.getTime()));
+    check(typeof actualAt === "string" && Number.isFinite(actual.getTime()), "invalid-argument", "請選擇有效的實際時間");
+    check(start, "failed-precondition", "缺少有效的入住時間，請先核對訂單資料");
+    // The result form records hours and minutes. A timestamp later in that
+    // same minute must not prevent staff from recording the result.
+    check(Math.floor(actual.getTime() / 60000) >= Math.floor(start.getTime() / 60000),
+        "invalid-argument", "實際時間早於入住時間，請修改時間");
+    check(actual.getTime() <= now + 60000,
+        "invalid-argument", "實際時間晚於現在，請修改時間");
     check(result === "skipped" || Date.parse(task.scheduledAt) <= actual.getTime() + 30 * 60000, "failed-precondition", "尚未到服務時間，若取消請填寫未執行原因");
     const record = {scheduledAt: task.scheduledAt, actualAt: actual.toISOString(), result, note,
       by: req.auth.uid, byName: String((req.auth.token || {}).name || "店家人員").slice(0, 100),

@@ -15,11 +15,13 @@ class AdminInternalHandoverCard extends StatefulWidget {
     required this.shopId,
     required this.bookingId,
     this.readOnly = false,
+    this.compact = false,
   });
 
   final String shopId;
   final String bookingId;
   final bool readOnly;
+  final bool compact;
 
   @override
   State<AdminInternalHandoverCard> createState() =>
@@ -29,6 +31,10 @@ class AdminInternalHandoverCard extends StatefulWidget {
 class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _controller = TextEditingController();
+  late final _stream = InternalHandoverNoteService.instance.stream(
+    shopId: widget.shopId,
+    bookingId: widget.bookingId,
+  );
   int _revision = 0;
   String _loadedText = '';
   String _meta = '';
@@ -48,11 +54,11 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
 
   String _errorText(Object error) {
     if (error is FirebaseException) {
-      return '儲存失敗：[${error.plugin}/${error.code}] ${error.message ?? ''}\n'
-          '路徑：shops/${widget.shopId}/internal_handover_notes/${widget.bookingId}';
+      return error.code == 'permission-denied'
+          ? '目前帳號無法儲存這筆店內備註。'
+          : '暫時無法儲存店內備註，請稍後再試。';
     }
-    return '儲存失敗：$error\n'
-        '路徑：shops/${widget.shopId}/internal_handover_notes/${widget.bookingId}';
+    return '暫時無法儲存店內備註，請稍後再試。';
   }
 
   Future<void> _save() async {
@@ -106,15 +112,25 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
     super.build(context);
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: InternalHandoverNoteService.instance.stream(
-        shopId: widget.shopId,
-        bookingId: widget.bookingId,
-      ),
+      stream: _stream,
       builder:
           (
             BuildContext context,
             AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
           ) {
+            if (snapshot.hasError) {
+              return const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('無法讀取店內備註。請確認權限或重新開啟訂單。'),
+              );
+            }
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(12),
+                child: LinearProgressIndicator(),
+              );
+            }
             final Map<String, dynamic> data =
                 snapshot.data?.data() ?? const <String, dynamic>{};
             final String remote = (data['text'] ?? '').toString();
@@ -142,7 +158,7 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    '內部交接備註（僅店家可見）',
+                    widget.compact ? '僅店家可見' : '內部交接備註（僅店家可見）',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -156,11 +172,16 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                   ),
                   const SizedBox(height: 8),
                   TextField(
+                    key: PageStorageKey('handover-input-${widget.bookingId}'),
                     controller: _controller,
-                    maxLines: 6,
-                    readOnly: locked,
+                    minLines: widget.compact ? 3 : 5,
+                    maxLines: 8,
+                    maxLength: 4000,
+                    readOnly: locked || _saving,
                     decoration: InputDecoration(
-                      hintText: '例如：明天接回前提前準備藥品',
+                      hintText: widget.compact
+                          ? '例如：喵喵｜藥名｜每次用量｜剩餘數量'
+                          : '例如：明天接回前提前準備藥品',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -177,7 +198,7 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                     Align(
                       alignment: Alignment.centerRight,
                       child: FilledButton(
-                        onPressed: _saving ? null : _save,
+                        onPressed: _saving || !_dirty ? null : _save,
                         child: Text(_saving ? '儲存中…' : '儲存交接備註'),
                       ),
                     ),

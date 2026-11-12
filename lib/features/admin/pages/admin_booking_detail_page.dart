@@ -65,9 +65,11 @@ class AdminBookingDetailPage extends StatelessWidget {
     super.key,
     required this.bookingId,
     this.canEdit = true,
+    this.initialSection = 0,
   });
 
   final String bookingId;
+  final int initialSection;
 
   /// 是否可操作訂單
   /// true：訂單管理進來，可確認 / 取消 / 入住 / 退房
@@ -311,6 +313,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 : null),
                       left: const <Widget>[],
                       workspace: AdminBookingWorkspaceContent(
+                        initialSection: initialSection,
                         alerts: [
                           if (pets.any(PetSnapshot.hasDiseaseAlert)) '寵物健康注意事項',
                         ],
@@ -504,9 +507,9 @@ class AdminBookingDetailPage extends StatelessWidget {
                       handover: AdminInternalHandoverCard(
                         shopId: shopId,
                         bookingId: bookingId,
-                        readOnly: BookingSettlementMath.isSettlementLocked(
-                          data,
-                        ),
+                        readOnly:
+                            !canEdit ||
+                            BookingSettlementMath.isSettlementLocked(data),
                       ),
                       handoverHasContent: handoverHasContent,
                     );

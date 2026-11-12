@@ -151,6 +151,7 @@ class OperationsWorkbench extends StatefulWidget {
     required this.onSelectRoom,
     required this.onDateSelected,
     required this.onOrder,
+    this.onOrderCare,
     required this.onRoomRecord,
     required this.onCare,
     required this.onRoomStatus,
@@ -164,6 +165,7 @@ class OperationsWorkbench extends StatefulWidget {
   final ValueChanged<String> onSelectRoom;
   final ValueChanged<DateTime> onDateSelected;
   final ValueChanged<RoomDayBookingChoice> onOrder;
+  final ValueChanged<RoomDayBookingChoice>? onOrderCare;
   final ValueChanged<OperationsRoom> onRoomRecord;
   final ValueChanged<DailyCareReportCenterItem> onCare;
   final void Function(OperationsRoom, String) onRoomStatus;
@@ -1153,11 +1155,16 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
                 ),
               ),
               const SizedBox(height: 10),
-              _action(
-                '查看訂單',
-                () => widget.onOrder(order),
-                primary: true,
-                icon: Icons.open_in_new,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _action('查看訂單', () => widget.onOrder(order),
+                      primary: true, icon: Icons.receipt_long_outlined),
+                  if (widget.onOrderCare != null)
+                    _action('查看照護', () => widget.onOrderCare!(order),
+                        icon: Icons.pets_outlined),
+                ],
               ),
               if (order != facts.orders.last) const SizedBox(height: 12),
             ],

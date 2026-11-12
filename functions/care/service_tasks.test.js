@@ -68,6 +68,14 @@ test("reject stale task, future/predating actual time and missing explanation", 
   assert.equal(serviceTasks(f.docs["bookings/b"])[0].record.result, "skipped");
   assert.equal(f.docs["bookings/b"].totalPrice, 1800);
 });
+test("records in the same check-in minute and distinguishes earlier or future times", async () => {
+  const f = fixture();
+  f.docs["bookings/b"].checkInAt = "2026-01-01T09:30:35+08:00";
+  await assert.rejects(f.call({actualAt: "2026-01-01T09:29:00+08:00"}), /早於入住時間/);
+  await assert.rejects(f.call({actualAt: "2099-01-01T09:30:00+08:00"}), /晚於現在/);
+  await f.call();
+  assert.equal(f.docs["bookings/b"].careServiceRecords[f.task.id].actualAt, f.task.scheduledAt);
+});
 test("cancelled, checkout and finalized bookings cannot accept new results", async () => {
   for (const status of ["cancelled", "checked_out", "completed", "pending", "confirmed"]) {
     const f = fixture(); f.docs["bookings/b"].status = status; await assert.rejects(f.call(), {code: "failed-precondition"});

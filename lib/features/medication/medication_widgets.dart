@@ -706,22 +706,6 @@ class MedicationSettingsPageState extends State<MedicationSettingsPage>
                             ),
                           ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '入住與退房日限制（選填）',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        _hint('與上方照護時段一起篩選。中間住宿日只套用照護時段。'),
-                        _stayBoundary(
-                          'checkInFrom',
-                          '入住日最早可用藥',
-                          const TimeOfDay(hour: 15, minute: 0),
-                        ),
-                        _stayBoundary(
-                          'checkOutUntil',
-                          '退房日最晚可用藥',
-                          const TimeOfDay(hour: 12, minute: 0),
-                        ),
-                        const SizedBox(height: 8),
                         medInput(note, '給客人的服務說明（選填）', lines: 3),
                       ]),
                       Container(
@@ -945,38 +929,6 @@ class MedicationSettingsPageState extends State<MedicationSettingsPage>
       ),
     ),
   );
-
-  Widget _stayBoundary(String field, String label, TimeOfDay initial) {
-    final value = setting[field] as String?;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      subtitle: Text(value ?? '未設定'),
-      trailing: value == null
-          ? const Icon(Icons.schedule_outlined)
-          : IconButton(
-              tooltip: '清除$label',
-              icon: const Icon(Icons.close),
-              onPressed: () => change(() => setting[field] = null),
-            ),
-      onTap: () async {
-        final parts = value?.split(':');
-        final selected = await showTimePicker(
-          context: context,
-          initialTime: parts == null
-              ? initial
-              : TimeOfDay(
-                  hour: int.parse(parts.first),
-                  minute: int.parse(parts.last),
-                ),
-        );
-        if (selected == null || !mounted) return;
-        final hour = selected.hour.toString().padLeft(2, '0');
-        final minute = selected.minute.toString().padLeft(2, '0');
-        change(() => setting[field] = '$hour:$minute');
-      },
-    );
-  }
 
   Future<void> pickWindow(int i, String field) async {
     final parts = '${windows[i][field]}'.split(':');
@@ -1896,9 +1848,7 @@ class _BookingMedicationRequestSectionState
       return '請為每個已選日期選擇至少一個時段';
     }
     if (item.dates.entries.any(
-      (day) => day.value.any(
-        (time) => !available.contains(time) || !_withinStay(day.key, time),
-      ),
+      (day) => day.value.any((time) => !available.contains(time)),
     )) {
       return '照護時段已變更，請重新選擇';
     }
@@ -1923,26 +1873,11 @@ class _BookingMedicationRequestSectionState
             time.compareTo('${window['end']}') <= 0,
       );
 
-  bool _withinStay(String date, String time) {
-    final checkIn = widget.setting['checkInFrom'] as String?;
-    final checkOut = widget.setting['checkOutUntil'] as String?;
-    return (date != _dateKey(widget.startDate) ||
-            checkIn == null ||
-            time.compareTo(checkIn) >= 0) &&
-        (date != _dateKey(widget.endDate) ||
-            checkOut == null ||
-            time.compareTo(checkOut) <= 0);
-  }
-
-  List<String> _timesForDate(String date, List<String> times) =>
-      times.where((time) => _withinStay(date, time)).toList();
-
   void _setCommonTimes(_MedicationDraftItem item, List<String> times) {
     final dates = item.dates;
     for (final date in dates.keys.toList()) {
-      if (dates.length == 1 ||
-          listEquals(dates[date], _timesForDate(date, item.commonTimes))) {
-        dates[date] = _timesForDate(date, times);
+      if (dates.length == 1 || listEquals(dates[date], item.commonTimes)) {
+        dates[date] = List.of(times);
       }
     }
     item.commonTimes = times;
@@ -2002,9 +1937,8 @@ class _BookingMedicationRequestSectionState
     List<String> available,
     OutlinedBorder shape,
     TextStyle style,
-    ValueChanged<List<String>> onChanged, {
-    String Function(String)? optionLabel,
-  }) {
+    ValueChanged<List<String>> onChanged,
+  ) {
     final theme = widget.theme;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -2048,10 +1982,7 @@ class _BookingMedicationRequestSectionState
                     items: [
                       for (final time in available)
                         if (!times.contains(time))
-                          DropdownMenuItem(
-                            value: time,
-                            child: Text(optionLabel?.call(time) ?? time),
-                          ),
+                          DropdownMenuItem(value: time, child: Text(time)),
                     ],
                     onChanged: (time) {
                       if (time == null) return;
@@ -2108,12 +2039,12 @@ class _BookingMedicationRequestSectionState
       borderRadius: BorderRadius.circular(10),
       side: BorderSide(color: theme.cardBorderColor),
     );
-    final bookableDays = _stayDates
-        .map(_dateKey)
-        .where((date) => available.any((time) => _withinStay(date, time)))
-        .toSet();
+    final checkIn = _dateKey(widget.startDate);
     final checkout = _dateKey(widget.endDate);
-    final stayDays = bookableDays.where((date) => date != checkout).toList();
+    final stayDays = _stayDates
+        .map(_dateKey)
+        .where((date) => date != checkout)
+        .toList();
     String? section, editingDate, error;
 
     final result = await showDialog<String>(
@@ -2181,13 +2112,6 @@ class _BookingMedicationRequestSectionState
           }
 
           final dayKeys = dates.keys.toList()..sort();
-          final timeOptions = available
-              .where(
-                (time) =>
-                    dayKeys.isEmpty ||
-                    dayKeys.any((date) => _withinStay(date, time)),
-              )
-              .toList();
           final editDay = dates.containsKey(editingDate)
               ? editingDate
               : dayKeys.where((date) => dates[date]!.isEmpty).firstOrNull ??
@@ -2248,23 +2172,10 @@ class _BookingMedicationRequestSectionState
                     _timePicker(
                       '可選多個時間',
                       commonTimes,
-                      timeOptions,
+                      available,
                       shape,
                       style,
                       (times) => change(() => _setCommonTimes(draft, times)),
-                      optionLabel: (time) {
-                        final excluded = [
-                          if (dates.containsKey(_dateKey(widget.startDate)) &&
-                              !_withinStay(_dateKey(widget.startDate), time))
-                            '入住日',
-                          if (dates.containsKey(checkout) &&
-                              !_withinStay(checkout, time))
-                            '退房日',
-                        ];
-                        return excluded.isEmpty
-                            ? time
-                            : "$time（不含${excluded.join('、')}）";
-                      },
                     ),
                   ),
                   field(
@@ -2322,10 +2233,7 @@ class _BookingMedicationRequestSectionState
                                     if (selected) {
                                       dates.putIfAbsent(
                                         date,
-                                        () => _timesForDate(
-                                          date,
-                                          draft.commonTimes,
-                                        ),
+                                        () => List.of(draft.commonTimes),
                                       );
                                     } else {
                                       dates.remove(date);
@@ -2338,6 +2246,8 @@ class _BookingMedicationRequestSectionState
                                 label: Text(
                                   _dateKey(day) == checkout
                                       ? '${day.month}/${day.day}（退房日）'
+                                      : _dateKey(day) == checkIn
+                                      ? '${day.month}/${day.day}（入住日）'
                                       : '${day.month}/${day.day}',
                                   style: style,
                                 ),
@@ -2346,21 +2256,14 @@ class _BookingMedicationRequestSectionState
                                 selectedColor: theme.primaryColor.withValues(
                                   alpha: .15,
                                 ),
-                                onSelected:
-                                    !bookableDays.contains(_dateKey(day)) &&
-                                        !dates.containsKey(_dateKey(day))
-                                    ? null
-                                    : (selected) => change(() {
-                                        final date = _dateKey(day);
-                                        if (selected) {
-                                          dates[date] = _timesForDate(
-                                            date,
-                                            draft.commonTimes,
-                                          );
-                                        } else {
-                                          dates.remove(date);
-                                        }
-                                      }),
+                                onSelected: (selected) => change(() {
+                                  final date = _dateKey(day);
+                                  if (selected) {
+                                    dates[date] = List.of(draft.commonTimes);
+                                  } else {
+                                    dates.remove(date);
+                                  }
+                                }),
                               ),
                           ],
                         ),
@@ -2379,6 +2282,17 @@ class _BookingMedicationRequestSectionState
                       ],
                     ),
                   ),
+                  if (dates.containsKey(checkIn) || dates.containsKey(checkout))
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        [
+                          if (dates.containsKey(checkIn)) '入住日：請確認用藥時間在辦理入住後。',
+                          if (dates.containsKey(checkout)) '退房日：請確認用藥時間在接回貓咪前。',
+                        ].join('\n'),
+                        style: style.copyWith(fontSize: 12),
+                      ),
+                    ),
                   if (section == 'override' && editDay != null) ...[
                     Wrap(
                       spacing: 8,
@@ -2394,17 +2308,14 @@ class _BookingMedicationRequestSectionState
                     _timePicker(
                       '${_shortMedicationDate(editDay)}・希望時段',
                       dates[editDay]!,
-                      _timesForDate(editDay, available),
+                      available,
                       shape,
                       style,
                       (times) => change(() => dates[editDay] = times),
                     ),
                     TextButton(
                       onPressed: () => change(
-                        () => dates[editDay] = _timesForDate(
-                          editDay,
-                          draft.commonTimes,
-                        ),
+                        () => dates[editDay] = List.of(draft.commonTimes),
                       ),
                       child: const Text('恢復共用時段'),
                     ),
@@ -2612,10 +2523,7 @@ class _BookingMedicationRequestSectionState
               ),
             if (note.isNotEmpty)
               Text(note, style: bodyStyle.copyWith(fontSize: 12)),
-            Text(
-              '共用時段只套用到各日可照護的時間，實際安排由店家確認。',
-              style: bodyStyle.copyWith(fontSize: 12),
-            ),
+            Text('實際用藥安排由店家確認。', style: bodyStyle.copyWith(fontSize: 12)),
           ],
         ),
       ],

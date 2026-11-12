@@ -2727,8 +2727,8 @@ class _CatHotelTab extends StatelessWidget {
           if (_can(ShopPermissionKeys.manageRoomDashboard))
             page(
               shopOperationsWorkbenchRouteName,
-              '房務管理',
-              '房務與每日照護營運工作台',
+              '營運工作台',
+              '查看房況、今日待辦與照護回報',
               Icons.grid_view,
               (_) => RoomDashboardPage(shopId: shopId),
               tileBuilder: (context, open) => _RoomDashboardTile(
@@ -3405,7 +3405,7 @@ class _RoomDashboardTileState extends State<_RoomDashboardTile> {
                       subtitle = '入住 $checkedInRooms 房';
                     }
                     return _MenuTile(
-                      title: reportsOn ? '營運工作台' : '房務管理',
+                      title: '營運工作台',
                       subtitle: subtitle,
                       icon: reportsOn
                           ? Icons.dashboard_customize_outlined

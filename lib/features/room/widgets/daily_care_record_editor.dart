@@ -606,175 +606,255 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return ListView(
-      padding: widget.padding,
-      children: <Widget>[
-        if (widget.showHeaderCard) _headerCard(dateText),
-        StaffDailyCareMedicationSummary(
-          key: ValueKey(widget.bookingId),
-          bookingId: widget.bookingId,
-          recordDate: widget.recordDate,
-        ),
-        if (_locked) ...<Widget>[
-          if (widget.showHeaderCard) const SizedBox(height: 12),
-          _lockBanner(),
-        ],
-        if (quotaBanner != null) ...<Widget>[
-          const SizedBox(height: 14),
-          quotaBanner,
-        ],
-
-        const SizedBox(height: 14),
-
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(child: _environmentCard()),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _illustratedSection(
-                cardKey: DailyCareJournalCardKeys.toilet,
-                title: '大小便狀況',
-                children: <Widget>[
-                  _choiceRow(keyName: 'stool', options: _fixedConditionOptions),
-                  _choiceRow(keyName: 'urine', options: _fixedConditionOptions),
-                ],
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: widget.padding,
+            children: <Widget>[
+              if (widget.showHeaderCard) _headerCard(dateText),
+              StaffDailyCareMedicationSummary(
+                key: ValueKey(widget.bookingId),
+                bookingId: widget.bookingId,
+                recordDate: widget.recordDate,
               ),
-            ),
-          ],
+              if (_locked) ...<Widget>[
+                if (widget.showHeaderCard) const SizedBox(height: 12),
+                _lockBanner(),
+              ],
+              if (quotaBanner != null) ...<Widget>[
+                const SizedBox(height: 14),
+                quotaBanner,
+              ],
+
+              const SizedBox(height: 14),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final environment = _environmentCard();
+                  final toilet = _illustratedSection(
+                    cardKey: DailyCareJournalCardKeys.toilet,
+                    title: '大小便狀況',
+                    children: [
+                      _choiceRow(
+                        keyName: 'stool',
+                        options: _fixedConditionOptions,
+                      ),
+                      _choiceRow(
+                        keyName: 'urine',
+                        options: _fixedConditionOptions,
+                      ),
+                    ],
+                  );
+                  if (constraints.maxWidth < 620) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: 12,
+                      children: [environment, toilet],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 12,
+                    children: [
+                      Expanded(child: environment),
+                      Expanded(child: toilet),
+                    ],
+                  );
+                },
+              ),
+
+              if (_hasAny(<String>[
+                'water',
+                'dryFood',
+                'wetFood',
+                'snack',
+              ])) ...<Widget>[
+                const SizedBox(height: 14),
+                _illustratedSection(
+                  cardKey: DailyCareJournalCardKeys.food,
+                  title: '生活狀況',
+                  children: <Widget>[
+                    if (_enabled('water'))
+                      _choiceRow(
+                        keyName: 'water',
+                        options: _fixedConditionOptions,
+                      ),
+                    if (_enabled('dryFood'))
+                      _choiceRow(
+                        keyName: 'dryFood',
+                        options: _fixedConditionOptions,
+                      ),
+                    if (_enabled('wetFood'))
+                      _choiceRow(
+                        keyName: 'wetFood',
+                        options: _fixedConditionOptions,
+                      ),
+                    if (_enabled('snack'))
+                      _choiceRow(
+                        keyName: 'snack',
+                        options: _fixedConditionOptions,
+                      ),
+                  ],
+                ),
+              ],
+
+              if (_enabled('generalNote')) ...<Widget>[
+                const SizedBox(height: 14),
+                _illustratedSection(
+                  cardKey: DailyCareJournalCardKeys.generalNote,
+                  title: '今日概況',
+                  children: <Widget>[
+                    TextField(
+                      controller: _generalNoteController,
+                      minLines: 4,
+                      maxLines: 8,
+                      maxLength: 1000,
+                      decoration: const InputDecoration(
+                        hintText: '例如：今天整體狀況穩定，進食正常，活動力良好...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              if (_hasAny([
+                    'wandToy',
+                    'scratchBoard',
+                    'jumpPlatform',
+                    'toyBall',
+                    'catHouse',
+                    'catnip',
+                    'silverVine',
+                    'catGrass',
+                  ]) ||
+                  ['activity', 'relax', 'other'].any(
+                    (category) => _customFieldsByCategory(category).isNotEmpty,
+                  ))
+                Card(
+                  child: ExpansionTile(
+                    key: PageStorageKey(
+                      'report-extra-${widget.bookingId}-${widget.recordDate}',
+                    ),
+                    title: const Text('活動、放鬆與其他紀錄'),
+                    childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                    children: [
+                      if (_hasAny(<String>[
+                            'wandToy',
+                            'scratchBoard',
+                            'jumpPlatform',
+                            'toyBall',
+                            'catHouse',
+                          ]) ||
+                          _customFieldsByCategory(
+                            'activity',
+                          ).isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 14),
+                        _illustratedSection(
+                          cardKey: DailyCareJournalCardKeys.activity,
+                          title: '活動與玩樂',
+                          children: <Widget>[
+                            for (final String key in <String>[
+                              'wandToy',
+                              'scratchBoard',
+                              'jumpPlatform',
+                              'toyBall',
+                              'catHouse',
+                            ])
+                              if (_enabled(key))
+                                _choiceRow(
+                                  keyName: key,
+                                  options: const <String>['無', '有'],
+                                ),
+                            for (final DailyCareCustomField field
+                                in _customFieldsByCategory('activity'))
+                              _customFieldWidget(field),
+                          ],
+                        ),
+                      ],
+
+                      if (_hasAny(<String>[
+                            'catnip',
+                            'silverVine',
+                            'catGrass',
+                          ]) ||
+                          _customFieldsByCategory(
+                            'relax',
+                          ).isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 14),
+                        _illustratedSection(
+                          cardKey: DailyCareJournalCardKeys.relax,
+                          title: '放鬆與用品',
+                          children: <Widget>[
+                            for (final String key in <String>[
+                              'catnip',
+                              'silverVine',
+                              'catGrass',
+                            ])
+                              if (_enabled(key))
+                                _choiceRow(
+                                  keyName: key,
+                                  options: const <String>['無', '有'],
+                                ),
+                            for (final DailyCareCustomField field
+                                in _customFieldsByCategory('relax'))
+                              _customFieldWidget(field),
+                          ],
+                        ),
+                      ],
+
+                      if (_customFieldsByCategory(
+                        'other',
+                      ).isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 14),
+                        _illustratedSection(
+                          cardKey: 'other',
+                          title: '其他紀錄',
+                          children: <Widget>[
+                            for (final DailyCareCustomField field
+                                in _customFieldsByCategory('other'))
+                              _customFieldWidget(field),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (widget.photoEnabled) ...<Widget>[
+                const SizedBox(height: 14),
+                _photoCard(),
+              ],
+
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
-
-        if (_hasAny(<String>[
-          'water',
-          'dryFood',
-          'wetFood',
-          'snack',
-        ])) ...<Widget>[
-          const SizedBox(height: 14),
-          _illustratedSection(
-            cardKey: DailyCareJournalCardKeys.food,
-            title: '生活狀況',
-            children: <Widget>[
-              if (_enabled('water'))
-                _choiceRow(keyName: 'water', options: _fixedConditionOptions),
-              if (_enabled('dryFood'))
-                _choiceRow(keyName: 'dryFood', options: _fixedConditionOptions),
-              if (_enabled('wetFood'))
-                _choiceRow(keyName: 'wetFood', options: _fixedConditionOptions),
-              if (_enabled('snack'))
-                _choiceRow(keyName: 'snack', options: _fixedConditionOptions),
-            ],
-          ),
-        ],
-
-        if (_hasAny(<String>[
-          'wandToy',
-          'scratchBoard',
-          'jumpPlatform',
-          'toyBall',
-          'catHouse',
-        ])) ...<Widget>[
-          const SizedBox(height: 14),
-          _illustratedSection(
-            cardKey: DailyCareJournalCardKeys.activity,
-            title: '活動與玩樂',
-            children: <Widget>[
-              for (final String key in <String>[
-                'wandToy',
-                'scratchBoard',
-                'jumpPlatform',
-                'toyBall',
-                'catHouse',
-              ])
-                if (_enabled(key))
-                  _choiceRow(keyName: key, options: const <String>['無', '有']),
-              for (final DailyCareCustomField field in _customFieldsByCategory(
-                'activity',
-              ))
-                _customFieldWidget(field),
-            ],
-          ),
-        ],
-
-        if (_hasAny(<String>['catnip', 'silverVine', 'catGrass'])) ...<Widget>[
-          const SizedBox(height: 14),
-          _illustratedSection(
-            cardKey: DailyCareJournalCardKeys.relax,
-            title: '放鬆與用品',
-            children: <Widget>[
-              for (final String key in <String>[
-                'catnip',
-                'silverVine',
-                'catGrass',
-              ])
-                if (_enabled(key))
-                  _choiceRow(keyName: key, options: const <String>['無', '有']),
-              for (final DailyCareCustomField field in _customFieldsByCategory(
-                'relax',
-              ))
-                _customFieldWidget(field),
-            ],
-          ),
-        ],
-
-        if (_enabled('generalNote')) ...<Widget>[
-          const SizedBox(height: 14),
-          _illustratedSection(
-            cardKey: DailyCareJournalCardKeys.generalNote,
-            title: '今日概況',
-            children: <Widget>[
-              TextField(
-                controller: _generalNoteController,
-                minLines: 4,
-                maxLines: 8,
-                maxLength: 1000,
-                decoration: const InputDecoration(
-                  hintText: '例如：今天整體狀況穩定，進食正常，活動力良好...',
-                  border: OutlineInputBorder(),
+        if (!_locked)
+          Material(
+            color: colors.surface,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check),
+                    label: Text(_saving ? '送出中…' : '儲存照護回報'),
+                  ),
                 ),
               ),
-            ],
-          ),
-        ],
-
-        if (_customFieldsByCategory('other').isNotEmpty) ...<Widget>[
-          const SizedBox(height: 14),
-          _illustratedSection(
-            cardKey: 'other',
-            title: '其他紀錄',
-            children: <Widget>[
-              for (final DailyCareCustomField field in _customFieldsByCategory(
-                'other',
-              ))
-                _customFieldWidget(field),
-            ],
-          ),
-        ],
-
-        if (widget.photoEnabled) ...<Widget>[
-          const SizedBox(height: 14),
-          _photoCard(),
-        ],
-
-        if (!_locked) ...<Widget>[
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 50,
-            child: FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(_saving ? '送出中' : '確認完成'),
             ),
           ),
-        ],
-
-        const SizedBox(height: 24),
       ],
     );
   }
@@ -1261,6 +1341,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: TextField(
+            key: PageStorageKey('report-field-${field.id}'),
             controller: controller,
             minLines: 2,
             maxLines: 5,

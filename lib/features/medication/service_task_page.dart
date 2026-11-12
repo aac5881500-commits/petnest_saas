@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import '../../core/models/booking_service_task.dart';
@@ -34,10 +35,19 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save(DateTime? checkIn) async {
     if (_saving) return;
     if (_result == null || (_result != 'done' && _note.text.trim().isEmpty)) {
       setState(() => _error = '請選擇結果；未完整執行時，請說明原因與後續安排。');
+      return;
+    }
+    final timeError = serviceActualTimeError(
+      actual: _actual,
+      checkIn: checkIn,
+      now: DateTime.now(),
+    );
+    if (timeError != null) {
+      setState(() => _error = timeError);
       return;
     }
     setState(() {
@@ -113,6 +123,10 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
               if (task == null) {
                 return const Center(child: Text('時程已變更，請回待辦重新開啟'));
               }
+              final checkIn = serviceBookingStart(b);
+              final today = BookingMedicationTask.dateKey(
+                BookingMedicationTask.taipei(DateTime.now()),
+              );
               final writable =
                   BookingServiceTask.canRecord(b) &&
                   task.pending &&
@@ -144,9 +158,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                               : task.resultLabel,
                         ),
                         if (task.actualAt case final time?)
-                          Text(
-                            '實際 ${task.day} ${BookingMedicationTask.timeLabel(time)}',
-                          ),
+                          Text('實際 ${_taipeiDateTimeLabel(time)}'),
                         Text('${task.record['note'] ?? ''}'),
                       ] else ...[
                         const Text(
@@ -178,8 +190,29 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                           scheduledAt: _scheduled,
                           value: _actual,
                           enabled: !_saving,
-                          onChanged: (value) => setState(() => _actual = value),
+                          onChanged: (value) => setState(() {
+                            _actual = value;
+                            _error = null;
+                          }),
                         ),
+                        if (checkIn != null)
+                          Text('入住起算時間 ${_taipeiDateTimeLabel(checkIn)}'),
+                        if (task.day == today)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => setState(() {
+                                      _actual = initialCareActualTime(
+                                        _scheduled,
+                                        DateTime.now(),
+                                      );
+                                      _error = null;
+                                    }),
+                              child: const Text('使用現在時間'),
+                            ),
+                          ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: _note,
@@ -216,7 +249,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                           ),
                         const SizedBox(height: 20),
                         FilledButton.icon(
-                          onPressed: _saving ? null : _save,
+                          onPressed: _saving ? null : () => _save(checkIn),
                           icon: const Icon(Icons.check),
                           label: Text(_saving ? '正在儲存…' : '確認結果並同步給客戶'),
                         ),
@@ -231,6 +264,52 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
       ),
     ),
   );
+}
+
+String _taipeiDateTimeLabel(DateTime value) =>
+    '${BookingMedicationTask.dateKey(BookingMedicationTask.taipei(value))} '
+    '${BookingMedicationTask.timeLabel(value)}';
+
+DateTime? serviceBookingStart(Map<String, dynamic> booking) {
+  for (final key in const [
+    'actualStartAt',
+    'checkInAt',
+    'checkedInAt',
+    'scheduledStartAt',
+    'startAt',
+    'startDate',
+  ]) {
+    final value = booking[key];
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is num && value.isFinite) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: true);
+    }
+    if (value is String) {
+      final isDateOnly = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value);
+      final date = DateTime.tryParse(
+        isDateOnly ? '${value}T00:00:00+08:00' : value,
+      );
+      if (date != null) return date;
+    }
+  }
+  return null;
+}
+
+String? serviceActualTimeError({
+  required DateTime actual,
+  required DateTime? checkIn,
+  required DateTime now,
+}) {
+  if (checkIn == null) return '缺少有效的入住時間，請先核對訂單資料。';
+  if (actual.millisecondsSinceEpoch ~/ 60000 <
+      checkIn.millisecondsSinceEpoch ~/ 60000) {
+    return '實際時間早於入住時間 ${_taipeiDateTimeLabel(checkIn)}，請修改時間。';
+  }
+  if (actual.isAfter(now.add(const Duration(minutes: 1)))) {
+    return '實際時間晚於現在，請修改時間。';
+  }
+  return null;
 }
 
 String serviceResultErrorMessage(FirebaseFunctionsException error) {

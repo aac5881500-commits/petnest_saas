@@ -25,13 +25,7 @@ function settings(raw = {}) {
     return {start: w.start, end: w.end};
   });
   if (raw.enabled === true && (!windows.length || windows.length > 4)) fail("請設定一至四個照護時段");
-  const checkInFrom = raw.checkInFrom || null;
-  const checkOutUntil = raw.checkOutUntil || null;
-  if ([checkInFrom, checkOutUntil].some((time) =>
-    time !== null && (typeof time !== "string" || !validTime(time)))) {
-    fail("入住或退房日的用藥時間格式不正確");
-  }
-  return {enabled: raw.enabled === true, types, mode, checkInFrom, checkOutUntil,
+  return {enabled: raw.enabled === true, types, mode,
     price: mode === "free" ? 0 : integer(raw.price || 0, 0, 100000, "金額不正確"),
     paymentTiming: ["visit", "day", "night"].includes(mode) && raw.paymentTiming === "advance" ?
       "advance" : "checkout",
@@ -206,13 +200,7 @@ function validatePreferences(entries, booking, setting) {
           fail("用藥日期須在住宿期間內，且不可重複");
         }
         seen.add(selectedDate);
-        const times = validateTimes(day.times);
-        if (times.some((time) =>
-          (selectedDate === first && setting.checkInFrom && time < setting.checkInFrom) ||
-          (selectedDate === last && setting.checkOutUntil && time > setting.checkOutUntil))) {
-          fail("所選用藥時段超出入住或退房日的照護時間");
-        }
-        return {date: selectedDate, times};
+        return {date: selectedDate, times: validateTimes(day.times)};
       }).sort((a, b) => a.date.localeCompare(b.date))};
       if (!Array.isArray(entry.types) || entry.types.length !== 1) fail("請選擇一種用藥類型");
     } else {

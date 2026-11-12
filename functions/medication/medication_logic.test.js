@@ -139,20 +139,17 @@ test("dated preferences charge only requested dates or times and preserve checko
   }
 });
 
-test("dated medication intersects care windows with configured arrival and departure", () => {
-  const bounds = {...setting, checkInFrom: "15:30", checkOutUntil: "11:30"};
+test("boundary days only use care windows even for legacy settings with handover limits", () => {
   const dates = [
-    {date: "2026-11-10", times: ["15:30"]},
-    {date: "2026-11-11", times: ["21:00"]},
-    {date: "2026-11-12", times: ["11:30"]},
+    {date: "2026-11-10", times: ["09:00"]},
+    {date: "2026-11-12", times: ["20:00"]},
   ];
-  const estimate = (selected, config = bounds) =>
-    build({preferences: [{petId: "p", types: ["oral"], dates: selected}]}, config);
-  assert.equal(estimate(dates).estimate.amount, 150);
-  assert.equal(estimate(dates).setting.checkInFrom, "15:30");
-  assert.throws(() => estimate([{...dates[0], times: ["15:00"]}]), /超出入住或退房日/);
-  assert.throws(() => estimate([{...dates[2], times: ["12:00"]}]), /超出入住或退房日/);
-  assert.throws(() => L.settings({...bounds, checkInFrom: "25:00"}), /格式不正確/);
+  const raw = {preferences: [{petId: "p", types: ["oral"], dates}]};
+  const order = build(raw, {...setting, checkInFrom: "15:30", checkOutUntil: "11:30"});
+  assert.deepEqual(order.request.preferences[0].dates, dates);
+  assert.equal(order.estimate.amount, 100);
+  dates[1].times = ["21:30"];
+  assert.throws(() => build(raw), /用藥時段已變更/);
 });
 
 test("multiple dated medicines per cat retain separate schedules and group billable visits", () => {
