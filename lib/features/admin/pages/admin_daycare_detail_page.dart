@@ -53,12 +53,14 @@ class AdminDaycareDetailPage extends StatelessWidget {
     required this.bookingId,
     this.canEdit = true,
     this.initialSection = 0,
+    this.onClose,
   });
 
   final String shopId;
   final String bookingId;
   final bool canEdit;
   final int initialSection;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +89,7 @@ class AdminDaycareDetailPage extends StatelessWidget {
               data: data,
               canEdit: canEdit,
               initialSection: initialSection,
+              onClose: onClose,
             );
           },
     );
@@ -100,6 +103,7 @@ class _DaycareDetailBody extends StatefulWidget {
     required this.data,
     this.canEdit = true,
     this.initialSection = 0,
+    this.onClose,
   });
 
   final String shopId;
@@ -107,6 +111,7 @@ class _DaycareDetailBody extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool canEdit;
   final int initialSection;
+  final VoidCallback? onClose;
 
   @override
   State<_DaycareDetailBody> createState() => _DaycareDetailBodyState();
@@ -472,6 +477,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         return AdminBookingDetailScaffold(
           title: '訂單詳細',
           operationsShopId: widget.shopId,
+          onClose: widget.onClose,
           splitPhoneActions: true,
           bookingCode: (data['bookingCode'] ?? '').toString(),
           banners: const <Widget>[],

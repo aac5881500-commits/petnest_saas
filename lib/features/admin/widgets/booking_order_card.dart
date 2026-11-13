@@ -21,11 +21,14 @@ class BookingOrderCard extends StatefulWidget {
     required this.bookingId,
     required this.data,
     required this.onTap,
+    this.compact = false,
+    this.selected = false,
   });
 
   final String bookingId;
   final Map<String, dynamic> data;
   final VoidCallback onTap;
+  final bool compact, selected;
 
   @override
   State<BookingOrderCard> createState() => _BookingOrderCardState();
@@ -85,6 +88,70 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         })
         .where((name) => name.isNotEmpty)
         .join('、');
+
+    if (widget.compact) {
+      final colors = Theme.of(context).colorScheme;
+      final room = daycare ? '安親' : isUnassigned ? '待分房' : roomName;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        child: Material(
+          color: widget.selected ? colors.primaryContainer : colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: widget.selected ? colors.primary : colors.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: LayoutBuilder(
+            builder: (context, bounds) {
+              if (bounds.maxWidth >= 700) {
+                return InkWell(
+                  onTap: widget.onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      spacing: 12,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(petNames.isEmpty ? customerName : petNames, style: const TextStyle(fontWeight: FontWeight.w800)),
+                              Text('$customerName · $codeText', style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                        Expanded(flex: 2, child: Text(dateLine)),
+                        Expanded(child: Text(room)),
+                        Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: _statusChip(statusInfo))),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return ListTile(
+            selected: widget.selected,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            title: Text(petNames.isEmpty ? customerName : petNames,
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 5,
+              children: [
+                Text('$customerName · $room\n$dateLine\n$codeText'),
+                _statusChip(statusInfo),
+              ],
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: widget.onTap,
+            leading: Icon(daycare ? Icons.wb_sunny_outlined : Icons.bed_outlined),
+              );
+            },
+          ),
+        ),
+      );
+    }
 
     final totalPrice = data['totalPrice'] ?? 0;
     final depositAmount = data['depositAmount'] ?? 0;

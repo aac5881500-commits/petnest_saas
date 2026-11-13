@@ -126,6 +126,7 @@ Widget fixture(
   WorkbenchView view,
   String state, {
   ValueChanged<String>? onAction,
+  bool shift = false,
   double scale = 1,
   RoomStatusPalette palette = RoomStatusPalette.defaults,
 }) {
@@ -206,6 +207,7 @@ Widget fixture(
             ),
             body: OperationsWorkbench(
               view: view,
+              shift: shift,
               data: data,
               selectedRoomId: selected,
               onSelectRoom: (id) => update(() => selected = id),
@@ -301,6 +303,23 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('today presents real arrivals and room status at desktop and phone widths', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    for (final width in [390.0, 1440.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      final actions = <String>[];
+      await tester.pumpWidget(fixture(WorkbenchView.rooms, 'busy', shift: true, onAction: actions.add));
+      await tester.pumpAndSettle();
+      expect(find.text('今日營運'), findsOneWidget);
+      await tester.tap(find.text('預計抵達').first);
+      await tester.pumpAndSettle();
+      expect(actions.single, startsWith('order:'));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('empty room has real status actions; occupied room hides them', (
     tester,
   ) async {

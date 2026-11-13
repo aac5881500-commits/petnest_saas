@@ -23,6 +23,9 @@ class AdminBookingDetailExperience extends StatefulWidget {
     this.alerts = const [],
     this.hasCareDisplay = false,
     this.initialSection = 0,
+    this.workflow = false,
+    this.worksheetHeader,
+    this.worksheetPrimarySection = 0,
   });
   final String scope;
   final Widget Function(
@@ -32,6 +35,9 @@ class AdminBookingDetailExperience extends StatefulWidget {
   )
   sectionBuilder;
   final bool hasCareDisplay;
+  final bool workflow;
+  final Widget? worksheetHeader;
+  final int worksheetPrimarySection;
   final int initialSection;
   final List<String> alerts;
   @override
@@ -44,6 +50,9 @@ class AdminBookingDetailExperienceState
   BookingDetailExperience experience = BookingDetailExperience.tabs;
   BookingCareDisplay careDisplay = const BookingCareDisplay();
   late int selected = widget.initialSection;
+  late final Set<int> _openSections = {
+    widget.initialSection == 0 ? widget.worksheetPrimarySection : widget.initialSection,
+  };
   late bool _mobileDetail = selected != 0;
   late final Set<int> _visited = {0, selected};
   final Set<int> _expanded = {0};
@@ -93,7 +102,7 @@ class AdminBookingDetailExperienceState
   }
 
   Future<void> _load() async {
-    if (widget.scope.isEmpty) return;
+    if (widget.scope.isEmpty || widget.workflow) return;
     final version = _revision;
     final key = _storageKey;
     final careKey = _careStorageKey;
@@ -254,6 +263,7 @@ class AdminBookingDetailExperienceState
     FocusScope.of(context).unfocus();
     setState(() {
       selected = index;
+      _openSections.add(index);
       _visited.add(index);
       _mobileDetail = true;
       _expanded.add(_stageFor(index));
@@ -344,8 +354,211 @@ class AdminBookingDetailExperienceState
           ),
   );
 
+  Widget _worksheet() => LayoutBuilder(
+    builder: (context, bounds) {
+      final wide = bounds.maxWidth >= 850;
+      final colors = Theme.of(context).colorScheme;
+      const labels = ['入住與交接', '住宿照護', '退房與帳務', '飼主與表單', '操作紀錄'];
+      Widget section(int index) {
+        final open = _openSections.contains(index);
+        return Card(
+          key: ValueKey('worksheet-section-$index'),
+          margin: const EdgeInsets.only(bottom: 12),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                key: ValueKey('booking-tab-$index'),
+                selected: open,
+                selectedTileColor: colors.primaryContainer.withValues(alpha: .45),
+                leading: Icon(icons[index]),
+                title: Text(labels[index], style: const TextStyle(fontWeight: FontWeight.w800)),
+                trailing: Icon(open ? Icons.expand_less : Icons.expand_more),
+                onTap: open
+                    ? () => setState(() => _openSections.remove(index))
+                    : () => select(index),
+              ),
+              if (open) const Divider(height: 1),
+              Padding(
+                padding: open ? const EdgeInsets.fromLTRB(14, 14, 14, 0) : EdgeInsets.zero,
+                child: _section(index, visible: open, heading: false),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Scrollbar(
+        controller: _scroll,
+        child: SingleChildScrollView(
+          controller: _scroll,
+          padding: EdgeInsets.all(wide ? 24 : 10),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  widget.worksheetHeader!,
+                  if (widget.alerts.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final alert in widget.alerts)
+                            ActionChip(
+                              avatar: const Icon(Icons.info_outline, size: 16),
+                              label: Text(alert),
+                              onPressed: () => select(alert.contains('交接') ? 4 : 1),
+                            ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  section(widget.worksheetPrimarySection),
+                  for (var i = 0; i < labels.length; i++)
+                    if (i != widget.worksheetPrimarySection) section(i),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _workflow() => LayoutBuilder(
+    builder: (context, bounds) {
+      final desktop = bounds.maxWidth >= 1050;
+      final colors = Theme.of(context).colorScheme;
+      const labels = ['入住', '照護', '結帳', '資料', '紀錄'];
+
+      Widget destination(int index) {
+        final active = selected == index;
+        return Semantics(
+          selected: active,
+          child: TextButton(
+            key: ValueKey('booking-tab-$index'),
+            onPressed: () => select(index),
+            style: TextButton.styleFrom(
+              backgroundColor: active ? colors.primaryContainer : null,
+              foregroundColor: active ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+              padding: EdgeInsets.symmetric(horizontal: desktop ? 14 : 2, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: desktop
+                ? Row(
+                    children: [
+                      Icon(icons[index], size: 20),
+                      const SizedBox(width: 10),
+                      Flexible(child: Text(labels[index])),
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icons[index], size: 19),
+                      const SizedBox(height: 4),
+                      Text(labels[index], textAlign: TextAlign.center),
+                    ],
+                  ),
+          ),
+        );
+      }
+
+      final body = Scrollbar(
+        controller: _scroll,
+        child: SingleChildScrollView(
+          controller: _scroll,
+          padding: EdgeInsets.fromLTRB(desktop ? 26 : 12, 18, desktop ? 26 : 12, 24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1160),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    const ['入住與接待', '照護工作', '結帳與費用', '訂單資料', '操作紀錄'][selected],
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 14),
+                  if (selected == 0 && widget.alerts.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final alert in widget.alerts)
+                            ActionChip(
+                              avatar: const Icon(Icons.info_outline, size: 16),
+                              label: Text(alert),
+                              onPressed: () => select(alert.contains('交接') ? 4 : 1),
+                            ),
+                        ],
+                      ),
+                    ),
+                  for (var i = 0; i < labels.length; i++)
+                    _section(i, visible: selected == i, heading: false),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      if (desktop) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Material(
+              color: colors.surface,
+              child: SizedBox(
+                width: 148,
+                child: ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    for (var i = 0; i < labels.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: destination(i),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            VerticalDivider(width: 1, color: colors.outlineVariant),
+            Expanded(child: body),
+          ],
+        );
+      }
+      return Column(
+        children: [
+          Material(
+            color: colors.surface,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: [
+                  for (var i = 0; i < labels.length; i++)
+                    Expanded(child: destination(i)),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 1, color: colors.outlineVariant),
+          Expanded(child: body),
+        ],
+      );
+    },
+  );
+
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
+  Widget build(BuildContext context) => widget.worksheetHeader != null
+      ? _worksheet()
+      : widget.workflow ? _workflow() : LayoutBuilder(
     builder: (context, constraints) {
       final desktop = constraints.maxWidth >= 1024;
       final master = experience == BookingDetailExperience.master;

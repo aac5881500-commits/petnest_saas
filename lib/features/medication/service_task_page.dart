@@ -138,17 +138,16 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                   child: ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
-                      Text(
-                        task.title,
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      _ServiceSection(
+                        icon: Icons.pets_outlined,
+                        title: task.title,
+                        highlighted: true,
+                        children: [
+                          Text('${task.pet} · ${b['roomName'] ?? '尚未分房'}'),
+                          Text('預約時段　${task.day}　${task.slot}'),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text('${task.pet} · ${b['roomName'] ?? '尚未分房'}'),
-                      Text(
-                        '${task.day}　${task.slot}',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       if (!writable) ...[
                         Text(
                           task.petId.isEmpty
@@ -161,81 +160,101 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                           Text('實際 ${_taipeiDateTimeLabel(time)}'),
                         Text('${task.record['note'] ?? ''}'),
                       ] else ...[
-                        const Text(
-                          '本次執行結果',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                        _ServiceSection(
+                          icon: Icons.fact_check_outlined,
+                          title: '本次執行結果',
                           children: [
-                            for (final entry in const {
-                              'done': '已完成',
-                              'partial': '部分完成',
-                              'skipped': '未執行',
-                            }.entries)
-                              ChoiceChip(
-                                label: Text(entry.value),
-                                selected: _result == entry.key,
-                                onSelected: _saving
-                                    ? null
-                                    : (_) =>
-                                          setState(() => _result = entry.key),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final entry in const {
+                                  'done': '已完成',
+                                  'partial': '部分完成',
+                                  'skipped': '未執行',
+                                }.entries)
+                                  ChoiceChip(
+                                    label: Text(entry.value),
+                                    selected: _result == entry.key,
+                                    onSelected: _saving
+                                        ? null
+                                        : (_) => setState(
+                                            () => _result = entry.key,
+                                          ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _ServiceSection(
+                          icon: Icons.schedule,
+                          title: '執行時間',
+                          children: [
+                            CareActualTimeField(
+                              scheduledAt: _scheduled,
+                              value: _actual,
+                              enabled: !_saving,
+                              onChanged: (value) => setState(() {
+                                _actual = value;
+                                _error = null;
+                              }),
+                            ),
+                            if (checkIn != null)
+                              Text('入住起算時間 ${_taipeiDateTimeLabel(checkIn)}'),
+                            if (task.day == today)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => setState(() {
+                                          _actual = initialCareActualTime(
+                                            _scheduled,
+                                            DateTime.now(),
+                                          );
+                                          _error = null;
+                                        }),
+                                  child: const Text('使用現在時間'),
+                                ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        CareActualTimeField(
-                          scheduledAt: _scheduled,
-                          value: _actual,
-                          enabled: !_saving,
-                          onChanged: (value) => setState(() {
-                            _actual = value;
-                            _error = null;
-                          }),
-                        ),
-                        if (checkIn != null)
-                          Text('入住起算時間 ${_taipeiDateTimeLabel(checkIn)}'),
-                        if (task.day == today)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton(
-                              onPressed: _saving
-                                  ? null
-                                  : () => setState(() {
-                                      _actual = initialCareActualTime(
-                                        _scheduled,
-                                        DateTime.now(),
-                                      );
-                                      _error = null;
-                                    }),
-                              child: const Text('使用現在時間'),
+                        const SizedBox(height: 12),
+                        _ServiceSection(
+                          icon: Icons.notes_outlined,
+                          title: '服務備註',
+                          children: [
+                            TextField(
+                              controller: _note,
+                              enabled: !_saving,
+                              minLines: 3,
+                              maxLines: 5,
+                              maxLength: 1000,
+                              decoration: InputDecoration(
+                                labelText: _result == 'done'
+                                    ? '給家長的說明（選填）'
+                                    : '原因與後續安排（必填）',
+                                hintText: '例如：陪玩 15 分鐘後休息，已與家長說明。',
+                                border: const OutlineInputBorder(),
+                              ),
                             ),
-                          ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _note,
-                          enabled: !_saving,
-                          minLines: 3,
-                          maxLines: 5,
-                          maxLength: 1000,
-                          decoration: InputDecoration(
-                            labelText: _result == 'done'
-                                ? '給家長的說明（選填）'
-                                : '原因與後續安排（必填）',
-                            hintText: '例如：陪玩 15 分鐘後休息，已與家長說明。',
-                            border: const OutlineInputBorder(),
-                          ),
+                          ],
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          '儲存後會同步顯示在客戶訂單並發送通知；有包含照護回報時，也會自動帶入同日回報。結果送出後不可覆寫，請核對寵物與時段。',
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          '部分完成或未執行不會自動改價或退款，請另外確認費用與後續安排。',
-                          style: TextStyle(color: Color(0xFF8A4C16)),
+                        _ServiceSection(
+                          icon: Icons.info_outline,
+                          title: '送出前確認',
+                          children: [
+                            const Text(
+                              '送出後會通知客戶並同步到訂單。若有照護回報，也會帶入同日回報。送出前請確認寵物與時段，結果儲存後無法覆寫。',
+                            ),
+                            if (_result == 'partial' || _result == 'skipped')
+                              const Text(
+                                '部分完成或未執行不會自動改價或退款，請另外確認費用與後續安排。',
+                                style: TextStyle(color: Color(0xFF8A4C16)),
+                              ),
+                          ],
                         ),
                         if (_error != null)
                           Padding(
@@ -250,6 +269,9 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                         const SizedBox(height: 20),
                         FilledButton.icon(
                           onPressed: _saving ? null : () => _save(checkIn),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                          ),
                           icon: const Icon(Icons.check),
                           label: Text(_saving ? '正在儲存…' : '確認結果並同步給客戶'),
                         ),
@@ -264,6 +286,56 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
       ),
     ),
   );
+}
+
+class _ServiceSection extends StatelessWidget {
+  const _ServiceSection({
+    required this.icon,
+    required this.title,
+    required this.children,
+    this.highlighted = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Card.outlined(
+      margin: EdgeInsets.zero,
+      color: highlighted
+          ? colors.primaryContainer.withValues(alpha: 0.45)
+          : colors.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 8,
+          children: [
+            Row(
+              spacing: 10,
+              children: [
+                Icon(icon, color: colors.primary, size: 20),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 String _taipeiDateTimeLabel(DateTime value) =>

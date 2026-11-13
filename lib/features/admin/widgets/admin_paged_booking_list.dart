@@ -23,12 +23,16 @@ class AdminPagedBookingList extends StatefulWidget {
     required this.kind,
     this.initialFilter = 'active',
     this.showCreateButton = false,
+    this.onOpenOrder,
+    this.selectedOrderId,
   });
 
   final String shopId;
   final String kind;
   final String initialFilter;
   final bool showCreateButton;
+  final void Function(String, Map<String, dynamic>)? onOpenOrder;
+  final String? selectedOrderId;
 
   @override
   State<AdminPagedBookingList> createState() => _AdminPagedBookingListState();
@@ -407,12 +411,39 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
             ),
           )
         else
-          ..._docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+          ...[
+            if (widget.onOpenOrder != null)
+              LayoutBuilder(
+                builder: (context, bounds) => bounds.maxWidth < 724
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+                        child: Row(
+                          spacing: 12,
+                          children: const [
+                            Expanded(flex: 3, child: Text('貓咪與飼主')),
+                            Expanded(flex: 2, child: Text('入住與退房')),
+                            Expanded(child: Text('房間')),
+                            Expanded(flex: 2, child: Text('訂單狀態')),
+                            SizedBox(width: 24),
+                          ],
+                        ),
+                      ),
+              ),
+            ..._docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
             final Map<String, dynamic> data = doc.data();
             return BookingOrderCard(
+              key: ValueKey(doc.id),
               bookingId: doc.id,
               data: data,
+              compact: widget.onOpenOrder != null,
+              selected: widget.selectedOrderId == doc.id,
               onTap: () async {
+                final openOrder = widget.onOpenOrder;
+                if (openOrder != null) {
+                  openOrder(doc.id, data);
+                  return;
+                }
                 if (_isDaycare) {
                   await Navigator.push(
                     context,
@@ -437,6 +468,7 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
               },
             );
           }),
+          ],
         if (_hasMore)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

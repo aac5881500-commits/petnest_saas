@@ -416,346 +416,366 @@ class MedicationSettingsPageState extends State<MedicationSettingsPage>
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1040),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _section('1', '服務項目', '先決定店家可協助哪些用藥方式。', [
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '提供用藥協助',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                child: _settingsColumns(
+                  wide: constraints.maxWidth >= 900,
+                  sections: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _section('1', '開放服務', '選擇客人可以在預約時提出的用藥類型。', [
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(
+                            '提供用藥協助',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(
+                            setting['enabled'] == true
+                                ? '客人可在預約時提出需求，雙方確認後才執行。'
+                                : '目前未開放，客人預約時不會出現填寫欄位。',
+                          ),
+                          value: setting['enabled'] == true,
+                          onChanged: (value) =>
+                              change(() => setting['enabled'] = value),
                         ),
-                        subtitle: Text(
-                          setting['enabled'] == true
-                              ? '客人可在預約時提出需求，雙方確認後才執行。'
-                              : '目前未開放，客人預約時不會出現填寫欄位。',
-                        ),
-                        value: setting['enabled'] == true,
-                        onChanged: (value) =>
-                            change(() => setting['enabled'] = value),
-                      ),
-                      if (setting['enabled'] == true) ...[
-                        const Divider(height: 28),
-                        Text(
-                          '接受的服務 · 已選 ${types.length} 項',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 12),
-                        LayoutBuilder(
-                          builder: (context, box) => Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: medicationTypes.entries.map((entry) {
-                              final selected = types.contains(entry.key);
-                              final color = Theme.of(
-                                context,
-                              ).colorScheme.primary;
-                              return SizedBox(
-                                width:
-                                    (box.maxWidth -
-                                        (box.maxWidth >= 700 ? 20 : 10)) /
-                                    (box.maxWidth >= 700 ? 3 : 2),
-                                child: Material(
-                                  color: selected
-                                      ? color.withValues(alpha: .07)
-                                      : Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: BorderSide(
-                                      color: selected
-                                          ? color.withValues(alpha: .6)
-                                          : const Color(0xFFE1E5ED),
+                        if (setting['enabled'] == true) ...[
+                          const Divider(height: 28),
+                          Text(
+                            '接受的服務 · 已選 ${types.length} 項',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 12),
+                          LayoutBuilder(
+                            builder: (context, box) => Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: medicationTypes.entries.map((entry) {
+                                final selected = types.contains(entry.key);
+                                final color = Theme.of(
+                                  context,
+                                ).colorScheme.primary;
+                                return SizedBox(
+                                  width:
+                                      (box.maxWidth -
+                                          (box.maxWidth >= 700 ? 20 : 10)) /
+                                      (box.maxWidth >= 700 ? 3 : 2),
+                                  child: Material(
+                                    color: selected
+                                        ? color.withValues(alpha: .07)
+                                        : Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: selected
+                                            ? color.withValues(alpha: .6)
+                                            : const Color(0xFFE1E5ED),
+                                      ),
+                                    ),
+                                    child: CheckboxListTile(
+                                      dense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      title: Text(
+                                        entry.value,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      value: selected,
+                                      onChanged: (value) => change(() {
+                                        value == true
+                                            ? types.add(entry.key)
+                                            : types.remove(entry.key);
+                                      }),
                                     ),
                                   ),
-                                  child: CheckboxListTile(
-                                    dense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
+                      ]),
+                      if (setting['enabled'] == true) ...[
+                        _section('2', '可安排時間', '預約時供客人選擇的照護時段。', [
+                          for (var i = 0; i < windows.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _timeButton(i, 'start', '開始時間'),
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(
                                       horizontal: 8,
                                     ),
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                    title: Text(
-                                      entry.value,
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                    value: selected,
-                                    onChanged: (value) => change(() {
-                                      value == true
-                                          ? types.add(entry.key)
-                                          : types.remove(entry.key);
-                                    }),
+                                    child: Text('至'),
                                   ),
+                                  Expanded(
+                                    child: _timeButton(i, 'end', '結束時間'),
+                                  ),
+                                  if (windows.length > 1)
+                                    IconButton(
+                                      tooltip: '刪除此時段',
+                                      onPressed: () =>
+                                          change(() => windows.removeAt(i)),
+                                      icon: const Icon(Icons.close, size: 20),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          if (windows.length < 4)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () => change(
+                                  () => windows.add({
+                                    'start': '09:00',
+                                    'end': '21:00',
+                                  }),
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ]),
-                    if (setting['enabled'] == true) ...[
-                      _section('2', '收費方式', '選一種基本方式，特殊需求仍可由店家評估。', [
-                        LayoutBuilder(
-                          builder: (context, box) => Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: medicationModes.entries.map((entry) {
-                              final selected = setting['mode'] == entry.key;
-                              final color = Theme.of(
-                                context,
-                              ).colorScheme.primary;
-                              const descriptions = {
-                                'free': '提供服務，不另收費',
-                                'visit': '每隻貓按用藥時間計次',
-                                'day': '每隻貓按用藥的住宿日計費',
-                                'quote': '看過需求後再報價',
-                              };
-                              return SizedBox(
-                                width: (box.maxWidth - 10) / 2,
-                                child: Material(
-                                  color: selected
-                                      ? color.withValues(alpha: .07)
-                                      : Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: BorderSide(
-                                      color: selected
-                                          ? color
-                                          : const Color(0xFFE1E5ED),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('新增照護時段'),
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          medInput(note, '給客人的服務說明（選填）', lines: 3),
+                        ]),
+                        _section('3', '收費與結算', '設定計價單位、收款時機與費用調整。', [
+                          LayoutBuilder(
+                            builder: (context, box) => Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: medicationModes.entries.map((entry) {
+                                final selected = setting['mode'] == entry.key;
+                                final color = Theme.of(
+                                  context,
+                                ).colorScheme.primary;
+                                const descriptions = {
+                                  'free': '提供服務，不另收費',
+                                  'visit': '每隻貓按用藥時間計次',
+                                  'day': '每隻貓按用藥的住宿日計費',
+                                  'quote': '看過需求後再報價',
+                                };
+                                return SizedBox(
+                                  width: (box.maxWidth - 10) / 2,
+                                  child: Material(
+                                    color: selected
+                                        ? color.withValues(alpha: .07)
+                                        : Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: selected
+                                            ? color
+                                            : const Color(0xFFE1E5ED),
+                                      ),
                                     ),
-                                  ),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(12),
-                                    onTap: () => change(
-                                      () => setting['mode'] = entry.key,
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                selected
-                                                    ? Icons.radio_button_checked
-                                                    : Icons.radio_button_off,
-                                                size: 19,
-                                                color: selected
-                                                    ? color
-                                                    : Colors.grey,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  entry.value,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 14,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      onTap: () => change(
+                                        () => setting['mode'] = entry.key,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  selected
+                                                      ? Icons
+                                                            .radio_button_checked
+                                                      : Icons.radio_button_off,
+                                                  size: 19,
+                                                  color: selected
+                                                      ? color
+                                                      : Colors.grey,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    entry.value,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 14,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 5),
-                                          Text(
-                                            descriptions[entry.key]!,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF667085),
+                                              ],
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 5),
+                                            Text(
+                                              descriptions[entry.key]!,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF667085),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (!['free', 'quote'].contains(setting['mode'])) ...[
+                            medInput(
+                              price,
+                              '每隻貓／每${_medPriceUnit(setting['mode'])}費用（元）',
+                              required: true,
+                              number: true,
+                            ),
+                            _hint(
+                              '${_medCountRule(setting)}\n'
+                              "${setting['mode'] == 'visit' ? '例：一隻貓一天安排兩個時間，每次 50 元，當天共 100 元。' : '例：一隻貓在一個住宿日安排兩次同類型用藥，每日 50 元，當天共 50 元。'}",
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (['visit', 'day'].contains(setting['mode'])) ...[
+                            DropdownButtonFormField<String>(
+                              initialValue:
+                                  setting['paymentTiming'] == 'advance'
+                                  ? 'advance'
+                                  : 'checkout',
+                              decoration: const InputDecoration(
+                                labelText: '用藥費何時收取',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'advance',
+                                  child: Text('預約先收預估費用'),
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (!['free', 'quote'].contains(setting['mode'])) ...[
-                          medInput(
-                            price,
-                            '每隻貓／每${_medPriceUnit(setting['mode'])}費用（元）',
-                            required: true,
-                            number: true,
-                          ),
-                          _hint(
-                            '${_medCountRule(setting)}\n'
-                            "${setting['mode'] == 'visit' ? '例：一隻貓一天安排兩個時間，每次 50 元，當天共 100 元。' : '例：一隻貓在一個住宿日安排兩次同類型用藥，每日 50 元，當天共 50 元。'}",
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (['visit', 'day'].contains(setting['mode'])) ...[
-                          DropdownButtonFormField<String>(
-                            initialValue: setting['paymentTiming'] == 'advance'
-                                ? 'advance'
-                                : 'checkout',
-                            decoration: const InputDecoration(
-                              labelText: '用藥費何時收取',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'advance',
-                                child: Text('預約先收預估費用'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'checkout',
-                                child: Text('退房時按實際結果收費'),
-                              ),
-                            ],
-                            onChanged: (value) =>
-                                change(() => setting['paymentTiming'] = value),
-                          ),
-                          _hint(medicationPaymentDescription(setting)),
-                          const SizedBox(height: 12),
-                        ],
-                        if (setting['mode'] == 'quote')
-                          _hint('客人先填寫用藥需求，店家再提出總報價，客人同意後生效。'),
-                        if (setting['mode'] == 'free')
-                          _hint('免收服務費；用藥安排仍須雙方確認。'),
-                        if (setting['mode'] != 'free') ...[
-                          _ruleSwitch(
-                            '可拌入食物者免費',
-                            '依原用藥指示可拌食時，不收此項服務費。',
-                            'mixFree',
-                          ),
-                          _ruleSwitch(
-                            '未成功不收費',
-                            '依實際執行結果結算，未成功的服務不計費。',
-                            'successOnly',
-                          ),
-                          ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            title: const Text(
-                              '更多計費規則',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                                DropdownMenuItem(
+                                  value: 'checkout',
+                                  child: Text('退房時按實際結果收費'),
+                                ),
+                              ],
+                              onChanged: (value) => change(
+                                () => setting['paymentTiming'] = value,
                               ),
                             ),
-                            subtitle: const Text(
-                              '有分項計費或包含次數時再設定',
-                              style: TextStyle(fontSize: 12),
+                            _hint(medicationPaymentDescription(setting)),
+                            const SizedBox(height: 12),
+                          ],
+                          if (setting['mode'] == 'quote')
+                            _hint('客人先填寫用藥需求，店家再提出總報價，客人同意後生效。'),
+                          if (setting['mode'] == 'free')
+                            _hint('免收服務費；用藥安排仍須雙方確認。'),
+                          if (setting['mode'] != 'free') ...[
+                            _ruleSwitch(
+                              '可拌入食物者免費',
+                              '依原用藥指示可拌食時，不收此項服務費。',
+                              'mixFree',
                             ),
-                            children: [
-                              _ruleSwitch(
-                                '不同用藥類型分開計費',
-                                setting['mode'] == 'day'
-                                    ? '開啟後，同一隻貓在同一住宿日的不同用藥類型分開收費。'
-                                    : '按次收費時，開啟後同一隻貓在同一時間的不同用藥類型各算一次。',
-                                'splitTypes',
+                            _ruleSwitch(
+                              '未成功不收費',
+                              '依實際執行結果結算，未成功的服務不計費。',
+                              'successOnly',
+                            ),
+                            ExpansionTile(
+                              tilePadding: EdgeInsets.zero,
+                              title: const Text(
+                                '更多計費規則',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              _limitControl(
-                                times,
-                                '設定每日包含次數',
-                                '超過設定次數，改由店家個別報價。',
-                                '每日包含次數',
+                              subtitle: const Text(
+                                '有分項計費或包含次數時再設定',
+                                style: TextStyle(fontSize: 12),
                               ),
-                              if (types.contains('oral'))
+                              children: [
+                                _ruleSwitch(
+                                  '不同用藥類型分開計費',
+                                  setting['mode'] == 'day'
+                                      ? '開啟後，同一隻貓在同一住宿日的不同用藥類型分開收費。'
+                                      : '按次收費時，開啟後同一隻貓在同一時間的不同用藥類型各算一次。',
+                                  'splitTypes',
+                                ),
                                 _limitControl(
-                                  pills,
-                                  '設定每次包含顆數',
-                                  '適用口服藥錠與膠囊，超過顆數另報價。',
-                                  '每次包含顆數',
+                                  times,
+                                  '設定每日包含次數',
+                                  '超過設定次數，改由店家個別報價。',
+                                  '每日包含次數',
                                 ),
-                              const SizedBox(height: 12),
-                            ],
-                          ),
-                        ],
-                      ]),
-                      _section('3', '照護時間', '設定員工可執行的時段，超出時段須另外確認。', [
-                        for (var i = 0; i < windows.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _timeButton(i, 'start', '開始時間'),
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 8),
-                                  child: Text('至'),
-                                ),
-                                Expanded(child: _timeButton(i, 'end', '結束時間')),
-                                if (windows.length > 1)
-                                  IconButton(
-                                    tooltip: '刪除此時段',
-                                    onPressed: () =>
-                                        change(() => windows.removeAt(i)),
-                                    icon: const Icon(Icons.close, size: 20),
+                                if (types.contains('oral'))
+                                  _limitControl(
+                                    pills,
+                                    '設定每次包含顆數',
+                                    '適用口服藥錠與膠囊，超過顆數另報價。',
+                                    '每次包含顆數',
                                   ),
+                                const SizedBox(height: 12),
                               ],
-                            ),
-                          ),
-                        if (windows.length < 4)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: () => change(
-                                () => windows.add({
-                                  'start': '09:00',
-                                  'end': '21:00',
-                                }),
-                              ),
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('新增照護時段'),
-                            ),
-                          ),
-                        const SizedBox(height: 8),
-                        medInput(note, '給客人的服務說明（選填）', lines: 3),
-                      ]),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEDF1FA),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.visibility_outlined, size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  '客人看到的收費摘要',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              medRule({
-                                ...setting,
-                                'price': int.tryParse(price.text) ?? 0,
-                                'includedTimes': int.tryParse(times.text) ?? 0,
-                                'includedPills': int.tryParse(pills.text) ?? 0,
-                              }),
-                              style: const TextStyle(height: 1.6),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              '儲存後套用於新需求，既有訂單保留原規則。',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF667085),
-                              ),
                             ),
                           ],
-                        ),
-                      ),
+                        ]),
+                        if (constraints.maxWidth < 900) _settingsPreview(),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
           );
         },
       ),
+    ),
+  );
+
+  Widget _settingsColumns({required bool wide, required Widget sections}) {
+    if (!wide || setting['enabled'] != true) return sections;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 20,
+      children: [
+        Expanded(child: sections),
+        SizedBox(width: 290, child: _settingsPreview()),
+      ],
+    );
+  }
+
+  Widget _settingsPreview() => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEDF1FA),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.visibility_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('客人看到的規則', style: TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          medRule({
+            ...setting,
+            'price': int.tryParse(price.text) ?? 0,
+            'includedTimes': int.tryParse(times.text) ?? 0,
+            'includedPills': int.tryParse(pills.text) ?? 0,
+          }),
+          style: const TextStyle(height: 1.6),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '儲存後套用於新需求，既有訂單保留原規則。',
+          style: TextStyle(fontSize: 12, color: Color(0xFF667085)),
+        ),
+      ],
     ),
   );
 
@@ -2679,6 +2699,7 @@ class BookingMedicationPanel extends StatefulWidget {
     this.taskId,
     this.summaryOnly = false,
     this.customerDetails = false,
+    this.arrangementLayout = false,
     this.referencePricing = const {},
   });
   final String bookingId;
@@ -2687,6 +2708,7 @@ class BookingMedicationPanel extends StatefulWidget {
   final bool canManage;
   final bool summaryOnly;
   final bool customerDetails;
+  final bool arrangementLayout;
   final Map<String, dynamic> referencePricing;
   final String initialFilter;
   final String? taskId;
@@ -2799,12 +2821,22 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
 
     Widget requestEntry(Map<String, dynamic> entry) {
       final name = petName(entry['petId']);
-      return customerLayout
+      return customerLayout || widget.arrangementLayout
           ? _CustomerMedicationRequest(entry: entry, petName: name)
           : Text(_medicationRequestLine(entry, name));
     }
 
     Widget panel(List<Widget> children, {bool showStatus = true}) {
+      if (widget.arrangementLayout) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
+            children: children,
+          ),
+        );
+      }
       if (!customerLayout) return medCard('用藥協助', children);
       final accent = m['state'] == 'confirmed' || m['finalized'] == true
           ? theme.success
@@ -2846,6 +2878,20 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
     }
 
     Widget fee(String text, {List<String> details = const []}) {
+      if (widget.arrangementLayout) {
+        final colors = Theme.of(context).colorScheme;
+        return ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          tileColor: colors.primaryContainer.withValues(alpha: 0.45),
+          leading: Icon(Icons.receipt_long_outlined, color: colors.primary),
+          title: Text(
+            text,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        );
+      }
       if (!customerLayout) return Text(text);
       return Container(
         padding: const EdgeInsets.all(12),
@@ -3048,10 +3094,8 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
         Text(
           m['state'] == 'pending_customer'
               ? '已送出安排，等待飼主同意。飼主確認後，入住中的用藥時段就會顯示「填寫結果」。'
-              : '下一步：補齊藥名、每次用量與使用指示，核對日期、時間及費用，再送飼主確認。',
+              : '店內可先留下交接備註。需要安排服務時，再送時程與費用給飼主確認。',
         ),
-        const SizedBox(height: 8),
-        const Text('住宿訂單確認與用藥確認是兩個步驟；用藥須雙方同意後才能填寫執行結果。'),
         const SizedBox(height: 12),
       ],
       if (!locked &&
@@ -3067,7 +3111,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                     ? '調整用藥安排（須重新確認）'
                     : m['state'] == 'pending_customer'
                     ? '修改安排並重新送確認'
-                    : '核對藥品與安排',
+                    : '查看時程與費用',
               ),
             ),
             OutlinedButton(
@@ -3354,7 +3398,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                 draft['careEnd'] == null;
             final estimatedAmount = changed ? null : estimate['amount'];
             return Scaffold(
-              appBar: AppBar(title: Text(editing ? '調整用藥安排' : '核對用藥安排')),
+              appBar: AppBar(title: Text(editing ? '調整用藥安排' : '用藥時程與費用')),
               body: SafeArea(
                 child: Center(
                   child: ConstrainedBox(
@@ -3465,7 +3509,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                             : needsSchedule
                             ? null
                             : () => Navigator.pop(ctx, true),
-                        child: Text(editing ? '返回核對' : '送客人確認'),
+                        child: Text(editing ? '返回時程' : '送客人確認'),
                       ),
                     ),
                   ),

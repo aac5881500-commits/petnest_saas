@@ -4,6 +4,8 @@ import '../../core/models/booking_medication_task.dart';
 import '../../core/services/booking_service.dart';
 import '../../core/services/shop_task_center_service.dart';
 import 'medication_widgets.dart';
+import '../../core/services/booking_settlement_math.dart';
+import '../admin/widgets/admin_internal_handover_card.dart';
 
 class MedicationTaskPage extends StatefulWidget {
   const MedicationTaskPage({
@@ -34,7 +36,7 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.taskId == null ? '用藥安排與確認' : '填寫用藥結果')),
+    appBar: AppBar(title: Text(widget.taskId == null ? '用藥交接與安排' : '填寫用藥結果')),
     body: FutureBuilder<ShopTaskAccess>(
       future: _access,
       builder: (context, access) {
@@ -74,11 +76,62 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
                 width: 640,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: BookingMedicationPanel(
-                    bookingId: widget.bookingId,
-                    booking: booking,
-                    staff: true,
-                    taskId: widget.taskId,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 12,
+                    children: [
+                      if (widget.taskId == null)
+                        AdminInternalHandoverCard(
+                          shopId: widget.shopId,
+                          bookingId: widget.bookingId,
+                          compact: true,
+                          readOnly: BookingSettlementMath.isSettlementLocked(
+                            booking,
+                          ),
+                        ),
+                      if (widget.taskId == null)
+                        Card.outlined(
+                          margin: EdgeInsets.zero,
+                          clipBehavior: Clip.antiAlias,
+                          child: ExpansionTile(
+                            leading: const Icon(Icons.calendar_month_outlined),
+                            title: const Text(
+                              '時程與費用',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            subtitle: const Text('查看各貓咪的預約時段與用藥費'),
+                            children: [
+                              BookingMedicationPanel(
+                                bookingId: widget.bookingId,
+                                booking: booking,
+                                staff: true,
+                                arrangementLayout: true,
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        BookingMedicationPanel(
+                          bookingId: widget.bookingId,
+                          booking: booking,
+                          staff: true,
+                          taskId: widget.taskId,
+                        ),
+                        Card(
+                          child: ExpansionTile(
+                            title: const Text('查看用藥交接備註'),
+                            children: [
+                              AdminInternalHandoverCard(
+                                shopId: widget.shopId,
+                                bookingId: widget.bookingId,
+                                compact: true,
+                                readOnly: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),

@@ -99,6 +99,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.progress,
     this.petCareFuture,
     this.workspace,
+    this.onClose,
   });
 
   final String title;
@@ -121,6 +122,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final Widget? progress;
   final Future<List<BookingPetCareFormItem>>? petCareFuture;
   final AdminBookingWorkspaceContent? workspace;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +151,12 @@ class AdminBookingDetailScaffold extends StatelessWidget {
               foregroundColor: theme.titleColor,
               elevation: 0,
               titleSpacing: 0,
+              automaticallyImplyLeading: onClose == null,
+              leading: onClose == null ? null : IconButton(
+                tooltip: '關閉訂單',
+                onPressed: onClose,
+                icon: const Icon(Icons.close),
+              ),
               title: _AppBarTitle(title: title, bookingCode: bookingCode),
               actions: <Widget>[
                 if (bookingCode.trim().isNotEmpty)
@@ -165,7 +173,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
                     icon: const Icon(Icons.copy_rounded, size: 20),
                   ),
                 ...appBarActions,
-                if (operationsShopId.trim().isNotEmpty)
+                if (onClose == null && operationsShopId.trim().isNotEmpty)
                   _WorkbenchButton(
                     shopId: operationsShopId.trim(),
                     compact: phone,

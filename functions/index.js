@@ -982,6 +982,8 @@ exports.lockDailyCareSessionPhotos =
   require("./daily_care/daily_care_photo_ops").lockDailyCareSessionPhotos;
 exports.completeDailyCareReport =
   require("./daily_care/complete_daily_care_report").completeDailyCareReport;
+exports.manageDailyCarePetReport =
+  require("./daily_care/complete_daily_care_report").manageDailyCarePetReport;
 exports.repairDailyCareRecordDates =
   require("./daily_care/repair_daily_care_record_dates")
       .repairDailyCareRecordDates;

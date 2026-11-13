@@ -26,6 +26,7 @@ class ShopTaskCenterPanel extends StatefulWidget {
     this.careOnly = false,
     this.onViewAll,
     this.onOpenCamera,
+    this.onOpenOrder,
   });
 
   final String shopId;
@@ -37,6 +38,7 @@ class ShopTaskCenterPanel extends StatefulWidget {
   final bool closeBeforeOpen;
   final VoidCallback? onViewAll;
   final void Function(ShopTaskItem item)? onOpenCamera;
+  final ValueChanged<ShopTaskItem>? onOpenOrder;
 
   @override
   State<ShopTaskCenterPanel> createState() => _ShopTaskCenterPanelState();
@@ -113,6 +115,7 @@ class _ShopTaskCenterPanelState extends State<ShopTaskCenterPanel> {
           closeBeforeOpen: widget.closeBeforeOpen,
           onViewAll: widget.onViewAll,
           onOpenCamera: widget.onOpenCamera,
+          onOpenOrder: widget.onOpenOrder,
           onRetrySettings: binding.retryShop,
           onRetryMedication: binding.retryMedication,
           onRetryBooking: binding.retryBooking,
@@ -149,6 +152,7 @@ class ShopTaskCenterContent extends StatefulWidget {
     this.careOnly = false,
     this.onViewAll,
     this.onOpenCamera,
+    this.onOpenOrder,
     this.onRetrySettings,
     this.onRetryServices,
     this.onRetryMedication,
@@ -163,6 +167,7 @@ class ShopTaskCenterContent extends StatefulWidget {
   final bool closeBeforeOpen;
   final VoidCallback? onViewAll;
   final void Function(ShopTaskItem item)? onOpenCamera;
+  final ValueChanged<ShopTaskItem>? onOpenOrder;
   final VoidCallback? onRetrySettings;
   final VoidCallback? onRetryServices;
   final VoidCallback? onRetryMedication;
@@ -428,6 +433,13 @@ class _ShopTaskCenterContentState extends State<ShopTaskCenterContent> {
                           ? '核對寵物'
                           : '填寫結果',
                       onAction: () {
+                        final openOrder = widget.onOpenOrder;
+                        if (openOrder != null &&
+                            (item.metadata['reviewMedication'] == true ||
+                             item.metadata['needsIdentity'] == true)) {
+                          openOrder(item);
+                          return;
+                        }
                         final navigator = Navigator.of(context);
                         if (widget.closeBeforeOpen) navigator.pop();
                         navigator.push<void>(

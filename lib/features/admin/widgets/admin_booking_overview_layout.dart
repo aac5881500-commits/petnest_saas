@@ -18,8 +18,10 @@ class AdminBookingOverviewLayout extends StatefulWidget {
     super.key,
     required this.layout,
     required this.blocks,
+    this.operations = false,
   });
   final BookingOverviewLayout layout;
+  final bool operations;
   final Map<String, Widget> blocks;
   @override
   State<AdminBookingOverviewLayout> createState() =>
@@ -119,6 +121,17 @@ class _AdminBookingOverviewLayoutState
             ],
           ),
         );
+        if (widget.operations) {
+          const primary = ['actions', 'progress', 'next', 'pets', 'care', 'summary'];
+          const aside = ['balance', 'contacts', 'resources'];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              stack(['overview']),
+              columns([primary, aside], [2, 1], enabled: constraints.maxWidth >= 780),
+            ],
+          );
+        }
         final layout = switch (widget.layout) {
           BookingOverviewLayout.split =>
             !wide

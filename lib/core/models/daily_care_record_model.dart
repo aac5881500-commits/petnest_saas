@@ -40,6 +40,7 @@ class DailyCareRecordModel {
     this.photosLocked = false,
     this.reportStatus = '',
     this.completedAt,
+    this.petReports = const {},
   });
 
   /// 紀錄 ID
@@ -108,6 +109,7 @@ class DailyCareRecordModel {
   /// key = petId
   /// value = 該寵物的文字概況
   final Map<String, String> petNotes;
+  final Map<String, dynamic> petReports;
 
   /// 此場目前照片數量
   ///
@@ -139,6 +141,7 @@ class DailyCareRecordModel {
 
   /// 環境、分類答案或文字至少有一項，才算這場真的有回報內容。
   bool get hasReportContent {
+    if (petReports.isNotEmpty) return true;
     for (final dynamic value in values.values) {
       if (value != null && value.toString().trim().isNotEmpty) {
         return true;
@@ -153,7 +156,7 @@ class DailyCareRecordModel {
     if (!hasReportContent) {
       return false;
     }
-    return reportStatus != 'draft';
+    return reportStatus != 'draft' && reportStatus != 'partial';
   }
 
   factory DailyCareRecordModel.fromMap({
@@ -185,6 +188,9 @@ class DailyCareRecordModel {
                   MapEntry(key.toString(), value?.toString() ?? ''),
             )
           : <String, String>{},
+      petReports: map['petReports'] is Map
+          ? Map<String, dynamic>.from(map['petReports'] as Map)
+          : const {},
       photoCount: _readInt(map['photoCount']),
       createdByUid: _readNullableString(map['createdByUid']),
       createdByName: _readNullableString(map['createdByName']),
@@ -219,6 +225,7 @@ class DailyCareRecordModel {
       'serviceDate': serviceDate,
       'values': values,
       'petNotes': petNotes,
+      if (petReports.isNotEmpty) 'petReports': petReports,
       'photoCount': photoCount,
       'reportStatus': reportStatus,
       'completedAt': completedAt == null

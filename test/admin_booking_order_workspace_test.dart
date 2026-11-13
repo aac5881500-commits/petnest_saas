@@ -14,6 +14,8 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_payment
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_focus.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_header_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_order_workspace.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_experience.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_strip.dart';
 
@@ -194,6 +196,80 @@ Widget fixture({
 }
 
 void main() {
+  testWidgets('住宿工作單依階段展開，收合後保留內容', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdminBookingDetailExperience(
+            scope: '',
+            workflow: true,
+            worksheetHeader: const Text('A03 · 栗子與麻糬'),
+            worksheetPrimarySection: 1,
+            sectionBuilder: (index, _, _) => index == 1
+                ? const TextField(key: ValueKey('worksheet-draft'))
+                : Text('section-$index'),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('A03 · 栗子與麻糬'), findsOneWidget);
+    final draft = find.byKey(const ValueKey('worksheet-draft'));
+    expect(draft, findsOneWidget);
+    await tester.enterText(draft, '麻糬照護紀錄');
+    await tester.tap(find.byKey(const ValueKey('booking-tab-1')));
+    await tester.pumpAndSettle();
+    expect(draft, findsNothing);
+    await tester.tap(find.byKey(const ValueKey('booking-tab-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('麻糬照護紀錄'), findsOneWidget);
+  });
+
+  testWidgets('窄版工作台一按開單，直接進照護且切頁保留輸入', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 650);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: BookingOrderCard(
+              bookingId: 'fixture-1',
+              data: fixtureData(),
+              compact: true,
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(
+                    body: AdminBookingDetailExperience(
+                      scope: '',
+                      workflow: true,
+                      initialSection: 1,
+                      sectionBuilder: (index, _, _) => index == 1
+                          ? const TextField(key: ValueKey('care-draft'))
+                          : Text('section-$index'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('林小安'));
+    await tester.pumpAndSettle();
+    final draft = find.byKey(const ValueKey('care-draft'));
+    expect(draft, findsOneWidget);
+    await tester.enterText(draft, '照護草稿');
+    await tester.tap(find.text('結帳'));
+    await tester.pumpAndSettle();
+    expect(find.text('section-2'), findsOneWidget);
+    await tester.tap(find.text('照護'));
+    await tester.pumpAndSettle();
+    expect(find.text('照護草稿'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   setUpAll(() async {
     final FontLoader font = FontLoader('NotoSansTC');
     font.addFont(rootBundle.load('assets/fonts/jf-openhuninn-2.1.ttf'));

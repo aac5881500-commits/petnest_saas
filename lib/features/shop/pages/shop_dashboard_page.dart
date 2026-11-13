@@ -50,7 +50,6 @@ import 'package:petnest_saas/features/shop/pages/shop_business_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_module_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_permission_settings_page.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
@@ -2271,7 +2270,7 @@ void _openBasicInfoPage(BuildContext context, String id, WidgetBuilder page) {
     Navigator.of(context, rootNavigator: true)
         .push(
           MaterialPageRoute<void>(
-            settings: id == shopOperationsWorkbenchRouteName
+            settings: (id == shopOperationsWorkbenchRouteName || id == 'AdminBookingListPage')
                 ? RouteSettings(name: id)
                 : null,
             builder: destination == null ? page : (_) => destination,
@@ -2711,13 +2710,13 @@ class _CatHotelTab extends StatelessWidget {
       _DashboardSection(
         title: '今日營運',
         children: [
-          if (_can(ShopPermissionKeys.manageBookings))
+          if (_can(ShopPermissionKeys.manageBookings) || _can(ShopPermissionKeys.manageDaycareBookings))
             page(
               'AdminBookingListPage',
               '訂單管理',
               '查看待確認、付款與新留言',
               Icons.receipt_long,
-              (_) => AdminBookingListPage(shopId: shopId),
+              (_) => RoomDashboardPage(shopId: shopId, startWithOrders: true),
               tileBuilder: (context, open) => _BookingManageTile(
                 shopId: shopId,
                 enabled: isProfileComplete,

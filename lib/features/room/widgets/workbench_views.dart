@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 enum WorkbenchView {
   original('原本排版', Icons.dashboard_outlined),
-  rooms('A｜房務三欄', Icons.view_column_outlined),
-  tasks('B｜今日營運', Icons.checklist_outlined),
-  timeline('C｜房況時間表', Icons.calendar_view_week_outlined);
+  rooms('房間與訂單', Icons.view_column_outlined),
+  tasks('今日待辦', Icons.checklist_outlined),
+  timeline('房況時間表', Icons.calendar_view_week_outlined);
 
   const WorkbenchView(this.label, this.icon);
   final String label;
@@ -37,7 +37,7 @@ class WorkbenchSettingsMenu extends StatelessWidget {
       onChanged(WorkbenchView.values.firstWhere((view) => view.name == value));
     },
     itemBuilder: (_) => [
-      const PopupMenuItem<String>(enabled: false, child: Text('工作台排版（此裝置）')),
+      const PopupMenuItem<String>(enabled: false, child: Text('工作台檢視')),
       for (final view in WorkbenchView.values)
         CheckedPopupMenuItem<String>(
           value: view.name,

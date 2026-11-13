@@ -158,7 +158,7 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    widget.compact ? '僅店家可見' : '內部交接備註（僅店家可見）',
+                    widget.compact ? '用藥交接備註' : '內部交接備註（僅店家可見）',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -167,7 +167,11 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    locked ? '訂單已鎖定，內部交接備註為唯讀。' : '客戶交代、待辦、下一班注意事項。僅店內可見。',
+                    locked
+                        ? '店內交接紀錄'
+                        : widget.compact
+                        ? '店內可見。可記下貓名、藥名、每次用量、剩餘量和注意事項。'
+                        : '客戶交代、待辦、下一班注意事項。僅店內可見。',
                     style: TextStyle(fontSize: 12, color: theme.muted),
                   ),
                   const SizedBox(height: 8),
@@ -180,7 +184,7 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                     readOnly: locked || _saving,
                     decoration: InputDecoration(
                       hintText: widget.compact
-                          ? '例如：喵喵｜藥名｜每次用量｜剩餘數量'
+                          ? '例如：喵喵｜藥名｜每次用量與單位｜剩餘量｜注意事項'
                           : '例如：明天接回前提前準備藥品',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),

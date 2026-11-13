@@ -13,7 +13,6 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_daycare_booking_page.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_daycare_order_list.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_paged_booking_list.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_entry_service_card.dart';
 
@@ -23,11 +22,20 @@ class AdminBookingListPage extends StatefulWidget {
     required this.shopId,
     this.filterType,
     this.initialKind,
+    this.onOpenOrder,
+    this.selectedOrderId,
+    this.canManageStay = true,
+    this.canManageDaycare = true,
   });
 
   final String shopId;
   final String? filterType;
   final String? initialKind;
+  final void Function(String, Map<String, dynamic>)? onOpenOrder;
+  final bool canManageStay, canManageDaycare;
+  final String? selectedOrderId;
+
+  bool get embedded => onOpenOrder != null;
 
   @override
   State<AdminBookingListPage> createState() => _AdminBookingListPageState();
@@ -75,7 +83,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
   }
 
   void _syncTabs() {
-    final bool needTabs = _daycareOn;
+    final bool needTabs = _daycareOn && widget.canManageStay && widget.canManageDaycare;
     final bool hadTabs = _tabController != null;
     if (needTabs == hadTabs) {
       return;
@@ -111,7 +119,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
   Widget build(BuildContext context) {
     if (_shopFailed) {
       return Scaffold(
-        appBar: AppBar(title: const Text('訂單管理')),
+        appBar: widget.embedded ? null : AppBar(title: const Text('訂單管理')),
         body: AppStatePanel(
           title: '訂單管理暫時無法載入',
           message: '請確認網路連線及店家權限後重試。',
@@ -131,7 +139,8 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
     final bool showDaycareTab = _daycareOn && _tabController != null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('訂單管理'),
+        automaticallyImplyLeading: !widget.embedded,
+        title: Text(widget.embedded ? '訂單' : '訂單管理'),
         bottom: showDaycareTab
             ? TabBar(
                 controller: _tabController,
@@ -142,7 +151,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
               )
             : null,
         actions: <Widget>[
-          IconButton(
+          if (!widget.embedded) IconButton(
             tooltip: '今日用藥待辦',
             icon: const Icon(Icons.medication_outlined),
             onPressed: () => Navigator.push(
@@ -152,33 +161,45 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
               ),
             ),
           ),
-          ShopTaskCenterButton(shopId: widget.shopId),
-          _CreateOrderButton(shopId: widget.shopId, shop: _shop),
+          if (!widget.embedded) ShopTaskCenterButton(shopId: widget.shopId),
+          _CreateOrderButton(
+            shopId: widget.shopId,
+            shop: _shop,
+            allowStay: widget.canManageStay,
+            allowDaycare: widget.canManageDaycare,
+          ),
         ],
       ),
       body: showDaycareTab
           ? TabBarView(
               controller: _tabController,
               children: <Widget>[
-                AdminPagedBookingList(
-                  shopId: widget.shopId,
-                  kind: BookingKind.accommodation,
-                  initialFilter: widget.filterType ?? 'active',
-                ),
-                AdminDaycareOrderList(shopId: widget.shopId),
+                _orders(BookingKind.accommodation),
+                _orders(BookingKind.daycare),
               ],
             )
-          : AdminPagedBookingList(
-              shopId: widget.shopId,
-              kind: BookingKind.accommodation,
-              initialFilter: widget.filterType ?? 'active',
-            ),
+          : _orders(widget.canManageStay ? BookingKind.accommodation : BookingKind.daycare),
     );
   }
+
+  Widget _orders(String kind) => AdminPagedBookingList(
+    shopId: widget.shopId,
+    kind: kind,
+    initialFilter: kind == BookingKind.accommodation ? widget.filterType ?? 'active' : 'active',
+    onOpenOrder: widget.onOpenOrder,
+    selectedOrderId: widget.selectedOrderId,
+  );
 }
 
 class _CreateOrderButton extends StatelessWidget {
-  const _CreateOrderButton({required this.shopId, required this.shop});
+  const _CreateOrderButton({
+    required this.shopId,
+    required this.shop,
+    required this.allowStay,
+    required this.allowDaycare,
+  });
+
+  final bool allowStay, allowDaycare;
 
   final String shopId;
   final Map<String, dynamic> shop;
@@ -196,11 +217,13 @@ class _CreateOrderButton extends StatelessWidget {
                 if (!context.mounted) {
                   return;
                 }
-                if (!daycareOn) {
+                if (!allowStay || !allowDaycare || !daycareOn) {
                   Navigator.push(
                     context,
                     MaterialPageRoute<void>(
-                      builder: (_) => AdminCreateBookingPage(shopId: shopId),
+                      builder: (_) => allowStay
+                          ? AdminCreateBookingPage(shopId: shopId)
+                          : AdminCreateDaycareBookingPage(shopId: shopId),
                     ),
                   );
                   return;

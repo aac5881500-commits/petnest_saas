@@ -28,13 +28,14 @@ import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entr
 import 'package:petnest_saas/features/room/widgets/room_workbench_layout.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/room/widgets/operations_workbench.dart';
 import 'package:petnest_saas/features/room/widgets/operations_workbench_data.dart';
 import 'package:petnest_saas/features/room/widgets/workbench_views.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 
-enum _DeskView { rooms, care, reports }
+enum _DeskView { today, orders, rooms, care, reports }
 
 class _DashRoom {
   const _DashRoom({
@@ -78,7 +79,9 @@ class _DashRoom {
 }
 
 class RoomDashboardPage extends StatefulWidget {
-  const RoomDashboardPage({super.key, required this.shopId});
+  const RoomDashboardPage({super.key, required this.shopId, this.startWithOrders = false});
+
+  final bool startWithOrders;
 
   final String shopId;
 
@@ -178,6 +181,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
           showViewAll: false,
           closeBeforeOpen: false,
           careOnly: true,
+          onOpenOrder: (item) => _showOrder(item.targetId, section: 1),
         ),
       ),
     ),
@@ -187,12 +191,135 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
   RoomOverviewFilter _quickFilter = RoomOverviewFilter.all;
   final Set<String> _collapsedTypes = <String>{};
   final Set<String> _busyKeys = <String>{};
-  _DeskView _deskView = _DeskView.rooms;
+  late _DeskView _deskView = widget.startWithOrders ? _DeskView.orders : _DeskView.today;
+  bool get _canOpenOrders => _canManageCare || _canManageDaycare;
   String _selectedRoomId = '';
   int _streamRetry = 0;
   final _roomSearch = TextEditingController();
   String _roomQuery = '';
-  WorkbenchView _layout = WorkbenchView.original;
+  WorkbenchView _layout = WorkbenchView.rooms;
+  ({String id, Map<String, dynamic>? data, int section})? _openBooking;
+
+  WidgetBuilder? _activeShiftTask;
+
+  void _showShiftTask(WidgetBuilder builder) {
+    if (MediaQuery.sizeOf(context).width >= 1250) {
+      setState(() {
+        _openBooking = null;
+        _activeShiftTask = builder;
+      });
+    } else {
+      Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
+    }
+  }
+
+  bool _mayEditOrder(Map<String, dynamic>? data) =>
+      _canManageCare || (_canManageDaycare && AdminBookingRoute.isDaycareBooking(data));
+
+  void _showOrder(String id, {Map<String, dynamic>? data, int section = 0}) {
+    if (MediaQuery.sizeOf(context).width >= 1250) {
+      if (_openBooking?.id == id && _openBooking?.section == section) return;
+      setState(() {
+        _activeShiftTask = null;
+        _openBooking = (id: id, data: data, section: section);
+      });
+      return;
+    }
+    AdminBookingRoute.open(
+      context,
+      bookingId: id,
+      data: data,
+      shopId: widget.shopId,
+      canEdit: _mayEditOrder(data),
+      initialSection: section,
+    );
+  }
+
+  Widget _withOrderPane(Widget list) {
+    final selection = _openBooking;
+    final task = _activeShiftTask;
+    final hasDetail = selection != null || task != null;
+    void close() => setState(() {
+      _openBooking = null;
+      _activeShiftTask = null;
+    });
+    return LayoutBuilder(
+      builder: (context, bounds) {
+        final split = hasDetail && bounds.maxWidth >= 900;
+        final focused = hasDetail && !split;
+        final width = (bounds.maxWidth * .34).clamp(310.0, 470.0);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Offstage(
+              offstage: focused,
+              child: SizedBox(
+                width: split ? width : bounds.maxWidth,
+                child: list,
+              ),
+            ),
+            if (task != null) ...[
+              if (split) const VerticalDivider(width: 1),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: close,
+                        icon: const Icon(Icons.close),
+                        label: const Text('返回今日行程'),
+                      ),
+                    ),
+                    Expanded(
+                      child: Navigator(
+                        key: ObjectKey(task),
+                        onGenerateInitialRoutes: (_, _) {
+                          final route = MaterialPageRoute<void>(builder: task);
+                          route.popped.then((_) {
+                            if (mounted && identical(_activeShiftTask, task)) close();
+                          });
+                          return [
+                            MaterialPageRoute<void>(builder: (_) => const SizedBox.shrink()),
+                            route,
+                          ];
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (selection != null) ...[
+              if (split) const VerticalDivider(width: 1),
+              Expanded(
+                child: KeyedSubtree(
+                  key: ValueKey((selection.id, selection.section)),
+                  child: selection.data == null
+                      ? AdminBookingRouteGate(
+                          bookingId: selection.id,
+                          shopId: widget.shopId,
+                          canEdit: _canManageCare,
+                          initialSection: selection.section,
+                          onClose: close,
+                        )
+                      : AdminBookingRoute.page(
+                          bookingId: selection.id,
+                          data: selection.data,
+                          shopId: widget.shopId,
+                          canEdit: _mayEditOrder(selection.data),
+                          initialSection: selection.section,
+                          onClose: close,
+                        ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
   bool _layoutChosen = false;
   String get _layoutKey =>
       'roomWorkbenchLayout:${FirebaseAuth.instance.currentUser?.uid ?? 'guest'}:${widget.shopId}';
@@ -289,7 +416,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     if (_loadingPermission) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (!_hasPermission) {
+    if (!_hasPermission && !_canOpenOrders) {
       return Scaffold(
         appBar: AppBar(title: const Text('權限限制')),
         body: const Center(child: Text('你沒有房務管理權限')),
@@ -299,8 +426,11 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       builder: (BuildContext context, BoxConstraints constraints) {
         final double width = constraints.maxWidth;
         final bool desktop = width >= _desktopMin;
+        final view = !_hasPermission || (_deskView == _DeskView.orders && !_canOpenOrders)
+            ? (_canOpenOrders ? _DeskView.orders : _DeskView.rooms)
+            : _deskView;
         return StreamBuilder<DailyCareReportCenterSnapshot>(
-          stream: DailyCareReportCenterService.instance.streamToday(
+          stream: !_hasPermission ? null : DailyCareReportCenterService.instance.streamToday(
             shopId: widget.shopId,
             canOperate: true,
           ),
@@ -323,46 +453,25 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                     }
                   });
                 }
-                final bool deskSwitcher = _reportsOn || _careTasksOn;
+                final bool deskSwitcher = _hasPermission;
                 return Scaffold(
                   backgroundColor: const Color(0xFFF6F7F9),
                   appBar: AppBar(
-                    bottom: deskSwitcher && width < 700
+                    bottom: deskSwitcher
                         ? PreferredSize(
-                            preferredSize: const Size.fromHeight(58),
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: _viewSwitcher(),
-                            ),
+                            preferredSize: const Size.fromHeight(59),
+                            child: _viewSwitcher(),
                           )
                         : null,
                     titleSpacing: 0,
-                    title:
-                        _layout == WorkbenchView.original ||
-                            _deskView == _DeskView.reports
-                        ? _appTitle(desk: deskSwitcher)
-                        : Row(
-                            children: [
-                              const Flexible(
-                                child: Text(
-                                  'PetNest 營運工作台',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: opsInk,
-                                  ),
-                                ),
-                              ),
-                              if (width >= 900) ...[
-                                const SizedBox(width: 18),
-                                OperationsBadge(_layout.label),
-                              ],
-                            ],
-                          ),
+                    title: const Text(
+                      '營運工作台',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     actions: <Widget>[
-                      if (deskSwitcher && width >= 700) _viewSwitcher(),
                       ShopTaskCenterButton(shopId: widget.shopId),
-                      WorkbenchSettingsMenu(
+                      if (_hasPermission) WorkbenchSettingsMenu(
                         selected: _layout,
                         enabled: _busyKeys.isEmpty,
                         onChanged: _chooseLayout,
@@ -375,7 +484,15 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                       ),
                     ],
                   ),
-                  body: _deskView == _DeskView.care
+                  body: _withOrderPane(view == _DeskView.orders
+                      ? AdminBookingListPage(
+                          shopId: widget.shopId,
+                          canManageStay: _canManageCare,
+                          canManageDaycare: _canManageDaycare,
+                          selectedOrderId: _openBooking?.id,
+                          onOpenOrder: (id, data) => _showOrder(id, data: data),
+                        )
+                      : view == _DeskView.care
                       ? _careWorkspace()
                       : StreamBuilder<List<Map<String, dynamic>>>(
                           key: ValueKey<int>(_streamRetry),
@@ -529,7 +646,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                                       },
                                 );
                               },
-                        ),
+                        )),
                 );
               },
         );
@@ -545,7 +662,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       setState(
         () => _layout = WorkbenchView.values.firstWhere(
           (view) => view.name == saved,
-          orElse: () => WorkbenchView.original,
+          orElse: () => WorkbenchView.rooms,
         ),
       );
     } catch (_) {
@@ -574,63 +691,52 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     }
   }
 
-  Widget _appTitle({required bool desk}) {
-    if (!desk) {
-      return const Text('房務管理');
-    }
-    final bool reportsView = _deskView == _DeskView.reports;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(reportsView ? '每日回報' : '營運工作台'),
-        if (!reportsView)
-          const Text(
-            '今日房務與照護回報一覽',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.black54,
+  Widget _viewSwitcher() {
+    final destinations = {
+      _DeskView.today: (Icons.today_outlined, '今日'),
+      if (_canOpenOrders) _DeskView.orders: (Icons.receipt_long_outlined, '訂單'),
+      _DeskView.rooms: (Icons.meeting_room_outlined, '房況'),
+      if (_careTasksOn) _DeskView.care: (Icons.pets_outlined, '照護'),
+      if (_reportsOn) _DeskView.reports: (Icons.assignment_outlined, '回報'),
+    };
+    final active = destinations.containsKey(_deskView) ? _deskView : _DeskView.today;
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 59,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 3, 12, 7),
+            child: Row(
+              spacing: 6,
+              children: [
+                for (final entry in destinations.entries)
+                  Expanded(
+                    child: Semantics(
+                      selected: entry.key == active,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                          backgroundColor: entry.key == active ? colors.primaryContainer : colors.surface,
+                          foregroundColor: entry.key == active ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+                        ),
+                        onPressed: () => setState(() => _deskView = entry.key),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(entry.value.$1, size: 18),
+                            Flexible(child: Text(entry.value.$2, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-      ],
-    );
-  }
-
-  Widget _viewSwitcher() {
-    final List<ButtonSegment<_DeskView>> segments = <ButtonSegment<_DeskView>>[
-      ButtonSegment<_DeskView>(value: _DeskView.rooms, label: Text('房況')),
-      if (_careTasksOn)
-        const ButtonSegment<_DeskView>(
-          value: _DeskView.care,
-          label: Text('照護'),
-        ),
-      if (_reportsOn)
-        const ButtonSegment<_DeskView>(
-          value: _DeskView.reports,
-          label: Text('照護回報'),
-        ),
-    ];
-    final _DeskView selected = segments.any((s) => s.value == _deskView)
-        ? _deskView
-        : _DeskView.rooms;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: SegmentedButton<_DeskView>(
-          showSelectedIcon: false,
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          segments: segments,
-          selected: <_DeskView>{selected},
-          onSelectionChanged: (Set<_DeskView> value) {
-            setState(() {
-              _deskView = value.first;
-            });
-          },
         ),
       ),
     );
@@ -733,7 +839,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         .length;
     final int pendingReports = reportsOn ? (report?.pendingCount ?? 0) : 0;
 
-    if (_layout != WorkbenchView.original && _deskView == _DeskView.rooms) {
+    if (_deskView == _DeskView.today ||
+        (_layout != WorkbenchView.original && _deskView == _DeskView.rooms)) {
       return _alternativeOverview(
         rows: filtered,
         allRows: allRows,
@@ -1123,7 +1230,13 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     required String typeFilter,
   }) {
     return OperationsWorkbench(
-      key: ValueKey('operations-${_layout.name}'),
+      key: ValueKey((_deskView, _layout)),
+      shift: _deskView == _DeskView.today,
+      canManageOrder: _mayEditOrder,
+      shopId: widget.shopId,
+      onOrderDeparture: (choice) => _showOrder(choice.id, data: choice.data, section: 2),
+      onRoomView: () => setState(() => _deskView = _DeskView.rooms),
+      onTaskPage: _showShiftTask,
       view: _layout,
       data: OperationsWorkbenchData(
         rooms: rooms.map(OperationsRoom.new).toList(),
@@ -1139,30 +1252,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       onSelectRoom: (id) => setState(() => _selectedRoomId = id),
       onDateSelected: (date) => setState(() => selectedDate = date),
       busy: _busyKeys.isNotEmpty,
-      onOrder: (choice) => AdminBookingRoute.open(
-        context,
-        bookingId: choice.id,
-        data: choice.data,
-        shopId: widget.shopId,
-        canEdit:
-            _canManageCare ||
-            (_canManageDaycare &&
-                AdminBookingRoute.isDaycareBooking(choice.data)),
-        fromWorkbench: true,
-      ),
+      onOrder: (choice) => _showOrder(choice.id, data: choice.data),
       onOrderCare: _canManageCare || _canManageDaycare || _reportsOn
-          ? (choice) => AdminBookingRoute.open(
-              context,
-              bookingId: choice.id,
-              data: choice.data,
-              shopId: widget.shopId,
-              canEdit:
-                  _canManageCare ||
-                  (_canManageDaycare &&
-                      AdminBookingRoute.isDaycareBooking(choice.data)),
-              fromWorkbench: true,
-              initialSection: 1,
-            )
+          ? (choice) => _showOrder(choice.id, data: choice.data, section: 1)
           : null,
       onRoomRecord: (room) => _openCalendar(room.data),
       onRoomStatus: (room, status) => _polishedRoomAction(
@@ -1173,16 +1265,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         calendarStatus: calendarStatus,
         report: report,
       ),
-      onCare: (item) => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => DailyCareReportCenterPage(
-            shopId: widget.shopId,
-            initialBookingId: item.bookingId,
-            focusBookingId: item.bookingId,
-            focusServiceType: item.serviceType,
-            focusRecordDate: item.recordDate,
-            focusSessionIndex: item.sessionIndex,
-          ),
+      onCare: (item) => _showShiftTask(
+        (_) => DailyCareReportCenterPage(
+          shopId: widget.shopId,
+          initialBookingId: item.bookingId,
+          focusBookingId: item.bookingId,
+          focusServiceType: item.serviceType,
+          focusRecordDate: item.recordDate,
+          focusSessionIndex: item.sessionIndex,
         ),
       ),
       onReports: () {

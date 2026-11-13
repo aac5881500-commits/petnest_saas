@@ -20,6 +20,7 @@ class AdminBookingRoute {
     String shopId = '',
     bool canEdit = true,
     int initialSection = 0,
+    VoidCallback? onClose,
   }) {
     final String resolvedShopId = shopId.trim().isNotEmpty
         ? shopId.trim()
@@ -30,12 +31,14 @@ class AdminBookingRoute {
         bookingId: bookingId,
         canEdit: canEdit,
         initialSection: initialSection,
+        onClose: onClose,
       );
     }
     return AdminBookingDetailPage(
       bookingId: bookingId,
       canEdit: canEdit,
       initialSection: initialSection,
+      onClose: onClose,
     );
   }
 
@@ -107,12 +110,14 @@ class AdminBookingRouteGate extends StatelessWidget {
     this.shopId = '',
     this.canEdit = true,
     this.initialSection = 0,
+    this.onClose,
   });
 
   final String bookingId;
   final String shopId;
   final bool canEdit;
   final int initialSection;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +131,14 @@ class AdminBookingRouteGate extends StatelessWidget {
             BuildContext context,
             AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
           ) {
+            if (snapshot.hasError) {
+              return Scaffold(
+                body: Center(child: TextButton(
+                  onPressed: onClose,
+                  child: const Text('無法讀取訂單'),
+                )),
+              );
+            }
             if (!snapshot.hasData) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
@@ -133,7 +146,18 @@ class AdminBookingRouteGate extends StatelessWidget {
             }
             final Map<String, dynamic>? data = snapshot.data?.data();
             if (data == null) {
-              return const Scaffold(body: Center(child: Text('找不到訂單')));
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('找不到訂單'),
+                      if (onClose != null)
+                        TextButton(onPressed: onClose, child: const Text('關閉訂單')),
+                    ],
+                  ),
+                ),
+              );
             }
             return AdminBookingRoute.page(
               bookingId: bookingId,
@@ -141,6 +165,7 @@ class AdminBookingRouteGate extends StatelessWidget {
               shopId: shopId,
               canEdit: canEdit,
               initialSection: initialSection,
+              onClose: onClose,
             );
           },
     );

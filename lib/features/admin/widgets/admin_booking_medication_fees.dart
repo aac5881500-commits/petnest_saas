@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/models/booking_medication_task.dart';
+import '../../medication/medication_task_page.dart';
 
 import '../../../core/services/booking_settlement_math.dart';
 import '../../medication/medication_widgets.dart' show medMap, medicationStates;
@@ -9,10 +11,14 @@ class AdminBookingMedicationFees extends StatelessWidget {
     super.key,
     required this.booking,
     this.inFinance = false,
+    this.canEdit = false,
+    this.shopId = '',
+    this.bookingId = '',
   });
 
   final Map<String, dynamic> booking;
-  final bool inFinance;
+  final bool inFinance, canEdit;
+  final String shopId, bookingId;
 
   static bool hasFeeData(Map<String, dynamic> booking) =>
       medMap(booking['medication']).isNotEmpty ||
@@ -26,6 +32,11 @@ class AdminBookingMedicationFees extends StatelessWidget {
         const {'declined', 'cancelled'}.contains(state) ||
         booking['status'] == 'cancelled';
     final finalized = medication['finalized'] == true;
+    final canRecord = inFinance && canEdit && shopId.isNotEmpty && bookingId.isNotEmpty &&
+        BookingMedicationTask.canRecord(booking);
+    final pending = canRecord
+        ? BookingMedicationTask.fromBooking(booking).where((task) => task.pending).toList()
+        : const <BookingMedicationTask>[];
     final estimate = medMap(medication['estimate'])['amount'];
     final agreed = medication['agreedAmount'];
     final finalAmount = medication['finalAmount'];
@@ -69,6 +80,25 @@ class AdminBookingMedicationFees extends StatelessWidget {
             if (finalized && finalAmount is num) _amount('最終用藥費', finalAmount),
             if (finalized && finalAmount is num && advance > 0)
               _amount('用藥差額（併入整筆結算）', finalAmount - advance),
+            if (pending.isNotEmpty) ...[
+              const Divider(height: 24),
+              Text('待補登用藥 · ${pending.length} 筆', style: Theme.of(context).textTheme.titleSmall),
+              for (final task in pending)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text([task.pet, task.types].where((part) => part.isNotEmpty).join(' · ')),
+                  subtitle: Text('${BookingMedicationTask.dateKey(BookingMedicationTask.taipei(task.scheduledAt))}  ${BookingMedicationTask.timeLabel(task.scheduledAt)}'),
+                  trailing: const Icon(Icons.edit_note),
+                  onTap: () => Navigator.of(context).push<void>(MaterialPageRoute(
+                    builder: (_) => MedicationTaskPage(
+                      shopId: shopId,
+                      bookingId: bookingId,
+                      taskId: task.id,
+                      scheduledAt: task.scheduledAt.toIso8601String(),
+                    ),
+                  )),
+                ),
+            ],
             const SizedBox(height: 8),
             Text(
               inactive

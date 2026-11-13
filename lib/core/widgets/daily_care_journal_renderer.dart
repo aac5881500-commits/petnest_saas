@@ -903,7 +903,10 @@ class DailyCareJournalRenderer extends StatelessWidget {
         final bool canHalf =
             maxW >= DailyCareJournalThemeTokens.minHalfPairWidth &&
             halfW >= 148;
-        final List<Widget> rows = <Widget>[];
+        final List<Widget> rows = <Widget>[
+          for (final report in record.petReports.values.whereType<Map>())
+            _publishedPetReport(context, report),
+        ];
         if (envCard != null && toiletCard != null) {
           rows.add(
             IntrinsicHeight(
@@ -959,6 +962,34 @@ class DailyCareJournalRenderer extends StatelessWidget {
         }
         return Column(children: rows);
       },
+    );
+  }
+
+  Widget _publishedPetReport(BuildContext context, Map report) {
+    const labels = {
+      'appetite': '飲食',
+      'stool': '排便',
+      'urine': '排尿',
+      'mood': '精神',
+      'note': '照護備註',
+    };
+    final values = report['values'];
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 8,
+          children: [
+            Text('${report['name'] ?? '貓咪'}', style: Theme.of(context).textTheme.titleMedium),
+            if (values is Map)
+              for (final label in labels.entries)
+                if (values[label.key] is String && (values[label.key] as String).isNotEmpty)
+                  Text('${label.value}　${values[label.key]}'),
+          ],
+        ),
+      ),
     );
   }
 

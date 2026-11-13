@@ -136,19 +136,19 @@ void main() {
   testWidgets('待店家確認有可用入口，能打開藥品編輯而不是執行結果', (tester) async {
     await tester.pumpWidget(panel(fixture('pending_shop')));
     await tester.pumpAndSettle();
-    expect(find.text('核對藥品與安排'), findsOneWidget);
-    expect(find.textContaining('補齊藥名'), findsOneWidget);
+    expect(find.text('查看時程與費用'), findsOneWidget);
+    expect(find.textContaining('交接備註'), findsOneWidget);
     expect(find.byTooltip('記錄結果'), findsNothing);
-    await tester.tap(find.text('核對藥品與安排'));
+    await tester.tap(find.text('查看時程與費用'));
     await tester.pumpAndSettle();
-    expect(find.text('核對用藥安排'), findsOneWidget);
+    expect(find.text('用藥時程與費用'), findsOneWidget);
     expect(find.text('送客人確認'), findsOneWidget);
     await tester.ensureVisible(find.text('調整安排'));
     await tester.tap(find.text('調整安排'));
     await tester.pumpAndSettle();
     expect(find.byType(MedicationRequestEditor), findsOneWidget);
     expect(find.text('新增藥品／保健品'), findsOneWidget);
-    expect(find.text('返回核對'), findsOneWidget);
+    expect(find.text('返回時程'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -163,12 +163,12 @@ void main() {
   testWidgets('唯讀與結算鎖定的帳號不顯示安排操作', (tester) async {
     await tester.pumpWidget(panel(fixture('pending_shop'), canManage: false));
     await tester.pumpAndSettle();
-    expect(find.text('核對藥品與安排'), findsNothing);
+    expect(find.text('查看時程與費用'), findsNothing);
     await tester.pumpWidget(
       panel({...fixture('pending_shop'), 'settlementLocked': true}),
     );
     await tester.pumpAndSettle();
-    expect(find.text('核對藥品與安排'), findsNothing);
+    expect(find.text('查看時程與費用'), findsNothing);
   });
 
   testWidgets('手機時程直接顯示待核對入口，確認後改成填寫結果', (tester) async {
@@ -201,7 +201,7 @@ void main() {
       await tester.pump();
       expect(
         find.text(switch (state) {
-          'pending_shop' => '核對藥品與安排',
+          'pending_shop' => '查看時程與費用',
           'pending_customer' => '查看待確認安排',
           _ => '填寫結果',
         }),

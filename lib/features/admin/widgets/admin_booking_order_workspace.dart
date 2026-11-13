@@ -160,12 +160,27 @@ class AdminBookingOrderWorkspaceState
               if (widget.handoverHasContent) '有交接提醒',
             ],
             hasCareDisplay: schedule != null,
+            workflow: schedule != null,
+            worksheetPrimarySection: schedule?.ended == true
+                ? 2
+                : schedule?.arrived == true ? 1 : 0,
+            worksheetHeader: schedule == null
+                ? null
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _spaced([
+                      ...widget.banners,
+                      widget.overview,
+                      if (schedule.arrived && !schedule.ended && timeline.isNotEmpty)
+                        scheduleView(AdminBookingScheduleView.next, const BookingCareDisplay()),
+                    ]),
+                  ),
             sectionBuilder: (index, experience, display) {
               if (index == 0) {
                 return _overviewLayout(
                   theme,
                   experience,
-                  featured: timeline.isEmpty || schedule!.ended
+                  featured: timeline.isEmpty || schedule!.arrived || schedule.ended
                       ? null
                       : scheduleView(AdminBookingScheduleView.next, display),
                   progress: requests.isEmpty
@@ -185,61 +200,43 @@ class AdminBookingOrderWorkspaceState
                   AdminBookingMedicationFees.hasFeeData(schedule.booking);
               final panels = <int, List<Widget>>{
                 1: [
-                  if (schedule != null &&
-                      schedule.canEdit &&
-                      (medicationOn || schedule.arrived))
-                    Card(
-                      child: ExpansionTile(
-                        key: PageStorageKey('care-note-${schedule.bookingId}'),
-                        leading: const Icon(Icons.edit_note),
-                        title: const Text('用藥與照護速記'),
-                        subtitle: const Text('藥名、每次用量、剩餘數量與交接事項'),
-                        children: [
-                          AdminInternalHandoverCard(
-                            shopId: schedule.shopId,
-                            bookingId: schedule.bookingId,
-                            readOnly: BookingSettlementMath.isSettlementLocked(
-                              schedule.booking,
-                            ),
-                            compact: true,
-                          ),
-                        ],
+                  if (schedule != null)
+                    _BookingCareDesk(
+                      key: ValueKey(schedule.bookingId),
+                      entries: timeline,
+                      pending: requests.isNotEmpty,
+                      timeline: (items) => AdminBookingSchedule(
+                        display: display,
+                        data: schedule,
+                        entries: items,
+                        view: AdminBookingScheduleView.timeline,
+                        onViewFinance: () => select(2),
+                        onViewTimeline: () => select(1),
                       ),
+                      medicine: medicationOn ? widget.content.medicationDetails : null,
+                      note: schedule.canEdit && schedule.shopId.isNotEmpty
+                          ? AdminInternalHandoverCard(
+                              shopId: schedule.shopId,
+                              bookingId: schedule.bookingId,
+                              readOnly: BookingSettlementMath.isSettlementLocked(schedule.booking),
+                              compact: true,
+                            )
+                          : null,
+                      report: schedule.reportsEnabled(shop) ? widget.content.careReport : null,
                     ),
-                  if (medicationOn && widget.content.medicationDetails != null)
-                    Card(
-                      child: ExpansionTile(
-                        key: PageStorageKey(
-                          'care-medicines-${schedule!.bookingId}',
-                        ),
-                        leading: const Icon(Icons.medication_outlined),
-                        title: Text(requests.isEmpty ? '用藥安排與紀錄' : '用藥需求待確認'),
-                        subtitle: requests.isEmpty
-                            ? null
-                            : const Text('查看飼主需求，需要時再送出正式安排'),
-                        children: [widget.content.medicationDetails!],
-                      ),
-                    ),
-                  if (schedule?.reportsEnabled(shop) == true &&
-                      widget.content.careReport != null)
-                    _surface(
-                      theme,
-                      title: '照護回報',
-                      icon: Icons.assignment_outlined,
-                      child: widget.content.careReport!,
-                    ),
-                  if (timeline.isNotEmpty)
-                    scheduleView(AdminBookingScheduleView.timeline, display),
                   ...widget.content.care,
                 ],
                 2: [
+                  if (widget.nextAction != null) widget.nextAction!,
+                  ...widget.finance,
                   if (hasMedicationFees)
                     AdminBookingMedicationFees(
                       booking: schedule.booking,
                       inFinance: true,
+                      canEdit: schedule.canEdit,
+                      shopId: schedule.shopId,
+                      bookingId: schedule.bookingId,
                     ),
-                  if (widget.nextAction != null) widget.nextAction!,
-                  ...widget.finance,
                   ...widget.content.charges,
                 ],
                 3: [...widget.content.details, ...widget.documents],
@@ -266,13 +263,13 @@ class AdminBookingOrderWorkspaceState
     Widget? progress,
   }) {
     final blocks = <String, Widget>{
-      'overview': Column(
+      if (widget.content.schedule == null) 'overview': Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _spaced([?featured, ...widget.banners, widget.overview]),
+        children: _spaced([...widget.banners, widget.overview, if (widget.content.schedule == null) ?featured]),
       ),
       'actions': _surface(
         theme,
-        title: '訂單操作',
+        title: '入住與訂單操作',
         icon: Icons.task_alt,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,6 +291,7 @@ class AdminBookingOrderWorkspaceState
           child: widget.content.pets!,
         ),
       'progress': ?progress,
+      'next': ?featured,
       if (widget.content.carePreview != null && widget.content.schedule == null)
         'care': _surface(
           theme,
@@ -315,7 +313,7 @@ class AdminBookingOrderWorkspaceState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: _spaced(widget.content.summary),
         ),
-      'resources': _surface(
+      if (widget.content.schedule == null) 'resources': _surface(
         theme,
         title: '完整訂單資料',
         icon: Icons.folder_open_outlined,
@@ -343,6 +341,7 @@ class AdminBookingOrderWorkspaceState
       ),
     };
     return AdminBookingOverviewLayout(
+      operations: widget.content.schedule != null,
       layout: switch (experience) {
         BookingDetailExperience.single => BookingOverviewLayout.bands,
         BookingDetailExperience.dual => BookingOverviewLayout.split,
@@ -445,6 +444,147 @@ class AdminBookingOrderWorkspaceState
 }
 
 /// 只沿用金流服務提供的金額，不在 UI 重算帳務。
+enum _CareArea { schedule, medicine, report }
+
+class _BookingCareDesk extends StatefulWidget {
+  const _BookingCareDesk({
+    super.key,
+    required this.entries,
+    required this.pending,
+    required this.timeline,
+    this.medicine,
+    this.note,
+    this.report,
+  });
+
+  final List<BookingScheduleEntry> entries;
+  final bool pending;
+  final Widget Function(List<BookingScheduleEntry>) timeline;
+  final Widget? medicine, note, report;
+
+  @override
+  State<_BookingCareDesk> createState() => _BookingCareDeskState();
+}
+
+class _BookingCareDeskState extends State<_BookingCareDesk> {
+  _CareArea _area = _CareArea.schedule;
+  final _visited = <_CareArea>{_CareArea.schedule};
+  String? _day;
+  bool _allDays = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = widget.entries.map((entry) => entry.day).toSet().toList()..sort();
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final today = now.toIso8601String().substring(0, 10);
+    final defaultDay = days.firstWhere((day) => day.compareTo(today) >= 0,
+        orElse: () => days.lastOrNull ?? '');
+    final day = days.contains(_day) ? _day : defaultDay;
+    final entries = _allDays ? widget.entries : widget.entries.where((entry) => entry.day == day).toList();
+    final colors = Theme.of(context).colorScheme;
+    final areas = {
+      _CareArea.schedule: ('照護時程', Icons.event_note_outlined),
+      if (widget.medicine != null || widget.note != null)
+        _CareArea.medicine: ('用藥', Icons.medication_outlined),
+      if (widget.report != null)
+        _CareArea.report: ('回報', Icons.assignment_outlined),
+    };
+    final active = areas.containsKey(_area) ? _area : _CareArea.schedule;
+
+    Widget areaBody(_CareArea area) => switch (area) {
+      _CareArea.schedule => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 10,
+        children: [
+          if (days.length > 1)
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                ChoiceChip(
+                  label: const Text('全部日期'),
+                  selected: _allDays,
+                  onSelected: (_) => setState(() => _allDays = true),
+                ),
+                for (final date in days)
+                  ChoiceChip(
+                    label: Text(date == today ? '今天' : date.substring(5).replaceAll('-', '/')),
+                    selected: !_allDays && date == day,
+                    onSelected: (_) => setState(() { _day = date; _allDays = false; }),
+                  ),
+              ],
+            ),
+          if (entries.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('目前沒有已安排的照護時程。'),
+            )
+          else
+            widget.timeline(entries),
+        ],
+      ),
+      _CareArea.medicine => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
+        children: [
+          if (widget.note != null) widget.note!,
+          if (widget.medicine != null) widget.medicine!,
+        ],
+      ),
+      _CareArea.report => widget.report ?? const SizedBox.shrink(),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                Text('入住照護', style: Theme.of(context).textTheme.titleLarge),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    for (final item in areas.entries)
+                      ChoiceChip(
+                        avatar: Icon(item.value.$2, size: 17),
+                        label: Text(item.value.$1),
+                        selected: active == item.key,
+                        onSelected: (_) => setState(() { _area = item.key; _visited.add(item.key); }),
+                      ),
+                  ],
+                ),
+                if (widget.pending && active == _CareArea.schedule)
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      _area = _CareArea.medicine;
+                      _visited.add(_area);
+                    }),
+                    icon: Icon(Icons.info_outline, color: colors.primary, size: 18),
+                    label: const Text('有用藥需求待確認'),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        for (final area in areas.keys)
+          if (_visited.contains(area))
+            Offstage(
+              key: ValueKey(area),
+              offstage: area != active,
+              child: TickerMode(enabled: area == active, child: areaBody(area)),
+            ),
+      ],
+    );
+  }
+}
+
 class AdminBookingWorkspaceBalance extends StatelessWidget {
   const AdminBookingWorkspaceBalance({super.key, required this.data});
   final Map<String, dynamic> data;

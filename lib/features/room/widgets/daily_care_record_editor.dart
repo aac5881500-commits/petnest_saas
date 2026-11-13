@@ -28,6 +28,7 @@ import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
 import '../../../core/widgets/daily_care_medication_summary.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
+import 'daily_care_pet_reports.dart';
 
 class DailyCareRecordEditor extends StatefulWidget {
   const DailyCareRecordEditor({
@@ -89,6 +90,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
   bool _loading = true;
   bool _saving = false;
   bool _locked = false;
+  bool _hasMultiplePets = false;
   DailyCareSettingModel _setting = const DailyCareSettingModel();
 
   bool _uploadingPhoto = false;
@@ -171,6 +173,11 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
               .collection('bookings')
               .doc(widget.bookingId)
               .get();
+      final booking = bookingSnap.data();
+      final pets = booking?['pets'];
+      final ids = booking?['petIds'];
+      _hasMultiplePets = (pets is List && pets.length > 1) ||
+          (ids is List && ids.length > 1) || widget.petIds.length > 1;
       _locked =
           widget.readOnly ||
           !DailyCareReportWriteAccess.canWrite(bookingSnap.data());
@@ -614,6 +621,16 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
             padding: widget.padding,
             children: <Widget>[
               if (widget.showHeaderCard) _headerCard(dateText),
+              if (_hasMultiplePets)
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.pets_outlined),
+                    title: const Text('逐貓照護回報'),
+                    subtitle: const Text('各自儲存草稿、發送給飼主'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _openPetReports,
+                  ),
+                ),
               StaffDailyCareMedicationSummary(
                 key: ValueKey(widget.bookingId),
                 bookingId: widget.bookingId,
@@ -856,6 +873,46 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
             ),
           ),
       ],
+    );
+  }
+
+  Future<void> _openPetReports() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 660, maxHeight: 680),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('逐貓照護回報'),
+                trailing: IconButton(
+                  tooltip: '關閉',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              Flexible(
+                child: DailyCarePetReports(
+                  readOnly: _locked,
+                  request: (action) => DailyCarePhotoFunctionService.instance.managePetReport(
+                    shopId: widget.shopId,
+                    bookingId: widget.bookingId,
+                    roomId: widget.roomId,
+                    roomName: widget.roomName,
+                    recordDate: widget.recordDate,
+                    sessionIndex: widget.sessionIndex,
+                    sessionName: widget.sessionName,
+                    action: action,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

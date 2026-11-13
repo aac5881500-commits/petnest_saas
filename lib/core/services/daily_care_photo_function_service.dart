@@ -87,6 +87,26 @@ class DailyCarePhotoFunctionService {
   }
 
   /// 確認完成：由後端寫入完整回報，客戶端不再直接寫 daily_care_records。
+  Future<Map<String, dynamic>> managePetReport({
+    required String shopId,
+    required String bookingId,
+    required String roomId,
+    required String roomName,
+    required DateTime recordDate,
+    required int sessionIndex,
+    required String sessionName,
+    required Map<String, dynamic> action,
+  }) => _call('manageDailyCarePetReport', {
+    ...action,
+    'shopId': shopId,
+    'bookingId': bookingId,
+    'roomId': roomId,
+    'roomName': roomName,
+    'recordDate': recordDate.toIso8601String(),
+    'sessionIndex': sessionIndex,
+    'sessionName': sessionName,
+  });
+
   Future<Map<String, dynamic>> completeDailyCareReport({
     required String shopId,
     required String bookingId,

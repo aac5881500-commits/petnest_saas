@@ -5,12 +5,27 @@ import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 import 'package:petnest_saas/features/room/widgets/workbench_views.dart';
 import 'operations_workbench_data.dart';
+import 'package:petnest_saas/core/models/booking_medication_task.dart';
+import 'package:petnest_saas/core/models/booking_service_task.dart';
+import 'package:petnest_saas/features/medication/medication_task_page.dart';
+import 'package:petnest_saas/features/medication/service_task_page.dart';
 
 const opsInk = Color(0xFF17213E);
 const opsMuted = Color(0xFF778198);
 const opsBlue = Color(0xFF2864E8);
 const opsLine = Color(0xFFE5EAF3);
 const opsBackground = Color(0xFFF5F7FB);
+
+typedef _ShiftEntry = ({
+  String time,
+  String title,
+  String context,
+  String action,
+  IconData icon,
+  bool attention,
+  bool complete,
+  VoidCallback run,
+});
 
 class OperationsSurface extends StatelessWidget {
   const OperationsSurface({
@@ -158,8 +173,20 @@ class OperationsWorkbench extends StatefulWidget {
     required this.onReports,
     this.onCamera,
     this.busy = false,
+    this.shift = false,
+    this.shopId = '',
+    this.canManageOrder,
+    this.onOrderDeparture,
+    this.onRoomView,
+    this.onTaskPage,
   });
   final WorkbenchView view;
+  final bool shift;
+  final String shopId;
+  final bool Function(Map<String, dynamic>)? canManageOrder;
+  final ValueChanged<RoomDayBookingChoice>? onOrderDeparture;
+  final VoidCallback? onRoomView;
+  final ValueChanged<WidgetBuilder>? onTaskPage;
   final OperationsWorkbenchData data;
   final String selectedRoomId;
   final ValueChanged<String> onSelectRoom;
@@ -1820,8 +1847,256 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
     });
   }
 
+  void _openTaskPage(WidgetBuilder builder) {
+    if (widget.onTaskPage case final open?) {
+      open(builder);
+    } else {
+      Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
+    }
+  }
+
+  List<_ShiftEntry> _shiftEntries() {
+    final entries = <_ShiftEntry>[
+      for (final task in data.tasks)
+        (
+          time: task.time,
+          title: task.title,
+          context: [task.roomName, task.pets].where((part) => part.isNotEmpty).join(' · '),
+          action: task.action,
+          icon: switch (task.group) {
+            OperationsTaskGroup.arrivals => Icons.swap_horiz,
+            OperationsTaskGroup.housekeeping => Icons.cleaning_services_outlined,
+            OperationsTaskGroup.care => Icons.assignment_outlined,
+          },
+          attention: task.group == OperationsTaskGroup.housekeeping,
+          complete: task.state == OperationsTaskState.completed ||
+              (task.group == OperationsTaskGroup.arrivals &&
+                  task.state == OperationsTaskState.active),
+          run: () {
+            if (task.booking != null && task.order == 1 && widget.onOrderDeparture != null) {
+              widget.onOrderDeparture!(task.booking!);
+            } else {
+              _runTask(task);
+            }
+          },
+        ),
+    ];
+    final day = opsDateKey(data.date);
+    final now = DateTime.now();
+    for (final order in data.bookings) {
+      if (widget.canManageOrder?.call(order.data) != true) continue;
+      final room = '${order.data['roomName'] ?? '待分房'}';
+      final rawMedication = order.data['medication'];
+      final legacy = order.data['medicationRequest'];
+      final review = rawMedication is Map
+          ? rawMedication['state']
+          : legacy is Map && legacy.isNotEmpty ? 'pending_shop' : null;
+      if (data.isToday &&
+          review == 'pending_shop' &&
+          const {'pending', 'confirmed', 'checked_in'}.contains(order.data['status'])) {
+        entries.add((
+          time: '—',
+          title: '用藥安排待確認',
+          context: '$room · ${opsPets(order.data)}',
+          action: '查看用藥交接',
+          icon: Icons.medication_outlined,
+          attention: true,
+          complete: false,
+          run: () => _openTaskPage((_) => MedicationTaskPage.arrangement(
+            shopId: widget.shopId,
+            bookingId: order.id,
+          )),
+        ));
+      }
+      for (final task in BookingMedicationTask.fromBooking(order.data)) {
+        if (BookingMedicationTask.dateKey(BookingMedicationTask.taipei(task.scheduledAt)) != day) continue;
+        if (!task.pending && !task.finished) continue;
+        entries.add((
+          time: BookingMedicationTask.timeLabel(task.scheduledAt),
+          title: task.types.isEmpty ? '用藥' : task.types,
+          context: '$room · ${task.pet}',
+          action: task.pending ? '登記用藥' : '查看紀錄',
+          icon: Icons.medication_outlined,
+          attention: task.pending && !task.scheduledAt.isAfter(now),
+          complete: !task.pending,
+          run: () {
+            if (!task.pending || !BookingMedicationTask.canRecord(order.data)) {
+              (widget.onOrderCare ?? widget.onOrder)(order);
+              return;
+            }
+            _openTaskPage((_) => MedicationTaskPage(
+                shopId: widget.shopId,
+                bookingId: order.id,
+                taskId: task.id,
+                scheduledAt: task.scheduledAt.toIso8601String(),
+            ));
+          },
+        ));
+      }
+      for (final task in BookingServiceTask.fromBooking(order.data)) {
+        if (task.day != day) continue;
+        entries.add((
+          time: BookingMedicationTask.timeLabel(task.scheduledAt),
+          title: task.title,
+          context: '$room · ${task.pet}',
+          action: task.pending ? '登記照護' : '查看紀錄',
+          icon: Icons.pets_outlined,
+          attention: task.pending && !task.scheduledAt.isAfter(now),
+          complete: !task.pending,
+          run: () {
+            if (!task.pending || !BookingServiceTask.canRecord(order.data)) {
+              (widget.onOrderCare ?? widget.onOrder)(order);
+              return;
+            }
+            _openTaskPage((_) => ServiceTaskPage(
+                shopId: widget.shopId,
+                bookingId: order.id,
+                taskId: task.id,
+                scheduledAt: task.scheduledAt.toIso8601String(),
+            ));
+          },
+        ));
+      }
+    }
+    entries.sort((a, b) => a.time.compareTo(b.time));
+    return entries;
+  }
+
+  Widget _shift() => LayoutBuilder(
+    builder: (context, bounds) {
+      final wide = bounds.maxWidth >= 900;
+      final entries = _shiftEntries();
+      final colors = Theme.of(context).colorScheme;
+      Widget group(String title, bool Function(bool, bool) include, {bool collapsed = false}) {
+        final items = entries.where((entry) => include(entry.attention, entry.complete)).toList();
+        if (items.isEmpty) return const SizedBox.shrink();
+        final rows = [
+          for (final entry in items)
+            ListTile(
+              leading: SizedBox(
+                width: 48,
+                child: Text(entry.time, style: const TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              title: Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(entry.context),
+              trailing: bounds.maxWidth < 680
+                  ? Tooltip(message: entry.action, child: Icon(entry.icon, size: 20))
+                  : TextButton.icon(
+                      onPressed: widget.busy ? null : entry.run,
+                      icon: Icon(entry.icon, size: 17),
+                      label: Text(entry.action),
+                    ),
+              onTap: widget.busy ? null : entry.run,
+              titleAlignment: ListTileTitleAlignment.center,
+            ),
+        ];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: collapsed
+              ? ExpansionTile(title: Text('$title · ${items.length}'), children: rows)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                      child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    ),
+                    for (var i = 0; i < rows.length; i++) ...[
+                      if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+                      rows[i],
+                    ],
+                  ],
+                ),
+        );
+      }
+
+      final rooms = Card(
+        margin: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              title: const Text('房況', style: TextStyle(fontWeight: FontWeight.w800)),
+              trailing: TextButton(onPressed: widget.onRoomView, child: const Text('查看房況')),
+            ),
+            for (final room in data.rooms)
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.meeting_room_outlined, color: data.day(room, data.date).status.color),
+                title: Text(room.name),
+                trailing: Text(data.day(room, data.date).status.presentation.label),
+                onTap: () {
+                  widget.onSelectRoom(room.id);
+                  _showRoom(room);
+                },
+              ),
+          ],
+        ),
+      );
+      final queue = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          group('需要處理', (attention, complete) => attention && !complete),
+          group('今日行程', (attention, complete) => !attention && !complete),
+          if (!entries.any((entry) => !entry.complete))
+            const Card(child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('這一天沒有待處理的行程'),
+            )),
+          group('已完成', (_, complete) => complete, collapsed: true),
+        ],
+      );
+
+      return ColoredBox(
+        color: opsBackground,
+        child: ListView(
+          padding: EdgeInsets.all(wide ? 22 : 12),
+          children: [
+            Container(
+              padding: EdgeInsets.all(wide ? 24 : 16),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 8,
+                children: [
+                  Text(data.isToday ? '今日營運' : '營運行程',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800, color: colors.onPrimaryContainer)),
+                  OutlinedButton.icon(
+                    onPressed: widget.busy ? null : _pickDate,
+                    icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                    label: Text('${data.date.year}/${opsShortDate(data.date)}'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 18,
+                children: [
+                  Expanded(flex: 2, child: queue),
+                  Expanded(child: rooms),
+                ],
+              )
+            else ...[
+              queue,
+              const SizedBox(height: 10),
+              rooms,
+            ],
+          ],
+        ),
+      );
+    },
+  );
+
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
+  Widget build(BuildContext context) => widget.shift ? _shift() : LayoutBuilder(
     builder: (context, box) {
       final wide = box.maxWidth >= 1150;
       final medium = box.maxWidth >= 800;
@@ -1832,11 +2107,18 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(flex: 25, child: _roomList(narrow: false)),
-                  const SizedBox(width: 14),
-                  Expanded(flex: 36, child: _monthCalendar(room)),
-                  const SizedBox(width: 14),
-                  Expanded(flex: 39, child: _roomDetails(room)),
+                  SizedBox(width: 286, child: _roomList(narrow: false)),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(flex: 5, child: _monthCalendar(room)),
+                        const SizedBox(width: 14),
+                        Expanded(flex: 4, child: _roomDetails(room)),
+                      ],
+                    ),
+                  ),
                 ],
               )
             : medium
@@ -1886,10 +2168,6 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
           padding: EdgeInsets.all(wide ? 18 : 10),
           child: Column(
             children: [
-              if (box.maxHeight >= 620) ...[
-                _statsRow(),
-                const SizedBox(height: 14),
-              ],
               // On a short mobile viewport keep controls reachable without consuming
               // the work area: filters remain available in a scrollable toolbar.
               SizedBox(
@@ -1906,7 +2184,12 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
                         ),
                       ),
               ),
-              const SizedBox(height: 14), Expanded(child: body),
+              const SizedBox(height: 12),
+              if (box.maxHeight >= 620) ...[
+                _statsRow(),
+                const SizedBox(height: 14),
+              ],
+              Expanded(child: body),
             ],
           ),
         ),

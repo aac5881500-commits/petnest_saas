@@ -655,7 +655,7 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
         : _canReviewMedication(entry)
         ? OutlinedButton(
             onPressed: _reviewMedication,
-            child: Text(entry.requestStatus == '待飼主確認' ? '查看待確認安排' : '核對藥品與安排'),
+            child: Text(entry.requestStatus == '待飼主確認' ? '查看待確認安排' : '查看時程與費用'),
           )
         : featured && widget.onViewTimeline != null
         ? OutlinedButton(

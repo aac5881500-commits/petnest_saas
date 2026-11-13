@@ -7,6 +7,7 @@ const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {
   getShopMember,
+  hasShopPermission,
   isRootAdmin,
   normalizeString,
   toInt,
@@ -233,6 +234,11 @@ exports.completeDailyCareReport = onCall(
       await admin.firestore().runTransaction(async (tx) => {
         const existing = await tx.get(ref);
         const previous = existing.exists ? (existing.data() || {}) : {};
+        const draftRecord = (await tx.get(ref.collection("staff_only").doc("pet_drafts"))).data();
+        if (Object.keys(previous.petReports || {}).length ||
+            Object.keys(draftRecord?.drafts || {}).length) {
+          throwHttp("failed-precondition", "這場已開始逐貓回報，請從個別貓咪送出");
+        }
         const payload = {
           shopId,
           bookingId: bookingSnap.id,
@@ -270,5 +276,134 @@ exports.completeDailyCareReport = onCall(
         photoCount,
         reportStatus: "completed",
       };
+    },
+);
+
+/**
+ * Private drafts live under the session record, outside the customer-readable
+ * document. Only the published fields for one pet are copied to that document.
+ */
+exports.manageDailyCarePetReport = onCall(
+    {region: "asia-east1"},
+    async (request) => {
+      if (!request.auth) throwHttp("unauthenticated", "請先登入");
+      const input = request.data || {};
+      const shopId = normalizeString(input.shopId);
+      const bookingId = normalizeString(input.bookingId);
+      const mode = normalizeString(input.mode);
+      const dateKey = compactDateKey(input.recordDate);
+      const sessionIndex = toInt(input.sessionIndex, -1);
+      if (!shopId || !bookingId || !/^\d{8}$/.test(dateKey) ||
+          sessionIndex < 0 || !["read", "draft", "publish"].includes(mode)) {
+        throwHttp("invalid-argument", "照護回報資料不完整");
+      }
+      const roomId = normalizeString(input.roomId);
+      const serviceDate =
+        dateKey.slice(0, 4) + "-" + dateKey.slice(4, 6) + "-" + dateKey.slice(6);
+      const db = admin.firestore();
+      await assertStaff(shopId, request.auth.uid);
+      if (!await hasShopPermission(shopId, request.auth.uid, "manage_room_dashboard")) {
+        throwHttp("permission-denied", "沒有這家店的照護權限");
+      }
+      const bookingRef = db.collection("bookings").doc(bookingId);
+      const ref = db.collection("daily_care_records").doc(
+          expectedDailyCareRecordId(bookingId, dateKey, sessionIndex),
+      );
+      const privateRef = ref.collection("staff_only").doc("pet_drafts");
+      const petId = normalizeString(input.petId);
+      const fields = ["appetite", "stool", "urine", "mood", "note"];
+      const values = Object.fromEntries(fields.flatMap((key) => {
+        const value = input.values && input.values[key];
+        return typeof value === "string" && value.trim() ?
+          [[key, value.trim().slice(0, key === "note" ? 1000 : 80)]] : [];
+      }));
+
+      return db.runTransaction(async (tx) => {
+        const booking = (await tx.get(bookingRef)).data();
+        if (!booking || normalizeString(booking.shopId) !== shopId) {
+          throwHttp("permission-denied", "訂單不屬於這家店");
+        }
+        const pets = new Map();
+        for (const id of Array.isArray(booking.petIds) ? booking.petIds : []) {
+          const key = normalizeString(id);
+          if (key) pets.set(key, "");
+        }
+        for (const pet of Array.isArray(booking.pets) ? booking.pets : []) {
+          if (!pet) continue;
+          const key = normalizeString(pet.petId || pet.id);
+          if (key) pets.set(key, normalizeString(pet.name || pet.petName));
+        }
+        if (!pets.size) {
+          throwHttp("failed-precondition", "訂單沒有可識別的貓咪資料");
+        }
+        const record = (await tx.get(ref)).data() || {};
+        const privateData = (await tx.get(privateRef)).data() || {};
+        const drafts = privateData.drafts || {};
+        const published = record.petReports || {};
+        const sharedCompleted = record.reportStatus === "completed" &&
+          !Object.keys(published).length;
+        const decision = validateDailyCareSession(booking, {
+          shopId, roomId, sessionIndex, recordDate: serviceDate,
+        });
+        const writable = canWriteBooking(booking) && decision.ok && !sharedCompleted;
+        if (mode === "read") {
+          return {
+            pets: [...pets].map(([id, name]) => ({id, name})),
+            drafts, published, writable, sharedCompleted,
+          };
+        }
+        if (!writable) {
+          throwHttp("failed-precondition", sharedCompleted ?
+            "本場已發送整房回報" : decision.message || "目前無法編輯這場照護回報");
+        }
+        if (!pets.has(petId)) {
+          throwHttp("invalid-argument", "這隻貓不在此訂單內");
+        }
+        if (Object.hasOwn(published, petId)) {
+          if (mode === "publish") return {published: true};
+          throwHttp("failed-precondition", "這隻貓的回報已發送");
+        }
+        const revision = toInt(drafts[petId]?.revision, 0);
+        if (revision !== toInt(input.revision, -1)) {
+          throwHttp("aborted", "回報草稿已由其他人更新，請重新載入");
+        }
+        if (mode === "draft") {
+          tx.set(privateRef, {drafts: {...drafts, [petId]: {
+            values, revision: revision + 1,
+          }}});
+          return {revision: revision + 1};
+        }
+        if (!Object.keys(values).length) {
+          throwHttp("failed-precondition", "請先填寫這隻貓的照護內容");
+        }
+        const petReports = {...published, [petId]: {
+          name: pets.get(petId) || "貓咪",
+          values,
+          publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }};
+        const allPublished = [...pets.keys()].every((id) =>
+          Object.hasOwn(petReports, id));
+        const remaining = {...drafts};
+        delete remaining[petId];
+        tx.set(privateRef, {drafts: remaining});
+        tx.set(ref, {
+          shopId, bookingId, roomId,
+          roomName: normalizeString(input.roomName),
+          recordDate: admin.firestore.Timestamp.fromDate(
+              new Date(serviceDate + "T00:00:00+08:00"),
+          ),
+          serviceDate, sessionIndex, recordIndex: sessionIndex,
+          sessionName: normalizeString(input.sessionName),
+          serviceType: isDaycare(booking) ? "daycare" : "accommodation",
+          petIds: [...pets.keys()],
+          petReports,
+          reportStatus: allPublished ? "completed" : "partial",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(allPublished ? {
+            completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          } : {}),
+        }, {merge: true});
+        return {published: true};
+      });
     },
 );

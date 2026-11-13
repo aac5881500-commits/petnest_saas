@@ -66,10 +66,12 @@ class AdminBookingDetailPage extends StatelessWidget {
     required this.bookingId,
     this.canEdit = true,
     this.initialSection = 0,
+    this.onClose,
   });
 
   final String bookingId;
   final int initialSection;
+  final VoidCallback? onClose;
 
   /// 是否可操作訂單
   /// true：訂單管理進來，可確認 / 取消 / 入住 / 退房
@@ -277,6 +279,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 : bookingId)
                           : bookingCode,
                       operationsShopId: shopId,
+                      onClose: onClose,
                       splitPhoneActions: true,
                       banners: <Widget>[
                         if (data['source'] == 'admin' &&
