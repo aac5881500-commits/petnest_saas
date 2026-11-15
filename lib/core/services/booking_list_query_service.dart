@@ -42,6 +42,7 @@ class BookingListQueryService {
     'todayCheckIn',
     'todayCheckOut',
     'futureCheckIn',
+    'awaitingClear',
     'settled',
     'cancelled',
   ];
@@ -250,6 +251,8 @@ class BookingListQueryService {
     required String filter,
   }) {
     switch (filter) {
+      case 'awaitingClear':
+        return const <String>['checked_out'];
       case 'settled':
         return const <String>['completed'];
       case 'cancelled':
@@ -286,6 +289,7 @@ class BookingListQueryService {
 
   bool _isLiveFilter(String filter) {
     return filter == 'active' ||
+        filter == 'awaitingClear' ||
         filter == 'pending' ||
         filter == 'depositReview' ||
         filter == 'confirmed' ||
@@ -311,6 +315,10 @@ class BookingListQueryService {
       case 'active':
         return base
             .where('status', whereIn: activeStatuses)
+            .orderBy('createdAt', descending: true);
+      case 'awaitingClear':
+        return base
+            .where('status', isEqualTo: 'checked_out')
             .orderBy('createdAt', descending: true);
       case 'settled':
         return base
@@ -408,6 +416,9 @@ class BookingListQueryService {
     }
     if (!BookingKind.isAccommodation(data)) {
       return false;
+    }
+    if (filter == 'awaitingClear') {
+      return data['status'] == 'checked_out';
     }
     if (filter == 'awaitingRoom') {
       return (data['status'] ?? '').toString() == 'confirmed' &&

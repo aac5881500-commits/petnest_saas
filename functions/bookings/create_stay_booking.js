@@ -158,7 +158,7 @@ async function assertPhysicalRoomFree(transaction, firestore, params) {
   const bookingsSnap = await transaction.get(
       firestore.collection("bookings")
           .where("shopId", "==", shopId)
-          .where("status", "in", ["pending", "confirmed", "checked_in"]),
+          .where("status", "in", ["pending", "pending_confirmation", "unpaid", "confirmed", "checked_in"]),
   );
   const occupanciesSnap = await transaction.get(
       firestore.collection("shops").doc(shopId)
@@ -482,6 +482,10 @@ exports.createStayBooking = onCall(
           const stayAutoCleaning = newStayAutoCleaningSnapshot(
               shopInTx.data() || {},
           );
+          const roomTypeSnap = await transaction.get(
+              firestore.collection("shops").doc(shopId)
+                  .collection("room_types").doc(roomTypeId),
+          );
           const states = await loadStayRoomTypeHoldStates(
               transaction, firestore, {
                 shopId,
@@ -490,6 +494,8 @@ exports.createStayBooking = onCall(
                 endDate,
                 bookingId: bookingRef.id,
                 autoCleaning: stayAutoCleaning,
+                petCount: booking.pets.length,
+                roomTypeCapacity: toInt((roomTypeSnap.data() || {}).capacity, 0),
               },
           );
           const payableAfterCoupon = stayPayableAfterCoupon;
@@ -677,31 +683,54 @@ exports.manageStayInventory = onCall(
       const startDate = toDate(booking.startDate);
       const endDate = toDate(booking.endDate);
       try {
-        if (action === "release") {
-          await firestore.runTransaction(async (transaction) => {
-            await transaction.get(bookingRef);
-            await releaseStayRoomTypeHoldsInTransaction(
-                transaction, firestore, booking,
-            );
-          });
-          return {ok: true, action};
-        }
-        if (action === "releaseCalendar") {
+        if (["cancel", "release", "releaseCalendar"].includes(action)) {
           await firestore.runTransaction(async (transaction) => {
             const live = await transaction.get(bookingRef);
             const liveData = live.data() || {};
-            const assignedRoomId = normalizeString(liveData.roomId);
-            if (!assignedRoomId) {
-              return;
+            if (!live.exists || normalizeString(liveData.shopId) !== shopId ||
+                (!isStaff && normalizeString(liveData.userId) !== uid)) {
+              throw new HttpsError("permission-denied", "沒有權限操作此訂單");
             }
-            const reads = await readCalendarDocs(
-                transaction,
-                firestore,
-                shopId,
-                assignedRoomId,
-                stayReleaseDateKeys(liveData.startDate, liveData.endDate),
-            );
+            const status = normalizeString(liveData.status);
+            const cancelled = status === "cancelled";
+            const cancel = action === "cancel";
+            const releaseAfterCheckout = action === "release" && isStaff &&
+              ["checked_out", "completed"].includes(status);
+            const adminCancel = cancel && data.cancelBy === "admin" && isStaff;
+            if (cancel && !cancelled) {
+              const allowedStatuses = adminCancel ?
+                ["pending", "pending_confirmation", "unpaid", "confirmed"] :
+                ["pending", "unpaid"];
+              if ((!adminCancel && (normalizeString(liveData.userId) !== uid ||
+                  !["customer", "system"].includes(data.cancelBy))) ||
+                  !allowedStatuses.includes(status)) {
+                throw new HttpsError("failed-precondition", "此訂單目前無法取消");
+              }
+            } else if (!cancelled && !releaseAfterCheckout) {
+              throw new HttpsError("failed-precondition", "此訂單仍須保留房間");
+            }
+            const roomId = normalizeString(liveData.roomId);
+            const reads = action !== "release" && roomId ?
+              await readCalendarDocs(
+                  transaction, firestore, shopId, roomId,
+                  stayReleaseDateKeys(liveData.startDate, liveData.endDate),
+              ) : [];
+            if (action !== "releaseCalendar") {
+              await releaseStayRoomTypeHoldsInTransaction(
+                  transaction, firestore, {...liveData, id: bookingId},
+              );
+            }
             deleteOwnedCalendarDocs(transaction, reads, bookingId);
+            if (cancel && !cancelled) {
+              const now = admin.firestore.FieldValue.serverTimestamp();
+              transaction.update(bookingRef, {
+                status: "cancelled",
+                cancelReason: normalizeString(data.reason),
+                cancelBy: data.cancelBy,
+                cancelledAt: now,
+                updatedAt: now,
+              });
+            }
           });
           return {ok: true, action};
         }
@@ -732,6 +761,11 @@ exports.manageStayInventory = onCall(
           await firestore.runTransaction(async (transaction) => {
             const live = await transaction.get(bookingRef);
             const liveData = live.data() || {};
+            if (!live.exists || normalizeString(liveData.shopId) !== shopId ||
+                !["pending", "pending_confirmation", "unpaid", "confirmed",
+                  "checked_in"].includes(normalizeString(liveData.status))) {
+              throw new HttpsError("failed-precondition", "此訂單目前無法分房");
+            }
             const oldRoomId = normalizeString(liveData.roomId);
             const oldReads = oldRoomId ?
               await readCalendarDocs(
@@ -841,6 +875,11 @@ exports.manageStayInventory = onCall(
           await firestore.runTransaction(async (transaction) => {
             const live = await transaction.get(bookingRef);
             const liveData = live.data() || {};
+            if (!live.exists || normalizeString(liveData.shopId) !== shopId ||
+                !["pending", "pending_confirmation", "unpaid", "confirmed",
+                  "checked_in"].includes(normalizeString(liveData.status))) {
+              throw new HttpsError("failed-precondition", "此訂單目前無法調整房間或日期");
+            }
             const medication = liveData.medication;
             if (action === "changeDates" && medication &&
                 !["declined", "cancelled"].includes(medication.state)) {

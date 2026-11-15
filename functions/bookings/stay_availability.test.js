@@ -82,6 +82,29 @@ function collectKeys(value, found) {
 }
 
 describe("stay availability", () => {
+  it("rejects split availability when no physical room spans the stay", () => {
+    const result = project({
+      rooms: rooms.slice(0, 2),
+      calendarEntries: [
+        {roomId: "r1", date: "2026-10-01", status: "maintenance"},
+        {roomId: "r2", date: "2026-10-02", status: "closed"},
+      ],
+    });
+    assert.equal(result.dates.find((row) => row.date === "2026-10-01").remaining, 1);
+    assert.equal(result.dates.find((row) => row.date === "2026-10-02").remaining, 1);
+    assert.equal(result.roomTypes[0].available, false);
+  });
+
+  it("counts legacy unconfirmed bookings and releases cancelled capacity", () => {
+    for (const status of ["pending", "pending_confirmation", "unpaid", "cancelled"]) {
+      const result = project({
+        rooms: rooms.slice(0, 1),
+        bookings: assignedStays(["r1"], status),
+      });
+      assert.equal(result.roomTypes[0].available, status === "cancelled");
+    }
+  });
+
   it("TEST 11 five rooms and none occupied", () => {
     const day = project({}).dates.find((row) => row.date === "2026-10-01");
     assert.equal(day.total, 5);

@@ -119,9 +119,14 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
             AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
           ) {
             if (snapshot.hasError) {
-              return const Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('無法讀取店內備註。請確認權限或重新開啟訂單。'),
+              final error = snapshot.error;
+              return Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  error is FirebaseException && error.code == 'permission-denied'
+                      ? '目前無法存取店內備註。若店主也看不到，請確認店內交接的權限設定已上線。'
+                      : '暫時無法載入店內備註，請重新開啟訂單再試。',
+                ),
               );
             }
             if (snapshot.connectionState == ConnectionState.waiting &&

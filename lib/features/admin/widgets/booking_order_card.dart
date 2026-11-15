@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
@@ -91,14 +92,80 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
     if (widget.compact) {
       final colors = Theme.of(context).colorScheme;
-      final room = daycare ? '安親' : isUnassigned ? '待分房' : roomName;
+      final pending = const {
+        'pending',
+        'pending_confirmation',
+        'unpaid',
+      }.contains(status);
+      final review =
+          data['depositStatus'] == 'pending_review' &&
+          !const {
+            'cancelled',
+            'no_show',
+            'completed',
+            'checked_out',
+          }.contains(status);
+      final settlement =
+          status == 'checked_out' ||
+          BookingSettlementMath.isAwaitingClear(data);
+      final room = isUnassigned
+          ? (pending ? '確認後分房' : '待分房')
+          : (roomName == '-' ? roomTypeName : roomName);
+      final initial = BookingPaymentStatus.initialPaymentChoice(data);
+      final refund = BookingSettlementMath.refundDue(data: data);
+      final remaining = BookingSettlementMath.remainingDue(data: data);
+      final String payment;
+      if (settlement) {
+        payment = refund > 0
+            ? '待退款 NT\$ $refund'
+            : remaining > 0
+            ? '待收尾款 NT\$ $remaining'
+            : '查看結算金額';
+      } else if (review) {
+        payment = '已回傳付款・待核對';
+      } else if (const {'cancelled', 'no_show'}.contains(status)) {
+        payment = '查看付款紀錄';
+      } else if (BookingSettlementMath.isOrderComplete(data)) {
+        payment = '已結清';
+      } else if (!initial.settled && initial.amount > 0) {
+        payment = '${initial.isFull ? '待收全額' : '待收訂金'} NT\$ ${initial.amount}';
+      } else if (initial.settled) {
+        payment = initial.isFull ? '已付全額' : '訂金已收';
+      } else {
+        payment = '無待收預約款';
+      }
+      final action = settlement
+          ? '查看結算'
+          : review
+          ? '核對付款'
+          : pending
+          ? '查看並確認'
+          : status == 'confirmed' && isUnassigned
+          ? '安排房間'
+          : '查看訂單';
+      final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+      final date = serviceStart?.toUtc().add(const Duration(hours: 8));
+      final today = date != null && DateUtils.isSameDay(date, now);
+      final badge = today && pending
+          ? _StatusInfo(
+              '${daycare ? '今日安親' : '今日入住'}・${statusInfo.text}',
+              statusInfo.color,
+            )
+          : statusInfo;
+      final name = petNames.isEmpty ? customerName : petNames;
+      final actionButton = FilledButton.tonal(
+        onPressed: widget.onTap,
+        child: Text(action),
+      );
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
         child: Material(
           color: widget.selected ? colors.primaryContainer : colors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: widget.selected ? colors.primary : colors.outlineVariant),
+            side: BorderSide(
+              color: widget.selected ? colors.primary : colors.outlineVariant,
+            ),
           ),
           clipBehavior: Clip.antiAlias,
           child: LayoutBuilder(
@@ -107,7 +174,10 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                 return InkWell(
                   onTap: widget.onTap,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       spacing: 12,
                       children: [
@@ -116,36 +186,78 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(petNames.isEmpty ? customerName : petNames, style: const TextStyle(fontWeight: FontWeight.w800)),
-                              Text('$customerName · $codeText', style: Theme.of(context).textTheme.bodySmall),
+                              Text(
+                                name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '$customerName · $codeText',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             ],
                           ),
                         ),
-                        Expanded(flex: 2, child: Text(dateLine)),
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            spacing: 5,
+                            children: [Text(dateLine), _statusChip(badge)],
+                          ),
+                        ),
                         Expanded(child: Text(room)),
-                        Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: _statusChip(statusInfo))),
-                        const Icon(Icons.chevron_right),
+                        Expanded(flex: 2, child: Text(payment)),
+                        SizedBox(width: 126, child: actionButton),
                       ],
                     ),
                   ),
                 );
               }
-              return ListTile(
-            selected: widget.selected,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            title: Text(petNames.isEmpty ? customerName : petNames,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 5,
-              children: [
-                Text('$customerName · $room\n$dateLine\n$codeText'),
-                _statusChip(statusInfo),
-              ],
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: widget.onTap,
-            leading: Icon(daycare ? Icons.wb_sunny_outlined : Icons.bed_outlined),
+              return InkWell(
+                onTap: widget.onTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 7,
+                    children: [
+                      Text(
+                        name,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        '$customerName · $codeText',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [Text(dateLine), _statusChip(badge)],
+                      ),
+                      Text(room),
+                      const Divider(height: 1),
+                      Row(
+                        spacing: 8,
+                        children: [
+                          const Icon(Icons.payments_outlined, size: 18),
+                          Expanded(
+                            child: Text(
+                              payment,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          actionButton,
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           ),

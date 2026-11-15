@@ -367,10 +367,18 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                               /// 🔴 第二頁
                               /// =========================
                               if (_step == 1) ...[
-                                if (_enabled['cancelPolicy'] == true)
+                                if (_enabled['cancelPolicy'] == true &&
+                                    (_sections['cancelPolicy'] ?? '')
+                                        .trim()
+                                        .isNotEmpty)
                                   _buildCard(
                                     '訂房取消政策',
-                                    _sections['cancelPolicy'] ?? '',
+                                    _sections['cancelPolicy']!,
+                                  )
+                                else if (_customPoliciesPage2.isEmpty)
+                                  _buildCard(
+                                    '退款與注意事項',
+                                    '店家目前未提供額外的取消與退款說明。若需要確認，請在預約前聯絡店家。',
                                   ),
 
                                 if (_customPoliciesPage2.isNotEmpty)
@@ -499,7 +507,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           children: [
-                            if (!_readOnly) ...[
+                            if (!_readOnly && _step == 1) ...[
                               Row(
                                 children: [
                                   Checkbox(

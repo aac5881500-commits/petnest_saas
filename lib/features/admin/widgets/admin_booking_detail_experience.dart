@@ -373,7 +373,7 @@ class AdminBookingDetailExperienceState
                 selected: open,
                 selectedTileColor: colors.primaryContainer.withValues(alpha: .45),
                 leading: Icon(icons[index]),
-                title: Text(labels[index], style: const TextStyle(fontWeight: FontWeight.w800)),
+                title: Text(labels[index], style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                 trailing: Icon(open ? Icons.expand_less : Icons.expand_more),
                 onTap: open
                     ? () => setState(() => _openSections.remove(index))
@@ -396,7 +396,7 @@ class AdminBookingDetailExperienceState
           padding: EdgeInsets.all(wide ? 24 : 10),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1180),
+              constraints: const BoxConstraints(maxWidth: 1480),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

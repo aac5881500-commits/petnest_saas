@@ -14,6 +14,7 @@ class BookingCurrentRoomPanel extends StatelessWidget {
     this.tight = false,
     this.unassignedStaffLabel,
     this.inline = false,
+    this.prominent = false,
   });
 
   final Map<String, dynamic> data;
@@ -21,6 +22,7 @@ class BookingCurrentRoomPanel extends StatelessWidget {
   final bool compact;
   final bool tight;
   final bool inline;
+  final bool prominent;
   final String? unassignedStaffLabel;
 
   @override
@@ -106,12 +108,12 @@ class BookingCurrentRoomPanel extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     '房型：${room.typeDisplay()}',
-                    style: TextStyle(fontSize: 13, color: ink),
+                    style: TextStyle(fontSize: prominent ? 15 : 13, color: ink),
                   ),
                   Text(
                     '房間：$physical',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: prominent ? 16 : 13,
                       fontWeight: FontWeight.w800,
                       color: room.hasPhysicalRoom ? scheme.primary : ink,
                     ),
@@ -201,7 +203,7 @@ class BookingCurrentRoomPanel extends StatelessWidget {
                     child: Text(
                       physical,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: prominent ? 16 : 13,
                         fontWeight: FontWeight.w800,
                         color: room.hasPhysicalRoom ? scheme.onPrimary : muted,
                       ),

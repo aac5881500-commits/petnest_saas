@@ -336,10 +336,10 @@ void main() {
     expect(find.text('完整訂單時間軸測試內容', skipOffstage: false), findsNothing);
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
-    expect(
-      find.widgetWithText(OutlinedButton, '取消訂單').hitTestable(),
-      findsOneWidget,
-    );
+    final cancel = find.widgetWithText(OutlinedButton, '取消訂單');
+    await tester.ensureVisible(cancel);
+    await tester.pumpAndSettle();
+    expect(cancel.hitTestable(), findsOneWidget);
     expect(find.text('確認全額入帳'), findsOneWidget);
     expect(find.byTooltip('更多訂單操作'), findsNothing);
     expect(tester.takeException(), isNull);

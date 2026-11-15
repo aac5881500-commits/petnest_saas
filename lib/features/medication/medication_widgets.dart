@@ -106,6 +106,40 @@ String medRule(Map<String, dynamic> setting, {bool includeFeeWaivers = true}) {
   ].join(' ');
 }
 
+class _MedicationWaiverNotices extends StatelessWidget {
+  const _MedicationWaiverNotices(this.setting);
+
+  final Map<String, dynamic> setting;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (setting['mixFree'] == true)
+          ListTile(
+            tileColor: colors.primaryContainer,
+            textColor: colors.onPrimaryContainer,
+            leading: Icon(Icons.restaurant_outlined, color: colors.onPrimaryContainer),
+            title: const Text('可拌食者免費', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('依原用藥指示可拌入食物時，該項用藥協助免費。'),
+          ),
+        if (setting['mixFree'] == true && setting['successOnly'] == true)
+          const SizedBox(height: 8),
+        if (setting['successOnly'] == true)
+          ListTile(
+            tileColor: colors.tertiaryContainer,
+            textColor: colors.onTertiaryContainer,
+            leading: Icon(Icons.receipt_long_outlined, color: colors.onTertiaryContainer),
+            title: const Text('未成功不計費', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('請記錄每次執行結果，退房時會依結果核算用藥費。'),
+          ),
+      ],
+    );
+  }
+}
+
 Future<Map<String, dynamic>> medCall(
   String name,
   Map<String, dynamic> data,
@@ -979,6 +1013,7 @@ class MedicationRequestEditor extends StatefulWidget {
     required this.onChanged,
     this.initial,
     this.allowPhotoUpload = true,
+    this.showFeeWaiverNotices = false,
   });
   final String shopId;
   final List<Map<String, dynamic>> pets;
@@ -987,6 +1022,7 @@ class MedicationRequestEditor extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>> onChanged;
   final Map<String, dynamic>? initial;
   final bool allowPhotoUpload;
+  final bool showFeeWaiverNotices;
   @override
   State<MedicationRequestEditor> createState() =>
       _MedicationRequestEditorState();
@@ -1048,7 +1084,12 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text(medRule(widget.setting)),
+      if (widget.showFeeWaiverNotices)
+        _MedicationWaiverNotices(widget.setting),
+      Text(medRule(
+        widget.setting,
+        includeFeeWaivers: !widget.showFeeWaiverNotices,
+      )),
       Text(
         '照護時段：${medList(widget.setting['windows']).map((w) => '${w['start']}～${w['end']}').join('、')}',
       ),
@@ -1126,8 +1167,8 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
       ],
       if (requiredPets.isNotEmpty) ...[
         const Divider(),
-        const Text('旅館負責的用藥交接期間'),
-        const Text('請確認抵達及接回時間，並排除已在家使用的次數。預設時間僅供修改，請依實際交接安排確認。'),
+        const Text('店家負責的用藥期間'),
+        const Text('填寫店家開始與停止負責用藥的時間。飼主已在家完成的次數請從安排中移除。'),
         TextButton(
           onPressed: () => pickRange(true),
           child: Text('開始：${DateFormat('MM/dd HH:mm').format(start)}'),
@@ -2791,10 +2832,14 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
           }
         });
       }
-      return medCard('用藥待辦', [
-        Text(
-          '${entry.pet} · ${BookingMedicationTask.timeLabel(entry.scheduledAt)}',
-        ),
+      return medCard('本次用藥', [
+        Text('貓咪：${entry.pet}', style: Theme.of(context).textTheme.titleLarge),
+        Text('房間：${widget.booking['roomName'] ?? '尚未分房'}'),
+        Text('預定時間：${medDate(task['scheduledAt'])}'),
+        if (entry.actualAt != null)
+          Text('實際時間：${medDate(entry.actualAt!.toIso8601String())}'),
+        if ('${task['note'] ?? ''}'.trim().isNotEmpty)
+          Text("結果說明：${task['note']}"),
         Text('${entry.day} · ${entry.types} · ${entry.resultLabel}'),
         for (final medicine in medicines)
           if (ids is List && ids.contains(medicine['id']))
@@ -2803,7 +2848,11 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
               title: Text(
                 '${medicine['name'] ?? ''} · ${medicine['dose'] ?? ''}',
               ),
-              subtitle: Text('${medicine['instruction'] ?? ''}'),
+              subtitle: Text([
+                '${medicine['instruction'] ?? ''}',
+                if (medicationResults[medMap(task['medicineResults'])[medicine['id']]] case final String result)
+                  result,
+              ].where((text) => text.isNotEmpty).join(' · ')),
             ),
         if (canRecord)
           FilledButton(
@@ -2821,7 +2870,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
 
     Widget requestEntry(Map<String, dynamic> entry) {
       final name = petName(entry['petId']);
-      return customerLayout || widget.arrangementLayout
+      return customerLayout || widget.staff || widget.arrangementLayout
           ? _CustomerMedicationRequest(entry: entry, petName: name)
           : Text(_medicationRequestLine(entry, name));
     }
@@ -2834,6 +2883,22 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: children,
+          ),
+        );
+      }
+      if (widget.staff) {
+        return Card.outlined(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 10,
+              children: [
+                Text('用藥協助', style: Theme.of(context).textTheme.titleMedium),
+                ...children,
+              ],
+            ),
           ),
         );
       }
@@ -3089,6 +3154,11 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
             color: Theme.of(context).colorScheme.primary,
           ),
         ),
+      if (widget.staff &&
+          (setting['mixFree'] == true || setting['successOnly'] == true)) ...[
+        const SizedBox(height: 8),
+        _MedicationWaiverNotices(setting),
+      ],
       if (widget.staff && !confirmed && !locked) ...[
         const SizedBox(height: 8),
         Text(
@@ -3111,7 +3181,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                     ? '調整用藥安排（須重新確認）'
                     : m['state'] == 'pending_customer'
                     ? '修改安排並重新送確認'
-                    : '查看時程與費用',
+                    : '準備用藥時程與費用',
               ),
             ),
             OutlinedButton(
@@ -3120,7 +3190,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
             ),
           ],
         ),
-      Text(medRule(setting)),
+      Text(medRule(setting, includeFeeWaivers: !widget.staff)),
       if (!customerLayout && (m['advanceAmount'] as num? ?? 0) > 0)
         Text("預估用藥費 NT\$ ${m['advanceAmount']} 已列入預約應付，退房依實際結果調整。")
       else if (!customerLayout &&
@@ -3316,7 +3386,8 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
         ],
       ],
       ExpansionTile(
-        title: const Text('確認與異動紀錄'),
+        title: const Text('用藥操作紀錄'),
+        subtitle: const Text('查看送出、飼主確認與安排變更'),
         children: medList(m['history']).reversed
             .map(
               (h) => ListTile(
@@ -3417,6 +3488,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                               endDate: end.toDate(),
                               initial: {...draft, 'preferences': preferences},
                               allowPhotoUpload: false,
+                              showFeeWaiverNotices: true,
                               onChanged: (value) {
                                 draft = value;
                                 changed = true;
@@ -3424,7 +3496,9 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                             ),
                           )
                         else ...[
-                          if (needsSchedule) const Text('請先補齊藥品及執行時間，再送客人確認。'),
+                          _MedicationWaiverNotices(setting),
+                          if (needsSchedule)
+                            const Text('以下是預約需求。填寫藥品與執行時間後，即可送飼主確認。'),
                           for (final pet in pets)
                             if ([
                               ...medicines,
@@ -3443,7 +3517,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                                 ))
                                   Text(_medicationRequestLine(entry, '客人希望')),
                               ]),
-                          medCard('旅館協助期間', [
+                          medCard('店家負責的用藥期間', [
                             Text(
                               draft['careStart'] != null &&
                                       draft['careEnd'] != null
@@ -3454,7 +3528,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                           OutlinedButton.icon(
                             onPressed: () => update(() => editing = true),
                             icon: const Icon(Icons.edit_outlined),
-                            label: Text(needsSchedule ? '補齊安排' : '調整安排'),
+                            label: Text(needsSchedule ? '填寫藥品與執行時間' : '修改藥品與執行時間'),
                           ),
                           medCard('用藥費用', [
                             Text(
@@ -3467,7 +3541,8 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                               Text('已列入預約應付 NT\$ $advance，退房合併核算。'),
                           ]),
                           ExpansionTile(
-                            title: const Text('調整說明與特殊報價'),
+                            title: const Text('額外說明與報價（選填）'),
+                            subtitle: const Text('需要告知飼主、另行報價或配合特殊時段時使用。'),
                             initiallyExpanded:
                                 changed ||
                                 estimate['manual'] == true ||
@@ -3477,7 +3552,8 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                             childrenPadding: const EdgeInsets.all(12),
                             children: [
                               medInput(note, '安排／調整說明', lines: 3),
-                              medInput(amount, '特殊需求總報價', number: true),
+                              medInput(amount, '整筆用藥報價（元）', number: true),
+                              const Text('一般安排按店家規則計價。系統要求另行報價時，請填寫整筆用藥費。'),
                               CheckboxListTile(
                                 title: const Text('已確認可配合超出照護時段的需求'),
                                 value: outside,
@@ -3509,7 +3585,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                             : needsSchedule
                             ? null
                             : () => Navigator.pop(ctx, true),
-                        child: Text(editing ? '返回時程' : '送客人確認'),
+                        child: Text(editing ? '套用並查看摘要' : '送出安排給飼主確認'),
                       ),
                     ),
                   ),
@@ -3564,7 +3640,14 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (entry != null) Text('${entry.pet} · ${entry.types}'),
+                  if (entry != null) ...[
+                    Text(
+                      '貓咪：${entry.pet}',
+                      style: Theme.of(ctx).textTheme.titleLarge,
+                    ),
+                    Text('房間：${widget.booking['roomName'] ?? '尚未分房'}'),
+                    Text(entry.types),
+                  ],
                   Text('原訂 ${medDate(task['scheduledAt'])}'),
                   if (entry != null)
                     for (final medicine in medicines)
@@ -3603,20 +3686,25 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                             : (v) => results['${medicine['id']}'] = v!,
                       ),
                   ],
-                  if (medicines.length == 1)
-                    DropdownButtonFormField<String>(
-                      initialValue: result,
-                      items: medicationResults.entries
-                          .where((e) => e.key != 'pending')
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(e.value),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => result = v!,
+                  if (medicines.length == 1) ...[
+                    const Text('本次用藥結果'),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in const {
+                          'done': '成功',
+                          'failed': '未成功',
+                          'skipped': '未執行',
+                        }.entries)
+                          ChoiceChip(
+                            label: Text(option.value),
+                            selected: result == option.key,
+                            onSelected: (_) => update(() => result = option.key),
+                          ),
+                      ],
                     ),
+                  ],
                   CareActualTimeField(
                     scheduledAt: scheduled,
                     value: actual,

@@ -1,5 +1,6 @@
 import 'package:petnest_saas/features/room/widgets/room_status_legend.dart';
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
@@ -1920,10 +1921,6 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
           attention: task.pending && !task.scheduledAt.isAfter(now),
           complete: !task.pending,
           run: () {
-            if (!task.pending || !BookingMedicationTask.canRecord(order.data)) {
-              (widget.onOrderCare ?? widget.onOrder)(order);
-              return;
-            }
             _openTaskPage((_) => MedicationTaskPage(
                 shopId: widget.shopId,
                 bookingId: order.id,
@@ -2162,7 +2159,14 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
               )
             : _timeline(true);
       }
-      return ColoredBox(
+      return ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            ...ScrollConfiguration.of(context).dragDevices,
+            PointerDeviceKind.mouse,
+          },
+        ),
+        child: ColoredBox(
         color: opsBackground,
         child: Padding(
           padding: EdgeInsets.all(wide ? 18 : 10),
@@ -2193,12 +2197,13 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
             ],
           ),
         ),
+      ),
       );
     },
   );
 }
 
-class OperationsTimeline extends StatelessWidget {
+class OperationsTimeline extends StatefulWidget {
   const OperationsTimeline({
     super.key,
     required this.data,
@@ -2212,6 +2217,25 @@ class OperationsTimeline extends StatelessWidget {
   final List<DateTime> days;
   final String selectedRoomId;
   final void Function(OperationsRoom, DateTime) onSelect;
+
+  @override
+  State<OperationsTimeline> createState() => _OperationsTimelineState();
+}
+
+class _OperationsTimelineState extends State<OperationsTimeline> {
+  final _horizontal = ScrollController();
+  OperationsWorkbenchData get data => widget.data;
+  List<OperationsRoom> get rooms => widget.rooms;
+  List<DateTime> get days => widget.days;
+  String get selectedRoomId => widget.selectedRoomId;
+  void Function(OperationsRoom, DateTime) get onSelect => widget.onSelect;
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
@@ -2246,10 +2270,24 @@ class OperationsTimeline extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: DecoratedBox(
           decoration: BoxDecoration(border: Border.all(color: opsLine)),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: width,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              scrollbars: false,
+              dragDevices: {
+                ...ScrollConfiguration.of(context).dragDevices,
+                PointerDeviceKind.mouse,
+              },
+            ),
+            child: Scrollbar(
+              controller: _horizontal,
+              thumbVisibility: width > box.maxWidth + 0.5,
+              scrollbarOrientation: ScrollbarOrientation.bottom,
+              child: SingleChildScrollView(
+                controller: _horizontal,
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.only(bottom: width > box.maxWidth + 0.5 ? 12 : 0),
+                child: SizedBox(
+                  width: width,
               child: Column(
                 children: [
                   Row(
@@ -2399,6 +2437,8 @@ class OperationsTimeline extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
         ),
       );
     },

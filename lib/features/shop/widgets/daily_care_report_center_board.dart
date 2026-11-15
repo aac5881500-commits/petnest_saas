@@ -192,7 +192,12 @@ class _DailyCareReportCenterBoardState
         focusSessionIndex: widget.focusSessionIndex,
       );
     }
-    final double width = MediaQuery.sizeOf(context).width;
+    return LayoutBuilder(builder: (context, bounds) {
+      return _buildAtWidth(bounds.maxWidth);
+    });
+  }
+
+  Widget _buildAtWidth(double width) {
     final List<DailyCareReportCenterDateGroup> groups =
         DailyCareReportCenterDateGrouping.visible(
           items: widget.snapshot.items,

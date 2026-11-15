@@ -120,6 +120,7 @@ class StayBookingFunctionService {
     String roomId = '',
     String roomName = '',
     String reason = '',
+    String? cancelBy,
     DateTime? startDate,
     DateTime? endDate,
   }) {
@@ -130,6 +131,7 @@ class StayBookingFunctionService {
       'roomId': roomId,
       'roomName': roomName,
       'reason': reason,
+      'cancelBy': ?cancelBy,
       if (startDate != null) 'startDate': startDate.toIso8601String(),
       if (endDate != null) 'endDate': endDate.toIso8601String(),
     }).then((_) {});

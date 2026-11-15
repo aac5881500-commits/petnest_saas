@@ -2,6 +2,8 @@
 // 功能說明：店主訂單詳細橫向總覽：狀態、客戶、編號、日期與服務摘要
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_schedule.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
@@ -33,6 +35,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     final bool daycare = BookingKind.isDaycare(data);
+    final bool prominent = dense && !daycare;
     final bool phone = AdminBookingDetailScope.of(context).isPhone;
     final String code = _bookingCode(data, bookingId);
     final String name = (data['customerName'] ?? data['name'] ?? '')
@@ -56,8 +59,126 @@ class AdminBookingHeaderCard extends StatelessWidget {
       compact: daycare ? phone : true,
       tight: !daycare,
       inline: dense,
+      prominent: prominent,
       unassignedStaffLabel: daycare ? null : '尚未安排房間',
     );
+    if (dense && !daycare) {
+      final view = BookingDetailViewData.fromBooking(
+        data: data,
+        docId: bookingId,
+      );
+      final addons = data['addons'];
+      final plan = addons is List
+          ? addons
+                .whereType<Map>()
+                .where((item) => item['type'] == 'time')
+                .map((item) => '${item['label'] ?? item['name'] ?? ''}'.trim())
+                .where((label) => label.isNotEmpty)
+                .join('、')
+          : '';
+      final String paymentType = view.payAmountType == 'full'
+          ? '全額付款'
+          : view.depositAmount > 0
+          ? '先付訂金'
+          : '無須訂金';
+      final isCancelled = const {'cancelled', 'no_show'}.contains(view.status);
+      return AdminBookingDetailCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
+          children: [
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                _pill('住宿', theme.primaryColor),
+                _pill(_durationLabel(data, false), theme.primaryColor),
+                AdminBookingStatusChip(
+                  status: view.status,
+                  daycare: false,
+                  paymentPending: false,
+                  data: data,
+                ),
+                if (data['source'] == 'admin')
+                  _pill('手動建立', ShopFrontendTheme.warningColor),
+              ],
+            ),
+            LayoutBuilder(
+              builder: (context, bounds) {
+                final dates = DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: panel,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: _stayDateJourney(context, theme, phone: phone),
+                  ),
+                );
+                final planValue = _summaryValue(
+                  theme,
+                  '入退房方案',
+                  plan.isEmpty ? '未記載' : plan,
+                );
+                final paymentValue = _summaryValue(
+                  theme,
+                  '結帳方式',
+                  '${view.paymentMethodLabel} · $paymentType',
+                );
+                final options = bounds.maxWidth >= 300 && bounds.maxWidth < 780
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 12,
+                        children: [
+                          Expanded(child: planValue),
+                          Expanded(child: paymentValue),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 6,
+                        children: [planValue, paymentValue],
+                      );
+                if (bounds.maxWidth < 780) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 12,
+                    children: [identity, dates, options],
+                  );
+                }
+                return Row(
+                  spacing: 20,
+                  children: [
+                    Expanded(flex: 2, child: identity),
+                    Expanded(flex: 3, child: dates),
+                    Expanded(flex: 2, child: options),
+                  ],
+                );
+              },
+            ),
+            const Divider(height: 1),
+            Wrap(
+              spacing: 20,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _pill(
+                  view.paymentStatusLabel,
+                  theme.primaryColor,
+                  fontSize: 14,
+                ),
+                if (!isCancelled && view.dueNowAmount > 0)
+                  _meta(theme, '本次應收', 'NT\$ ${view.dueNowAmount}'),
+                _meta(theme, '已收', 'NT\$ ${view.paidAmount}'),
+              ],
+            ),
+            roomPanel,
+          ],
+        ),
+      );
+    }
     if (dense) {
       final dates = daycare
           ? _dateRow(context, daycare: true, phone: false)
@@ -292,11 +413,35 @@ class AdminBookingHeaderCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: dense && !BookingKind.isDaycare(data)
+                      ? (phone ? 22 : 25)
+                      : 16,
                   fontWeight: FontWeight.w800,
                   color: theme.titleColor,
                 ),
               ),
+              if (dense && !BookingKind.isDaycare(data))
+                Builder(
+                  builder: (context) {
+                    final view = BookingDetailViewData.fromBooking(
+                      data: data,
+                      docId: bookingId,
+                    );
+                    final count = view.petCount;
+                    return Text(
+                      [
+                        if (view.petNames.isNotEmpty) view.petNames,
+                        if (count > 0) '$count 隻貓' else '貓咪資料未填',
+                      ].join(' · '),
+                      style: TextStyle(
+                        color: theme.titleColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    );
+                  },
+                ),
               if (!dense) const SizedBox(height: 2),
               if (!dense)
                 InkWell(
@@ -342,13 +487,34 @@ class AdminBookingHeaderCard extends StatelessWidget {
     final String start = _formatStay(data['startDate']);
     final String end = _formatStay(data['endDate']);
     final String nights = _durationLabel(data, false);
+    final entries = dense
+        ? AdminBookingScheduleData(
+            shopId: '${data['shopId'] ?? ''}',
+            bookingId: bookingId,
+            booking: data,
+            canEdit: false,
+          ).entries(showMedication: false)
+        : const <BookingScheduleEntry>[];
+    final arrival = entries
+        .where((entry) => entry.kind == BookingScheduleKind.arrival)
+        .firstOrNull;
+    final departure = entries
+        .where((entry) => entry.kind == BookingScheduleKind.departure)
+        .firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Expanded(child: _stayDateCell(theme, '入住', start)),
+            Expanded(
+              child: _stayDateCell(
+                theme,
+                '入住',
+                start,
+                time: arrival?.timeLabel,
+              ),
+            ),
             Padding(
               padding: EdgeInsets.fromLTRB(6, phone ? 16 : 18, 6, 0),
               child: Icon(
@@ -357,7 +523,15 @@ class AdminBookingHeaderCard extends StatelessWidget {
                 color: theme.primaryColor,
               ),
             ),
-            Expanded(child: _stayDateCell(theme, '退房', end, alignEnd: true)),
+            Expanded(
+              child: _stayDateCell(
+                theme,
+                '退房',
+                end,
+                alignEnd: true,
+                time: departure?.timeLabel,
+              ),
+            ),
           ],
         ),
         if (!dense) const SizedBox(height: 8),
@@ -389,6 +563,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
     String label,
     String value, {
     bool alignEnd = false,
+    String? time,
   }) {
     return Column(
       crossAxisAlignment: alignEnd
@@ -398,7 +573,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12.5,
+            fontSize: dense ? 14 : 12.5,
             fontWeight: FontWeight.w600,
             color: theme.muted,
           ),
@@ -409,12 +584,21 @@ class AdminBookingHeaderCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontSize: dense ? 20 : 16,
+            fontWeight: FontWeight.w800,
             height: 1.2,
             color: theme.titleColor,
           ),
         ),
+        if (time != null)
+          Text(
+            time,
+            style: TextStyle(
+              color: theme.titleColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
       ],
     );
   }
@@ -458,6 +642,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
     String label,
     String value, {
     bool alignEnd = false,
+    String? time,
   }) {
     return Column(
       crossAxisAlignment: alignEnd
@@ -499,7 +684,30 @@ class AdminBookingHeaderCard extends StatelessWidget {
     );
   }
 
-  Widget _pill(String text, Color color) {
+  Widget _summaryValue(
+    ShopFrontendTheme theme,
+    String label,
+    String value, {
+    bool amount = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 2,
+      children: [
+        Text(label, style: TextStyle(fontSize: 14, color: theme.muted)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: amount ? 23 : 17,
+            fontWeight: FontWeight.w800,
+            color: theme.titleColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pill(String text, Color color, {double fontSize = 12}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -511,7 +719,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.w800,
-          fontSize: 12,
+          fontSize: fontSize,
         ),
       ),
     );

@@ -38,6 +38,9 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.paymentCatalog,
     this.isManualMember = false,
     this.pointAmount = 0,
+    this.advanceMedicationAmount = 0,
+    this.medicationEstimate,
+    this.hasMedication = false,
     required this.onPayAmountTypeChanged,
     required this.onPaymentMethodChanged,
 
@@ -85,6 +88,9 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
   final ShopPaymentCatalog paymentCatalog;
   final bool isManualMember;
   final int pointAmount;
+  final int advanceMedicationAmount;
+  final int? medicationEstimate;
+  final bool hasMedication;
 
   final ValueChanged<String> onPayAmountTypeChanged;
 
@@ -185,9 +191,8 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     final couponFinal = discountInfo != null
         ? ((discountInfo!['finalTotal'] ?? totalPrice) as num).toInt()
         : totalPrice;
-    final finalTotal = couponFinal - pointAmount < 0
-        ? 0
-        : couponFinal - pointAmount;
+    final finalTotal = (couponFinal - pointAmount).clamp(0, couponFinal) +
+        advanceMedicationAmount;
 
     final int specialDateSurchargeAmount = discountInfo == null
         ? 0
@@ -298,6 +303,15 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
               const Divider(height: 24),
 
+              if (hasMedication)
+                _confirmRow(
+                  '用藥協助',
+                  medicationEstimate == null
+                      ? '待店家報價'
+                      : advanceMedicationAmount > 0
+                      ? 'NT\$ $advanceMedicationAmount（已計入）'
+                      : '預估 NT\$ $medicationEstimate（退房結算）',
+                ),
               _confirmRow('訂單總金額', 'NT\$ $finalTotal'),
 
               if (pointAmount > 0) _confirmRow('點數折抵', '-NT\$ $pointAmount'),

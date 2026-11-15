@@ -242,14 +242,17 @@ function projectStayAvailability(params) {
     return toInt(row.capacity, 0);
   };
   const byDate = {};
+  const freeRoomsByDate = new Map();
   evaluateKeys.forEach((dateKey) => {
     const startAt = taipeiDayStart(dateKey);
     const endAt = taipeiDayStart(addCalendarDays(dateKey, 1));
     const dayCalendar = calendarEntries.filter((item) => {
       return normalizeString(item.date) === dateKey;
     });
+    const freeRoomsByType = new Map();
+    freeRoomsByDate.set(dateKey, freeRoomsByType);
     const rows = selectedIds.map((roomTypeId) => {
-      return typeSummary(remainingRoomsFromData({
+      const computed = remainingRoomsFromData({
         rooms,
         bookings,
         occupancies,
@@ -261,7 +264,9 @@ function projectStayAvailability(params) {
         dateKey,
         petCount,
         roomTypeCapacity: capacityOf(roomTypeId),
-      }), roomTypeId);
+      });
+      freeRoomsByType.set(roomTypeId, new Set(computed.freeRoomIds || []));
+      return typeSummary(computed, roomTypeId);
     });
     const summed = sumRows(rows);
     byDate[dateKey] = {
@@ -289,7 +294,13 @@ function projectStayAvailability(params) {
       const total = samples.reduce((min, row) => {
         return Math.min(min, row.total);
       }, samples.length > 0 ? samples[0].total : 0);
-      const safeRemaining = Math.max(0, remaining);
+      const freeByDay = stayPlan.blockedKeys.map((dateKey) => {
+        return freeRoomsByDate.get(dateKey).get(roomTypeId);
+      });
+      const continuousCount = [...freeByDay[0]].filter((roomId) => {
+        return freeByDay.every((roomIds) => roomIds.has(roomId));
+      }).length;
+      const safeRemaining = Math.max(0, Math.min(remaining, continuousCount));
       const safeTotal = Math.max(0, total);
       return {
         roomTypeId,

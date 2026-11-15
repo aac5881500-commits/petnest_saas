@@ -51,6 +51,7 @@ class BookingStatusFilter extends StatelessWidget {
       attention: true,
     ),
     BookingFilterChipSpec(type: 'futureCheckIn', label: '未來入住'),
+    BookingFilterChipSpec(type: 'awaitingClear', label: '待結清', attention: true),
     BookingFilterChipSpec(type: 'settled', label: '結清'),
     BookingFilterChipSpec(type: 'cancelled', label: '已取消'),
   ];
@@ -163,84 +164,54 @@ class BookingStatusFilter extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '今日營運',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF273349),
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
+            spacing: 8,
             children: [
-              for (var i = 0; i < today.length; i++) ...[
-                if (i > 0) const SizedBox(width: 10),
-                Expanded(
-                  child: Semantics(
-                    selected: selectedType == today[i].type,
-                    button: true,
-                    label: '${today[i].label}  ${_count(today[i].type)}',
-                    child: Material(
-                      color: selectedType == today[i].type
-                          ? colors.primaryContainer
-                          : Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: selectedType == today[i].type
-                              ? colors.primary
-                              : const Color(0xFFE5E8F0),
+              for (final (key, label, icon) in const [
+                ('pending', '待確認', Icons.fact_check_outlined),
+                ('depositReview', '待核對付款', Icons.credit_card_outlined),
+                ('awaitingClear', '待結清', Icons.receipt_long_outlined),
+              ])
+                if (items.any((item) => item.type == key))
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 4,
                         ),
+                        backgroundColor: selectedType == key
+                            ? colors.primaryContainer
+                            : colors.surface,
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => onChanged(today[i].type),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                i == 0
-                                    ? Icons.login_rounded
-                                    : i == 1
-                                    ? Icons.logout_rounded
-                                    : Icons.hotel_outlined,
-                                size: 21,
-                                color: colors.primary,
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                _count(today[i].type),
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  height: 1.1,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF273349),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                today[i].label,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: colors.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                      onPressed: () => onChanged(key),
+                      child: Column(
+                        spacing: 4,
+                        children: [
+                          Icon(icon, size: 18),
+                          Text(label, textAlign: TextAlign.center),
+                          Text(
+                            _count(key),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              ],
             ],
           ),
-          const SizedBox(height: 16),
+          Wrap(
+            spacing: 4,
+            children: [
+              for (final item in today)
+                TextButton(
+                  onPressed: () => onChanged(item.type),
+                  child: Text('${item.label} ${_count(item.type)}'),
+                ),
+            ],
+          ),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),

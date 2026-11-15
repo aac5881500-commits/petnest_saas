@@ -1,3 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/constants/inventory_constants.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
+import 'package:petnest_saas/core/models/inventory_binding_model.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_explanations.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_experience.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_overview_layout.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
@@ -163,7 +168,9 @@ class AdminBookingOrderWorkspaceState
             workflow: schedule != null,
             worksheetPrimarySection: schedule?.ended == true
                 ? 2
-                : schedule?.arrived == true ? 1 : 0,
+                : schedule?.arrived == true
+                ? 1
+                : 0,
             worksheetHeader: schedule == null
                 ? null
                 : Column(
@@ -171,8 +178,13 @@ class AdminBookingOrderWorkspaceState
                     children: _spaced([
                       ...widget.banners,
                       widget.overview,
-                      if (schedule.arrived && !schedule.ended && timeline.isNotEmpty)
-                        scheduleView(AdminBookingScheduleView.next, const BookingCareDisplay()),
+                      if (schedule.arrived &&
+                          !schedule.ended &&
+                          timeline.isNotEmpty)
+                        scheduleView(
+                          AdminBookingScheduleView.next,
+                          const BookingCareDisplay(),
+                        ),
                     ]),
                   ),
             sectionBuilder: (index, experience, display) {
@@ -180,7 +192,8 @@ class AdminBookingOrderWorkspaceState
                 return _overviewLayout(
                   theme,
                   experience,
-                  featured: timeline.isEmpty || schedule!.arrived || schedule.ended
+                  featured:
+                      timeline.isEmpty || schedule!.arrived || schedule.ended
                       ? null
                       : scheduleView(AdminBookingScheduleView.next, display),
                   progress: requests.isEmpty
@@ -203,6 +216,9 @@ class AdminBookingOrderWorkspaceState
                   if (schedule != null)
                     _BookingCareDesk(
                       key: ValueKey(schedule.bookingId),
+                      booking: schedule.daycare ? null : schedule.booking,
+                      shopId: schedule.shopId,
+                      bookingId: schedule.bookingId,
                       entries: timeline,
                       pending: requests.isNotEmpty,
                       timeline: (items) => AdminBookingSchedule(
@@ -213,16 +229,23 @@ class AdminBookingOrderWorkspaceState
                         onViewFinance: () => select(2),
                         onViewTimeline: () => select(1),
                       ),
-                      medicine: medicationOn ? widget.content.medicationDetails : null,
+                      medicine: medicationOn
+                          ? widget.content.medicationDetails
+                          : null,
                       note: schedule.canEdit && schedule.shopId.isNotEmpty
                           ? AdminInternalHandoverCard(
                               shopId: schedule.shopId,
                               bookingId: schedule.bookingId,
-                              readOnly: BookingSettlementMath.isSettlementLocked(schedule.booking),
+                              readOnly:
+                                  BookingSettlementMath.isSettlementLocked(
+                                    schedule.booking,
+                                  ),
                               compact: true,
                             )
                           : null,
-                      report: schedule.reportsEnabled(shop) ? widget.content.careReport : null,
+                      report: schedule.reportsEnabled(shop)
+                          ? widget.content.careReport
+                          : null,
                     ),
                   ...widget.content.care,
                 ],
@@ -263,10 +286,15 @@ class AdminBookingOrderWorkspaceState
     Widget? progress,
   }) {
     final blocks = <String, Widget>{
-      if (widget.content.schedule == null) 'overview': Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _spaced([...widget.banners, widget.overview, if (widget.content.schedule == null) ?featured]),
-      ),
+      if (widget.content.schedule == null)
+        'overview': Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: _spaced([
+            ...widget.banners,
+            widget.overview,
+            if (widget.content.schedule == null) ?featured,
+          ]),
+        ),
       'actions': _surface(
         theme,
         title: '入住與訂單操作',
@@ -313,32 +341,33 @@ class AdminBookingOrderWorkspaceState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: _spaced(widget.content.summary),
         ),
-      if (widget.content.schedule == null) 'resources': _surface(
-        theme,
-        title: '完整訂單資料',
-        icon: Icons.folder_open_outlined,
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () => select(2),
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text('帳務與費用'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => select(3),
-              icon: const Icon(Icons.folder_open_outlined),
-              label: const Text('資料與表單'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => select(4),
-              icon: const Icon(Icons.history),
-              label: Text(widget.handoverHasContent ? '紀錄・有交接提醒' : '進度與交接'),
-            ),
-          ],
+      if (widget.content.schedule == null)
+        'resources': _surface(
+          theme,
+          title: '完整訂單資料',
+          icon: Icons.folder_open_outlined,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => select(2),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('帳務與費用'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => select(3),
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('資料與表單'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => select(4),
+                icon: const Icon(Icons.history),
+                label: Text(widget.handoverHasContent ? '紀錄・有交接提醒' : '進度與交接'),
+              ),
+            ],
+          ),
         ),
-      ),
     };
     return AdminBookingOverviewLayout(
       operations: widget.content.schedule != null,
@@ -444,7 +473,146 @@ class AdminBookingOrderWorkspaceState
 }
 
 /// 只沿用金流服務提供的金額，不在 UI 重算帳務。
-enum _CareArea { schedule, medicine, report }
+enum _CareArea { schedule, time, value, custom, timed, other, medicine, report }
+
+class _BookingCareAddons extends StatelessWidget {
+  const _BookingCareAddons({required this.items, required this.pets});
+
+  final List<Map<String, dynamic>> items, pets;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 10,
+      children: [
+        for (final item in items)
+          Card.outlined(
+            margin: EdgeInsets.zero,
+            color: theme.colorScheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _details(context, item, theme),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _details(
+    BuildContext context,
+    Map<String, dynamic> item,
+    ThemeData theme,
+  ) {
+    final name = SafeParse.parseString(item['name'] ?? item['label']).trim();
+    final count = SafeParse.parseMoney(item['count'] ?? item['quantity'] ?? 1);
+    final price = SafeParse.parseMoney(item['price']);
+    final recordedAmount = item['total'] ?? item['amount'];
+    final amount = recordedAmount == null
+        ? price * count
+        : SafeParse.parseMoney(recordedAmount);
+    final details = addonExplanation(
+      item,
+      pets,
+      schedules: true,
+      includePetSchedule: false,
+    );
+    final schedules = addonPetSchedules(item, pets);
+    final bindings = InventoryBindingModel.listFromValue(
+      item['inventoryBindings'],
+    );
+    final description = SafeParse.parseString(
+      item['description'] ?? item['desc'],
+    ).trim();
+    final colors = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 14,
+      children: [
+        CircleAvatar(
+          radius: 19,
+          backgroundColor: colors.primaryContainer,
+          foregroundColor: colors.onPrimaryContainer,
+          child: const Icon(Icons.card_giftcard_outlined, size: 20),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: [
+              Wrap(
+                spacing: 16,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    name.isEmpty ? '未記載品名的加購' : name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (recordedAmount != null || item['price'] != null)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colors.primaryContainer,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          amount == 0 ? '免費' : 'NT\$ $amount',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colors.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (description.isNotEmpty) Text(description),
+              if (SafeParse.parseMoney(item['extraReports']) > 0)
+                Text(
+                  '每服務日加購 ${SafeParse.parseMoney(item['extraReports'])} 場回報',
+                ),
+              if (SafeParse.parseList(item['serviceDates']).isNotEmpty)
+                Text(
+                  '服務日期：${SafeParse.parseList(item['serviceDates']).join('、')}',
+                ),
+              if (details.isNotEmpty)
+                Text(details, style: const TextStyle(height: 1.5)),
+              for (final schedule in schedules) ...[
+                Text(
+                  schedule.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                for (final time in schedule.times) Text(time),
+              ],
+              if (bindings.isNotEmpty || item['useInventory'] == true) ...[
+                const Divider(),
+                const Text(
+                  '庫存用料（訂單記錄）',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (bindings.isEmpty) const Text('這筆訂單未保存庫存品項明細。'),
+                for (final binding in bindings)
+                  Text(
+                    '${binding.inventoryItemName.trim().isEmpty ? '品項 ${binding.inventoryItemId}' : binding.inventoryItemName}'
+                    ' · 每份 ${binding.quantityPerUnit} ${binding.unit}'
+                    '${count > 1 ? '，共 ${binding.quantityPerUnit * count} ${binding.unit}' : ''}',
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _BookingCareDesk extends StatefulWidget {
   const _BookingCareDesk({
@@ -452,6 +620,9 @@ class _BookingCareDesk extends StatefulWidget {
     required this.entries,
     required this.pending,
     required this.timeline,
+    this.booking,
+    required this.shopId,
+    required this.bookingId,
     this.medicine,
     this.note,
     this.report,
@@ -459,6 +630,8 @@ class _BookingCareDesk extends StatefulWidget {
 
   final List<BookingScheduleEntry> entries;
   final bool pending;
+  final Map<String, dynamic>? booking;
+  final String shopId, bookingId;
   final Widget Function(List<BookingScheduleEntry>) timeline;
   final Widget? medicine, note, report;
 
@@ -467,6 +640,15 @@ class _BookingCareDesk extends StatefulWidget {
 }
 
 class _BookingCareDeskState extends State<_BookingCareDesk> {
+  late final _inventory = widget.booking == null || widget.shopId.isEmpty
+      ? null
+      : FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .collection(InventoryConstants.consumptionsCollection)
+            .doc(InventoryConstants.bookingAddonDeductId(widget.bookingId))
+            .snapshots();
+
   _CareArea _area = _CareArea.schedule;
   final _visited = <_CareArea>{_CareArea.schedule};
   String? _day;
@@ -474,18 +656,55 @@ class _BookingCareDeskState extends State<_BookingCareDesk> {
 
   @override
   Widget build(BuildContext context) {
-    final days = widget.entries.map((entry) => entry.day).toSet().toList()..sort();
+    final days = widget.entries.map((entry) => entry.day).toSet().toList()
+      ..sort();
     final now = DateTime.now().toUtc().add(const Duration(hours: 8));
     final today = now.toIso8601String().substring(0, 10);
-    final defaultDay = days.firstWhere((day) => day.compareTo(today) >= 0,
-        orElse: () => days.lastOrNull ?? '');
+    final defaultDay = days.firstWhere(
+      (day) => day.compareTo(today) >= 0,
+      orElse: () => days.lastOrNull ?? '',
+    );
     final day = days.contains(_day) ? _day : defaultDay;
-    final entries = _allDays ? widget.entries : widget.entries.where((entry) => entry.day == day).toList();
+    final entries = _allDays
+        ? widget.entries
+        : widget.entries.where((entry) => entry.day == day).toList();
     final colors = Theme.of(context).colorScheme;
+    final addonGroups = <_CareArea, List<Map<String, dynamic>>>{};
+    final addons = SafeParse.parseMapList(widget.booking?['addons']).toList();
+    if (!addons.any(
+      (item) => const {'daily_care', 'dailyCare'}.contains(item['type']),
+    )) {
+      final entitlement = DailyCareEntitlement.fromMap(
+        SafeParse.parseMap(widget.booking?['dailyCareEntitlement']),
+      );
+      final line = entitlement.toAddonLine();
+      if (line != null) addons.add(line);
+    }
+    for (final item in addons) {
+      final group = switch (item['type']) {
+        'time' || 'time_addon' => _CareArea.time,
+        'value' => _CareArea.value,
+        'custom' => _CareArea.custom,
+        'daily_timed' => _CareArea.timed,
+        _ => _CareArea.other,
+      };
+      addonGroups.putIfAbsent(group, () => []).add(item);
+    }
     final areas = {
       _CareArea.schedule: ('照護時程', Icons.event_note_outlined),
-      if (widget.medicine != null || widget.note != null)
-        _CareArea.medicine: ('用藥', Icons.medication_outlined),
+      if (addonGroups.containsKey(_CareArea.time))
+        _CareArea.time: ('入退房時間', Icons.schedule_outlined),
+      if (addonGroups.containsKey(_CareArea.value))
+        _CareArea.value: ('加值服務', Icons.add_circle_outline),
+      if (addonGroups.containsKey(_CareArea.custom))
+        _CareArea.custom: ('客製服務', Icons.pets_outlined),
+      if (addonGroups.containsKey(_CareArea.timed))
+        _CareArea.timed: ('每日分時段', Icons.event_available_outlined),
+      if (addonGroups.containsKey(_CareArea.other))
+        _CareArea.other: ('其他加購', Icons.receipt_long_outlined),
+      if (widget.medicine != null ||
+          (widget.booking == null && widget.note != null))
+        _CareArea.medicine: ('用藥協助', Icons.medication_outlined),
       if (widget.report != null)
         _CareArea.report: ('回報', Icons.assignment_outlined),
     };
@@ -508,9 +727,16 @@ class _BookingCareDeskState extends State<_BookingCareDesk> {
                 ),
                 for (final date in days)
                   ChoiceChip(
-                    label: Text(date == today ? '今天' : date.substring(5).replaceAll('-', '/')),
+                    label: Text(
+                      date == today
+                          ? '今天'
+                          : date.substring(5).replaceAll('-', '/'),
+                    ),
                     selected: !_allDays && date == day,
-                    onSelected: (_) => setState(() { _day = date; _allDays = false; }),
+                    onSelected: (_) => setState(() {
+                      _day = date;
+                      _allDays = false;
+                    }),
                   ),
               ],
             ),
@@ -527,11 +753,24 @@ class _BookingCareDeskState extends State<_BookingCareDesk> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 12,
         children: [
-          if (widget.note != null) widget.note!,
+          if (widget.note != null)
+            Card.outlined(
+              margin: EdgeInsets.zero,
+              child: ExpansionTile(
+                leading: const Icon(Icons.edit_note),
+                title: const Text('店內用藥交接備註'),
+                subtitle: const Text('僅店內人員可見，可記錄藥名、用量與照護注意事項'),
+                children: [widget.note!],
+              ),
+            ),
           if (widget.medicine != null) widget.medicine!,
         ],
       ),
       _CareArea.report => widget.report ?? const SizedBox.shrink(),
+      _ => _BookingCareAddons(
+        items: addonGroups[area] ?? const [],
+        pets: SafeParse.parseMapList(widget.booking?['pets']),
+      ),
     };
 
     return Column(
@@ -556,7 +795,10 @@ class _BookingCareDeskState extends State<_BookingCareDesk> {
                         avatar: Icon(item.value.$2, size: 17),
                         label: Text(item.value.$1),
                         selected: active == item.key,
-                        onSelected: (_) => setState(() { _area = item.key; _visited.add(item.key); }),
+                        onSelected: (_) => setState(() {
+                          _area = item.key;
+                          _visited.add(item.key);
+                        }),
                       ),
                   ],
                 ),
@@ -566,13 +808,50 @@ class _BookingCareDeskState extends State<_BookingCareDesk> {
                       _area = _CareArea.medicine;
                       _visited.add(_area);
                     }),
-                    icon: Icon(Icons.info_outline, color: colors.primary, size: 18),
+                    icon: Icon(
+                      Icons.info_outline,
+                      color: colors.primary,
+                      size: 18,
+                    ),
                     label: const Text('有用藥需求待確認'),
                   ),
               ],
             ),
           ),
         ),
+        if (addonGroups.containsKey(active) && _inventory != null)
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: _inventory,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Text('目前無法確認本單庫存扣除紀錄。');
+              final record = snapshot.data?.data();
+              final lines = SafeParse.parseMapList(record?['lines']);
+              if (record?['status'] != 'completed' || lines.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Card.outlined(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 6,
+                    children: [
+                      Text(
+                        '本單加購庫存扣除紀錄',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Text('以下為整筆訂單的扣除紀錄。'),
+                      for (final line in lines)
+                        Text(
+                          '${line['itemName'] ?? line['inventoryItemId'] ?? '庫存品項'} · ${line['quantity']} ${line['unit'] ?? ''}',
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         for (final area in areas.keys)
           if (_visited.contains(area))
             Offstage(

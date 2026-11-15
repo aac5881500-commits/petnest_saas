@@ -9,7 +9,7 @@ const ROOT_ADMIN_UID = "7FNrECQeqAca9Vu8lBBzTSdcJcg1";
 const BOOKING_KIND_ACCOMMODATION = "accommodation";
 const BOOKING_KIND_DAYCARE = "daycare";
 
-const ACTIVE_STATUSES = ["pending", "confirmed", "checked_in"];
+const ACTIVE_STATUSES = ["pending", "pending_confirmation", "unpaid", "confirmed", "checked_in"];
 
 /**
  * @param {*} value

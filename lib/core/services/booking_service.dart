@@ -117,9 +117,16 @@ class BookingService {
     /// 若上次停在「訂單已寫入、加購庫存尚未扣除」，這裡會再走一次
     /// 幂等 finalize，避免留下沒扣庫存的有效訂單。
     if (normalizedRequestId.isNotEmpty) {
-      final existingBooking = await doc.get();
+      DocumentSnapshot<Map<String, dynamic>>? existingBooking;
+      try {
+        existingBooking = await doc.get();
+      } on FirebaseException catch (error) {
+        // A new request has no booking document the member can read yet.
+        // The callable validates ownership and deduplicates the request.
+        if (error.code != 'permission-denied') rethrow;
+      }
 
-      if (existingBooking.exists) {
+      if (existingBooking != null && existingBooking.exists) {
         final String existingStatus = (existingBooking.data()?['status'] ?? '')
             .toString();
         if (existingStatus == 'cancelled' ||
@@ -357,10 +364,12 @@ class BookingService {
     Map<String, dynamic>? adminCustomFormAnswers,
     Map<String, dynamic>? adminPetFormAnswersByPetId,
     String adminOrderSource = '',
+    Map<String, dynamic> medicationRequest = const {},
+    String requestId = '',
     Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     final operator = _currentUser;
-    final doc = _bookings.doc();
+    final doc = requestId.isEmpty ? _bookings.doc() : _bookings.doc(requestId);
 
     debugPrint('ADMIN_BOOKING_STEP 1: 開始準備訂單');
     final normalizedStart = _dateOnly(startDate);
@@ -510,6 +519,8 @@ class BookingService {
             'paidAmount': 0,
             'remainingAmount': totalPrice,
             'paymentStatus': 'unpaid',
+            if (medicationRequest.isNotEmpty)
+              'medicationRequest': medicationRequest,
             'bankName': bankName,
             'accountName': accountName,
             'accountNumber': accountNumber,
@@ -618,30 +629,44 @@ class BookingService {
     final status = data['status']?.toString() ?? '';
     final cancelledAt = data['cancelledAt'];
 
-    /// 已取消就不重複處理
-    if (status == 'cancelled' || cancelledAt != null) return;
+    bool releasedByServer = false;
+    if (BookingKind.isAccommodation(data)) {
+      try {
+        await StayBookingFunctionService.instance.manage(
+          shopId: (data['shopId'] ?? '').toString(),
+          bookingId: bookingId,
+          action: 'cancel',
+          reason: cancelReason,
+          cancelBy: cancelBy,
+        );
+        releasedByServer = true;
+      } on StayBookingFunctionException catch (error) {
+        // 舊版函式尚未支援交易式取消時，沿用舊版取消流程。
+        if (!error.message.contains('不支援的住宿庫存操作')) rethrow;
+      }
+    }
 
-    await docRef.update({
-      'status': 'cancelled',
-      'cancelReason': cancelReason,
-      'cancelBy': cancelBy,
-      'cancelledAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    try {
-      await StayBookingFunctionService.instance.manage(
-        shopId: (data['shopId'] ?? '').toString(),
-        bookingId: bookingId,
-        action: 'release',
-      );
-      await StayBookingFunctionService.instance.manage(
-        shopId: (data['shopId'] ?? '').toString(),
-        bookingId: bookingId,
-        action: 'releaseCalendar',
-      );
-    } catch (error, stackTrace) {
-      debugPrint('取消訂單釋放房型保留失敗：$error');
-      debugPrintStack(stackTrace: stackTrace);
+    if (status == 'cancelled' || cancelledAt != null) return;
+    if (!releasedByServer) {
+      await docRef.update({
+        'status': 'cancelled',
+        'cancelReason': cancelReason,
+        'cancelBy': cancelBy,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      for (final action in ['release', 'releaseCalendar']) {
+        try {
+          await StayBookingFunctionService.instance.manage(
+            shopId: (data['shopId'] ?? '').toString(),
+            bookingId: bookingId,
+            action: action,
+          );
+        } catch (error, stackTrace) {
+          debugPrint('取消訂單釋放房間失敗：$error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
     }
     final String couponShopId = (data['shopId'] ?? '').toString().trim();
     final String couponId = (data['couponId'] ?? '').toString().trim();
@@ -664,7 +689,8 @@ class BookingService {
     final startDate = data['startDate'];
     final endDate = data['endDate'];
 
-    if (shopId != null &&
+    if (!releasedByServer &&
+        shopId != null &&
         roomId != null &&
         roomId.toString().isNotEmpty &&
         startDate is Timestamp &&
@@ -1100,16 +1126,12 @@ class BookingService {
     final bookings = await getShopBookings(shopId);
 
     for (final booking in bookings) {
-      final status = booking['status']?.toString() ?? '';
-
-      if (status == 'cancelled' || status == 'completed') continue;
-
-      if (booking['roomId'] != roomId) continue;
+      if (booking['roomId'] != roomId ||
+          !DaycareOccupancyService.occupiesInventory(booking)) {
+        continue;
+      }
 
       if (BookingKind.isDaycare(booking)) {
-        if (!DaycareOccupancyService.occupiesInventory(booking)) {
-          continue;
-        }
         final DateTime? otherStart = _timestampToDate(
           booking['scheduledStartAt'],
         );

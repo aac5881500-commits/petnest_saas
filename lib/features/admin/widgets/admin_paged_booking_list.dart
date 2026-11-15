@@ -292,7 +292,6 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
         constraints: const BoxConstraints(maxWidth: bookingListMaxWidth),
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final bool wide = constraints.maxWidth >= 900;
             return Column(
               children: <Widget>[
                 if (widget.showCreateButton)
@@ -313,14 +312,8 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
                       label: const Text('新增安親訂單'),
                     ),
                   ),
-                if (wide) _controlBar(wide: true),
-                if (!wide)
-                  BookingSearchBar(
-                    controller: _searchController,
-                    onChanged: _onSearch,
-                  ),
                 _filterBar(),
-                if (!wide) _controlBar(wide: false),
+                _controlBar(),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: _reload,
@@ -335,7 +328,7 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
     );
   }
 
-  Widget _controlBar({required bool wide}) {
+  Widget _controlBar() {
     final Widget search = BookingSearchBar(
       controller: _searchController,
       onChanged: _onSearch,
@@ -346,12 +339,6 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
       onPressed: _loading ? null : () => unawaited(_reload()),
       icon: const Icon(Icons.refresh_rounded, size: 20),
     );
-    if (!wide) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        child: Align(alignment: Alignment.centerRight, child: tools),
-      );
-    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
@@ -410,27 +397,29 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
               ),
             ),
           )
-        else
-          ...[
-            if (widget.onOpenOrder != null)
-              LayoutBuilder(
-                builder: (context, bounds) => bounds.maxWidth < 724
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
-                        child: Row(
-                          spacing: 12,
-                          children: const [
-                            Expanded(flex: 3, child: Text('貓咪與飼主')),
-                            Expanded(flex: 2, child: Text('入住與退房')),
-                            Expanded(child: Text('房間')),
-                            Expanded(flex: 2, child: Text('訂單狀態')),
-                            SizedBox(width: 24),
-                          ],
-                        ),
+        else ...[
+          if (widget.onOpenOrder != null)
+            LayoutBuilder(
+              builder: (context, bounds) => bounds.maxWidth < 724
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 8,
                       ),
-              ),
-            ..._docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+                      child: Row(
+                        spacing: 12,
+                        children: const [
+                          Expanded(flex: 3, child: Text('貓咪與飼主')),
+                          Expanded(flex: 2, child: Text('入住與退房')),
+                          Expanded(child: Text('房間')),
+                          Expanded(flex: 2, child: Text('付款')),
+                          SizedBox(width: 126, child: Text('下一步')),
+                        ],
+                      ),
+                    ),
+            ),
+          ..._docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
             final Map<String, dynamic> data = doc.data();
             return BookingOrderCard(
               key: ValueKey(doc.id),
@@ -468,7 +457,7 @@ class _AdminPagedBookingListState extends State<AdminPagedBookingList>
               },
             );
           }),
-          ],
+        ],
         if (_hasMore)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

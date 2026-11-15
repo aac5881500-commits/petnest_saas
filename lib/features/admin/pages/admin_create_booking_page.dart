@@ -30,6 +30,8 @@ import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_calculator.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/features/medication/medication_widgets.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
@@ -67,6 +69,30 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String _keyword = '';
   Map<String, dynamic>? _selectedMember;
   int _step = 0;
+  final _medicationFormKey = GlobalKey<FormState>();
+  Map<String, dynamic> _medicationDraft = {};
+
+  List<Map<String, dynamic>> get _medicationPreferences =>
+      medList(_medicationDraft['preferences'])
+          .where((entry) => _selectedPetIds.contains(entry['petId']))
+          .toList();
+
+  int? _medicationEstimate(Map<String, dynamic> setting) {
+    final start = _startDate;
+    final end = _endDate;
+    if (start == null || end == null) return null;
+    return medicationPreferenceAmount(
+      setting,
+      _medicationPreferences,
+      end.difference(start).inDays,
+    );
+  }
+
+  int _advanceMedicationAmount(Map<String, dynamic> setting) =>
+      medicationCollectsAdvance(setting) ? _medicationEstimate(setting) ?? 0 : 0;
+
+  late final String _bookingRequestId =
+      FirebaseFirestore.instance.collection('bookings').doc().id;
   final Set<String> _selectedPetIds = <String>{};
   DateTime? _startDate;
   DateTime? _endDate;
@@ -250,6 +276,13 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     }
     if (_step == 2) {
       if (_selectedRoomType == null) {
+        return;
+      }
+      if (_medicationFormKey.currentState?.validate() == false) {
+        final fieldContext = _medicationFormKey.currentContext;
+        if (fieldContext != null) {
+          await Scrollable.ensureVisible(fieldContext);
+        }
         return;
       }
       setState(() => _step = 3);
@@ -547,9 +580,11 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                     nights: nights,
                   )
                 : null;
+            final medicationSetting = medMap(snap.data?['medicationSetting']);
+            final advanceMedication = _advanceMedicationAmount(medicationSetting);
             final String totalText = discountInfo == null
                 ? ''
-                : 'NT\$${(discountInfo['finalTotal'] as num?)?.toInt() ?? 0}';
+                : 'NT\$${((discountInfo['finalTotal'] as num?)?.toInt() ?? 0) + advanceMedication}';
             return AdminCreateFlowScaffold(
               title: '手動新增住宿訂單',
               theme: theme,
@@ -663,6 +698,25 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                     _roomTypeSection(),
                     const SizedBox(height: 12),
                     _addonSection(),
+                    if (medicationSetting['enabled'] == true &&
+                        _startDate != null &&
+                        _endDate != null &&
+                        _selectedPets.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Form(
+                        key: _medicationFormKey,
+                        child: BookingMedicationRequestSection(
+                          theme: theme,
+                          pets: _selectedPets,
+                          setting: medicationSetting,
+                          startDate: _startDate!,
+                          endDate: _endDate!,
+                          initial: _medicationDraft,
+                          onChanged: (draft) =>
+                              setState(() => _medicationDraft = draft),
+                        ),
+                      ),
+                    ],
                     if (_selectedRoomType != null)
                       DailyCareUpgradeCard(
                         setting: _dailyCareSetting,
@@ -1229,6 +1283,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                     }
 
                     setState(() {
+                      if (_startDate != _tempStartDate ||
+                          _endDate != _tempEndDate) {
+                        _medicationDraft = {};
+                      }
                       _startDate = _tempStartDate;
                       _endDate = _tempEndDate;
                       _selectedDailyCareAddonId = null;
@@ -1907,7 +1965,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           .where('createdAt', isLessThan: Timestamp.fromDate(tomorrowStart))
           .get();
 
-      if (todayAdminBookings.docs.length >= dailyLimit) {
+      final existingRequest = todayAdminBookings.docs.any(
+        (doc) => doc.id == _bookingRequestId,
+      );
+      if (!existingRequest && todayAdminBookings.docs.length >= dailyLimit) {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2079,9 +2140,14 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         finalTotal: finalTotal,
       );
 
+      final medicationSetting = medMap(shop['medicationSetting']);
+      final medicationPreferences = medicationSetting['enabled'] == true
+          ? _medicationPreferences
+          : <Map<String, dynamic>>[];
+      final advanceMedication = _advanceMedicationAmount(medicationSetting);
       final bookingDepositAmount = _payAmountType == 'full'
-          ? finalTotal
-          : calculatedDepositAmount;
+          ? finalTotal + advanceMedication
+          : calculatedDepositAmount + advanceMedication;
 
       final bookingPaymentMethod = _paymentMethod ?? '';
       final Map<String, dynamic> quotedCare =
@@ -2190,6 +2256,13 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         policySignMethod: _policyRequired ? (_policySignMethod ?? '') : '',
         policyServiceType: PolicyApplicableService.accommodation,
         adminOrderSource: _adminOrderSource,
+        requestId: _bookingRequestId,
+        medicationRequest: medicationPreferences.isEmpty
+            ? const {}
+            : {
+                'preferences': medicationPreferences,
+                'expectedAdvanceAmount': advanceMedication,
+              },
         adminCustomFormAnswers: _adminForm?.shouldCollectAnswers == true
             ? BookingOrderFormAnswers.buildOrderSnapshot(
                 form: _adminForm!,
@@ -2208,21 +2281,25 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
             '${_noteController.text.trim().isEmpty ? '' : '｜${_noteController.text.trim()}'}',
       );
 
-      final bookingCountSnap = await FirebaseFirestore.instance
-          .collection('bookings')
-          .where('shopId', isEqualTo: widget.shopId)
-          .where('userId', isEqualTo: finalUserId)
-          .get();
+      try {
+        final bookingCountSnap = await FirebaseFirestore.instance
+            .collection('bookings')
+            .where('shopId', isEqualTo: widget.shopId)
+            .where('userId', isEqualTo: finalUserId)
+            .get();
 
-      await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(widget.shopId)
-          .collection('members')
-          .doc(finalUserId)
-          .set({
-            'bookingCount': bookingCountSnap.docs.length,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+        await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .collection('members')
+            .doc(finalUserId)
+            .set({
+              'bookingCount': bookingCountSnap.docs.length,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      } catch (error) {
+        debugPrint('訂單已建立，會員訂單數更新失敗：$error');
+      }
 
       if (!mounted) return;
 
@@ -2247,9 +2324,18 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       debugPrint('====================');
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
+        final message = StayBookingFunctionException.from(e);
+        final roomUnavailable = message.contains('房型') &&
+            (message.contains('可用') || message.contains('可連續入住'));
+        if (roomUnavailable) {
+          setState(() {
+            _step = 2;
+            _selectedRoomType = null;
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
     } finally {
       if (mounted) {
@@ -2275,10 +2361,18 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
               )
             : null;
 
+        final medicationSetting = medMap(snapshot.data?['medicationSetting']);
+        final advanceMedication = _advanceMedicationAmount(medicationSetting);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             AdminCreateBookingConfirmSection(
+              advanceMedicationAmount: advanceMedication,
+              medicationEstimate: _medicationPreferences.isEmpty
+                  ? null
+                  : _medicationEstimate(medicationSetting),
+              hasMedication: medicationSetting['enabled'] == true &&
+                  _medicationPreferences.isNotEmpty,
               member: _selectedMember,
               roomType: _selectedRoomType,
               startDate: _startDate,
@@ -2307,7 +2401,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                   ? PointSettingModel.payableAfterPoints(
                       afterCoupon: (discountInfo?['finalTotal'] ?? 0) as int,
                       pointAmount: _pointDiscountNtd,
-                    )
+                    ) + advanceMedication
                   : _calculateDepositAmount(
                       roomSubtotal:
                           ((_selectedRoomType?['price'] ?? 0) as int) * nights,
@@ -2315,7 +2409,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                         afterCoupon: (discountInfo?['finalTotal'] ?? 0) as int,
                         pointAmount: _pointDiscountNtd,
                       ),
-                    ),
+                    ) + advanceMedication,
 
               payAmountType: _payAmountType,
 

@@ -201,6 +201,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
   ({String id, Map<String, dynamic>? data, int section})? _openBooking;
 
   WidgetBuilder? _activeShiftTask;
+  bool _workPaneCollapsed = false;
+  double? _workPaneWidth;
 
   void _showShiftTask(WidgetBuilder builder) {
     if (MediaQuery.sizeOf(context).width >= 1250) {
@@ -246,20 +248,35 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     return LayoutBuilder(
       builder: (context, bounds) {
         final split = hasDetail && bounds.maxWidth >= 900;
-        final focused = hasDetail && !split;
-        final width = (bounds.maxWidth * .34).clamp(310.0, 470.0);
+        final visible = split && !_workPaneCollapsed;
+        final maxWidth = bounds.maxWidth - 520;
+        final width = split
+            ? (_workPaneWidth ?? (bounds.maxWidth * .34).clamp(310.0, 470.0))
+                  .clamp(280.0, maxWidth).toDouble()
+            : bounds.maxWidth;
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Offstage(
-              offstage: focused,
+              offstage: hasDetail && !visible,
               child: SizedBox(
-                width: split ? width : bounds.maxWidth,
+                width: width,
                 child: list,
               ),
             ),
+            if (visible)
+              MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (event) => setState(() {
+                    _workPaneWidth = (width + event.delta.dx)
+                        .clamp(280.0, maxWidth).toDouble();
+                  }),
+                  child: const VerticalDivider(width: 10, thickness: 1),
+                ),
+              ),
             if (task != null) ...[
-              if (split) const VerticalDivider(width: 1),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -292,7 +309,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
               ),
             ],
             if (selection != null) ...[
-              if (split) const VerticalDivider(width: 1),
               Expanded(
                 child: KeyedSubtree(
                   key: ValueKey((selection.id, selection.section)),
@@ -424,8 +440,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     }
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double width = constraints.maxWidth;
-        final bool desktop = width >= _desktopMin;
         final view = !_hasPermission || (_deskView == _DeskView.orders && !_canOpenOrders)
             ? (_canOpenOrders ? _DeskView.orders : _DeskView.rooms)
             : _deskView;
@@ -470,6 +484,16 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     actions: <Widget>[
+                      if (_openBooking != null || _activeShiftTask != null)
+                        IconButton(
+                          tooltip: _workPaneCollapsed ? '展開左側工作台' : '收合左側工作台',
+                          onPressed: () => setState(() {
+                            _workPaneCollapsed = !_workPaneCollapsed;
+                          }),
+                          icon: Icon(_workPaneCollapsed
+                              ? Icons.keyboard_double_arrow_right
+                              : Icons.keyboard_double_arrow_left),
+                        ),
                       ShopTaskCenterButton(shopId: widget.shopId),
                       if (_hasPermission) WorkbenchSettingsMenu(
                         selected: _layout,
@@ -490,7 +514,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                           canManageStay: _canManageCare,
                           canManageDaycare: _canManageDaycare,
                           selectedOrderId: _openBooking?.id,
-                          onOpenOrder: (id, data) => _showOrder(id, data: data),
+                          onOpenOrder: (id, data) => _showOrder(
+                            id,
+                            data: data,
+                            section: data['status'] == 'checked_out' ||
+                                    data['depositStatus'] == 'pending_review'
+                                ? 2
+                                : 0,
+                          ),
                         )
                       : view == _DeskView.care
                       ? _careWorkspace()
@@ -612,8 +643,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                                                                 CircularProgressIndicator(),
                                                           );
                                                         }
-                                                        return _workspace(
-                                                          desktop: desktop,
+                                                        return LayoutBuilder(
+                                                          builder: (context, roomBounds) => _workspace(
+                                                          desktop: roomBounds.maxWidth >= _desktopMin,
                                                           rooms: rooms,
                                                           bookings: bookingSnap
                                                               .data!
@@ -638,6 +670,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                                                               )
                                                               .toList(),
                                                           report: _lastReport,
+                                                        ),
                                                         );
                                                       },
                                                 );

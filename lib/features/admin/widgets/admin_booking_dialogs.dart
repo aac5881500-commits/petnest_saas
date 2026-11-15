@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/booking_room_change_reasons.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 
@@ -22,13 +23,16 @@ Future<void> showAdminAssignRoomDialog({
       .collection('shops')
       .doc(shopId)
       .collection('rooms')
-      .where('roomTypeId', isEqualTo: roomTypeId)
-      .where('enabled', isEqualTo: true)
       .get();
 
   final availableRooms = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
   for (final roomDoc in rooms.docs) {
+    final room = roomDoc.data();
+    if (!DaycareOccupancyService.roomMatchesType(room, roomTypeId) ||
+        DaycareOccupancyService.isRoomDocumentUnsellable(room)) {
+      continue;
+    }
     final available = await BookingService.instance.isRoomAvailable(
       shopId: shopId,
       roomId: roomDoc.id,
@@ -56,9 +60,9 @@ Future<void> showAdminAssignRoomDialog({
       return AlertDialog(
         title: const Text('選擇房間'),
         content: SizedBox(
-          width: double.maxFinite,
+          width: 440,
           child: availableRooms.isEmpty
-              ? const Text('此房型目前沒有可用房間')
+              ? const Text('此房型在本單住宿期間沒有可分配的房間。請到房況查看各日的訂房、清潔或關房狀態。')
               : ListView(
                   shrinkWrap: true,
                   children: availableRooms.map((doc) {

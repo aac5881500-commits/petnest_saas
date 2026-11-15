@@ -206,20 +206,20 @@ class _CreateOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool daycareOn = DaycareSettingsService.instance.isEnabledForShop(
+      shop: shop,
+    );
+    if (!allowStay && !(allowDaycare && daycareOn)) {
+      return const SizedBox.shrink();
+    }
     final bool canCreateOrder = ShopPermissionService.canCreateOrder(shop);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: TextButton.icon(
+      child: FilledButton.icon(
         onPressed: canCreateOrder
             ? () async {
-                final bool daycareOn = DaycareSettingsService.instance
-                    .isEnabledForShop(shop: shop);
-                if (!context.mounted) {
-                  return;
-                }
                 if (!allowStay || !allowDaycare || !daycareOn) {
-                  Navigator.push(
-                    context,
+                  await Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute<void>(
                       builder: (_) => allowStay
                           ? AdminCreateBookingPage(shopId: shopId)
@@ -267,8 +267,7 @@ class _CreateOrderButton extends StatelessWidget {
                 if (!context.mounted || choice == null) {
                   return;
                 }
-                Navigator.push(
-                  context,
+                await Navigator.of(context, rootNavigator: true).push(
                   MaterialPageRoute<void>(
                     builder: (_) => choice == 'daycare'
                         ? AdminCreateDaycareBookingPage(shopId: shopId)
@@ -284,7 +283,7 @@ class _CreateOrderButton extends StatelessWidget {
                 );
               },
         icon: Icon(canCreateOrder ? Icons.add : Icons.lock_outline),
-        label: const Text('手動新增訂單'),
+        label: const Text('新增訂單'),
       ),
     );
   }

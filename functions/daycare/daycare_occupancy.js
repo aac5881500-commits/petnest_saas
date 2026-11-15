@@ -685,7 +685,7 @@ function remainingRoomsFromData(params) {
     };
   }
   let usableCount = 0;
-  let free = 0;
+  const freeRoomIds = [];
   typeRooms.forEach((room) => {
     if (roomUnavailable(room)) {
       return;
@@ -769,7 +769,7 @@ function remainingRoomsFromData(params) {
       }
     });
     if (!busy) {
-      free += 1;
+      freeRoomIds.push(roomId);
     }
   });
   const reservedIds = new Set();
@@ -811,6 +811,7 @@ function remainingRoomsFromData(params) {
     }
   });
   const reservedCount = reservedIds.size;
+  const free = freeRoomIds.length;
   const remaining = Math.max(0, free - reservedCount);
   let zeroReason = "";
   if (remaining <= 0) {
@@ -826,6 +827,7 @@ function remainingRoomsFromData(params) {
     usableCount,
     reservedCount,
     freeCount: free,
+    freeRoomIds,
     zeroReason,
   };
 }
@@ -1109,6 +1111,7 @@ async function loadStayRoomTypeHoldStates(transaction, firestore, params) {
   });
   const occupancies = occSnap.docs.map((doc) => doc.data() || {});
   const states = [];
+  let roomsFreeThroughout = new Set(typeRooms.map((room) => room.id));
   for (const dateKey of dateKeys) {
     const holdRef = holdDocRef(firestore, shopId, roomTypeId, dateKey);
     const holdSnap = await transaction.get(holdRef);
@@ -1134,9 +1137,22 @@ async function loadStayRoomTypeHoldStates(transaction, firestore, params) {
       endAt,
       excludeBookingId: bookingId,
       dateKey,
+      petCount: toInt(params.petCount, 0),
+      roomTypeCapacity: toInt(params.roomTypeCapacity, 0),
     });
     if (computed.remaining <= 0) {
-      const error = new Error(computed.zeroReason || ROOM_TYPE_SOLD_OUT);
+      const reason = computed.zeroReason === ROOM_TYPE_SOLD_OUT ?
+        "此住宿房型已無可用房間，請更換日期或房型" : computed.zeroReason;
+      const error = new Error(reason);
+      error.code = "failed-precondition";
+      throw error;
+    }
+    const freeToday = new Set(computed.freeRoomIds);
+    roomsFreeThroughout = new Set(
+        [...roomsFreeThroughout].filter((roomId) => freeToday.has(roomId)),
+    );
+    if (roomsFreeThroughout.size === 0) {
+      const error = new Error("此房型沒有可連續入住的房間，請更換日期或房型");
       error.code = "failed-precondition";
       throw error;
     }
