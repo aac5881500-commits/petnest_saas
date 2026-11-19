@@ -29,9 +29,7 @@ import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
-import 'package:petnest_saas/core/models/shop_task_item.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
-import 'package:petnest_saas/core/services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button.dart';
@@ -56,7 +54,6 @@ import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_pre_arrival_guide_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_custom_form_settings_page.dart';
-import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_camera_access_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
@@ -79,8 +76,6 @@ import 'package:petnest_saas/features/shop/widgets/camera/shop_camera_share_entr
 import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_management_hub.dart';
-import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
-import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
 
 /// The inspection shell reuses the owner's actual menu widgets without mounting
 /// writable owner pages or their Firestore subscriptions. Data and navigation
@@ -740,8 +735,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       return;
     }
     if (!_canPresentWelcome(visit) ||
-        FirebaseAuth.instance.currentUser?.uid != user.uid)
+        FirebaseAuth.instance.currentUser?.uid != user.uid) {
       return;
+    }
     final show = ShopAdminWelcome.shouldShow(
       shop: shop,
       shopId: widget.shopId,
@@ -2206,7 +2202,12 @@ class _DashboardSideNavigationState extends State<_DashboardSideNavigation> {
                       ),
                       for (final entry
                           in section.children.whereType<_MenuTile>())
-                        item(
+                        if (!_orderSubpages.containsKey(entry.destinationId) ||
+                            widget.navigation.selected == _orderManagementId ||
+                            _orderSubpages.containsKey(widget.navigation.selected))
+                        Padding(
+                          padding: EdgeInsets.only(left: _orderSubpages.containsKey(entry.destinationId) ? 18 : 0),
+                          child: item(
                           entry.title,
                           entry.icon,
                           entry.destinationId != null &&
@@ -2222,6 +2223,7 @@ class _DashboardSideNavigationState extends State<_DashboardSideNavigation> {
                                 },
                           id: entry.destinationId,
                           child: true,
+                        ),
                         ),
                     ],
                   ],
@@ -2270,7 +2272,7 @@ void _openBasicInfoPage(BuildContext context, String id, WidgetBuilder page) {
     Navigator.of(context, rootNavigator: true)
         .push(
           MaterialPageRoute<void>(
-            settings: (id == shopOperationsWorkbenchRouteName || id == 'AdminBookingListPage')
+            settings: (id == _orderManagementId || _orderSubpages.containsKey(id))
                 ? RouteSettings(name: id)
                 : null,
             builder: destination == null ? page : (_) => destination,
@@ -2668,6 +2670,13 @@ class _BasicInfoTab extends StatelessWidget {
 }
 
 /// ===== 貓咪旅店分頁 =====
+const _orderManagementId = 'AdminBookingListPage';
+const _orderSubpages = {
+  'order-today-care': (OrderManagementView.today, '今日與照護', Icons.today_outlined),
+  'order-rooms': (OrderManagementView.rooms, '房況', Icons.meeting_room_outlined),
+  'order-reports': (OrderManagementView.reports, '回報', Icons.assignment_outlined),
+};
+
 class _CatHotelTab extends StatelessWidget {
   const _CatHotelTab({
     required this.shopId,
@@ -2710,13 +2719,13 @@ class _CatHotelTab extends StatelessWidget {
       _DashboardSection(
         title: '今日營運',
         children: [
-          if (_can(ShopPermissionKeys.manageBookings) || _can(ShopPermissionKeys.manageDaycareBookings))
+          if (_can(ShopPermissionKeys.manageBookings) || _can(ShopPermissionKeys.manageDaycareBookings) || _can(ShopPermissionKeys.manageRoomDashboard))
             page(
-              'AdminBookingListPage',
+              _orderManagementId,
               '訂單管理',
               '查看待確認、付款與新留言',
               Icons.receipt_long,
-              (_) => RoomDashboardPage(shopId: shopId, startWithOrders: true),
+              (_) => RoomDashboardPage(shopId: shopId),
               tileBuilder: (context, open) => _BookingManageTile(
                 shopId: shopId,
                 enabled: isProfileComplete,
@@ -2724,18 +2733,14 @@ class _CatHotelTab extends StatelessWidget {
               ),
             ),
           if (_can(ShopPermissionKeys.manageRoomDashboard))
-            page(
-              shopOperationsWorkbenchRouteName,
-              '營運工作台',
-              '查看房況、今日待辦與照護回報',
-              Icons.grid_view,
-              (_) => RoomDashboardPage(shopId: shopId),
-              tileBuilder: (context, open) => _RoomDashboardTile(
-                shopId: shopId,
-                enabled: isProfileComplete,
-                onTap: open,
+            for (final child in _orderSubpages.entries)
+              page(
+                child.value.$1.destinationId,
+                child.value.$2,
+                '',
+                child.value.$3,
+                (_) => RoomDashboardPage(shopId: shopId, initialView: child.value.$1),
               ),
-            ),
           if (_can(ShopPermissionKeys.manageChat))
             _MenuTile(
               title: '店家聊天',
@@ -2921,7 +2926,9 @@ class _CatHotelTab extends StatelessWidget {
           title: sections[index].title,
           preferredColumns: columns,
           compact: true,
-          children: sections[index].children,
+          children: sections[index].children.where((entry) =>
+            entry is! _MenuTile || !_orderSubpages.containsKey(entry.destinationId),
+          ).toList(),
         );
         Widget column(List<int> indexes) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3304,118 +3311,6 @@ class _ShopPlanStatusCard extends StatelessWidget {
                     Expanded(flex: 2, child: metric('使用狀態', statusChip)),
                   ],
                 ),
-        );
-      },
-    );
-  }
-}
-
-class _RoomDashboardTile extends StatefulWidget {
-  const _RoomDashboardTile({
-    required this.shopId,
-    required this.onTap,
-    required this.enabled,
-  });
-
-  final String shopId;
-  final VoidCallback onTap;
-  final bool enabled;
-
-  @override
-  State<_RoomDashboardTile> createState() => _RoomDashboardTileState();
-}
-
-class _RoomDashboardTileState extends State<_RoomDashboardTile> {
-  DailyCareReportCenterSnapshot? _lastReport;
-  Stream<ShopTaskCenterSnapshot>? _tasks;
-  String _taskShopId = '';
-
-  Stream<ShopTaskCenterSnapshot> _taskStream() {
-    if (_tasks == null || _taskShopId != widget.shopId) {
-      _taskShopId = widget.shopId;
-      _tasks = ShopTaskCenterService.instance.streamSnapshot(
-        shopId: widget.shopId,
-        canViewBookings: false,
-        canFillDailyCare: true,
-      );
-    }
-    return _tasks!;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('bookings')
-          .where('shopId', isEqualTo: widget.shopId)
-          .where(
-            'status',
-            whereIn: ['pending', 'payment_uploaded', 'confirmed', 'checked_in'],
-          )
-          .snapshots(),
-      builder: (context, snapshot) {
-        int unassignedCount = 0;
-
-        if (snapshot.hasData) {
-          for (final doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-
-            final assignStatus = (data['assignStatus'] ?? '').toString();
-
-            final roomId = (data['roomId'] ?? '').toString();
-
-            if (assignStatus == 'unassigned' || roomId.isEmpty) {
-              unassignedCount++;
-            }
-          }
-        }
-
-        return StreamBuilder<ShopTaskCenterSnapshot>(
-          stream: _taskStream(),
-          builder: (context, taskSnapshot) {
-            final int checkedInRooms =
-                taskSnapshot.data?.checkedInRoomCount ?? 0;
-            return StreamBuilder<DailyCareReportCenterSnapshot>(
-              stream: DailyCareReportCenterService.instance.streamToday(
-                shopId: widget.shopId,
-                canOperate: widget.enabled,
-              ),
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<DailyCareReportCenterSnapshot> reportSnap,
-                  ) {
-                    if (reportSnap.hasData &&
-                        reportSnap.data != null &&
-                        !reportSnap.data!.hasError) {
-                      _lastReport = reportSnap.data;
-                    }
-                    final DailyCareReportCenterSnapshot? report = _lastReport;
-                    final bool reportsOn = report?.settingEnabled == true;
-                    final int pending = report?.pendingCount ?? 0;
-                    final String subtitle;
-                    if (!widget.enabled) {
-                      subtitle = '請先完成基本資料';
-                    } else if (reportsOn) {
-                      subtitle = '待分房 $unassignedCount 項・每日回報待填 $pending 場';
-                    } else if (unassignedCount > 0) {
-                      subtitle = '待分房 $unassignedCount 項・入住 $checkedInRooms 房';
-                    } else {
-                      subtitle = '入住 $checkedInRooms 房';
-                    }
-                    return _MenuTile(
-                      title: '營運工作台',
-                      subtitle: subtitle,
-                      icon: reportsOn
-                          ? Icons.dashboard_customize_outlined
-                          : Icons.grid_view,
-                      enabled: widget.enabled,
-                      badgeCount: widget.enabled ? unassignedCount : 0,
-                      onTap: widget.onTap,
-                    );
-                  },
-            );
-          },
         );
       },
     );

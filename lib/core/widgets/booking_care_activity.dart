@@ -2,8 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/booking_medication_task.dart';
 import '../models/booking_service_task.dart';
-import '../../features/medication/medication_task_page.dart';
-import '../../features/medication/service_task_page.dart';
+import '../../features/medication/care_task_dialog.dart';
 
 class BookingCareActivity extends StatefulWidget {
   const BookingCareActivity({
@@ -221,22 +220,12 @@ class _BookingCareActivityState extends State<BookingCareActivity> {
                           ? BookingMedicationTask.canRecord(b)
                           : BookingServiceTask.canRecord(b));
                   final action = FilledButton.tonal(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => row.medication
-                            ? MedicationTaskPage(
-                                shopId: '${b['shopId']}',
-                                bookingId: widget.bookingId,
-                                taskId: row.id,
-                                scheduledAt: row.time.toUtc().toIso8601String(),
-                              )
-                            : ServiceTaskPage(
-                                shopId: '${b['shopId']}',
-                                bookingId: widget.bookingId,
-                                taskId: row.id,
-                                scheduledAt: row.time.toUtc().toIso8601String(),
-                              ),
-                      ),
+                    onPressed: () => openCareReportResult(
+                      context,
+                      shopId: '${b['shopId']}',
+                      bookingId: widget.bookingId,
+                      taskId: row.id,
+                      medication: row.medication,
                     ),
                     child: Text(recorded ? '補齊結果' : '填寫結果'),
                   );

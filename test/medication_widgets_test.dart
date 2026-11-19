@@ -785,13 +785,20 @@ void main() {
                 booking: oldBooking,
                 staff: staff,
                 summaryOnly: staff,
+                customerDetails: !staff,
               ),
             ),
           ),
         );
-        expect(find.text('麻糬・口服藥・每日 09:00、13:00'), findsOneWidget);
+        expect(find.text('麻糬'), findsOneWidget);
+        expect(find.text('口服藥'), findsOneWidget);
+        expect(find.text('09:00'), findsOneWidget);
+        expect(find.text('13:00'), findsOneWidget);
         expect(find.text('待店家確認'), findsOneWidget);
-        expect(find.text('用藥費待店家確認'), findsOneWidget);
+        expect(
+          find.text(staff ? '用藥費待店家確認' : '本單用藥費待確認'),
+          findsOneWidget,
+        );
         expect(find.text('確認安排／提出報價'), findsNothing);
       }
     },

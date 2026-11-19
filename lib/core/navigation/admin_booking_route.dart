@@ -21,6 +21,7 @@ class AdminBookingRoute {
     bool canEdit = true,
     int initialSection = 0,
     VoidCallback? onClose,
+    Widget? paneToggle,
   }) {
     final String resolvedShopId = shopId.trim().isNotEmpty
         ? shopId.trim()
@@ -32,6 +33,7 @@ class AdminBookingRoute {
         canEdit: canEdit,
         initialSection: initialSection,
         onClose: onClose,
+        paneToggle: paneToggle,
       );
     }
     return AdminBookingDetailPage(
@@ -39,6 +41,7 @@ class AdminBookingRoute {
       canEdit: canEdit,
       initialSection: initialSection,
       onClose: onClose,
+      paneToggle: paneToggle,
     );
   }
 
@@ -111,6 +114,7 @@ class AdminBookingRouteGate extends StatelessWidget {
     this.canEdit = true,
     this.initialSection = 0,
     this.onClose,
+    this.paneToggle,
   });
 
   final String bookingId;
@@ -118,6 +122,7 @@ class AdminBookingRouteGate extends StatelessWidget {
   final bool canEdit;
   final int initialSection;
   final VoidCallback? onClose;
+  final Widget? paneToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -133,10 +138,12 @@ class AdminBookingRouteGate extends StatelessWidget {
           ) {
             if (snapshot.hasError) {
               return Scaffold(
-                body: Center(child: TextButton(
-                  onPressed: onClose,
-                  child: const Text('無法讀取訂單'),
-                )),
+                body: Center(
+                  child: TextButton(
+                    onPressed: onClose,
+                    child: const Text('無法讀取訂單'),
+                  ),
+                ),
               );
             }
             if (!snapshot.hasData) {
@@ -153,7 +160,10 @@ class AdminBookingRouteGate extends StatelessWidget {
                     children: [
                       const Text('找不到訂單'),
                       if (onClose != null)
-                        TextButton(onPressed: onClose, child: const Text('關閉訂單')),
+                        TextButton(
+                          onPressed: onClose,
+                          child: const Text('關閉訂單'),
+                        ),
                     ],
                   ),
                 ),
@@ -166,6 +176,7 @@ class AdminBookingRouteGate extends StatelessWidget {
               canEdit: canEdit,
               initialSection: initialSection,
               onClose: onClose,
+              paneToggle: paneToggle,
             );
           },
     );

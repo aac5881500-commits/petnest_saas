@@ -131,7 +131,6 @@ void main() {
           home: AdminBookingDetailScaffold(
             title: '訂單詳細',
             bookingCode: 'SHOP0001-B000197',
-            operationsShopId: 'shop-1',
             splitPhoneActions: true,
             overview: const Text('訂單摘要'),
             left: const <Widget>[Text('顧客資訊')],
@@ -145,7 +144,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('工作台'), findsOneWidget);
+    expect(find.text('工作台'), findsNothing);
     expect(find.text('訂單'), findsOneWidget);
     expect(find.text('進度'), findsOneWidget);
     expect(find.text('完整時間軸'), findsNothing);
@@ -179,7 +178,6 @@ void main() {
           home: AdminBookingDetailScaffold(
             title: '訂單詳細',
             bookingCode: 'B1',
-            operationsShopId: 'shop-1',
             overview: const Text('訂單摘要'),
             actions: const Text('辦理退房／結算'),
             phoneStickyActions: const Text('手機底部'),
@@ -191,7 +189,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('營運工作台'), findsOneWidget);
+    expect(find.text('營運工作台'), findsNothing);
     expect(find.text('完整時間軸'), findsOneWidget);
     expect(find.text('辦理退房／結算'), findsOneWidget);
     expect(find.text('手機底部'), findsNothing);

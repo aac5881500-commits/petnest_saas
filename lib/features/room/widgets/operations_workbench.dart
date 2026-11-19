@@ -9,7 +9,7 @@ import 'operations_workbench_data.dart';
 import 'package:petnest_saas/core/models/booking_medication_task.dart';
 import 'package:petnest_saas/core/models/booking_service_task.dart';
 import 'package:petnest_saas/features/medication/medication_task_page.dart';
-import 'package:petnest_saas/features/medication/service_task_page.dart';
+import 'package:petnest_saas/features/medication/care_task_dialog.dart';
 
 const opsInk = Color(0xFF17213E);
 const opsMuted = Color(0xFF778198);
@@ -175,6 +175,7 @@ class OperationsWorkbench extends StatefulWidget {
     this.onCamera,
     this.busy = false,
     this.shift = false,
+    this.careTasks,
     this.shopId = '',
     this.canManageOrder,
     this.onOrderDeparture,
@@ -183,6 +184,7 @@ class OperationsWorkbench extends StatefulWidget {
   });
   final WorkbenchView view;
   final bool shift;
+  final Widget? careTasks;
   final String shopId;
   final bool Function(Map<String, dynamic>)? canManageOrder;
   final ValueChanged<RoomDayBookingChoice>? onOrderDeparture;
@@ -1920,14 +1922,13 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
           icon: Icons.medication_outlined,
           attention: task.pending && !task.scheduledAt.isAfter(now),
           complete: !task.pending,
-          run: () {
-            _openTaskPage((_) => MedicationTaskPage(
-                shopId: widget.shopId,
-                bookingId: order.id,
-                taskId: task.id,
-                scheduledAt: task.scheduledAt.toIso8601String(),
-            ));
-          },
+          run: () => openCareReportResult(
+            context,
+            shopId: widget.shopId,
+            bookingId: order.id,
+            taskId: task.id,
+            medication: true,
+          ),
         ));
       }
       for (final task in BookingServiceTask.fromBooking(order.data)) {
@@ -1940,18 +1941,13 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
           icon: Icons.pets_outlined,
           attention: task.pending && !task.scheduledAt.isAfter(now),
           complete: !task.pending,
-          run: () {
-            if (!task.pending || !BookingServiceTask.canRecord(order.data)) {
-              (widget.onOrderCare ?? widget.onOrder)(order);
-              return;
-            }
-            _openTaskPage((_) => ServiceTaskPage(
-                shopId: widget.shopId,
-                bookingId: order.id,
-                taskId: task.id,
-                scheduledAt: task.scheduledAt.toIso8601String(),
-            ));
-          },
+          run: () => openCareReportResult(
+            context,
+            shopId: widget.shopId,
+            bookingId: order.id,
+            taskId: task.id,
+            medication: false,
+          ),
         ));
       }
     }
@@ -2041,6 +2037,15 @@ class _OperationsWorkbenchState extends State<OperationsWorkbench> {
               child: Text('這一天沒有待處理的行程'),
             )),
           group('已完成', (_, complete) => complete, collapsed: true),
+          if (widget.careTasks case final careTasks?)
+            Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ExpansionTile(
+                leading: const Icon(Icons.pets_outlined),
+                title: const Text('所有照護待辦'),
+                children: [careTasks],
+              ),
+            ),
         ],
       );
 

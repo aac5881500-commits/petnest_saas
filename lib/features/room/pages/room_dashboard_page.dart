@@ -1,6 +1,7 @@
+import '../../medication/care_task_dialog.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_palette_state.dart';
 // 檔案名稱：lib/features/room/pages/room_dashboard_page.dart
-// 功能說明：營運工作台主頁，整合房務總覽與每日回報。
+// 訂單管理、今日與照護、房況及回報的內容頁。
 
 import 'dart:async';
 import '../../../core/widgets/shop_task_center_panel.dart';
@@ -35,7 +36,15 @@ import 'package:petnest_saas/features/room/widgets/workbench_views.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 
-enum _DeskView { today, orders, rooms, care, reports }
+enum OrderManagementView {
+  today('order-today-care'),
+  orders('AdminBookingListPage'),
+  rooms('order-rooms'),
+  reports('order-reports');
+
+  const OrderManagementView(this.destinationId);
+  final String destinationId;
+}
 
 class _DashRoom {
   const _DashRoom({
@@ -79,9 +88,13 @@ class _DashRoom {
 }
 
 class RoomDashboardPage extends StatefulWidget {
-  const RoomDashboardPage({super.key, required this.shopId, this.startWithOrders = false});
+  const RoomDashboardPage({
+    super.key,
+    required this.shopId,
+    this.initialView = OrderManagementView.orders,
+  });
 
-  final bool startWithOrders;
+  final OrderManagementView initialView;
 
   final String shopId;
 
@@ -122,14 +135,12 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
             setState(() {
               final setting = shop?['medicationSetting'];
               _medicationOn = setting is Map && setting['enabled'] == true;
-              _resetCareView();
             });
           },
           onError: (Object _) {
             if (mounted) {
               setState(() {
                 _medicationOn = false;
-                _resetCareView();
               });
             }
           },
@@ -148,50 +159,42 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
             setState(() {
               _servicesOn =
                   data?['enabled'] == true && list is List && list.isNotEmpty;
-              _resetCareView();
             });
           },
           onError: (Object _) {
             if (mounted) {
               setState(() {
                 _servicesOn = false;
-                _resetCareView();
               });
             }
           },
         );
   }
 
-  void _resetCareView() {
-    if (!_careTasksOn && _deskView == _DeskView.care) {
-      _deskView = _DeskView.rooms;
+  void _openOrderManagementView(OrderManagementView view) {
+    final navigation = ShopDashboardNavigationScope.maybeOf(context);
+    if (navigation != null && navigation.desktop) {
+      navigation.openEntry(view.destinationId);
+      return;
     }
+    setState(() => _deskView = view);
   }
 
-  Widget _careWorkspace() => Align(
-    alignment: Alignment.topCenter,
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 1100),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: ShopTaskCenterPanel(
-          shopId: widget.shopId,
-          canViewBookings: _canManageCare,
-          canFillDailyCare: _hasPermission,
-          showViewAll: false,
-          closeBeforeOpen: false,
-          careOnly: true,
-          onOpenOrder: (item) => _showOrder(item.targetId, section: 1),
-        ),
-      ),
-    ),
+  Widget _careTasks() => ShopTaskCenterPanel(
+    shopId: widget.shopId,
+    canViewBookings: _canManageCare,
+    canFillDailyCare: _hasPermission,
+    showViewAll: false,
+    closeBeforeOpen: false,
+    careOnly: true,
+    onOpenOrder: (item) => _showOrder(item.targetId, section: 1),
   );
 
   String _selectedRoomTypeFilter = '__all__';
   RoomOverviewFilter _quickFilter = RoomOverviewFilter.all;
   final Set<String> _collapsedTypes = <String>{};
   final Set<String> _busyKeys = <String>{};
-  late _DeskView _deskView = widget.startWithOrders ? _DeskView.orders : _DeskView.today;
+  late OrderManagementView _deskView = widget.initialView;
   bool get _canOpenOrders => _canManageCare || _canManageDaycare;
   String _selectedRoomId = '';
   int _streamRetry = 0;
@@ -216,7 +219,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
   }
 
   bool _mayEditOrder(Map<String, dynamic>? data) =>
-      _canManageCare || (_canManageDaycare && AdminBookingRoute.isDaycareBooking(data));
+      _canManageCare ||
+      (_canManageDaycare && AdminBookingRoute.isDaycareBooking(data));
 
   void _showOrder(String id, {Map<String, dynamic>? data, int section = 0}) {
     if (MediaQuery.sizeOf(context).width >= 1250) {
@@ -237,6 +241,22 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     );
   }
 
+  CareReportTarget? _reportTarget;
+
+  void _openCareReportResult(CareReportTarget target) {
+    setState(() {
+      _reportTarget = target;
+      _deskView = OrderManagementView.reports;
+    });
+  }
+
+  void _closeCareReportResult() {
+    setState(() {
+      _reportTarget = null;
+      if (!_reportsOn) _deskView = OrderManagementView.today;
+    });
+  }
+
   Widget _withOrderPane(Widget list) {
     final selection = _openBooking;
     final task = _activeShiftTask;
@@ -249,20 +269,25 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       builder: (context, bounds) {
         final split = hasDetail && bounds.maxWidth >= 900;
         final visible = split && !_workPaneCollapsed;
+        final paneToggle = split
+            ? TextButton.icon(
+                onPressed: () => setState(() => _workPaneCollapsed = visible),
+                icon: Icon(visible ? Icons.chevron_left : Icons.chevron_right),
+                label: Text(visible ? '收合訂單清單' : '展開訂單清單'),
+              )
+            : null;
         final maxWidth = bounds.maxWidth - 520;
         final width = split
             ? (_workPaneWidth ?? (bounds.maxWidth * .34).clamp(310.0, 470.0))
-                  .clamp(280.0, maxWidth).toDouble()
+                  .clamp(280.0, maxWidth)
+                  .toDouble()
             : bounds.maxWidth;
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Offstage(
               offstage: hasDetail && !visible,
-              child: SizedBox(
-                width: width,
-                child: list,
-              ),
+              child: SizedBox(width: width, child: list),
             ),
             if (visible)
               MouseRegion(
@@ -271,7 +296,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragUpdate: (event) => setState(() {
                     _workPaneWidth = (width + event.delta.dx)
-                        .clamp(280.0, maxWidth).toDouble();
+                        .clamp(280.0, maxWidth)
+                        .toDouble();
                   }),
                   child: const VerticalDivider(width: 10, thickness: 1),
                 ),
@@ -295,10 +321,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                         onGenerateInitialRoutes: (_, _) {
                           final route = MaterialPageRoute<void>(builder: task);
                           route.popped.then((_) {
-                            if (mounted && identical(_activeShiftTask, task)) close();
+                            if (mounted && identical(_activeShiftTask, task)) {
+                              close();
+                            }
                           });
                           return [
-                            MaterialPageRoute<void>(builder: (_) => const SizedBox.shrink()),
+                            MaterialPageRoute<void>(
+                              builder: (_) => const SizedBox.shrink(),
+                            ),
                             route,
                           ];
                         },
@@ -319,6 +349,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                           canEdit: _canManageCare,
                           initialSection: selection.section,
                           onClose: close,
+                          paneToggle: paneToggle,
                         )
                       : AdminBookingRoute.page(
                           bookingId: selection.id,
@@ -327,6 +358,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                           canEdit: _mayEditOrder(selection.data),
                           initialSection: selection.section,
                           onClose: close,
+                          paneToggle: paneToggle,
                         ),
                 ),
               ),
@@ -336,6 +368,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
       },
     );
   }
+
   bool _layoutChosen = false;
   String get _layoutKey =>
       'roomWorkbenchLayout:${FirebaseAuth.instance.currentUser?.uid ?? 'guest'}:${widget.shopId}';
@@ -440,14 +473,18 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     }
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final view = !_hasPermission || (_deskView == _DeskView.orders && !_canOpenOrders)
-            ? (_canOpenOrders ? _DeskView.orders : _DeskView.rooms)
+        final view =
+            !_hasPermission ||
+                (_deskView == OrderManagementView.orders && !_canOpenOrders)
+            ? (_canOpenOrders ? OrderManagementView.orders : OrderManagementView.rooms)
             : _deskView;
         return StreamBuilder<DailyCareReportCenterSnapshot>(
-          stream: !_hasPermission ? null : DailyCareReportCenterService.instance.streamToday(
-            shopId: widget.shopId,
-            canOperate: true,
-          ),
+          stream: !_hasPermission
+              ? null
+              : DailyCareReportCenterService.instance.streamToday(
+                  shopId: widget.shopId,
+                  canOperate: true,
+                ),
           builder:
               (
                 BuildContext context,
@@ -458,228 +495,274 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                     !reportSnap.data!.hasError) {
                   _lastReport = reportSnap.data;
                 }
-                if (!_reportsOn && _deskView == _DeskView.reports) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted &&
-                        !_reportsOn &&
-                        _deskView == _DeskView.reports) {
-                      setState(() => _deskView = _DeskView.rooms);
-                    }
-                  });
-                }
-                final bool deskSwitcher = _hasPermission;
                 return Scaffold(
                   backgroundColor: const Color(0xFFF6F7F9),
                   appBar: AppBar(
-                    bottom: deskSwitcher
-                        ? PreferredSize(
-                            preferredSize: const Size.fromHeight(59),
-                            child: _viewSwitcher(),
-                          )
-                        : null,
                     titleSpacing: 0,
-                    title: const Text(
-                      '營運工作台',
+                    title: Text(
+                      switch (view) {
+                        OrderManagementView.today => '今日與照護',
+                        OrderManagementView.orders => '訂單管理',
+                        OrderManagementView.rooms => '房況',
+                        OrderManagementView.reports => '回報',
+                      },
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     actions: <Widget>[
-                      if (_openBooking != null || _activeShiftTask != null)
+                      if (_activeShiftTask != null)
                         IconButton(
                           tooltip: _workPaneCollapsed ? '展開左側工作台' : '收合左側工作台',
                           onPressed: () => setState(() {
                             _workPaneCollapsed = !_workPaneCollapsed;
                           }),
-                          icon: Icon(_workPaneCollapsed
-                              ? Icons.keyboard_double_arrow_right
-                              : Icons.keyboard_double_arrow_left),
+                          icon: Icon(
+                            _workPaneCollapsed
+                                ? Icons.keyboard_double_arrow_right
+                                : Icons.keyboard_double_arrow_left,
+                          ),
                         ),
                       ShopTaskCenterButton(shopId: widget.shopId),
-                      if (_hasPermission) WorkbenchSettingsMenu(
-                        selected: _layout,
-                        enabled: _busyKeys.isEmpty,
-                        onChanged: _chooseLayout,
-                        onHousekeeping: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                HousekeepingSettingPage(shopId: widget.shopId),
+                      if (_hasPermission &&
+                          (view == OrderManagementView.rooms ||
+                           view == OrderManagementView.today))
+                        WorkbenchSettingsMenu(
+                          selected: _layout,
+                          enabled: _busyKeys.isEmpty,
+                          onChanged: _chooseLayout,
+                          onHousekeeping: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => HousekeepingSettingPage(
+                                shopId: widget.shopId,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
-                  body: _withOrderPane(view == _DeskView.orders
-                      ? AdminBookingListPage(
-                          shopId: widget.shopId,
-                          canManageStay: _canManageCare,
-                          canManageDaycare: _canManageDaycare,
-                          selectedOrderId: _openBooking?.id,
-                          onOpenOrder: (id, data) => _showOrder(
-                            id,
-                            data: data,
-                            section: data['status'] == 'checked_out' ||
-                                    data['depositStatus'] == 'pending_review'
-                                ? 2
-                                : 0,
-                          ),
-                        )
-                      : view == _DeskView.care
-                      ? _careWorkspace()
-                      : StreamBuilder<List<Map<String, dynamic>>>(
-                          key: ValueKey<int>(_streamRetry),
-                          stream: ShopService.instance.streamRooms(
-                            widget.shopId,
-                          ),
-                          builder:
-                              (
-                                BuildContext context,
-                                AsyncSnapshot<List<Map<String, dynamic>>>
-                                roomSnap,
-                              ) {
-                                if (roomSnap.hasError) {
-                                  return _errorPane('房間資料讀取失敗', roomSnap.error);
-                                }
-                                if (!roomSnap.hasData) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                }
-                                final List<Map<String, dynamic>> rooms =
-                                    List<Map<String, dynamic>>.from(
-                                      roomSnap.data!,
-                                    )..sort(_compareRooms);
-                                return StreamBuilder<QuerySnapshot>(
-                                  stream: FirebaseFirestore.instance
-                                      .collection('bookings')
-                                      .where('shopId', isEqualTo: widget.shopId)
-                                      .where(
-                                        'status',
-                                        whereIn: <String>[
-                                          'pending',
-                                          'confirmed',
-                                          'checked_in',
-                                          'checked_out',
-                                          'completed',
-                                        ],
-                                      )
-                                      .snapshots(),
-                                  builder:
-                                      (
-                                        BuildContext context,
-                                        AsyncSnapshot<QuerySnapshot>
-                                        bookingSnap,
-                                      ) {
-                                        if (bookingSnap.hasError) {
-                                          return _errorPane(
-                                            '訂單資料讀取失敗',
-                                            bookingSnap.error,
-                                          );
-                                        }
-                                        if (!bookingSnap.hasData) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(),
-                                          );
-                                        }
-                                        return StreamBuilder<QuerySnapshot>(
-                                          stream: ShopService.instance
-                                              .roomCalendarRef(widget.shopId)
-                                              .snapshots(),
-                                          builder:
-                                              (
-                                                BuildContext context,
-                                                AsyncSnapshot<QuerySnapshot>
-                                                calendarSnap,
-                                              ) {
-                                                if (calendarSnap.hasError) {
-                                                  return _errorPane(
-                                                    '房況日曆讀取失敗',
-                                                    calendarSnap.error,
-                                                  );
-                                                }
-                                                if (!calendarSnap.hasData) {
-                                                  return const Center(
-                                                    child:
-                                                        CircularProgressIndicator(),
-                                                  );
-                                                }
-                                                return StreamBuilder<
-                                                  QuerySnapshot<
-                                                    Map<String, dynamic>
-                                                  >
-                                                >(
-                                                  stream: FirebaseFirestore
-                                                      .instance
-                                                      .collection('shops')
-                                                      .doc(widget.shopId)
-                                                      .collection(
-                                                        'room_occupancies',
-                                                      )
-                                                      .where(
-                                                        'status',
-                                                        isEqualTo: 'active',
-                                                      )
-                                                      .snapshots(),
-                                                  builder:
-                                                      (
-                                                        BuildContext context,
-                                                        AsyncSnapshot<
-                                                          QuerySnapshot<
-                                                            Map<String, dynamic>
+                  body: CareReportWorkspace(
+                    open: _openCareReportResult,
+                    child: _reportTarget != null
+                        ? CareReportResultPage(
+                            key: ValueKey(_reportTarget),
+                            target: _reportTarget!,
+                            onBack: _closeCareReportResult,
+                          )
+                        : _withOrderPane(
+                            view == OrderManagementView.orders
+                                ? AdminBookingListPage(
+                                    shopId: widget.shopId,
+                                    canManageStay: _canManageCare,
+                                    canManageDaycare: _canManageDaycare,
+                                    selectedOrderId: _openBooking?.id,
+                                    onOpenOrder: (id, data) => _showOrder(
+                                      id,
+                                      data: data,
+                                      section:
+                                          data['status'] == 'checked_out' ||
+                                              data['depositStatus'] ==
+                                                  'pending_review'
+                                          ? 2
+                                          : 0,
+                                    ),
+                                  )
+                                : StreamBuilder<List<Map<String, dynamic>>>(
+                                    key: ValueKey<int>(_streamRetry),
+                                    stream: ShopService.instance.streamRooms(
+                                      widget.shopId,
+                                    ),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<
+                                            List<Map<String, dynamic>>
+                                          >
+                                          roomSnap,
+                                        ) {
+                                          if (roomSnap.hasError) {
+                                            return _errorPane(
+                                              '房間資料讀取失敗',
+                                              roomSnap.error,
+                                            );
+                                          }
+                                          if (!roomSnap.hasData) {
+                                            return const Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            );
+                                          }
+                                          final List<Map<String, dynamic>>
+                                          rooms =
+                                              List<Map<String, dynamic>>.from(
+                                                roomSnap.data!,
+                                              )..sort(_compareRooms);
+                                          return StreamBuilder<QuerySnapshot>(
+                                            stream: FirebaseFirestore.instance
+                                                .collection('bookings')
+                                                .where(
+                                                  'shopId',
+                                                  isEqualTo: widget.shopId,
+                                                )
+                                                .where(
+                                                  'status',
+                                                  whereIn: <String>[
+                                                    'pending',
+                                                    'confirmed',
+                                                    'checked_in',
+                                                    'checked_out',
+                                                    'completed',
+                                                  ],
+                                                )
+                                                .snapshots(),
+                                            builder:
+                                                (
+                                                  BuildContext context,
+                                                  AsyncSnapshot<QuerySnapshot>
+                                                  bookingSnap,
+                                                ) {
+                                                  if (bookingSnap.hasError) {
+                                                    return _errorPane(
+                                                      '訂單資料讀取失敗',
+                                                      bookingSnap.error,
+                                                    );
+                                                  }
+                                                  if (!bookingSnap.hasData) {
+                                                    return const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    );
+                                                  }
+                                                  return StreamBuilder<
+                                                    QuerySnapshot
+                                                  >(
+                                                    stream: ShopService.instance
+                                                        .roomCalendarRef(
+                                                          widget.shopId,
+                                                        )
+                                                        .snapshots(),
+                                                    builder:
+                                                        (
+                                                          BuildContext context,
+                                                          AsyncSnapshot<
+                                                            QuerySnapshot
                                                           >
-                                                        >
-                                                        occupancySnap,
-                                                      ) {
-                                                        if (occupancySnap
-                                                            .hasError) {
-                                                          return _errorPane(
-                                                            '房間占用讀取失敗',
-                                                            occupancySnap.error,
-                                                          );
-                                                        }
-                                                        if (!occupancySnap
-                                                            .hasData) {
-                                                          return const Center(
-                                                            child:
-                                                                CircularProgressIndicator(),
-                                                          );
-                                                        }
-                                                        return LayoutBuilder(
-                                                          builder: (context, roomBounds) => _workspace(
-                                                          desktop: roomBounds.maxWidth >= _desktopMin,
-                                                          rooms: rooms,
-                                                          bookings: bookingSnap
-                                                              .data!
-                                                              .docs,
-                                                          calendarDocs:
+                                                          calendarSnap,
+                                                        ) {
+                                                          if (calendarSnap
+                                                              .hasError) {
+                                                            return _errorPane(
+                                                              '房況日曆讀取失敗',
                                                               calendarSnap
-                                                                  .data!
-                                                                  .docs,
-                                                          occupancies: occupancySnap
-                                                              .data!
-                                                              .docs
-                                                              .map(
+                                                                  .error,
+                                                            );
+                                                          }
+                                                          if (!calendarSnap
+                                                              .hasData) {
+                                                            return const Center(
+                                                              child:
+                                                                  CircularProgressIndicator(),
+                                                            );
+                                                          }
+                                                          return StreamBuilder<
+                                                            QuerySnapshot<
+                                                              Map<
+                                                                String,
+                                                                dynamic
+                                                              >
+                                                            >
+                                                          >(
+                                                            stream: FirebaseFirestore
+                                                                .instance
+                                                                .collection(
+                                                                  'shops',
+                                                                )
+                                                                .doc(
+                                                                  widget.shopId,
+                                                                )
+                                                                .collection(
+                                                                  'room_occupancies',
+                                                                )
+                                                                .where(
+                                                                  'status',
+                                                                  isEqualTo:
+                                                                      'active',
+                                                                )
+                                                                .snapshots(),
+                                                            builder:
                                                                 (
-                                                                  QueryDocumentSnapshot<
-                                                                    Map<
-                                                                      String,
-                                                                      dynamic
+                                                                  BuildContext
+                                                                  context,
+                                                                  AsyncSnapshot<
+                                                                    QuerySnapshot<
+                                                                      Map<
+                                                                        String,
+                                                                        dynamic
+                                                                      >
                                                                     >
                                                                   >
-                                                                  doc,
-                                                                ) => doc.data(),
-                                                              )
-                                                              .toList(),
-                                                          report: _lastReport,
-                                                        ),
-                                                        );
-                                                      },
-                                                );
-                                              },
-                                        );
-                                      },
-                                );
-                              },
-                        )),
+                                                                  occupancySnap,
+                                                                ) {
+                                                                  if (occupancySnap
+                                                                      .hasError) {
+                                                                    return _errorPane(
+                                                                      '房間占用讀取失敗',
+                                                                      occupancySnap
+                                                                          .error,
+                                                                    );
+                                                                  }
+                                                                  if (!occupancySnap
+                                                                      .hasData) {
+                                                                    return const Center(
+                                                                      child:
+                                                                          CircularProgressIndicator(),
+                                                                    );
+                                                                  }
+                                                                  return LayoutBuilder(
+                                                                    builder:
+                                                                        (
+                                                                          context,
+                                                                          roomBounds,
+                                                                        ) => _workspace(
+                                                                          desktop:
+                                                                              roomBounds.maxWidth >=
+                                                                              _desktopMin,
+                                                                          rooms:
+                                                                              rooms,
+                                                                          bookings: bookingSnap
+                                                                              .data!
+                                                                              .docs,
+                                                                          calendarDocs: calendarSnap
+                                                                              .data!
+                                                                              .docs,
+                                                                          occupancies: occupancySnap
+                                                                              .data!
+                                                                              .docs
+                                                                              .map(
+                                                                                (
+                                                                                  QueryDocumentSnapshot<
+                                                                                    Map<
+                                                                                      String,
+                                                                                      dynamic
+                                                                                    >
+                                                                                  >
+                                                                                  doc,
+                                                                                ) => doc.data(),
+                                                                              )
+                                                                              .toList(),
+                                                                          report:
+                                                                              _lastReport,
+                                                                        ),
+                                                                  );
+                                                                },
+                                                          );
+                                                        },
+                                                  );
+                                                },
+                                          );
+                                        },
+                                  ),
+                          ),
+                  ),
                 );
               },
         );
@@ -707,7 +790,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     setState(() {
       _layoutChosen = true;
       _layout = view;
-      _deskView = _DeskView.rooms;
+      _deskView = OrderManagementView.rooms;
     });
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -724,56 +807,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     }
   }
 
-  Widget _viewSwitcher() {
-    final destinations = {
-      _DeskView.today: (Icons.today_outlined, '今日'),
-      if (_canOpenOrders) _DeskView.orders: (Icons.receipt_long_outlined, '訂單'),
-      _DeskView.rooms: (Icons.meeting_room_outlined, '房況'),
-      if (_careTasksOn) _DeskView.care: (Icons.pets_outlined, '照護'),
-      if (_reportsOn) _DeskView.reports: (Icons.assignment_outlined, '回報'),
-    };
-    final active = destinations.containsKey(_deskView) ? _deskView : _DeskView.today;
-    final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 59,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 540),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 3, 12, 7),
-            child: Row(
-              spacing: 6,
-              children: [
-                for (final entry in destinations.entries)
-                  Expanded(
-                    child: Semantics(
-                      selected: entry.key == active,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-                          backgroundColor: entry.key == active ? colors.primaryContainer : colors.surface,
-                          foregroundColor: entry.key == active ? colors.onPrimaryContainer : colors.onSurfaceVariant,
-                        ),
-                        onPressed: () => setState(() => _deskView = entry.key),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(entry.value.$1, size: 18),
-                            Flexible(child: Text(entry.value.$2, overflow: TextOverflow.ellipsis)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _workspace({
     required bool desktop,
@@ -872,8 +905,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         .length;
     final int pendingReports = reportsOn ? (report?.pendingCount ?? 0) : 0;
 
-    if (_deskView == _DeskView.today ||
-        (_layout != WorkbenchView.original && _deskView == _DeskView.rooms)) {
+    if (_deskView == OrderManagementView.today ||
+        (_layout != WorkbenchView.original && _deskView == OrderManagementView.rooms)) {
       return _alternativeOverview(
         rows: filtered,
         allRows: allRows,
@@ -884,6 +917,20 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         report: report,
         typeNames: typeNames,
         typeFilter: typeFilter,
+      );
+    }
+
+    if (_deskView == OrderManagementView.reports) {
+      return Column(
+        children: <Widget>[
+          Expanded(
+            child: DailyCareReportCenterPage(
+              shopId: widget.shopId,
+              canOperate: true,
+              embedded: true,
+            ),
+          ),
+        ],
       );
     }
 
@@ -920,7 +967,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
           : () {
               _roomSearch.clear();
               setState(() {
-                _deskView = _DeskView.rooms;
+                _deskView = OrderManagementView.rooms;
                 _roomQuery = '';
                 _collapsedTypes.clear();
                 _quickFilter = RoomOverviewFilter.housekeeping;
@@ -929,20 +976,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
             },
     );
 
-    if (_deskView == _DeskView.reports) {
-      return Column(
-        children: <Widget>[
-          stats,
-          Expanded(
-            child: DailyCareReportCenterPage(
-              shopId: widget.shopId,
-              canOperate: true,
-              embedded: true,
-            ),
-          ),
-        ],
-      );
-    }
 
     return Column(
       children: <Widget>[
@@ -1264,11 +1297,15 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
   }) {
     return OperationsWorkbench(
       key: ValueKey((_deskView, _layout)),
-      shift: _deskView == _DeskView.today,
+      shift: _deskView == OrderManagementView.today,
+      careTasks: _deskView == OrderManagementView.today && _careTasksOn
+          ? _careTasks()
+          : null,
       canManageOrder: _mayEditOrder,
       shopId: widget.shopId,
-      onOrderDeparture: (choice) => _showOrder(choice.id, data: choice.data, section: 2),
-      onRoomView: () => setState(() => _deskView = _DeskView.rooms),
+      onOrderDeparture: (choice) =>
+          _showOrder(choice.id, data: choice.data, section: 2),
+      onRoomView: () => _openOrderManagementView(OrderManagementView.rooms),
       onTaskPage: _showShiftTask,
       view: _layout,
       data: OperationsWorkbenchData(
@@ -1309,7 +1346,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
         ),
       ),
       onReports: () {
-        if (_reportsOn) setState(() => _deskView = _DeskView.reports);
+        if (_reportsOn) _openOrderManagementView(OrderManagementView.reports);
       },
       onCamera: _canManageCameras
           ? () => openShopCameraAccessPage(context, widget.shopId)

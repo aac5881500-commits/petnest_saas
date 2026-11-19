@@ -207,6 +207,7 @@ class _FormBlock extends StatelessWidget {
         AdminBookingFormFocusScope.maybeOf(context);
     final bool expanded = focus?.isExpanded(anchor) ?? true;
     return AdminBookingDetailSection(
+      key: PageStorageKey<String>('booking-form:$bookingId:$field'),
       title: title,
       collapsible: true,
       initiallyExpanded: expanded,

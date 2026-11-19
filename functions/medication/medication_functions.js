@@ -92,9 +92,14 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
       assert(history.length < 600, "resource-exhausted", "用藥紀錄已達上限，請聯繫管理員");
       let next = {...m}; let patch = {};
       const note = String(data.note || "").trim().slice(0, 1000);
-      if (action === "propose") {
+      if (["propose", "confirmAtArrival"].includes(action)) {
+        const atArrival = action === "confirmAtArrival";
+        if (atArrival) {
+          assert(booking.serviceType !== "daycare", "failed-precondition", "到店核對用於住宿訂單");
+          assert(["confirmed", "checked_in"].includes(booking.status), "failed-precondition", "請先確認住宿訂單，再儲存到店核對的用藥安排");
+        }
         assert(["pending_shop", "pending_customer", "declined", "cancelled", "confirmed"].includes(m.state) && !m.tasks.some((t) => t.result !== "pending"), "failed-precondition", "已確認或已開始的用藥安排不可覆寫");
-        const request = logic.validateRequest(data.request || m.request, booking, m.setting, booking.userId);
+        const request = logic.validateRequest(data.request || m.request, booking, m.setting, booking.userId, {allowMissingDetails: atArrival});
         assert(request, "invalid-argument", "請至少保留一筆藥品");
         const built = logic.plan(request, m.setting);
         assert(!request.medicines.some((x) => x.schedule === "custom"), "failed-precondition", "請先將其他安排改成明確時間");
@@ -111,20 +116,21 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
             ]));
           }));
           const changed = actual.size !== requested.size || [...actual].some((at) => !requested.has(at));
-          assert(!changed || note, "failed-precondition", "安排與客人選擇的類型、日期或時間不同，請填寫調整說明");
+          assert(atArrival || !changed || note, "failed-precondition", "安排與客人選擇的類型、日期或時間不同，請填寫調整說明");
         }
         const estimate = logic.quote(request, m.setting, built.tasks, booking);
         let agreedAmount = null;
         if (estimate.manual) {
           const amount = Number(data.agreedAmount);
-          assert(Number.isInteger(amount) && amount >= 0 && amount <= 1000000 && note, "invalid-argument", "特殊報價須填寫總價與說明");
+          assert(data.agreedAmount != null && Number.isInteger(amount) && amount >= 0 && amount <= 1000000 && note, "invalid-argument", "特殊報價須填寫總價與說明");
           agreedAmount = amount;
         }
         history.push({action, at: now, by: uid, note, previousRequest: m.request,
           previousEstimate: m.estimate, agreedAmount});
         next = {...next, ...built,
           request: {...request, ...(m.request.preferences ? {preferences: m.request.preferences} : {})},
-          estimate, agreedAmount, proposalNote: note, state: "pending_customer"};
+          estimate, agreedAmount, proposalNote: note, state: atArrival ? "confirmed" : "pending_customer"};
+        if (atArrival) next.confirmedAt = now;
       } else if (action === "accept") {
         assert(m.state === "pending_customer", "failed-precondition", "目前沒有待確認提案");
         next.state = "confirmed";
@@ -165,8 +171,34 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
         const values = Object.values(medicineResults);
         const result = values.every((v) => v === values[0]) ? values[0] : "partial";
         const finished = values.every((v) => ["done", "failed", "skipped"].includes(v));
+        if (data.medicineDetails != null) {
+          const details = data.medicineDetails;
+          assert(details && typeof details === "object" && !Array.isArray(details) &&
+            Object.keys(details).every((id) => task.medicineIds.includes(id)),
+          "invalid-argument", "只能補填本次用藥的藥品資料");
+          next.request = {...m.request, medicines: m.request.medicines.map((medicine) => {
+            if (!Object.hasOwn(details, medicine.id)) return medicine;
+            const entry = details[medicine.id];
+            assert(entry && typeof entry === "object" && !Array.isArray(entry),
+                "invalid-argument", "藥品資料格式不正確");
+            const updated = {...medicine};
+            for (const [field, limit] of [["name", 100], ["dose", 100], ["instruction", 1000]]) {
+              if (!Object.hasOwn(entry, field)) continue;
+              const value = entry[field];
+              assert(typeof value === "string" && value.trim().length <= limit,
+                  "invalid-argument", "藥品資料格式或長度不正確");
+              updated[field] = value.trim();
+            }
+            return updated;
+          })};
+        }
         next.tasks = m.tasks.slice();
-        next.tasks[index] = {...task, result, medicineResults, finished, actualAt: actual.toISOString(), by: uid, byName: actorName, note};
+        const medicineDetailsSnapshot = Object.fromEntries(
+            next.request.medicines.filter((medicine) => task.medicineIds.includes(medicine.id))
+                .map(({id, name, dose, instruction}) => [id,
+                  ["done", "failed", "skipped"].includes(task.medicineResults?.[id]) && task.medicineDetailsSnapshot?.[id] ||
+                  {name: name || "", dose: dose || "", instruction: instruction || ""}]));
+        next.tasks[index] = {...task, result, medicineResults, medicineDetailsSnapshot, finished, actualAt: actual.toISOString(), by: uid, byName: actorName, note};
         history.push({action, at: now, by: uid, taskId: task.id, previousResult: task.result, result, medicineResults, actualAt: actual.toISOString(), note});
       } else if (action === "finalize") {
         assert(m.state === "confirmed", "failed-precondition", "請先完成雙方確認");
@@ -199,6 +231,7 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
       assert(Buffer.byteLength(JSON.stringify(next), "utf8") < 750000, "resource-exhausted", "用藥資料接近容量上限，請減少說明或分段安排");
       next.revision = m.revision + 1;
       const notice = {
+        confirmAtArrival: "店家已登記到店核對的用藥安排，請至訂單「服務與用藥」查看。",
         propose: "用藥安排與費用已提出，請開啟訂單確認。",
         accept: "客人已同意用藥安排與費用。",
         reject: "客人提出用藥調整需求，請開啟訂單處理。",

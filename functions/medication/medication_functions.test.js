@@ -51,6 +51,56 @@ test("proposal, customer acceptance, records, discounted final extra and retry s
   await assert.rejects(f.call("finalize"), {code: "failed-precondition"});
   assert.equal(f.docs["bookings/b"].extraCharges.length, 1);
 });
+test("staff arrival confirmation publishes the edited schedule and allows results without app acceptance", async () => {
+  const f = fixture();
+  const booking = f.docs["bookings/b"];
+  booking.status = "confirmed";
+  const request = structuredClone(booking.medication.request);
+  request.medicines[0].dose = "2 ml";
+  request.medicines[0].schedule = "dated";
+  request.medicines[0].dates = [
+    {date: "2026-01-01", times: ["17:00"]},
+    {date: "2026-01-02", times: ["10:00"]},
+  ];
+  await assert.rejects(f.call("confirmAtArrival", {request}, "u"), {code: "permission-denied"});
+  await f.call("confirmAtArrival", {request}, "worker");
+  assert.equal(booking.medication.state, "confirmed");
+  assert.equal(booking.medication.request.medicines[0].dose, "2 ml");
+  assert.equal(booking.medication.tasks[0].scheduledAt, "2026-01-01T09:00:00.000Z");
+  assert.equal(f.docs["bookings/b/messages/medication_2"].senderType, "shop");
+  assert.equal(booking.medication.tasks.length, 2);
+  const [first, second] = booking.medication.tasks;
+  assert.equal(second.scheduledAt, "2026-01-02T02:00:00.000Z");
+  await assert.rejects(f.call("record", {taskId: first.id, result: "done", actualAt: first.scheduledAt}), {code: "failed-precondition"});
+  booking.status = "checked_in";
+  await f.call("record", {taskId: first.id, result: "done", actualAt: first.scheduledAt});
+  await f.call("record", {taskId: second.id, result: "failed", actualAt: second.scheduledAt, note: "未成功"});
+  assert.equal(booking.medication.tasks[0].actualAt, first.scheduledAt);
+  assert.equal(booking.medication.tasks[1].result, "failed");
+  await assert.rejects(f.call("confirmAtArrival", {request}), {code: "failed-precondition"});
+});
+
+test("arrival can leave details blank and recording can supplement only its own medicine", async () => {
+  const f = fixture();
+  const booking = f.docs["bookings/b"];
+  const request = structuredClone(booking.medication.request);
+  Object.assign(request.medicines[0], {name: "", dose: "", instruction: ""});
+  await assert.rejects(f.call("propose", {request}), {code: "failed-precondition"});
+  await f.call("confirmAtArrival", {request}, "worker");
+  const [first, second] = booking.medication.tasks;
+  const record = {taskId: first.id, result: "done", actualAt: first.scheduledAt};
+  await assert.rejects(f.call("record", {...record, medicineDetails: {other: {name: "不相關"}}}), {code: "invalid-argument"});
+  await f.call("record", {...record, medicineDetails: {m0: {name: "已核對藥品"}}});
+  assert.equal(booking.medication.request.medicines[0].name, "已核對藥品");
+  await f.call("record", {taskId: second.id, result: "done", actualAt: second.scheduledAt,
+    medicineDetails: {m0: {name: "修正後藥品", dose: "依藥袋", instruction: "已核對"}}});
+  const medicine = booking.medication.request.medicines[0];
+  assert.equal(medicine.name, "修正後藥品");
+  assert.equal(booking.medication.tasks[0].medicineDetailsSnapshot.m0.name, "已核對藥品");
+  assert.equal(medicine.dose, "依藥袋");
+  assert.equal(medicine.instruction, "已核對");
+});
+
 test("stale revision and duplicate administration rejected", async () => {
   const f = fixture(); await f.call("propose");
   await assert.rejects(f.call("accept", {revision: 1}, "u"), {code: "aborted"});

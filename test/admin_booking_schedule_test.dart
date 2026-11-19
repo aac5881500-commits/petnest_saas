@@ -62,11 +62,21 @@ void main() {
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpWidget(page(const BookingCareDisplay()));
     expect(find.byType(Table), findsOneWidget);
+    expect(find.text('選取的時段'), findsNothing);
     expect(find.byType(MemberAvatar), findsWidgets);
     await tester.tap(find.widgetWithText(OutlinedButton, '口服藥'));
     await tester.pump();
-    expect(find.text('待飼主確認'), findsNWidgets(2));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('待飼主確認'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('填寫結果'), findsNothing);
+    await tester.tap(find.text('關閉'));
+    await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(320, 780);
     await tester.pumpWidget(page(const BookingCareDisplay()));
@@ -184,7 +194,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('待店家確認'), findsNWidgets(3));
+    expect(find.text('尚未跟客戶核對'), findsNWidgets(3));
     expect(find.text('奶茶'), findsOneWidget);
     expect(find.text('填寫結果'), findsNothing);
     await tester.tap(

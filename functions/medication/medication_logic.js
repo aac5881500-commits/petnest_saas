@@ -51,7 +51,7 @@ function key(v) {
 function time(v) {
   return new Date(date(v).getTime() + 8 * 3600000).toISOString().slice(11, 16);
 }
-function validateRequest(raw, booking, setting, uid) {
+function validateRequest(raw, booking, setting, uid, {allowMissingDetails = false} = {}) {
   if (!raw || !Array.isArray(raw.medicines) || !raw.medicines.length) return null;
   if (!setting.enabled) fail("本店尚未開放用藥協助，請先聯繫店家");
   if (raw.medicines.length > 20) fail("每張訂單最多二十筆藥品");
@@ -62,18 +62,46 @@ function validateRequest(raw, booking, setting, uid) {
     const petId = str(m.petId, 128); const type = str(m.type);
     if (!pets.has(petId) || !setting.types.includes(type)) fail("用藥貓咪或服務類型不符合本店設定");
     const name = str(m.name, 100); const dose = str(m.dose, 100); const instruction = str(m.instruction);
-    if (!name || !dose || !instruction) fail("請填寫藥名、用量與使用指示");
-    const schedule = ["fixed", "meal", "interval", "custom"].includes(m.schedule) ? m.schedule : "fixed";
+    if (!allowMissingDetails && (!name || !dose || !instruction)) fail("請填寫藥名、用量與使用指示");
+    const schedule = ["fixed", "meal", "interval", "custom", "dated"].includes(m.schedule) ? m.schedule : "fixed";
     const times = [...new Set(Array.isArray(m.times) ? m.times : [])].sort();
     if (["fixed", "meal"].includes(schedule) && (!times.length || times.length > 12 || times.some((x) => !validTime(x)))) fail("請填寫正確的每日時間");
     const from = date(m.from || raw.careStart); const until = date(m.until || raw.careEnd);
     if (from < start || until > end || until < from) fail("藥品使用期間超出交接期間");
+    let dates;
+    if (schedule === "dated") {
+      if (!Array.isArray(m.dates) || !m.dates.length || m.dates.length > 181) {
+        fail("請至少排入一個用藥日期");
+      }
+      const seen = new Set();
+      dates = m.dates.map((day) => {
+        const dayKey = day?.date;
+        if (typeof dayKey !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey) ||
+            dayKey < key(from) || dayKey > key(until) || seen.has(dayKey)) {
+          fail("用藥日期須在交接期間內，且不可重複");
+        }
+        seen.add(dayKey);
+        if (!Array.isArray(day.times) || !day.times.length || day.times.length > 12 ||
+            day.times.some((t) => typeof t !== "string" || !validTime(t))) {
+          fail("請填寫正確的用藥時間");
+        }
+        const uniqueTimes = [...new Set(day.times)].sort();
+        for (const t of uniqueTimes) {
+          const at = new Date(dayKey + "T" + t + ":00+08:00");
+          if (!Number.isFinite(at.getTime()) || key(at) !== dayKey || at < from || at > until) {
+            fail("用藥時間須在交接期間內");
+          }
+        }
+        return {date: dayKey, times: uniqueTimes};
+      }).sort((a, b) => a.date.localeCompare(b.date));
+    }
     const photoPath = str(m.photoPath, 500);
     if (photoPath && (!photoPath.startsWith(`medication_uploads/${uid}/${booking.shopId}/`) || photoPath.includes("..") || photoPath.split("/").length !== 4)) fail("藥袋照片來源不正確");
     return {id: `m${i}`, petId, type, name, dose, instruction,
       reason: str(m.reason, 300), mix: m.mix === true,
       pills: integer(m.pills || 0, 0, 100, "顆數不正確"),
       schedule, times: ["fixed", "meal"].includes(schedule) ? times : [],
+      ...(dates ? {dates} : {}),
       intervalHours: schedule === "interval" ? integer(m.intervalHours, 1, 168, "請填寫一至一百六十八小時間隔") : 0,
       custom: str(m.custom), photoPath, from: from.toISOString(), until: until.toISOString()};
   });
@@ -95,7 +123,11 @@ function plan(request, setting) {
     if (m.schedule === "custom") {
       issues.push(`${m.name}：其他安排須先改成可執行時間`); continue;
     }
-    if (m.schedule === "interval") {
+    if (m.schedule === "dated") {
+      for (const day of m.dates) {
+        for (const t of day.times) add(m, new Date(day.date + "T" + t + ":00+08:00"));
+      }
+    } else if (m.schedule === "interval") {
       for (let at = start; at <= end; at = new Date(at.getTime() + m.intervalHours * 3600000)) add(m, at);
     } else {
       for (let day = new Date(`${key(start)}T00:00:00+08:00`); day <= end; day = new Date(day.getTime() + 86400000)) {

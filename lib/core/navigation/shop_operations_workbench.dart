@@ -9,7 +9,7 @@ const String shopOperationsWorkbenchRouteName = '/shop-operations-workbench';
 Route<void> shopOperationsWorkbenchRoute(String shopId) {
   return MaterialPageRoute<void>(
     settings: const RouteSettings(name: shopOperationsWorkbenchRouteName),
-    builder: (_) => RoomDashboardPage(shopId: shopId),
+    builder: (_) => RoomDashboardPage(shopId: shopId, initialView: OrderManagementView.rooms),
   );
 }
 

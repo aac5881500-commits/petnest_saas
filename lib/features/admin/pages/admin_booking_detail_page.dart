@@ -56,7 +56,6 @@ import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
 import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_stay_meta_section.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_points_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_stay_settle_sheet.dart';
 
@@ -67,11 +66,13 @@ class AdminBookingDetailPage extends StatelessWidget {
     this.canEdit = true,
     this.initialSection = 0,
     this.onClose,
+    this.paneToggle,
   });
 
   final String bookingId;
   final int initialSection;
   final VoidCallback? onClose;
+  final Widget? paneToggle;
 
   /// 是否可操作訂單
   /// true：訂單管理進來，可確認 / 取消 / 入住 / 退房
@@ -278,8 +279,8 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 ? bookingId.substring(0, 8)
                                 : bookingId)
                           : bookingCode,
-                      operationsShopId: shopId,
                       onClose: onClose,
+                      paneToggle: paneToggle,
                       splitPhoneActions: true,
                       banners: <Widget>[
                         if (data['source'] == 'admin' &&
@@ -340,17 +341,14 @@ class AdminBookingDetailPage extends StatelessWidget {
                           booking: data,
                           canEdit: canEdit,
                         ),
-                        medicationDetails: BookingMedicationPanel(
-                          bookingId: bookingId,
-                          booking: data,
-                          staff: true,
-                          canManage: canEdit,
-                        ),
-                        careReport: AdminDailyCareReportShortcut(
-                          shopId: shopId,
-                          bookingId: bookingId,
-                          booking: data,
-                        ),
+                        medicationDetailsBuilder: (onViewOrderConfirmation) =>
+                            BookingMedicationPanel(
+                              onViewOrderConfirmation: onViewOrderConfirmation,
+                              bookingId: bookingId,
+                              booking: data,
+                              staff: true,
+                              canManage: canEdit,
+                            ),
                         charges: <Widget>[
                           AdminBookingDetailSection(
                             title: '點數',

@@ -1,8 +1,9 @@
 import 'dart:async';
 import '../../../core/models/booking_service_task.dart';
-import '../../medication/service_task_page.dart';
+import '../../medication/care_task_dialog.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../../core/services/pet_shop_form_answers.dart';
 import '../../../core/widgets/member_avatar.dart';
@@ -14,7 +15,11 @@ import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/services/daily_care_report_eligibility.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../medication/medication_task_page.dart';
-import '../../medication/medication_widgets.dart' show medicationTypes;
+import '../../medication/medication_widgets.dart'
+    show
+        medicationTypes,
+        openMedicationArrangement,
+        checkMedicationOrderConfirmation;
 
 enum BookingScheduleKind { arrival, departure, service, medication }
 
@@ -40,6 +45,12 @@ class BookingScheduleEntry {
   final BookingMedicationTask? medication;
   final String? requestStatus;
   final List<String> petIds;
+
+  String? get taskKey {
+    if (medication != null) return 'medication:${medication!.id}';
+    if (service != null) return 'service:${service!.id}';
+    return null;
+  }
 
   String get day =>
       BookingMedicationTask.dateKey(BookingMedicationTask.taipei(time));
@@ -138,10 +149,13 @@ class AdminBookingScheduleData {
         : BookingMedicationTask.dateKey(BookingMedicationTask.taipei(date));
   }
 
+  String get stayStartDay => _day(booking['startDate']);
+  String get stayEndDay => _day(booking['endDate']);
+
   List<BookingScheduleEntry> entries({required bool showMedication}) {
     final items = <BookingScheduleEntry>[];
-    final firstDay = _day(booking['startDate']);
-    final lastDay = _day(booking['endDate']);
+    final firstDay = stayStartDay;
+    final lastDay = stayEndDay;
     final arrivedAt = _instant(
       booking['actualStartAt'] ??
           booking['checkInAt'] ??
@@ -256,7 +270,7 @@ class AdminBookingScheduleData {
         state != 'pending_customer') {
       return;
     }
-    final status = state == 'pending_customer' ? '待飼主確認' : '待店家確認';
+    final status = state == 'pending_customer' ? '待飼主確認' : '尚未跟客戶核對';
     if (medication is Map) {
       final proposed = BookingMedicationTask.fromBooking({
         ...booking,
@@ -347,6 +361,12 @@ class AdminBookingSchedule extends StatefulWidget {
     this.initialDay,
     this.display = const BookingCareDisplay(),
     this.onViewFinance,
+    this.onViewOrderConfirmation,
+    this.onSelectTask,
+    this.selectedTaskKey,
+    this.minimumGridWidth = 900,
+    this.showAllDays = false,
+    this.onSelectDay,
   });
 
   final AdminBookingScheduleData data;
@@ -356,6 +376,12 @@ class AdminBookingSchedule extends StatefulWidget {
   final String? initialDay;
   final BookingCareDisplay display;
   final VoidCallback? onViewFinance;
+  final VoidCallback? onViewOrderConfirmation;
+  final ValueChanged<BookingScheduleEntry>? onSelectTask;
+  final String? selectedTaskKey;
+  final double minimumGridWidth;
+  final bool showAllDays;
+  final ValueChanged<String>? onSelectDay;
 
   @override
   State<AdminBookingSchedule> createState() => _AdminBookingScheduleState();
@@ -364,7 +390,6 @@ class AdminBookingSchedule extends StatefulWidget {
 class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
   Timer? _clock;
   String? _selectedDay;
-  Object? _selectedEntry;
   (String, String)? _photoScope;
   Stream<QuerySnapshot<Map<String, dynamic>>>? _photos;
 
@@ -385,15 +410,6 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
     }
     return _photos;
   }
-
-  Object _entryKey(BookingScheduleEntry entry) => (
-    entry.kind,
-    entry.time,
-    entry.petIds.join(','),
-    entry.title,
-    entry.medication?.id ?? entry.detail,
-    entry.requestStatus,
-  );
 
   String _groupKey(BookingScheduleEntry entry) {
     if (entry.petIds.length == 1) return 'pet:${entry.petIds.single}';
@@ -532,32 +548,54 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
       widget.data.booking['settlementConfirmed'] != true &&
       widget.data.booking['settledAt'] == null;
 
-  void _reviewMedication() => Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      builder: (_) => MedicationTaskPage.arrangement(
-        shopId: widget.data.shopId,
+  Future<void> _reviewMedication(BookingScheduleEntry entry) async {
+    final medication = widget.data.booking['medication'];
+    if (!widget.data.daycare &&
+        entry.requestStatus == '尚未跟客戶核對' &&
+        medication is Map &&
+        medication['request'] is Map) {
+      openMedicationArrangement(
+        context,
         bookingId: widget.data.bookingId,
+        booking: widget.data.booking,
+        onViewOrderConfirmation: widget.onViewOrderConfirmation,
+      );
+      return;
+    }
+    if (!await checkMedicationOrderConfirmation(
+          context,
+          widget.data.booking,
+          onViewOrderConfirmation: widget.onViewOrderConfirmation,
+        ) ||
+        !mounted) {
+      return;
+    }
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => MedicationTaskPage.arrangement(
+          shopId: widget.data.shopId,
+          bookingId: widget.data.bookingId,
+        ),
       ),
-    ),
-  );
+    );
+  }
 
-  void _record(BookingScheduleEntry entry) => Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      builder: (_) => entry.service != null
-          ? ServiceTaskPage(
-              shopId: widget.data.shopId,
-              bookingId: widget.data.bookingId,
-              taskId: entry.service!.id,
-              scheduledAt: entry.time.toUtc().toIso8601String(),
-            )
-          : MedicationTaskPage(
-              shopId: widget.data.shopId,
-              bookingId: widget.data.bookingId,
-              taskId: entry.medication!.id,
-              scheduledAt: entry.time.toUtc().toIso8601String(),
-            ),
-    ),
-  );
+  void _openResult(BookingScheduleEntry entry) {
+    final onSelectTask = widget.onSelectTask;
+    if (onSelectTask != null) {
+      _selectedDay = entry.day;
+      onSelectTask(entry);
+      return;
+    }
+    openCareReportResult(
+      context,
+      shopId: widget.data.shopId,
+      bookingId: widget.data.bookingId,
+      taskId: entry.medication?.id ?? entry.service!.id,
+      medication: entry.medication != null,
+      canManage: widget.data.canEdit,
+    );
+  }
 
   ({
     Color tone,
@@ -649,13 +687,18 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
     ].join(' · ');
     final action = _canRecord(entry)
         ? FilledButton(
-            onPressed: () => _record(entry),
+            onPressed: () => _openResult(entry),
             child: const Text('填寫結果'),
           )
         : _canReviewMedication(entry)
         ? OutlinedButton(
-            onPressed: _reviewMedication,
-            child: Text(entry.requestStatus == '待飼主確認' ? '查看待確認安排' : '查看時程與費用'),
+            onPressed: () => _reviewMedication(entry),
+            child: Text(entry.requestStatus == '待飼主確認' ? '查看待確認安排' : '到店核對用藥'),
+          )
+        : widget.onSelectTask != null && entry.taskKey != null
+        ? OutlinedButton(
+            onPressed: () => _openResult(entry),
+            child: const Text('查看詳細'),
           )
         : featured && widget.onViewTimeline != null
         ? OutlinedButton(
@@ -879,113 +922,120 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
     Map<String, String> photos,
   ) {
     final colors = Theme.of(context).colorScheme;
-    final selected =
-        entries
-            .where((entry) => _entryKey(entry) == _selectedEntry)
-            .firstOrNull ??
-        entries
-            .where((entry) => _presentation(entry, now).urgent)
-            .firstOrNull ??
-        entries.first;
     final times = entries
         .map((entry) => BookingMedicationTask.timeLabel(entry.time))
         .toSet();
     final groups = _group(entries);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 7,
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: (145 + times.length * 138.0).clamp(
-                  constraints.maxWidth,
-                  double.infinity,
-                ),
-                child: Table(
-                  border: TableBorder.all(
-                    color: colors.outlineVariant,
-                    borderRadius: BorderRadius.circular(12),
+    final minimumWidth = 145 + times.length * 138.0;
+    return LayoutBuilder(
+      builder: (context, constraints) => _ScheduleGridScroll(
+        key: ValueKey(entries.first.day),
+        overflows: minimumWidth > constraints.maxWidth,
+        child: SizedBox(
+          width: minimumWidth.clamp(constraints.maxWidth, double.infinity),
+          child: Table(
+            border: TableBorder.all(
+              color: colors.outlineVariant,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            columnWidths: const {0: FixedColumnWidth(145)},
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: colors.surfaceContainerLow),
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('寵物／服務'),
                   ),
-                  columnWidths: const {0: FixedColumnWidth(145)},
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  children: [
-                    TableRow(
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerLow,
-                      ),
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Text('寵物／服務'),
-                        ),
-                        for (final time in times)
-                          Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Text(time, textAlign: TextAlign.center),
-                          ),
-                      ],
+                  for (final time in times)
+                    Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Text(time, textAlign: TextAlign.center),
                     ),
-                    for (final group in groups.entries)
-                      TableRow(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: _groupHeading(
-                              group.key,
-                              group.value.first,
-                              photos,
-                            ),
-                          ),
-                          for (final time in times)
-                            _gridCell(
-                              group.value.where(
-                                (entry) =>
-                                    BookingMedicationTask.timeLabel(
-                                      entry.time,
-                                    ) ==
-                                    time,
-                              ),
-                              selected,
-                              now,
-                            ),
-                        ],
+                ],
+              ),
+              for (final group in groups.entries)
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: _groupHeading(
+                        group.key,
+                        group.value.first,
+                        photos,
+                      ),
+                    ),
+                    for (final time in times)
+                      _gridCell(
+                        group.value.where(
+                          (entry) =>
+                              BookingMedicationTask.timeLabel(entry.time) ==
+                              time,
+                        ),
+                        now,
+                        photos,
                       ),
                   ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          flex: 3,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('選取的時段', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _item(selected, now, photos: photos),
-              _selectedInstructions(selected),
-              if (selected.kind == BookingScheduleKind.medication &&
-                  widget.onViewFinance != null)
-                TextButton(
-                  onPressed: widget.onViewFinance,
-                  child: const Text('查看用藥費與結算'),
                 ),
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  void _openGridEntry(
+    BookingScheduleEntry entry,
+    DateTime now,
+    Map<String, String> photos,
+  ) {
+    if (_canReviewMedication(entry) && entry.requestStatus == '尚未跟客戶核對') {
+      _reviewMedication(entry);
+      return;
+    }
+    if (entry.medication != null || entry.service != null) {
+      _openResult(entry);
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(entry.title),
+        scrollable: true,
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _item(entry, now, photos: photos),
+              _selectedInstructions(entry),
+            ],
+          ),
+        ),
+        actions: [
+          if (entry.kind == BookingScheduleKind.medication &&
+              widget.onViewFinance != null)
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                widget.onViewFinance!();
+              },
+              child: const Text('查看用藥費與結算'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('關閉'),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _gridCell(
     Iterable<BookingScheduleEntry> entries,
-    BookingScheduleEntry selected,
     DateTime now,
+    Map<String, String> photos,
   ) {
     if (entries.isEmpty) return const Center(child: Text('—'));
     final colors = Theme.of(context).colorScheme;
@@ -997,38 +1047,33 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
           for (final entry in entries)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Semantics(
-                selected: identical(entry, selected),
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(8),
-                    backgroundColor: _presentation(entry, now).tone,
-                    foregroundColor: _presentation(entry, now).ink,
-                    side: BorderSide(
-                      color: identical(entry, selected)
-                          ? colors.primary
-                          : colors.outlineVariant,
-                      width: identical(entry, selected) ? 2 : 1,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(8),
+                  backgroundColor: _presentation(entry, now).tone,
+                  foregroundColor: _presentation(entry, now).ink,
+                  side:
+                      widget.selectedTaskKey != null &&
+                          widget.selectedTaskKey == entry.taskKey
+                      ? BorderSide(color: colors.primary, width: 2)
+                      : BorderSide(color: colors.outlineVariant),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  onPressed: () =>
-                      setState(() => _selectedEntry = _entryKey(entry)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.title,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      Text(
-                        _status(entry, now),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
+                ),
+                onPressed: () => _openGridEntry(entry, now, photos),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      _status(entry, now),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1040,11 +1085,9 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
   Widget _dayContent(List<BookingScheduleEntry> entries, DateTime now) {
     Widget render(Map<String, String> photos) => LayoutBuilder(
       builder: (context, constraints) => switch (widget.display.layout) {
-        BookingCareLayout.grid when constraints.maxWidth >= 900 => _grid(
-          entries,
-          now,
-          photos,
-        ),
+        BookingCareLayout.grid
+            when constraints.maxWidth >= widget.minimumGridWidth =>
+          _grid(entries, now, photos),
         BookingCareLayout.pets => _petGroups(entries, now, photos),
         _ => _list(entries, now, photos),
       },
@@ -1177,34 +1220,104 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final date in days)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(
-                              '${date.substring(5).replaceAll('-', '/')}${date == today ? ' · 今日' : ''}',
+                if (!widget.showAllDays)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final date in days)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(
+                                '${date.substring(5).replaceAll('-', '/')}${date == today ? ' · 今日' : ''}',
+                              ),
+                              selected: date == day,
+                              onSelected: (_) =>
+                                  setState(() => _selectedDay = date),
                             ),
-                            selected: date == day,
-                            onSelected: (_) =>
-                                setState(() => _selectedDay = date),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                _dayContent(
-                  entries.where((entry) => entry.day == day).toList(),
-                  now,
-                ),
+                for (final date in widget.showAllDays ? days : [day]) ...[
+                  if (widget.showAllDays)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${date.replaceAll('-', '/')}${date == today ? ' · 今日' : ''}',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          if (widget.onSelectDay case final selectDay?)
+                            TextButton.icon(
+                              onPressed: () => selectDay(date),
+                              icon: const Icon(Icons.edit_note_outlined),
+                              label: const Text('填寫當日紀錄'),
+                            ),
+                        ],
+                      ),
+                    )
+                  else
+                    const SizedBox(height: 4),
+                  _dayContent(
+                    entries.where((entry) => entry.day == date).toList(),
+                    now,
+                  ),
+                ],
               ],
             ),
           ),
         );
     }
+  }
+}
+
+class _ScheduleGridScroll extends StatefulWidget {
+  const _ScheduleGridScroll({
+    super.key,
+    required this.overflows,
+    required this.child,
+  });
+
+  final bool overflows;
+  final Widget child;
+
+  @override
+  State<_ScheduleGridScroll> createState() => _ScheduleGridScrollState();
+}
+
+class _ScheduleGridScrollState extends State<_ScheduleGridScroll> {
+  final _controller = ScrollController(keepScrollOffset: false);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final behavior = ScrollConfiguration.of(context);
+    return ScrollConfiguration(
+      behavior: behavior.copyWith(
+        scrollbars: false,
+        dragDevices: {...behavior.dragDevices, PointerDeviceKind.mouse},
+      ),
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: widget.overflows,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        child: SingleChildScrollView(
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.only(bottom: widget.overflows ? 10 : 0),
+          child: widget.child,
+        ),
+      ),
+    );
   }
 }

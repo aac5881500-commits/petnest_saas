@@ -42,7 +42,6 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.da
 import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_daycare_care_report_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_settle_sheet.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_points_card.dart';
 
@@ -54,6 +53,7 @@ class AdminDaycareDetailPage extends StatelessWidget {
     this.canEdit = true,
     this.initialSection = 0,
     this.onClose,
+    this.paneToggle,
   });
 
   final String shopId;
@@ -61,6 +61,7 @@ class AdminDaycareDetailPage extends StatelessWidget {
   final bool canEdit;
   final int initialSection;
   final VoidCallback? onClose;
+  final Widget? paneToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +91,7 @@ class AdminDaycareDetailPage extends StatelessWidget {
               canEdit: canEdit,
               initialSection: initialSection,
               onClose: onClose,
+              paneToggle: paneToggle,
             );
           },
     );
@@ -104,6 +106,7 @@ class _DaycareDetailBody extends StatefulWidget {
     this.canEdit = true,
     this.initialSection = 0,
     this.onClose,
+    this.paneToggle,
   });
 
   final String shopId;
@@ -112,6 +115,7 @@ class _DaycareDetailBody extends StatefulWidget {
   final bool canEdit;
   final int initialSection;
   final VoidCallback? onClose;
+  final Widget? paneToggle;
 
   @override
   State<_DaycareDetailBody> createState() => _DaycareDetailBodyState();
@@ -476,8 +480,8 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             daycarePrimary != null || daycareCompanion != null;
         return AdminBookingDetailScaffold(
           title: '訂單詳細',
-          operationsShopId: widget.shopId,
           onClose: widget.onClose,
+          paneToggle: widget.paneToggle,
           splitPhoneActions: true,
           bookingCode: (data['bookingCode'] ?? '').toString(),
           banners: const <Widget>[],
@@ -564,11 +568,6 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               booking: data,
               staff: true,
               canManage: widget.canEdit,
-            ),
-            careReport: AdminDaycareCareReportSection(
-              shopId: widget.shopId,
-              bookingId: widget.bookingId,
-              booking: data,
             ),
             charges: <Widget>[
               AdminBookingDetailSection(

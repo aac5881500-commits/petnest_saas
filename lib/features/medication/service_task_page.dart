@@ -14,8 +14,12 @@ class ServiceTaskPage extends StatefulWidget {
     required this.bookingId,
     required this.taskId,
     required this.scheduledAt,
+    this.canManage = true,
+    this.onRecorded,
   });
   final String shopId, bookingId, taskId, scheduledAt;
+  final bool canManage;
+  final VoidCallback? onRecorded;
   @override
   State<ServiceTaskPage> createState() => _ServiceTaskPageState();
 }
@@ -70,7 +74,12 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('結果已儲存，客戶訂單已同步更新')));
       setState(() => _saving = false);
-      Navigator.pop(context);
+      final onRecorded = widget.onRecorded;
+      if (onRecorded != null) {
+        onRecorded();
+      } else {
+        Navigator.pop(context);
+      }
     } on FirebaseFunctionsException catch (e) {
       if (mounted) {
         setState(() => _error = serviceResultErrorMessage(e));
@@ -86,7 +95,9 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_saving,
     child: Scaffold(
-      appBar: AppBar(title: const Text('填寫服務結果')),
+      appBar: widget.onRecorded == null
+          ? AppBar(title: const Text('填寫服務結果'))
+          : null,
       body: FutureBuilder<ShopTaskAccess>(
         future: _access,
         builder: (context, access) {
@@ -128,6 +139,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                 BookingMedicationTask.taipei(DateTime.now()),
               );
               final writable =
+                  widget.canManage &&
                   BookingServiceTask.canRecord(b) &&
                   task.pending &&
                   task.petId.isNotEmpty;
@@ -143,7 +155,9 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                         title: task.title,
                         highlighted: true,
                         children: [
-                          Text('${task.pet} · ${b['roomName'] ?? '尚未分房'}'),
+                          Text(
+                            '${task.pet} · ${(b['roomName'] ?? '').toString().trim().isEmpty ? '尚未分房' : b['roomName']}',
+                          ),
                           Text('預約時段　${task.day}　${task.slot}'),
                         ],
                       ),
@@ -153,7 +167,9 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                           task.petId.isEmpty
                               ? '寵物資料待核對，請先與家長確認'
                               : task.pending
-                              ? '訂單目前不可填寫'
+                              ? (b['status'] == 'confirmed'
+                                    ? '辦理入住後即可登記服務結果。'
+                                    : '訂單目前不可填寫')
                               : task.resultLabel,
                         ),
                         if (task.actualAt case final time?)
@@ -235,7 +251,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                                 labelText: _result == 'done'
                                     ? '給家長的說明（選填）'
                                     : '原因與後續安排（必填）',
-                                hintText: '例如：陪玩 15 分鐘後休息，已與家長說明。',
+                                hintText: '可記錄服務情況與後續安排。',
                                 border: const OutlineInputBorder(),
                               ),
                             ),

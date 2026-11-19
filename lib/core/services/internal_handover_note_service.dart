@@ -64,58 +64,34 @@ class InternalHandoverNoteService {
         .collection('bookings')
         .doc(bookingId);
 
-    int nextRevision = 1;
-
-    await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> bookingSnap = await tx.get(
-        bookingRef,
+    final bookingSnap = await bookingRef.get();
+    final booking = bookingSnap.data();
+    if (booking == null || booking['shopId'] != shopId) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: '找不到可編輯的店家訂單',
       );
-      if (!bookingSnap.exists) {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'not-found',
-          message: '找不到訂單，無法儲存內部交接備註',
-        );
-      }
-      final Map<String, dynamic> booking =
-          bookingSnap.data() ?? const <String, dynamic>{};
-      if ((booking['shopId'] ?? '').toString() != shopId) {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'permission-denied',
-          message: '訂單不屬於此店家，無法儲存內部交接備註',
-        );
-      }
-      if (BookingSettlementMath.isSettlementLocked(booking)) {
-        throw const InternalHandoverLockedException();
-      }
-      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(noteRef);
-      final int current = snap.exists
-          ? (((snap.data()?['revision'] as num?)?.toInt()) ?? 0)
-          : 0;
-      if (expectedRevision != null && expectedRevision != current) {
-        throw const InternalHandoverConflictException();
-      }
-      nextRevision = current + 1;
-      tx.set(noteRef, <String, dynamic>{
-        'shopId': shopId,
-        'bookingId': bookingId,
-        'text': text,
-        'revision': nextRevision,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedByUid': user.uid,
-        'updatedByEmail': (user.email ?? '').trim(),
-      }, SetOptions(merge: true));
-      tx.set(noteRef.collection('history').doc(), <String, dynamic>{
-        'shopId': shopId,
-        'bookingId': bookingId,
-        'text': text,
-        'revision': nextRevision,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedByUid': user.uid,
-        'updatedByEmail': (user.email ?? '').trim(),
-      });
-    });
+    }
+    if (BookingSettlementMath.isSettlementLocked(booking)) {
+      throw const InternalHandoverLockedException();
+    }
+    final currentRevision = expectedRevision ?? 0;
+    final nextRevision = currentRevision + 1;
+    final data = <String, dynamic>{
+      'shopId': shopId,
+      'bookingId': bookingId,
+      'text': text,
+      'revision': nextRevision,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedByUid': user.uid,
+      'updatedByEmail': (user.email ?? '').trim(),
+    };
+    // Rules require the next revision and an identical history snapshot.
+    final batch = FirebaseFirestore.instance.batch();
+    batch.set(noteRef, data);
+    batch.set(noteRef.collection('history').doc(), data);
+    await batch.commit();
 
     try {
       await ActionLogService.instance.logAction(

@@ -38,6 +38,34 @@ Widget _wrap(Widget child, {Size size = const Size(1440, 1100)}) {
 }
 
 void main() {
+  testWidgets('訂單表單展開狀態與外層清單捲動位置分開', (tester) async {
+    final bucket = PageStorageBucket();
+    await tester.pumpWidget(
+      _wrap(
+        PageStorage(
+          bucket: bucket,
+          child: KeyedSubtree(
+            key: const PageStorageKey<String>('order-care-b1'),
+            child: Builder(
+              builder: (context) {
+                bucket.writeState(context, 0);
+                return AdminBookingFormAnswersSection(
+                  shopId: 'shop-a',
+                  bookingId: 'b1',
+                  data: {
+                    'customFormAnswers': _answer(label: '飲食', value: '早午餐'),
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('早午餐'), findsOneWidget);
+  });
+
   testWidgets('客戶送單表單與客戶備註沒有編輯按鈕', (WidgetTester tester) async {
     await tester.pumpWidget(
       _wrap(

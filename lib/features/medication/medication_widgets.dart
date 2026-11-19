@@ -6,6 +6,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_medication_task.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:image/image.dart' as imaging;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -121,8 +123,14 @@ class _MedicationWaiverNotices extends StatelessWidget {
           ListTile(
             tileColor: colors.primaryContainer,
             textColor: colors.onPrimaryContainer,
-            leading: Icon(Icons.restaurant_outlined, color: colors.onPrimaryContainer),
-            title: const Text('可拌食者免費', style: TextStyle(fontWeight: FontWeight.bold)),
+            leading: Icon(
+              Icons.restaurant_outlined,
+              color: colors.onPrimaryContainer,
+            ),
+            title: const Text(
+              '可拌食者免費',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: const Text('依原用藥指示可拌入食物時，該項用藥協助免費。'),
           ),
         if (setting['mixFree'] == true && setting['successOnly'] == true)
@@ -131,8 +139,14 @@ class _MedicationWaiverNotices extends StatelessWidget {
           ListTile(
             tileColor: colors.tertiaryContainer,
             textColor: colors.onTertiaryContainer,
-            leading: Icon(Icons.receipt_long_outlined, color: colors.onTertiaryContainer),
-            title: const Text('未成功不計費', style: TextStyle(fontWeight: FontWeight.bold)),
+            leading: Icon(
+              Icons.receipt_long_outlined,
+              color: colors.onTertiaryContainer,
+            ),
+            title: const Text(
+              '未成功不計費',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: const Text('請記錄每次執行結果，退房時會依結果核算用藥費。'),
           ),
       ],
@@ -1014,6 +1028,7 @@ class MedicationRequestEditor extends StatefulWidget {
     this.initial,
     this.allowPhotoUpload = true,
     this.showFeeWaiverNotices = false,
+    this.reviewByDate = false,
   });
   final String shopId;
   final List<Map<String, dynamic>> pets;
@@ -1023,6 +1038,7 @@ class MedicationRequestEditor extends StatefulWidget {
   final Map<String, dynamic>? initial;
   final bool allowPhotoUpload;
   final bool showFeeWaiverNotices;
+  final bool reviewByDate;
   @override
   State<MedicationRequestEditor> createState() =>
       _MedicationRequestEditorState();
@@ -1068,104 +1084,102 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
     medicines = medList(
       widget.initial?['medicines'],
     ).where((medicine) => petIds.contains(medicine['petId'])).toList();
+    if (widget.reviewByDate && medicines.isEmpty) {
+      for (final entry in medList(widget.initial?['preferences'])) {
+        final dates = medList(entry['dates']);
+        final types = entry['types'];
+        if (dates.isEmpty ||
+            types is! List ||
+            types.isEmpty ||
+            !petIds.contains(entry['petId'])) {
+          continue;
+        }
+        medicines.add({
+          'petId': entry['petId'],
+          'type': types.first,
+          'name': entry['name'] ?? '',
+          'dose': entry['dose'] ?? '',
+          'instruction': entry['note'] ?? '',
+          'schedule': 'dated',
+          'dates': dates,
+        });
+      }
+    }
     requiredPets = {
       ...medicines.map((medicine) => '${medicine['petId']}'),
       ...?(widget.initial?['requiredPetIds'] as List?)?.whereType<String>(),
     }.intersection(petIds);
   }
 
+  List<Map<String, dynamic>> get selectedMedicines => [
+    for (final medicine in medicines)
+      if (medicine['schedule'] != 'dated')
+        medicine
+      else if (_selectedDays(medicine).isNotEmpty)
+        {...medicine, 'dates': _selectedDays(medicine)},
+  ];
+
+  List<Map<String, dynamic>> _selectedDays(Map<String, dynamic> medicine) =>
+      medList(medicine['dates'])
+          .where(
+            (day) =>
+                day['included'] != false && (day['times'] as List).isNotEmpty,
+          )
+          .map((day) => {'date': day['date'], 'times': day['times']})
+          .toList();
+
   void emit() => widget.onChanged({
     'careStart': medIso(start),
     'careEnd': medIso(end),
-    'medicines': List<Map<String, dynamic>>.of(medicines),
+    'medicines': selectedMedicines,
     'requiredPetIds': requiredPets.toList(),
   });
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      if (widget.showFeeWaiverNotices)
-        _MedicationWaiverNotices(widget.setting),
-      Text(medRule(
-        widget.setting,
-        includeFeeWaivers: !widget.showFeeWaiverNotices,
-      )),
-      Text(
-        '照護時段：${medList(widget.setting['windows']).map((w) => '${w['start']}～${w['end']}').join('、')}',
-      ),
-      if ('${widget.setting['note'] ?? ''}'.isNotEmpty)
-        Text('${widget.setting['note']}'),
-      const SizedBox(height: 8),
-      const Text('請依客人選擇的日期與藥袋指示安排時間。藥品、時間及費用須雙方確認。'),
-      for (final pet in widget.pets) ...[
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text('${pet['name'] ?? '貓咪'}需要用藥協助'),
-          value: requiredPets.contains(medPetId(pet)),
-          onChanged: (v) {
-            setState(() {
-              if (v) {
-                requiredPets.add(medPetId(pet));
-              } else {
-                requiredPets.remove(medPetId(pet));
-                medicines.removeWhere((m) => m['petId'] == medPetId(pet));
-              }
-            });
-            emit();
-          },
+      if (widget.reviewByDate)
+        FormField<bool>(
+          onSaved: (_) => emit(),
+          builder: (_) => const SizedBox.shrink(),
         ),
-        if (requiredPets.contains(medPetId(pet))) ...[
-          for (final entry in medList(widget.initial?['preferences']))
-            if (entry['petId'] == medPetId(pet))
-              Text(_medicationRequestLine(entry, '客人希望')),
-          FormField<bool>(
-            validator: (_) => medicines.any((m) => m['petId'] == medPetId(pet))
-                ? null
-                : '請新增至少一筆藥品，或關閉此需求',
-            builder: (state) => state.hasError
-                ? Text(
-                    state.errorText!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  )
-                : const SizedBox.shrink(),
+      if (!widget.reviewByDate && widget.showFeeWaiverNotices)
+        _MedicationWaiverNotices(widget.setting),
+      if (!widget.reviewByDate) ...[
+        Text(
+          medRule(
+            widget.setting,
+            includeFeeWaivers: !widget.showFeeWaiverNotices,
           ),
-          for (final m in medicines.where((m) => m['petId'] == medPetId(pet)))
-            Card(
-              child: ListTile(
-                title: Text('${m['name']}｜${medicationTypes[m['type']]}'),
-                subtitle: Text(
-                  '每次 ${m['dose']}\n${scheduleText(m)}${m['from'] == null ? '' : '\n${medDate(m['from'])}～${medDate(m['until'])}'}',
-                ),
-                isThreeLine: false,
-                trailing: Wrap(
-                  children: [
-                    IconButton(
-                      tooltip: '編輯',
-                      onPressed: () => edit(pet, m),
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                    IconButton(
-                      tooltip: '刪除',
-                      onPressed: () {
-                        setState(() => medicines.remove(m));
-                        emit();
-                      },
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          OutlinedButton.icon(
-            onPressed: medicines.length >= 20 ? null : () => edit(pet, null),
-            icon: const Icon(Icons.add),
-            label: const Text('新增藥品／保健品'),
-          ),
-        ],
+        ),
+        Text(
+          '照護時段：${medList(widget.setting['windows']).map((w) => '${w['start']}～${w['end']}').join('、')}',
+        ),
+        if ('${widget.setting['note'] ?? ''}'.isNotEmpty)
+          Text('${widget.setting['note']}'),
+        const SizedBox(height: 8),
+        const Text('依與飼主核對的日期、時間和藥袋指示填寫。'),
       ],
-      if (requiredPets.isNotEmpty) ...[
+      if (widget.reviewByDate)
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const gutter = 20.0;
+            final width = constraints.maxWidth >= 880 && widget.pets.length > 1
+                ? (constraints.maxWidth - gutter) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: gutter,
+              runSpacing: gutter,
+              children: [
+                for (final pet in widget.pets)
+                  SizedBox(width: width, child: _petSection(pet)),
+              ],
+            );
+          },
+        )
+      else
+        for (final pet in widget.pets) _petSection(pet),
+      if (!widget.reviewByDate && requiredPets.isNotEmpty) ...[
         const Divider(),
         const Text('店家負責的用藥期間'),
         const Text('填寫店家開始與停止負責用藥的時間。飼主已在家完成的次數請從安排中移除。'),
@@ -1189,6 +1203,304 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
       ],
     ],
   );
+  Widget _petSection(Map<String, dynamic> pet) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          secondary: widget.reviewByDate
+              ? CircleAvatar(
+                  backgroundColor: colors.primaryContainer,
+                  foregroundColor: colors.onPrimaryContainer,
+                  child: const Icon(Icons.pets, size: 19),
+                )
+              : null,
+          title: Text(
+            widget.reviewByDate
+                ? '${pet['name'] ?? '貓咪'}'
+                : '${pet['name'] ?? '貓咪'}需要用藥協助',
+            style: widget.reviewByDate
+                ? theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  )
+                : null,
+          ),
+          subtitle: widget.reviewByDate ? const Text('用藥協助') : null,
+          value: requiredPets.contains(medPetId(pet)),
+          onChanged: (v) {
+            setState(() {
+              if (v) {
+                requiredPets.add(medPetId(pet));
+              } else {
+                requiredPets.remove(medPetId(pet));
+                medicines.removeWhere((m) => m['petId'] == medPetId(pet));
+              }
+            });
+            emit();
+          },
+        ),
+        if (requiredPets.contains(medPetId(pet))) ...[
+          for (final entry in medList(widget.initial?['preferences']))
+            if (entry['petId'] == medPetId(pet) &&
+                (!widget.reviewByDate || medList(entry['dates']).isEmpty)) ...[
+              Text(_medicationRequestLine(entry, '飼主預約需求')),
+              for (final suggested in _requestedSchedules(entry))
+                TextButton.icon(
+                  onPressed: medicines.length >= 20
+                      ? null
+                      : () => edit(pet, null, suggested: suggested),
+                  icon: const Icon(Icons.add),
+                  label: Text('帶入 ${suggested['label']}'),
+                ),
+            ],
+          FormField<bool>(
+            validator: (_) {
+              final selected = selectedMedicines.where(
+                (m) => m['petId'] == medPetId(pet),
+              );
+              if (selected.isEmpty) {
+                return widget.reviewByDate
+                    ? '請排入至少一個用藥時段，或關閉此需求。'
+                    : '請新增至少一筆藥品，或關閉此需求';
+              }
+              return null;
+            },
+            builder: (state) => state.hasError
+                ? Text(
+                    state.errorText!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+          for (final m in medicines.where((m) => m['petId'] == medPetId(pet)))
+            if (widget.reviewByDate && m['schedule'] == 'dated')
+              _datedCard(pet, m)
+            else
+              Card(
+                child: ListTile(
+                  title: Text('${m['name']}｜${medicationTypes[m['type']]}'),
+                  subtitle: Text(
+                    '每次 ${m['dose']}\n${scheduleText(m)}${m['from'] == null ? '' : '\n${medDate(m['from'])}～${medDate(m['until'])}'}',
+                  ),
+                  isThreeLine: false,
+                  trailing: Wrap(
+                    children: [
+                      IconButton(
+                        tooltip: '編輯',
+                        onPressed: () => edit(pet, m),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: '刪除',
+                        onPressed: () {
+                          setState(() => medicines.remove(m));
+                          emit();
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: medicines.length >= 20 ? null : () => edit(pet, null),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('新增藥品／保健品'),
+            ),
+          ),
+        ],
+      ],
+    );
+    if (!widget.reviewByDate) return content;
+    return Card.outlined(
+      margin: EdgeInsets.zero,
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: colors.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+        child: content,
+      ),
+    );
+  }
+
+  Widget _datedCard(Map<String, dynamic> pet, Map<String, dynamic> medicine) {
+    final days = medList(medicine['dates']);
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final name = '${medicine['name'] ?? ''}'.trim();
+    final dose = '${medicine['dose'] ?? ''}'.trim();
+    return Card.outlined(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ColoredBox(
+            color: colors.surfaceContainerLow,
+            child: ListTile(
+              leading: Icon(Icons.medication_outlined, color: colors.primary),
+              title: Text(
+                medicationTypes[medicine['type']] ?? '用藥',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              subtitle: Text(
+                [
+                  if (name.isNotEmpty) name,
+                  if (dose.isNotEmpty) '每次 $dose',
+                ].join(' · '),
+              ),
+              trailing: TextButton(
+                onPressed: () => edit(pet, medicine),
+                child: const Text('藥名與用量'),
+              ),
+            ),
+          ),
+          for (final (index, day) in days.indexed) ...[
+            if (index > 0) const Divider(height: 1),
+            _datedRow(medicine, days, day, index),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _datedRow(
+    Map<String, dynamic> medicine,
+    List<Map<String, dynamic>> days,
+    Map<String, dynamic> day,
+    int index,
+  ) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final included = day['included'] != false;
+    final times = (day['times'] as List).whereType<String>().toList();
+    final date = CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      value: included,
+      dense: true,
+      title: Text(
+        DateFormat('yyyy/MM/dd').format(DateTime.parse('${day['date']}')),
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      subtitle: included ? null : const Text('不排入'),
+      onChanged: (value) => setState(() {
+        day['included'] = value;
+        medicine['dates'] = days;
+        emit();
+      }),
+    );
+    final slots = !included
+        ? Text(
+            times.join('、'),
+            style: TextStyle(color: colors.onSurfaceVariant),
+          )
+        : Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final time in times)
+                InputChip(
+                  backgroundColor: colors.secondaryContainer.withValues(
+                    alpha: .48,
+                  ),
+                  avatar: Icon(Icons.schedule, size: 16, color: colors.primary),
+                  label: Text(
+                    time,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  onPressed: () => _changeTime(medicine, days, day, time),
+                  onDeleted: () => setState(() {
+                    day['times'] = times
+                        .where((value) => value != time)
+                        .toList();
+                    medicine['dates'] = days;
+                    emit();
+                  }),
+                  deleteButtonTooltipMessage: '刪除 $time',
+                ),
+              if (times.length < 12)
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 16),
+                  label: const Text('加時間'),
+                  onPressed: () => _changeTime(medicine, days, day),
+                ),
+            ],
+          );
+    return ColoredBox(
+      color: index.isEven ? colors.surface : colors.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        child: LayoutBuilder(
+          builder: (context, constraints) => constraints.maxWidth >= 410
+              ? Row(
+                  children: [
+                    SizedBox(width: 140, child: date),
+                    const SizedBox(width: 12),
+                    Expanded(child: slots),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    date,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, bottom: 6),
+                      child: slots,
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changeTime(
+    Map<String, dynamic> medicine,
+    List<Map<String, dynamic>> days,
+    Map<String, dynamic> day, [
+    String? old,
+  ]) async {
+    final parts = (old ?? '09:00').split(':');
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: int.parse(parts.first),
+        minute: int.parse(parts.last),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final value =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    final times = (day['times'] as List).whereType<String>().toList();
+    if (value == old) return;
+    if (times.contains(value)) {
+      medError(context, '這天已有相同用藥時間。');
+      return;
+    }
+    setState(() {
+      times.remove(old);
+      times.add(value);
+      day['times'] = times..sort();
+      medicine['dates'] = days;
+      emit();
+    });
+  }
+
   Future<void> pickRange(bool first) async {
     final value = await medPickDateTime(
       context,
@@ -1214,7 +1526,53 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
     }
   }
 
-  Future<void> edit(Map<String, dynamic> pet, Map<String, dynamic>? old) async {
+  Iterable<Map<String, dynamic>> _requestedSchedules(
+    Map<String, dynamic> entry,
+  ) sync* {
+    final types = entry['types'];
+    if (types is! List || types.isEmpty) return;
+    final days = medList(entry['dates']);
+    int index = 0;
+    while (index < days.length) {
+      final day = days[index++];
+      final date = DateTime.tryParse('${day['date']}');
+      final times = (day['times'] as List? ?? []).whereType<String>().toList();
+      if (date == null || times.isEmpty) continue;
+      var last = date;
+      while (index < days.length) {
+        final next = DateTime.tryParse('${days[index]['date']}');
+        if (next == null ||
+            next.difference(last).inDays != 1 ||
+            (days[index]['times'] as List? ?? []).join(',') !=
+                times.join(',')) {
+          break;
+        }
+        last = next;
+        index++;
+      }
+      final endOfDay = DateTime(last.year, last.month, last.day, 23, 59);
+      final format = DateFormat('MM/dd');
+      final dateLabel = date == last
+          ? format.format(date)
+          : '${format.format(date)}–${format.format(last)}';
+      yield {
+        'type': types.first,
+        'times': times,
+        'name': entry['name'],
+        'dose': entry['dose'],
+        'instruction': entry['note'],
+        'from': medIso(date.isBefore(start) ? start : date),
+        'until': medIso(endOfDay.isAfter(end) ? end : endOfDay),
+        'label': '$dateLabel ${times.join('、')}',
+      };
+    }
+  }
+
+  Future<void> edit(
+    Map<String, dynamic> pet,
+    Map<String, dynamic>? old, {
+    Map<String, dynamic>? suggested,
+  }) async {
     final value = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
@@ -1222,10 +1580,11 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
         shopId: widget.shopId,
         setting: widget.setting,
         petId: medPetId(pet),
-        initial: old,
+        initial: old ?? suggested,
         start: start,
         end: end,
         allowPhotoUpload: widget.allowPhotoUpload,
+        allowMissingDetails: widget.reviewByDate,
       ),
     );
     if (value != null && mounted) {
@@ -1242,7 +1601,11 @@ class _MedicationRequestEditorState extends State<MedicationRequestEditor> {
   }
 }
 
-String scheduleText(Map<String, dynamic> m) => m['schedule'] == 'interval'
+String scheduleText(Map<String, dynamic> m) => m['schedule'] == 'dated'
+    ? medList(m['dates'])
+          .map((day) => '${day['date']} ${(day['times'] as List).join('、')}')
+          .join('\n')
+    : m['schedule'] == 'interval'
     ? '從使用期間起點每隔 ${m['intervalHours']} 小時'
     : m['schedule'] == 'custom'
     ? '其他安排：${m['custom']}'
@@ -1258,12 +1621,14 @@ class MedicationMedicineDialog extends StatefulWidget {
     required this.end,
     this.initial,
     this.allowPhotoUpload = true,
+    this.allowMissingDetails = false,
   });
   final String shopId, petId;
   final Map<String, dynamic> setting;
   final Map<String, dynamic>? initial;
   final DateTime start, end;
   final bool allowPhotoUpload;
+  final bool allowMissingDetails;
   @override
   State<MedicationMedicineDialog> createState() =>
       _MedicationMedicineDialogState();
@@ -1339,7 +1704,11 @@ class _MedicationMedicineDialogState extends State<MedicationMedicineDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('依藥袋或獸醫指示填寫；不同藥品請分開新增。'),
-              medInput(name, '名稱', required: true),
+              medInput(
+                name,
+                widget.allowMissingDetails ? '藥名（選填）' : '名稱',
+                required: !widget.allowMissingDetails,
+              ),
               DropdownButtonFormField<String>(
                 initialValue: type,
                 decoration: const InputDecoration(labelText: '服務類型'),
@@ -1354,10 +1723,21 @@ class _MedicationMedicineDialogState extends State<MedicationMedicineDialog> {
                     .toList(),
                 onChanged: (v) => setState(() => type = v!),
               ),
-              medInput(dose, '每次用量與單位，例如 1 顆、0.5 ml', required: true),
+              medInput(
+                dose,
+                widget.allowMissingDetails
+                    ? '每次用量與單位（選填）'
+                    : '每次用量與單位，例如 1 顆、0.5 ml',
+                required: !widget.allowMissingDetails,
+              ),
               if (type == 'oral')
                 medInput(pills, '每次藥錠／膠囊顆數（非錠劑填 0）', number: true),
-              medInput(instruction, '使用方式與注意事項', required: true, lines: 3),
+              medInput(
+                instruction,
+                widget.allowMissingDetails ? '使用方式與注意事項（選填）' : '使用方式與注意事項',
+                required: !widget.allowMissingDetails,
+                lines: 3,
+              ),
               medInput(reason, '用藥原因（選填）'),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1365,73 +1745,80 @@ class _MedicationMedicineDialogState extends State<MedicationMedicineDialog> {
                 value: mix,
                 onChanged: (v) => setState(() => mix = v!),
               ),
-              DropdownButtonFormField<String>(
-                initialValue: schedule,
-                decoration: const InputDecoration(labelText: '用藥安排'),
-                items: const [
-                  DropdownMenuItem(value: 'fixed', child: Text('每日指定時間')),
-                  DropdownMenuItem(value: 'meal', child: Text('隨餐（填預計餐時）')),
-                  DropdownMenuItem(value: 'interval', child: Text('每隔幾小時')),
-                  DropdownMenuItem(value: 'custom', child: Text('其他安排，請店家確認')),
+              if (schedule != 'dated') ...[
+                DropdownButtonFormField<String>(
+                  initialValue: schedule,
+                  decoration: const InputDecoration(labelText: '用藥安排'),
+                  items: const [
+                    DropdownMenuItem(value: 'fixed', child: Text('每日指定時間')),
+                    DropdownMenuItem(value: 'meal', child: Text('隨餐（填預計餐時）')),
+                    DropdownMenuItem(value: 'interval', child: Text('每隔幾小時')),
+                    DropdownMenuItem(
+                      value: 'custom',
+                      child: Text('其他安排，請店家確認'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => schedule = v!),
+                ),
+                if (['fixed', 'meal'].contains(schedule)) ...[
+                  Wrap(
+                    spacing: 6,
+                    children: times
+                        .map(
+                          (t) => InputChip(
+                            label: Text(t),
+                            onDeleted: () => setState(() => times.remove(t)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  TextButton(
+                    onPressed: times.length >= 12
+                        ? null
+                        : () async {
+                            final t = await showTimePicker(
+                              context: context,
+                              initialTime: const TimeOfDay(hour: 9, minute: 0),
+                            );
+                            if (t != null && mounted) {
+                              final value =
+                                  '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+                              setState(() {
+                                if (!times.contains(value)) {
+                                  times.add(value);
+                                  times.sort();
+                                }
+                              });
+                            }
+                          },
+                    child: const Text('＋新增時間'),
+                  ),
+                  Text('這項藥品每天安排 ${times.length} 個時間；預約試算會依旅館實際負責的期間計算。'),
                 ],
-                onChanged: (v) => setState(() => schedule = v!),
-              ),
-              if (['fixed', 'meal'].contains(schedule)) ...[
-                Wrap(
-                  spacing: 6,
-                  children: times
-                      .map(
-                        (t) => InputChip(
-                          label: Text(t),
-                          onDeleted: () => setState(() => times.remove(t)),
-                        ),
-                      )
-                      .toList(),
+                if (schedule == 'interval') ...[
+                  medInput(hours, '間隔小時（1～168）', required: true, number: true),
+                  const Text('以此藥使用期間的開始時間作為第一筆，請確認與原有指示一致。'),
+                ],
+                if (schedule == 'custom')
+                  medInput(custom, '請說明安排，店家須確認具體時間', required: true, lines: 3),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('只在指定期間使用'),
+                  value: limited,
+                  onChanged: (v) => setState(() => limited = v!),
                 ),
-                TextButton(
-                  onPressed: times.length >= 12
-                      ? null
-                      : () async {
-                          final t = await showTimePicker(
-                            context: context,
-                            initialTime: const TimeOfDay(hour: 9, minute: 0),
-                          );
-                          if (t != null && mounted) {
-                            final value =
-                                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-                            setState(() {
-                              if (!times.contains(value)) {
-                                times.add(value);
-                                times.sort();
-                              }
-                            });
-                          }
-                        },
-                  child: const Text('＋新增時間'),
-                ),
-                Text('這項藥品每天安排 ${times.length} 個時間；預約試算會依旅館實際負責的期間計算。'),
-              ],
-              if (schedule == 'interval') ...[
-                medInput(hours, '間隔小時（1～168）', required: true, number: true),
-                const Text('以此藥使用期間的開始時間作為第一筆，請確認與原有指示一致。'),
-              ],
-              if (schedule == 'custom')
-                medInput(custom, '請說明安排，店家須確認具體時間', required: true, lines: 3),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('只在指定期間使用'),
-                value: limited,
-                onChanged: (v) => setState(() => limited = v!),
-              ),
-              if (limited) ...[
-                TextButton(
-                  onPressed: () => pick(true),
-                  child: Text('開始：${DateFormat('MM/dd HH:mm').format(from)}'),
-                ),
-                TextButton(
-                  onPressed: () => pick(false),
-                  child: Text('結束：${DateFormat('MM/dd HH:mm').format(until)}'),
-                ),
+                if (limited) ...[
+                  TextButton(
+                    onPressed: () => pick(true),
+                    child: Text('開始：${DateFormat('MM/dd HH:mm').format(from)}'),
+                  ),
+                  TextButton(
+                    onPressed: () => pick(false),
+                    child: Text(
+                      '結束：${DateFormat('MM/dd HH:mm').format(until)}',
+                    ),
+                  ),
+                ],
               ],
               if (photoPath.isNotEmpty) ...[
                 const Text('已附藥袋照片'),
@@ -1521,6 +1908,7 @@ class _MedicationMedicineDialogState extends State<MedicationMedicineDialog> {
       'pills': type == 'oral' ? count : 0,
       'schedule': schedule,
       'times': times,
+      if (schedule == 'dated') 'dates': widget.initial?['dates'],
       'intervalHours': int.tryParse(hours.text) ?? 0,
       'custom': custom.text.trim(),
       'photoPath': photoPath,
@@ -2729,6 +3117,23 @@ class _CustomerMedicationRequest extends StatelessWidget {
   }
 }
 
+Map<String, dynamic> _recordedMedicine(
+  Map<String, dynamic> task,
+  Map<String, dynamic> medicine,
+) => {
+  ...medicine,
+  ...medMap(medMap(task['medicineDetailsSnapshot'])[medicine['id']]),
+};
+
+String _medicineTitle(Map<String, dynamic> medicine) {
+  final name = '${medicine['name'] ?? ''}'.trim();
+  final dose = '${medicine['dose'] ?? ''}'.trim();
+  return [
+    name.isEmpty ? (medicationTypes[medicine['type']] ?? '用藥') : name,
+    if (dose.isNotEmpty) dose,
+  ].join(' · ');
+}
+
 class BookingMedicationPanel extends StatefulWidget {
   const BookingMedicationPanel({
     super.key,
@@ -2741,6 +3146,9 @@ class BookingMedicationPanel extends StatefulWidget {
     this.summaryOnly = false,
     this.customerDetails = false,
     this.arrangementLayout = false,
+    this.inlineTaskResult = false,
+    this.onTaskRecorded,
+    this.onViewOrderConfirmation,
     this.referencePricing = const {},
   });
   final String bookingId;
@@ -2750,6 +3158,9 @@ class BookingMedicationPanel extends StatefulWidget {
   final bool summaryOnly;
   final bool customerDetails;
   final bool arrangementLayout;
+  final bool inlineTaskResult;
+  final VoidCallback? onTaskRecorded;
+  final VoidCallback? onViewOrderConfirmation;
   final Map<String, dynamic> referencePricing;
   final String initialFilter;
   final String? taskId;
@@ -2824,6 +3235,15 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
           entry.pending &&
           BookingMedicationTask.canRecord(widget.booking);
       final ids = task['medicineIds'];
+      if (canRecord && widget.inlineTaskResult) {
+        return _MedicationResultForm(
+          bookingId: widget.bookingId,
+          booking: widget.booking,
+          task: task,
+          entry: entry,
+          onRecorded: widget.onTaskRecorded,
+        );
+      }
       if (canRecord && !_openedTaskForm) {
         _openedTaskForm = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2835,24 +3255,31 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
       return medCard('本次用藥', [
         Text('貓咪：${entry.pet}', style: Theme.of(context).textTheme.titleLarge),
         Text('房間：${widget.booking['roomName'] ?? '尚未分房'}'),
+        if ('${widget.booking['customerName'] ?? ''}'.trim().isNotEmpty)
+          Text("飼主：${widget.booking['customerName']}"),
         Text('預定時間：${medDate(task['scheduledAt'])}'),
         if (entry.actualAt != null)
           Text('實際時間：${medDate(entry.actualAt!.toIso8601String())}'),
         if ('${task['note'] ?? ''}'.trim().isNotEmpty)
           Text("結果說明：${task['note']}"),
         Text('${entry.day} · ${entry.types} · ${entry.resultLabel}'),
+        if (entry.pending && widget.booking['status'] == 'confirmed')
+          const Text('辦理入住後即可登記用藥結果。'),
         for (final medicine in medicines)
           if (ids is List && ids.contains(medicine['id']))
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(
-                '${medicine['name'] ?? ''} · ${medicine['dose'] ?? ''}',
+              title: Text(_medicineTitle(_recordedMedicine(task, medicine))),
+              subtitle: Text(
+                [
+                  '${_recordedMedicine(task, medicine)['instruction'] ?? ''}',
+                  if (medicationResults[medMap(
+                        task['medicineResults'],
+                      )[medicine['id']]]
+                      case final String result)
+                    result,
+                ].where((text) => text.isNotEmpty).join(' · '),
               ),
-              subtitle: Text([
-                '${medicine['instruction'] ?? ''}',
-                if (medicationResults[medMap(task['medicineResults'])[medicine['id']]] case final String result)
-                  result,
-              ].where((text) => text.isNotEmpty).join(' · ')),
             ),
         if (canRecord)
           FilledButton(
@@ -3164,7 +3591,9 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
         Text(
           m['state'] == 'pending_customer'
               ? '已送出安排，等待飼主同意。飼主確認後，入住中的用藥時段就會顯示「填寫結果」。'
-              : '店內可先留下交接備註。需要安排服務時，再送時程與費用給飼主確認。',
+              : _atArrival
+              ? '飼主到店後，核對時間與用量即可加入排程。'
+              : '核對用藥需求後，送出時程與費用給飼主確認。',
         ),
         const SizedBox(height: 12),
       ],
@@ -3177,7 +3606,9 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
             FilledButton(
               onPressed: busy ? null : propose,
               child: Text(
-                confirmed
+                _atArrival
+                    ? (confirmed ? '修改用藥排程' : '到店核對用藥')
+                    : confirmed
                     ? '調整用藥安排（須重新確認）'
                     : m['state'] == 'pending_customer'
                     ? '修改安排並重新送確認'
@@ -3204,7 +3635,8 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
           "預計照護期間：${medDate(request['careStart'])}～${medDate(request['careEnd'])}",
         ),
       if (preferences.isNotEmpty) ...[
-        for (final entry in preferences) requestEntry(entry),
+        if (!customerLayout || !confirmed)
+          for (final entry in preferences) requestEntry(entry),
         if (customerLayout)
           customerFee()
         else if (estimate['amount'] != null)
@@ -3232,7 +3664,11 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
         Text('結算 ${m['finalAmount']} 元，已帶入訂單額外費用。'),
       if ('${m['proposalNote'] ?? ''}'.isNotEmpty)
         Text('店家說明：${m['proposalNote']}'),
-      if (!confirmed && !locked) const Text('住宿成立不代表用藥服務已接受，請完成雙方確認。'),
+      if (!confirmed &&
+          !locked &&
+          m['state'] == 'pending_shop' &&
+          !widget.staff)
+        const Text('到店時請與店家核對日期、時間和用量。'),
       if (medicines.isNotEmpty)
         ExpansionTile(
           title: const Text('藥品與使用指示'),
@@ -3341,7 +3777,8 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                 ? '待處理'
                 : '全部'} ${shown.length} 筆',
           ),
-          initiallyExpanded: widget.staff && tasks.length <= 8,
+          initiallyExpanded:
+              widget.customerDetails || (widget.staff && tasks.length <= 8),
           children: shown
               .map(
                 (t) => ListTile(
@@ -3349,7 +3786,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
                     '${medDate(t['scheduledAt'])}｜${petName(t['petId'])}',
                   ),
                   subtitle: Text(
-                    '${medicines.where((x) => (t['medicineIds'] as List).contains(x['id'])).map((x) => '${x['name']} ${x['dose']}${medMap(t['medicineResults'])[x['id']] == null ? '' : '（${medicationResults[medMap(t['medicineResults'])[x['id']]]}）'}').join('、')}\n${medicationResults[t['result']] ?? t['result']}${t['actualAt'] == null ? '' : '｜實際 ${medDate(t['actualAt'])}'}${t['by'] == null ? '' : '\n執行人：${t['byName'] ?? '店家人員'}'}${t['note'] == null ? '' : '\n${t['note']}'}${t['outside'] == true ? '\n已確認超出一般照護時段' : ''}',
+                    '${medicines.where((x) => (t['medicineIds'] as List).contains(x['id'])).map((x) => '${_medicineTitle(_recordedMedicine(t, x))}${medMap(t['medicineResults'])[x['id']] == null ? '' : '（${medicationResults[medMap(t['medicineResults'])[x['id']]]}）'}').join('、')}\n${medicationResults[t['result']] ?? t['result']}${t['actualAt'] == null ? '' : '｜實際 ${medDate(t['actualAt'])}'}${t['by'] == null ? '' : '\n執行人：${t['byName'] ?? '店家人員'}'}${t['note'] == null ? '' : '\n${t['note']}'}${t['outside'] == true ? '\n已確認超出一般照護時段' : ''}',
                   ),
                   trailing:
                       !locked &&
@@ -3393,7 +3830,7 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
               (h) => ListTile(
                 dense: true,
                 title: Text(
-                  '${medDate(h['at'])}｜${{'propose': '店家提出安排', 'accept': '客人同意', 'reject': '客人要求調整', 'decline': '店家無法提供', 'cancel': '取消協助', 'record': '記錄執行', 'finalize': '費用結算'}[h['action']] ?? h['action']}',
+                  '${medDate(h['at'])}｜${{'confirmAtArrival': '店家完成到店核對', 'propose': '店家提出安排', 'accept': '客人同意', 'reject': '客人要求調整', 'decline': '店家無法提供', 'cancel': '取消協助', 'record': '記錄執行', 'finalize': '費用結算'}[h['action']] ?? h['action']}',
                 ),
                 subtitle: Text(
                   '${h['note'] ?? ''}${h['amount'] == null ? '' : '｜${h['amount']} 元'}\n操作人：${h['byName'] ?? '訂單相關人員'}',
@@ -3436,338 +3873,33 @@ class _BookingMedicationPanelState extends State<BookingMedicationPanel> {
     if (ok == true) await act(action, {'note': note});
   }
 
-  Future<void> propose() async {
-    final m = medication, setting = medMap(m['setting']);
-    var draft = medMap(m['request']);
-    if (medList(draft['preferences']).isNotEmpty) {
-      draft['requiredPetIds'] = medList(
-        draft['preferences'],
-      ).map((entry) => entry['petId']).toList();
-    }
-    final note = TextEditingController(),
-        amount = TextEditingController(
-          text: m['agreedAmount'] == null ? '' : '${m['agreedAmount']}',
-        );
-    bool outside = false;
-    final form = GlobalKey<FormState>();
-    final start = widget.booking['startDate'] as Timestamp,
-        end = widget.booking['endDate'] as Timestamp;
-    final preferences = medList(draft['preferences']);
-    final pets = medList(widget.booking['pets']);
-    final estimate = medMap(m['estimate']);
-    var editing = false;
-    var changed = false;
-    final ok = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => StatefulBuilder(
-          builder: (ctx, update) {
-            final medicines = medList(draft['medicines']);
-            final needsSchedule =
-                medicines.isEmpty ||
-                medicines.any((entry) => entry['schedule'] == 'custom') ||
-                draft['careStart'] == null ||
-                draft['careEnd'] == null;
-            final estimatedAmount = changed ? null : estimate['amount'];
-            return Scaffold(
-              appBar: AppBar(title: Text(editing ? '調整用藥安排' : '用藥時程與費用')),
-              body: SafeArea(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 650),
-                    child: ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        if (editing)
-                          Form(
-                            key: form,
-                            child: MedicationRequestEditor(
-                              shopId: '${widget.booking['shopId']}',
-                              pets: pets,
-                              setting: setting,
-                              startDate: start.toDate(),
-                              endDate: end.toDate(),
-                              initial: {...draft, 'preferences': preferences},
-                              allowPhotoUpload: false,
-                              showFeeWaiverNotices: true,
-                              onChanged: (value) {
-                                draft = value;
-                                changed = true;
-                              },
-                            ),
-                          )
-                        else ...[
-                          _MedicationWaiverNotices(setting),
-                          if (needsSchedule)
-                            const Text('以下是預約需求。填寫藥品與執行時間後，即可送飼主確認。'),
-                          for (final pet in pets)
-                            if ([
-                              ...medicines,
-                              ...preferences,
-                            ].any((entry) => entry['petId'] == medPetId(pet)))
-                              medCard('${pet['name'] ?? '貓咪'}', [
-                                for (final entry in medicines.where(
-                                  (entry) => entry['petId'] == medPetId(pet),
-                                ))
-                                  Text(
-                                    '${entry['name']}｜每次 ${entry['dose']}\n'
-                                    '${scheduleText(entry)}',
-                                  ),
-                                for (final entry in preferences.where(
-                                  (entry) => entry['petId'] == medPetId(pet),
-                                ))
-                                  Text(_medicationRequestLine(entry, '客人希望')),
-                              ]),
-                          medCard('店家負責的用藥期間', [
-                            Text(
-                              draft['careStart'] != null &&
-                                      draft['careEnd'] != null
-                                  ? '${medDate(draft['careStart'])} ～ ${medDate(draft['careEnd'])}'
-                                  : '待確認交接時間',
-                            ),
-                          ]),
-                          OutlinedButton.icon(
-                            onPressed: () => update(() => editing = true),
-                            icon: const Icon(Icons.edit_outlined),
-                            label: Text(needsSchedule ? '填寫藥品與執行時間' : '修改藥品與執行時間'),
-                          ),
-                          medCard('用藥費用', [
-                            Text(
-                              estimatedAmount is num
-                                  ? '原安排預估 NT\$ $estimatedAmount'
-                                  : '依送出的安排計價',
-                            ),
-                            if (m['advanceAmount'] case final num advance
-                                when advance > 0)
-                              Text('已列入預約應付 NT\$ $advance，退房合併核算。'),
-                          ]),
-                          ExpansionTile(
-                            title: const Text('額外說明與報價（選填）'),
-                            subtitle: const Text('需要告知飼主、另行報價或配合特殊時段時使用。'),
-                            initiallyExpanded:
-                                changed ||
-                                estimate['manual'] == true ||
-                                amount.text.isNotEmpty ||
-                                note.text.isNotEmpty ||
-                                outside,
-                            childrenPadding: const EdgeInsets.all(12),
-                            children: [
-                              medInput(note, '安排／調整說明', lines: 3),
-                              medInput(amount, '整筆用藥報價（元）', number: true),
-                              const Text('一般安排按店家規則計價。系統要求另行報價時，請填寫整筆用藥費。'),
-                              CheckboxListTile(
-                                title: const Text('已確認可配合超出照護時段的需求'),
-                                value: outside,
-                                onChanged: (value) =>
-                                    update(() => outside = value ?? false),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              bottomNavigationBar: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    heightFactor: 1,
-                    child: SizedBox(
-                      width: 400,
-                      child: FilledButton(
-                        onPressed: editing
-                            ? () {
-                                if (form.currentState?.validate() == true) {
-                                  update(() => editing = false);
-                                }
-                              }
-                            : needsSchedule
-                            ? null
-                            : () => Navigator.pop(ctx, true),
-                        child: Text(editing ? '套用並查看摘要' : '送出安排給飼主確認'),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-    final text = note.text.trim(), quoted = int.tryParse(amount.text);
-    note.dispose();
-    amount.dispose();
-    if (ok == true) {
-      await act('propose', {
-        'revision': m['revision'],
-        'request': draft,
-        'note': text,
-        'allowOutside': outside,
-        'agreedAmount': ?quoted,
-      });
-    }
-  }
+  bool get _atArrival => widget.booking['serviceType'] != 'daycare';
+
+  Future<void> propose() => openMedicationArrangement(
+    context,
+    bookingId: widget.bookingId,
+    booking: widget.booking,
+    submitProposal: (request) => act('propose', request),
+    onViewOrderConfirmation: widget.onViewOrderConfirmation,
+  );
 
   Future<void> record(
     Map<String, dynamic> task, {
     BookingMedicationTask? entry,
-  }) async {
-    final revision = medication['revision'];
-    final requiresSelection = entry != null;
-    String? result = requiresSelection ? null : 'done';
-    String? validation;
-    final medicines = medList(
-      medMap(medication['request'])['medicines'],
-    ).where((m) => (task['medicineIds'] as List).contains(m['id'])).toList();
-    final results = <String, String>{
-      for (final m in medicines)
-        '${m['id']}':
-            '${medMap(task['medicineResults'])[m['id']] ?? (requiresSelection ? '' : 'done')}',
-    };
-    final note = TextEditingController();
-    final scheduled = DateTime.parse('${task['scheduledAt']}');
-    DateTime actual = initialCareActualTime(scheduled, DateTime.now());
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => AlertDialog(
-          title: const Text('記錄執行結果'),
-          content: SizedBox(
-            width: 450,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (entry != null) ...[
-                    Text(
-                      '貓咪：${entry.pet}',
-                      style: Theme.of(ctx).textTheme.titleLarge,
-                    ),
-                    Text('房間：${widget.booking['roomName'] ?? '尚未分房'}'),
-                    Text(entry.types),
-                  ],
-                  Text('原訂 ${medDate(task['scheduledAt'])}'),
-                  if (entry != null)
-                    for (final medicine in medicines)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          '${medicine['name']} · ${medicine['dose']}',
-                        ),
-                        subtitle: Text('${medicine['instruction'] ?? ''}'),
-                      ),
-                  if (medicines.length > 1) ...[
-                    const Text('請分別記錄每項藥品；同次服務仍依店家規則合併計費。'),
-                    for (final medicine in medicines)
-                      DropdownButtonFormField<String>(
-                        initialValue:
-                            results[medicine['id']]?.isNotEmpty == true
-                            ? results[medicine['id']]
-                            : null,
-                        decoration: InputDecoration(
-                          labelText: '${medicine['name']} ${medicine['dose']}',
-                        ),
-                        items: medicationResults.entries
-                            .where((e) => e.key != 'pending')
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged:
-                            ['done', 'failed', 'skipped'].contains(
-                              medMap(task['medicineResults'])[medicine['id']],
-                            )
-                            ? null
-                            : (v) => results['${medicine['id']}'] = v!,
-                      ),
-                  ],
-                  if (medicines.length == 1) ...[
-                    const Text('本次用藥結果'),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final option in const {
-                          'done': '成功',
-                          'failed': '未成功',
-                          'skipped': '未執行',
-                        }.entries)
-                          ChoiceChip(
-                            label: Text(option.value),
-                            selected: result == option.key,
-                            onSelected: (_) => update(() => result = option.key),
-                          ),
-                      ],
-                    ),
-                  ],
-                  CareActualTimeField(
-                    scheduledAt: scheduled,
-                    value: actual,
-                    onChanged: (value) => update(() => actual = value),
-                  ),
-                  medInput(note, '說明（非完成時必填）', lines: 3),
-                  if (validation != null)
-                    Text(
-                      validation!,
-                      style: TextStyle(color: Theme.of(ctx).colorScheme.error),
-                    ),
-                  const Text('儲存後會同步顯示於客戶訂單並通知家長；有包含照護回報時也會帶入同日回報。'),
-                  const Text('未成功、部分完成或未執行時，請依既有交接安排聯繫家長。'),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('返回'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final allSelected = medicines.length > 1
-                    ? results.values.every((value) => value.isNotEmpty)
-                    : result != null;
-                if (!allSelected || medicines.isEmpty) {
-                  update(() => validation = '請確認每項用藥的執行結果');
-                  return;
-                }
-                final allDone = medicines.length > 1
-                    ? results.values.every((value) => value == 'done')
-                    : result == 'done';
-                if (!allDone && note.text.trim().isEmpty) {
-                  update(() => validation = '請填寫說明');
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: const Text('儲存結果'),
-            ),
-          ],
+  }) => showDialog<void>(
+    context: context,
+    builder: (_) => Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 740),
+        child: _MedicationResultForm(
+          bookingId: widget.bookingId,
+          booking: widget.booking,
+          task: task,
+          entry: entry,
         ),
       ),
-    );
-    final text = note.text.trim();
-    note.dispose();
-    if (ok == true) {
-      await act('record', {
-        'taskId': task['id'],
-        'revision': revision,
-        'result':
-            result ??
-            (results.values.every((value) => value == 'done')
-                ? 'done'
-                : 'partial'),
-        if (medicines.length > 1) 'medicineResults': results,
-        'actualAt': actual.toUtc().toIso8601String(),
-        'note': text,
-      });
-    }
-  }
+    ),
+  );
 
   Future<void> finalize() async {
     if (busy) return;
@@ -3890,4 +4022,597 @@ class MedicationTodayPage extends StatelessWidget {
       },
     ),
   );
+}
+
+class _MedicationResultForm extends StatefulWidget {
+  const _MedicationResultForm({
+    required this.bookingId,
+    required this.booking,
+    required this.task,
+    required this.entry,
+    this.onRecorded,
+  });
+
+  final String bookingId;
+  final Map<String, dynamic> booking, task;
+  final BookingMedicationTask? entry;
+  final VoidCallback? onRecorded;
+
+  @override
+  State<_MedicationResultForm> createState() => _MedicationResultFormState();
+}
+
+class _MedicationResultFormState extends State<_MedicationResultForm> {
+  late final _medication = medMap(widget.booking['medication']);
+  late final task = widget.task;
+  BookingMedicationTask? get entry => widget.entry;
+  late String? result = entry == null ? 'done' : null;
+  String? validation;
+  late final medicines = medList(medMap(_medication['request'])['medicines'])
+      .where(
+        (medicine) => (task['medicineIds'] as List).contains(medicine['id']),
+      )
+      .toList();
+  late final results = <String, String>{
+    for (final medicine in medicines)
+      '${medicine['id']}':
+          '${medMap(task['medicineResults'])[medicine['id']] ?? (entry == null ? 'done' : '')}',
+  };
+  final medicineDetails = <String, Map<String, String>>{};
+  final note = TextEditingController();
+  late final scheduled = DateTime.parse('${task['scheduledAt']}');
+  late DateTime actual = initialCareActualTime(scheduled, DateTime.now());
+  bool saving = false;
+
+  @override
+  void dispose() {
+    note.dispose();
+    super.dispose();
+  }
+
+  Widget resultChoices(
+    String? selected,
+    ValueChanged<String>? onSelected, {
+    required bool canMix,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final option in const {
+          'done': '成功',
+          'failed': '未成功',
+          'skipped': '未執行',
+        }.entries)
+          ChoiceChip(
+            label: Text(option.value),
+            selected: selected == option.key,
+            onSelected: onSelected == null
+                ? null
+                : (_) => onSelected(option.key),
+          ),
+        if (canMix)
+          ChoiceChip(
+            label: Text(medicationResults['mixed']!),
+            selected: selected == 'mixed',
+            onSelected: onSelected == null ? null : (_) => onSelected('mixed'),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _save() async {
+    final values = medicines.length > 1 ? results.values : [result ?? ''];
+    if (medicines.isEmpty || values.any((value) => value.isEmpty)) {
+      setState(() => validation = '請確認每項用藥的執行結果');
+      return;
+    }
+    if (values.any((value) => value != 'done') && note.text.trim().isEmpty) {
+      setState(() => validation = '請填寫說明');
+      return;
+    }
+    setState(() {
+      saving = true;
+      validation = null;
+    });
+    final onRecorded = widget.onRecorded;
+    try {
+      await medCall('manageBookingMedication', {
+        'bookingId': widget.bookingId,
+        'action': 'record',
+        'revision': _medication['revision'],
+        'taskId': task['id'],
+        'result':
+            result ??
+            (values.every((value) => value == 'done') ? 'done' : 'partial'),
+        if (medicines.length > 1) 'medicineResults': results,
+        if (medicineDetails.isNotEmpty) 'medicineDetails': medicineDetails,
+        'actualAt': actual.toUtc().toIso8601String(),
+        'note': note.text.trim(),
+      });
+      if (!mounted) {
+        onRecorded?.call();
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('用藥結果已儲存')));
+      if (onRecorded == null) {
+        Navigator.of(context).pop();
+      } else {
+        setState(() => saving = false);
+        onRecorded();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => saving = false);
+        medError(context, error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final roomName = '${widget.booking['roomName'] ?? ''}'.trim();
+    final entry = this.entry;
+    void update(VoidCallback change) => setState(change);
+    return PopScope(
+      canPop: !saving,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: IgnorePointer(
+              ignoring: saving,
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text('記錄執行結果', style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 12),
+                  if (entry != null) ...[
+                    Text(
+                      '貓咪：${entry.pet}',
+                      style: Theme.of(ctx).textTheme.titleLarge,
+                    ),
+                    Text('房間：${roomName.isEmpty ? '尚未分房' : roomName}'),
+                    if ('${widget.booking['customerName'] ?? ''}'
+                        .trim()
+                        .isNotEmpty)
+                      Text("飼主：${widget.booking['customerName']}"),
+                    Text(entry.types),
+                  ],
+                  Text('原訂 ${medDate(task['scheduledAt'])}'),
+                  if (medicines.length > 1) const Text('請分別選擇每種藥品的結果。'),
+                  for (final medicine in medicines) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(_medicineTitle(medicine)),
+                      subtitle: Text('${medicine['instruction'] ?? ''}'),
+                    ),
+
+                    ExpansionTile(
+                      initiallyExpanded: true,
+                      leading: const Icon(Icons.medication_outlined),
+                      subtitle: const Text('入住前未提供的藥名、劑量，可在此補齊'),
+                      title: const Text('補填或修改藥品資料（選填）'),
+                      children: [
+                        for (final (field, label, limit) in const [
+                          ('name', '藥名', 100),
+                          ('dose', '每次用量', 100),
+                          ('instruction', '使用方式與注意事項', 1000),
+                        ])
+                          TextFormField(
+                            initialValue:
+                                medicineDetails['${medicine['id']}']?[field] ??
+                                '${medicine[field] ?? ''}',
+                            decoration: InputDecoration(
+                              labelText: label,
+                              border: const OutlineInputBorder(),
+                              filled: true,
+                            ),
+                            maxLength: limit,
+                            onChanged: (value) {
+                              medicineDetails.putIfAbsent(
+                                '${medicine['id']}',
+                                () => {},
+                              )[field] = value;
+                            },
+                          ),
+                      ],
+                    ),
+                    resultChoices(
+                      medicines.length == 1 ? result : results[medicine['id']],
+                      medicines.length > 1 &&
+                              ['done', 'failed', 'skipped'].contains(
+                                medMap(task['medicineResults'])[medicine['id']],
+                              )
+                          ? null
+                          : (value) => update(() {
+                              if (medicines.length == 1) {
+                                result = value;
+                              } else {
+                                results['${medicine['id']}'] = value;
+                              }
+                            }),
+                      canMix: medicine['mix'] == true,
+                    ),
+                  ],
+                  CareActualTimeField(
+                    scheduledAt: scheduled,
+                    value: actual,
+                    onChanged: (value) => update(() => actual = value),
+                  ),
+                  medInput(note, '說明（非完成時必填）', lines: 3),
+                  if (validation != null)
+                    Text(
+                      validation!,
+                      style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: saving ? null : _save,
+                child: Text(saving ? '儲存中…' : '儲存結果'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _arrivalScheduleSummary(List<Map<String, dynamic>> items) {
+  final pets = items.map((item) => item['petId']).whereType<String>().toSet();
+  final slots = items
+      .expand((item) => medList(item['dates']))
+      .fold(0, (total, day) => total + (day['times'] as List).length);
+  return slots == 0
+      ? '${pets.length} 隻貓需要核對'
+      : '${pets.length} 隻貓 · $slots 筆用藥時段';
+}
+
+Future<bool> checkMedicationOrderConfirmation(
+  BuildContext context,
+  Map<String, dynamic> booking, {
+  VoidCallback? onViewOrderConfirmation,
+}) async {
+  if (BookingKind.isDaycare(booking) ||
+      !const {
+        'pending',
+        'pending_confirmation',
+        'pending_payment',
+        'unpaid',
+      }.contains(booking['status'])) {
+    return true;
+  }
+  final action = BookingPaymentStatus.needsInitialPaymentConfirm(booking)
+      ? BookingPaymentStatus.initialPaymentChoice(booking).confirmButtonLabel
+      : '確認訂單';
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(Icons.assignment_turned_in_outlined),
+      title: Text('請先$action'),
+      content: const Text('完成訂單確認後，即可核對用藥日期與時段。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('關閉'),
+        ),
+        if (onViewOrderConfirmation != null)
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('前往$action'),
+          ),
+      ],
+    ),
+  );
+  if (go == true && context.mounted) onViewOrderConfirmation?.call();
+  return false;
+}
+
+Future<void> openMedicationArrangement(
+  BuildContext context, {
+  required String bookingId,
+  required Map<String, dynamic> booking,
+  Future<void> Function(Map<String, dynamic>)? submitProposal,
+  VoidCallback? onViewOrderConfirmation,
+}) async {
+  if (!await checkMedicationOrderConfirmation(
+        context,
+        booking,
+        onViewOrderConfirmation: onViewOrderConfirmation,
+      ) ||
+      !context.mounted) {
+    return;
+  }
+  final atArrival = !BookingKind.isDaycare(booking);
+  final m = medMap(booking['medication']), setting = medMap(m['setting']);
+  var draft = medMap(m['request']);
+  if (medList(draft['preferences']).isNotEmpty) {
+    draft['requiredPetIds'] = medList(
+      draft['preferences'],
+    ).map((entry) => entry['petId']).toList();
+  }
+  final note = TextEditingController(),
+      amount = TextEditingController(
+        text: m['agreedAmount'] == null ? '' : '${m['agreedAmount']}',
+      );
+  bool outside = false;
+  final form = GlobalKey<FormState>();
+  final start = booking['startDate'] as Timestamp,
+      end = booking['endDate'] as Timestamp;
+  final preferences = medList(draft['preferences']);
+  final pets = medList(booking['pets']);
+  final estimate = medMap(m['estimate']);
+  var editing = atArrival;
+  var changed = false;
+  var saving = false;
+  final ok = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, update) {
+          final medicines = medList(draft['medicines']);
+          final needsSchedule =
+              medicines.isEmpty ||
+              medicines.any((entry) => entry['schedule'] == 'custom') ||
+              draft['careStart'] == null ||
+              draft['careEnd'] == null;
+          final estimatedAmount = changed ? null : estimate['amount'];
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(
+                atArrival
+                    ? '到店核對用藥'
+                    : editing
+                    ? '調整用藥安排'
+                    : '用藥時程與費用',
+              ),
+            ),
+            body: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: atArrival ? 1240 : 650),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                    children: [
+                      if (atArrival)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '核對用藥日期與時段',
+                                style: Theme.of(ctx).textTheme.headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text('勾選要排入的日期。藥名與用量可在記錄結果時補填。'),
+                            ],
+                          ),
+                        ),
+                      if (editing)
+                        Form(
+                          key: form,
+                          child: MedicationRequestEditor(
+                            shopId: '${booking['shopId']}',
+                            pets: pets,
+                            setting: setting,
+                            startDate: start.toDate(),
+                            endDate: end.toDate(),
+                            initial: {...draft, 'preferences': preferences},
+                            allowPhotoUpload: false,
+                            showFeeWaiverNotices: true,
+                            reviewByDate: atArrival,
+                            onChanged: (value) => update(() {
+                              draft = value;
+                              changed = true;
+                            }),
+                          ),
+                        ),
+                      if (!editing || atArrival) ...[
+                        if (!editing) ...[
+                          _MedicationWaiverNotices(setting),
+                          if (needsSchedule)
+                            const Text('以下是預約需求。填寫藥品與執行時間後，即可送飼主確認。'),
+                          for (final pet in pets)
+                            if ([
+                              ...medicines,
+                              ...preferences,
+                            ].any((entry) => entry['petId'] == medPetId(pet)))
+                              medCard('${pet['name'] ?? '貓咪'}', [
+                                for (final entry in medicines.where(
+                                  (entry) => entry['petId'] == medPetId(pet),
+                                ))
+                                  Text(
+                                    '${entry['name']}｜每次 ${entry['dose']}\n'
+                                    '${scheduleText(entry)}',
+                                  ),
+                                for (final entry in preferences.where(
+                                  (entry) => entry['petId'] == medPetId(pet),
+                                ))
+                                  Text(_medicationRequestLine(entry, '客人希望')),
+                              ]),
+                          medCard('店家負責的用藥期間', [
+                            Text(
+                              draft['careStart'] != null &&
+                                      draft['careEnd'] != null
+                                  ? '${medDate(draft['careStart'])} ～ ${medDate(draft['careEnd'])}'
+                                  : '待確認交接時間',
+                            ),
+                          ]),
+                          OutlinedButton.icon(
+                            onPressed: () => update(() => editing = true),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: Text(
+                              needsSchedule ? '填寫藥品與執行時間' : '修改藥品與執行時間',
+                            ),
+                          ),
+                          medCard('用藥費用', [
+                            Text(
+                              estimatedAmount is num
+                                  ? '原安排預估 NT\$ $estimatedAmount'
+                                  : '依送出的安排計價',
+                            ),
+                            if (m['advanceAmount'] case final num advance
+                                when advance > 0)
+                              Text('已列入預約應付 NT\$ $advance，退房合併核算。'),
+                          ]),
+                        ],
+                        ExpansionTile(
+                          title: Text(
+                            estimate['manual'] == true
+                                ? '用藥報價與說明'
+                                : '特殊時段、報價或給飼主的說明',
+                          ),
+                          subtitle: const Text('需要告知飼主、另行報價或配合特殊時段時使用。'),
+                          initiallyExpanded:
+                              changed ||
+                              estimate['manual'] == true ||
+                              amount.text.isNotEmpty ||
+                              note.text.isNotEmpty ||
+                              outside,
+                          childrenPadding: const EdgeInsets.all(12),
+                          children: [
+                            medInput(note, '安排／調整說明', lines: 3),
+                            medInput(amount, '整筆用藥報價（元）', number: true),
+                            const Text('一般安排按店家規則計價。系統要求另行報價時，請填寫整筆用藥費。'),
+                            CheckboxListTile(
+                              title: const Text('已確認可配合超出照護時段的需求'),
+                              value: outside,
+                              onChanged: (value) =>
+                                  update(() => outside = value ?? false),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            bottomNavigationBar: Material(
+              color: Theme.of(ctx).colorScheme.surface,
+              elevation: 3,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    heightFactor: 1,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 7,
+                      children: [
+                        if (atArrival)
+                          Text(
+                            _arrivalScheduleSummary(
+                              changed || medicines.isNotEmpty
+                                  ? medicines
+                                  : preferences,
+                            ),
+                            style: Theme.of(ctx).textTheme.labelLarge,
+                          ),
+                        SizedBox(
+                          width: 400,
+                          child: FilledButton(
+                            onPressed: saving
+                                ? null
+                                : editing
+                                ? () async {
+                                    if (form.currentState?.validate() == true) {
+                                      if (atArrival) {
+                                        form.currentState!.save();
+                                        final selected = medList(
+                                          draft['medicines'],
+                                        );
+                                        if (selected.isEmpty ||
+                                            selected.any(
+                                              (entry) =>
+                                                  entry['schedule'] == 'custom',
+                                            )) {
+                                          medError(ctx, '請至少填好一項藥品和執行時間。');
+                                          return;
+                                        }
+                                        update(() => saving = true);
+                                        try {
+                                          await medCall(
+                                            'manageBookingMedication',
+                                            {
+                                              'bookingId': bookingId,
+                                              'action': 'confirmAtArrival',
+                                              'revision': m['revision'],
+                                              'request': draft,
+                                              'note': note.text.trim(),
+                                              'allowOutside': outside,
+                                              'agreedAmount': ?int.tryParse(
+                                                amount.text,
+                                              ),
+                                            },
+                                          );
+                                          if (ctx.mounted) {
+                                            Navigator.pop(ctx, true);
+                                          }
+                                        } catch (e) {
+                                          if (ctx.mounted) {
+                                            update(() => saving = false);
+                                            medError(ctx, e);
+                                          }
+                                        }
+                                      } else {
+                                        update(() => editing = false);
+                                      }
+                                    }
+                                  }
+                                : needsSchedule
+                                ? null
+                                : () => Navigator.pop(ctx, true),
+                            child: Text(
+                              atArrival
+                                  ? '確認並加入用藥排程'
+                                  : editing
+                                  ? '套用並查看摘要'
+                                  : '送出安排給飼主確認',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+  final text = note.text.trim(), quoted = int.tryParse(amount.text);
+  note.dispose();
+  amount.dispose();
+  if (ok == true && context.mounted) {
+    if (atArrival) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已加入用藥排程')));
+      return;
+    }
+    await submitProposal?.call({
+      'revision': m['revision'],
+      'request': draft,
+      'note': text,
+      'allowOutside': outside,
+      'agreedAmount': ?quoted,
+    });
+  }
 }

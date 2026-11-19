@@ -84,7 +84,6 @@ Widget fixture({
         key: previewKey,
         child: AdminBookingDetailScaffold(
           title: '訂單詳細',
-          operationsShopId: 'fixture-shop',
           bookingCode: 'SHOP0017-B000001',
           overview: AdminBookingHeaderCard(
             data: data,

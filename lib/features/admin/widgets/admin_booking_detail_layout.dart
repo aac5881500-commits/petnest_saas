@@ -5,7 +5,6 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_order_workspac
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
-import 'package:petnest_saas/core/navigation/shop_operations_workbench.dart';
 import 'package:petnest_saas/core/services/booking_pet_care_form_loader.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_focus.dart';
 import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.dart';
@@ -90,7 +89,6 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.phoneInlineActions,
     this.phoneStickyActions,
     this.splitPhoneActions = false,
-    this.operationsShopId = '',
     this.handover,
     this.handoverHasContent = false,
     this.forms = const <Widget>[],
@@ -100,6 +98,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.petCareFuture,
     this.workspace,
     this.onClose,
+    this.paneToggle,
   });
 
   final String title;
@@ -113,7 +112,6 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final Widget? phoneInlineActions;
   final Widget? phoneStickyActions;
   final bool splitPhoneActions;
-  final String operationsShopId;
   final Widget? handover;
   final bool handoverHasContent;
   final List<Widget> forms;
@@ -123,6 +121,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final Future<List<BookingPetCareFormItem>>? petCareFuture;
   final AdminBookingWorkspaceContent? workspace;
   final VoidCallback? onClose;
+  final Widget? paneToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +156,17 @@ class AdminBookingDetailScaffold extends StatelessWidget {
                 onPressed: onClose,
                 icon: const Icon(Icons.close),
               ),
-              title: _AppBarTitle(title: title, bookingCode: bookingCode),
+              title: Row(
+                children: [
+                  if (paneToggle != null) ...[
+                    paneToggle!,
+                    const SizedBox(width: 12),
+                  ],
+                  Flexible(
+                    child: _AppBarTitle(title: title, bookingCode: bookingCode),
+                  ),
+                ],
+              ),
               actions: <Widget>[
                 if (bookingCode.trim().isNotEmpty)
                   IconButton(
@@ -173,11 +182,6 @@ class AdminBookingDetailScaffold extends StatelessWidget {
                     icon: const Icon(Icons.copy_rounded, size: 20),
                   ),
                 ...appBarActions,
-                if (onClose == null && operationsShopId.trim().isNotEmpty)
-                  _WorkbenchButton(
-                    shopId: operationsShopId.trim(),
-                    compact: phone,
-                  ),
               ],
             ),
             body: _DetailBody(
@@ -674,31 +678,6 @@ class _DetailBodyState extends State<_DetailBody> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _WorkbenchButton extends StatelessWidget {
-  const _WorkbenchButton({required this.shopId, required this.compact});
-
-  final String shopId;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
-    return Tooltip(
-      message: '營運工作台',
-      child: TextButton.icon(
-        style: TextButton.styleFrom(
-          visualDensity: VisualDensity.compact,
-          foregroundColor: theme.muted,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 10),
-        ),
-        onPressed: () => openShopOperationsWorkbench(context, shopId: shopId),
-        icon: Icon(Icons.dashboard_customize_outlined, size: compact ? 16 : 18),
-        label: Text(compact ? '工作台' : '營運工作台'),
-      ),
     );
   }
 }
