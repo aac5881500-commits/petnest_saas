@@ -77,7 +77,9 @@ class _FaqSectionSettingsPanelState extends State<FaqSectionSettingsPanel> {
         layout == HomeFaqLayouts.horizontalCards ||
         layout == HomeFaqLayouts.twoColumnCards;
     final bool entryCount =
-        layout == HomeFaqLayouts.compact || layout == HomeFaqLayouts.singleLine;
+        layout == HomeFaqLayouts.diaryDoor ||
+        layout == HomeFaqLayouts.compact ||
+        layout == HomeFaqLayouts.singleLine;
     return ListView(
       key: const PageStorageKey<String>('faq-section-settings'),
       primary: false,

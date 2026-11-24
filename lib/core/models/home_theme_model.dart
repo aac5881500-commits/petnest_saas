@@ -3,6 +3,7 @@
 // 🎨 首頁共用主題 Model
 
 import 'package:flutter/material.dart';
+import 'home_storybook_setting.dart';
 import 'package:petnest_saas/models/home/modern_drawer_setting_model.dart';
 
 /// 顧客端整頁背景。只存圖庫引用與顯示參數，不另存圖片。
@@ -97,7 +98,10 @@ class HomeThemeModel {
     this.appBackgroundFit = ShopAppBackground.fitCover,
     this.appBackgroundAlign = ShopAppBackground.alignCenter,
     this.appBackgroundScrim = ShopAppBackground.defaultScrim,
+    this.storybook = const HomeStorybookSetting(),
   });
+
+  final HomeStorybookSetting storybook;
 
   static const Object _keep = Object();
 
@@ -209,6 +213,7 @@ class HomeThemeModel {
       if (buttonTextMode == 'custom' && buttonTextColorValue != null)
         'buttonTextColor': buttonTextColorValue,
       'drawerSetting': drawerSetting.toMap(),
+      'storybook': storybook.toMap(),
       if (appBackgroundMode != ShopAppBackground.modeColor)
         'appBackgroundMode': appBackgroundMode,
       if (appBackgroundAssetId.trim().isNotEmpty)
@@ -234,6 +239,7 @@ class HomeThemeModel {
     final accentColors = map['headingAccentColors'];
 
     return HomeThemeModel(
+      storybook: HomeStorybookSetting.fromMap(map['storybook']),
       headingAccentColors: {
         if (accentColors is Map)
           for (final entry in accentColors.entries)
@@ -292,6 +298,7 @@ class HomeThemeModel {
   }
 
   HomeThemeModel copyWith({
+    HomeStorybookSetting? storybook,
     int? backgroundColorValue,
     int? cardColorValue,
     int? cardBorderColorValue,
@@ -310,6 +317,7 @@ class HomeThemeModel {
     double? appBackgroundScrim,
   }) {
     return HomeThemeModel(
+      storybook: storybook ?? this.storybook,
       backgroundColorValue: backgroundColorValue ?? this.backgroundColorValue,
       cardColorValue: cardColorValue ?? this.cardColorValue,
       cardBorderColorValue: cardBorderColorValue ?? this.cardBorderColorValue,

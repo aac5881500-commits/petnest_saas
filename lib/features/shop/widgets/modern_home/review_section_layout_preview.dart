@@ -23,7 +23,8 @@ class ReviewSectionLayoutPreview extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: switch (HomeReviewLayouts.migrate(layout)) {
-          HomeReviewLayouts.scoreCompact => _compact(),
+          HomeReviewLayouts.scoreCompact ||
+          HomeReviewLayouts.diaryQuote => _compact(),
           HomeReviewLayouts.featured => _hero(),
           HomeReviewLayouts.scoreOverview => _wall(),
           HomeReviewLayouts.scoreAndLatest => _featured(),

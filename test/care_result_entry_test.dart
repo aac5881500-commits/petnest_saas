@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
@@ -319,6 +320,119 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('單層補登直接填結果，晚辦入住僅要求確認', (tester) async {
+    final data = fixture('confirmed');
+    data['checkInAt'] = Timestamp.fromDate(DateTime.utc(2026, 11, 12));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 900,
+            child: BookingMedicationPanel(
+              bookingId: 'test-order',
+              booking: data,
+              staff: true,
+              taskId: 't1',
+              inlineTaskResult: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    final success = find.text('成功');
+    await tester.ensureVisible(success);
+    await tester.tap(success);
+    await tester.pumpAndSettle();
+    final save = find.text('儲存結果');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('尚未儲存成功：此時間早於系統辦理入住時間'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('補登原因選填，儲存完成單層視窗立即關閉且回傳確定結果', (tester) async {
+    final first = Completer<Map<String, dynamic>>();
+    int calls = 0;
+    Map<String, dynamic>? submitted;
+    Map<String, dynamic>? saved;
+    final data = fixture('confirmed');
+    data['checkInAt'] = Timestamp.fromDate(DateTime.utc(2026, 11, 12));
+    final medication = Map<String, dynamic>.from(data['medication'] as Map);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (ctx) => Dialog(
+                  child: SizedBox(
+                    height: 700,
+                    width: 450,
+                    child: BookingMedicationPanel(
+                      bookingId: 'test-order',
+                      booking: data,
+                      staff: true,
+                      taskId: 't1',
+                      inlineTaskResult: true,
+                      recordTask: (payload) async {
+                        submitted = payload;
+                        calls++;
+                        if (calls == 1) return first.future;
+                        return {'ok': true, 'medication': medication};
+                      },
+                      onTaskRecordSaved: (value) => saved = value,
+                      onTaskRecorded: () => Navigator.of(ctx).pop(),
+                    ),
+                  ),
+                ),
+              ),
+              child: const Text('開啟補登'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('開啟補登'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('未成功'));
+    await tester.tap(find.text('未成功'));
+    await tester.pumpAndSettle();
+    final check = find.text('確認為晚辦入住的歷史補登');
+    await tester.ensureVisible(check);
+    await tester.tap(check);
+    await tester.pumpAndSettle();
+    expect(find.text('說明（選填）'), findsOneWidget);
+    final save = find.text('儲存結果');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pump();
+    expect(find.text('正在儲存，請稍候…完成後會自動關閉'), findsOneWidget);
+    expect(find.text('儲存中…'), findsOneWidget);
+    expect(saved, isNull);
+    first.completeError(
+      FirebaseFunctionsException(
+        code: 'failed-precondition',
+        message: '測試伺服器拒絕，尚未補入',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('尚未儲存成功：測試伺服器拒絕'), findsOneWidget);
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(saved, isNull);
+    await tester.tap(find.text('儲存結果'));
+    await tester.pumpAndSettle();
+    expect(submitted?['note'], '');
+    expect(submitted?['result'], 'failed');
+    expect(submitted?['lateCheckInBackfill'], true);
+    expect(saved?['revision'], medication['revision']);
+    expect(find.byType(Dialog), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('已確認用藥的結果表單直接選時間，補登仍保留用藥日', (tester) async {
     await tester.pumpWidget(panel(fixture('confirmed')));
     await tester.pumpAndSettle();
@@ -352,6 +466,57 @@ void main() {
     expect(find.textContaining('2026-11-11（同上方時程）'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in [320.0, 1000.0]) {
+    testWidgets('藥品補充需點開，取消不套用、套用後保留，$width 寬', (tester) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(panel(fixture('confirmed')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byTooltip('記錄結果'));
+      await tester.tap(find.byTooltip('記錄結果'));
+      await tester.pumpAndSettle();
+      expect(find.text('每次用量'), findsNothing);
+      await tester.ensureVisible(find.text('藥品補充'));
+      await tester.tap(find.text('藥品補充'));
+      await tester.pumpAndSettle();
+      final fields = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(fields.first, '取消的內容');
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('取消的內容'), findsNothing);
+      await tester.tap(find.text('藥品補充'));
+      await tester.pumpAndSettle();
+      await tester.enterText(fields.first, '新的藥名');
+      await tester.tap(find.text('套用補充'));
+      await tester.pumpAndSettle();
+      expect(find.text('已補充'), findsOneWidget);
+      expect(find.textContaining('新的藥名'), findsOneWidget);
+      await tester.tap(find.text('已補充'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextFormField>(fields.first).initialValue, '新的藥名');
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      for (final label in ['成功', '未成功', '未執行']) {
+        await tester.ensureVisible(find.text(label));
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        final ancestors = tester.widgetList<Semantics>(
+          find.ancestor(of: find.text(label), matching: find.byType(Semantics)),
+        );
+        expect(
+          ancestors.any((widget) => widget.properties.selected == true),
+          isTrue,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   test('儲存狀態不明不能宣稱成功，業務錯誤保留原因', () {
     final text = serviceResultErrorMessage(

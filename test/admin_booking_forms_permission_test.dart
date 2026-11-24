@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/admin/widgets/admin_booking_communication_summary.dart';
 // 檔案名稱：test/admin_booking_forms_permission_test.dart
 // 功能說明：店家後台表單／客戶備註編輯權限、完整表單階層與寵物卡不再放照護入口。
 
@@ -38,6 +39,49 @@ Widget _wrap(Widget child, {Size size = const Size(1440, 1100)}) {
 }
 
 void main() {
+  for (final width in [320.0, 1440.0]) {
+    testWidgets('上方飼主表單唯讀且可開完整視窗，$width 寬', (tester) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        _wrap(
+          AdminBookingCustomerFormCard(
+            booking: {
+              'source': 'customer',
+              'bookingFormAnswers': _answer(label: '餵藥交代', value: '飯後一顆'),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('飼主送單表單'), findsOneWidget);
+      expect(find.text('飯後一顆'), findsOneWidget);
+      expect(find.text('編輯'), findsNothing);
+      await tester.tap(find.text('查看完整表單'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(find.text('飼主送單表單・唯讀'), findsOneWidget);
+      expect(find.text('飯後一顆'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  }
+  testWidgets('手動訂單不把舊客戶答案帶到飼主表單卡', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        AdminBookingCustomerFormCard(
+          booking: {
+            'source': 'admin',
+            'customFormAnswers': _answer(label: '舊資料', value: '不應顯示'),
+          },
+        ),
+      ),
+    );
+    expect(find.text('此訂單沒有飼主送單表單'), findsOneWidget);
+    expect(find.text('不應顯示'), findsNothing);
+  });
+
   testWidgets('訂單表單展開狀態與外層清單捲動位置分開', (tester) async {
     final bucket = PageStorageBucket();
     await tester.pumpWidget(

@@ -1,3 +1,4 @@
+import '../models/internal_handover_entry.dart';
 // 檔案名稱：lib/core/services/internal_handover_note_service.dart
 // 功能說明：訂單內部交接備註（獨立於 bookings，客戶不可讀）
 
@@ -39,6 +40,106 @@ class InternalHandoverNoteService {
     required String bookingId,
   }) {
     return _ref(shopId: shopId, bookingId: bookingId).snapshots();
+  }
+
+  Stream<List<InternalHandoverEntry>> streamEntries({
+    required String shopId,
+    required String bookingId,
+  }) => _ref(shopId: shopId, bookingId: bookingId)
+      .collection('history')
+      .orderBy('revision', descending: true)
+      .snapshots()
+      .map(
+        (snapshot) => snapshot.docs
+            .map((doc) => InternalHandoverEntry.fromMap(doc.id, doc.data()))
+            .where((entry) => entry.content.trim().isNotEmpty)
+            .toList(),
+      );
+
+  Future<void> appendEntry({
+    required String shopId,
+    required String bookingId,
+    required String category,
+    required String content,
+  }) async {
+    final text = InternalHandoverEntry.encode(category, content);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unauthenticated',
+        message: '請重新登入',
+      );
+    }
+    final noteRef = _ref(shopId: shopId, bookingId: bookingId);
+    final historyRef = noteRef.collection('history').doc();
+    final bookingRef = FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(bookingId);
+    final booking = (await bookingRef.get()).data();
+    if (booking == null || booking['shopId'] != shopId) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: '找不到可新增交接的店家訂單',
+      );
+    }
+    if (BookingSettlementMath.isSettlementLocked(booking)) {
+      throw const InternalHandoverLockedException();
+    }
+    // The existing write rules recheck the booking lock at commit time.
+    var saved = false;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      var observedRevision = 0;
+      try {
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+          final current = (await transaction.get(noteRef)).data();
+          observedRevision = (current?['revision'] as num?)?.toInt() ?? 0;
+          final data = <String, dynamic>{
+            'shopId': shopId,
+            'bookingId': bookingId,
+            'text': text,
+            'revision': ((current?['revision'] as num?)?.toInt() ?? 0) + 1,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedByUid': user.uid,
+            'updatedByEmail': (user.email ?? '').trim(),
+          };
+          transaction.set(noteRef, data);
+          transaction.set(historyRef, data);
+        });
+        saved = true;
+        break;
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied' && error.code != 'aborted') {
+          rethrow;
+        }
+        final latest = (await noteRef.get(
+          const GetOptions(source: Source.server),
+        )).data();
+        final latestRevision = (latest?['revision'] as num?)?.toInt() ?? 0;
+        // Rules can reject a stale revision before the SDK retries a transaction.
+        // Retry only a proven concurrent revision, never an unchanged permission failure.
+        if (latestRevision <= observedRevision) rethrow;
+      }
+    }
+    if (!saved) throw const InternalHandoverConflictException();
+    try {
+      await ActionLogService.instance.logAction(
+        shopId: shopId,
+        targetType: 'booking',
+        targetId: bookingId,
+        action: 'internal_handover_added',
+        operatorUid: user.uid,
+        operatorRole: 'staff',
+        payload: {
+          'category': category,
+          'hasText': true,
+          'operatorEmail': (user.email ?? '').trim(),
+        },
+      );
+    } catch (_) {
+      // The private handover entry is already saved.
+    }
   }
 
   Future<void> save({

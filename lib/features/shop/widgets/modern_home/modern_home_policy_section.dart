@@ -1,4 +1,5 @@
 import 'home_store_action.dart';
+import 'home_diary_reference_widgets.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_information_sections_setting.dart';
@@ -48,6 +49,15 @@ class ModernHomePolicySection extends StatelessWidget {
     }
     if (!snapshot.hasContent) {
       return _empty();
+    }
+    if (setting.layout == HomePolicyLayouts.diaryDoor) {
+      return HomeDiaryDoor(
+        theme: theme,
+        title: setting.entryTitle,
+        subtitle: setting.entrySubtitle,
+        icon: Icons.menu_book_outlined,
+        onOpen: () => onOpen(_primaryService),
+      );
     }
     return switch (HomePolicyLayouts.migrate(setting.layout)) {
       HomePolicyLayouts.singleLine => _entry(wide: true),

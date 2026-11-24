@@ -56,6 +56,7 @@ class DailyCareRecordEditPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(title: Text('$sessionName照護紀錄')),
       body: DailyCareRecordEditor(
+        showTaskSummary: false,
         shopId: shopId,
         bookingId: bookingId,
         roomId: roomId,

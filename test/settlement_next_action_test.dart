@@ -136,6 +136,44 @@ void main() {
     expect(cancelled.hasPrimary, isFalse);
   });
 
+  testWidgets('桌機結算操作固定在底部並可啟動既有退房流程', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var calls = 0;
+    final data = stay('checked_in');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminBookingDetailScaffold(
+          title: '訂單詳細',
+          bookingCode: 'B1',
+          overview: const SizedBox(height: 1500, child: Text('長訂單內容')),
+          left: const [],
+          right: const [],
+          desktopStickyActions: SettlementNextActionView(
+            action: resolveSettlementNextAction(data),
+            shopId: 's',
+            bookingId: 'b',
+            data: data,
+            bar: true,
+            onCheckout: () async {
+              calls++;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final action = find.text('辦理退房／結算');
+    expect(action, findsOneWidget);
+    expect(tester.getCenter(action).dy, greaterThan(700));
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('等待付款的底部列不是重新結算', (WidgetTester tester) async {
     final SettlementNextAction action =
         resolveSettlementNextAction(<String, dynamic>{

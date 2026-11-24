@@ -1,3 +1,4 @@
+const {isStayCancellationStatusAllowed} = require("./stay_cancellation_policy");
 const {loadEligiblePets} = require("./pet_species_guard");
 // 檔案名稱：functions/bookings/create_stay_booking.js
 // 功能說明：住宿建單／分房 transaction：共用房型可賣數與未分房保留
@@ -698,12 +699,9 @@ exports.manageStayInventory = onCall(
               ["checked_out", "completed"].includes(status);
             const adminCancel = cancel && data.cancelBy === "admin" && isStaff;
             if (cancel && !cancelled) {
-              const allowedStatuses = adminCancel ?
-                ["pending", "pending_confirmation", "unpaid", "confirmed"] :
-                ["pending", "unpaid"];
               if ((!adminCancel && (normalizeString(liveData.userId) !== uid ||
                   !["customer", "system"].includes(data.cancelBy))) ||
-                  !allowedStatuses.includes(status)) {
+                  !isStayCancellationStatusAllowed(liveData, adminCancel)) {
                 throw new HttpsError("failed-precondition", "此訂單目前無法取消");
               }
             } else if (!cancelled && !releaseAfterCheckout) {

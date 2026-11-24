@@ -176,8 +176,9 @@ void main() {
           ),
         ),
       );
-      expect(find.text('小布 · 專屬陪玩'), findsOneWidget);
-      expect(find.text('小布 · 口服藥'), findsOneWidget);
+      expect(find.text('專屬陪玩'), findsNWidgets(2));
+      expect(find.text('小布'), findsNWidgets(3));
+      expect(find.text('口服藥'), findsOneWidget);
       expect(find.text('填寫結果'), findsNothing);
       await tester.pumpWidget(
         MaterialApp(
@@ -186,8 +187,9 @@ void main() {
           ),
         ),
       );
-      expect(find.text('小布 · 口服藥'), findsOneWidget);
-      expect(find.text('小布 · 專屬陪玩'), findsNothing);
+      expect(find.text('小布'), findsNWidgets(2));
+      expect(find.text('口服藥'), findsOneWidget);
+      expect(find.text('專屬陪玩'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
   );

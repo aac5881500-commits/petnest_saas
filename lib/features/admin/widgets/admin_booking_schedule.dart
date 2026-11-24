@@ -626,8 +626,18 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
         entry.completed &&
         (entry.medication == null || entry.medication!.result == 'done') &&
         (entry.service == null || entry.service!.result == 'done');
+    final result = entry.service?.result ?? entry.medication?.result;
+    final failed = result == 'failed';
+    final skipped = result == 'skipped';
+    final partial = result == 'partial' || result == 'mixed';
     final requested = entry.requestStatus != null;
-    final tone = requested
+    final tone = failed
+        ? const Color(0xFFFCE9E7)
+        : skipped
+        ? const Color(0xFFECEEF2)
+        : partial
+        ? const Color(0xFFFFF0D8)
+        : requested
         ? const Color(0xFFF0EDFA)
         : due
         ? colors.errorContainer
@@ -636,7 +646,13 @@ class _AdminBookingScheduleState extends State<AdminBookingSchedule> {
         : successful
         ? const Color(0xFFE4F4E8)
         : colors.surfaceContainerLow;
-    final ink = requested
+    final ink = failed
+        ? const Color(0xFFB34A43)
+        : skipped
+        ? const Color(0xFF626879)
+        : partial
+        ? const Color(0xFF995A00)
+        : requested
         ? const Color(0xFF534176)
         : due
         ? colors.onErrorContainer
@@ -1307,16 +1323,43 @@ class _ScheduleGridScrollState extends State<_ScheduleGridScroll> {
         scrollbars: false,
         dragDevices: {...behavior.dragDevices, PointerDeviceKind.mouse},
       ),
-      child: Scrollbar(
-        controller: _controller,
-        thumbVisibility: widget.overflows,
-        scrollbarOrientation: ScrollbarOrientation.bottom,
-        child: SingleChildScrollView(
-          controller: _controller,
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.only(bottom: widget.overflows ? 10 : 0),
-          child: widget.child,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.overflows)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  if (_controller.hasClients) {
+                    _controller.animateTo(
+                      (_controller.offset + 220).clamp(
+                        0.0,
+                        _controller.position.maxScrollExtent,
+                      ),
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                },
+                iconAlignment: IconAlignment.end,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('向右查看更多時段'),
+              ),
+            ),
+          Scrollbar(
+            controller: _controller,
+            thumbVisibility: widget.overflows,
+            scrollbarOrientation: ScrollbarOrientation.bottom,
+            child: SingleChildScrollView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.only(bottom: widget.overflows ? 10 : 0),
+              child: widget.child,
+            ),
+          ),
+        ],
       ),
     );
   }

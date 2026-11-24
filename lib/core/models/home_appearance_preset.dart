@@ -1,4 +1,6 @@
 import 'home_desktop_layout_setting.dart';
+import 'home_storybook_setting.dart';
+import 'home_diary_setting.dart';
 // 檔案名稱：lib/core/models/home_appearance_preset.dart
 // 功能說明：新版前台外觀的快速模板。只改排版與視覺，不改店家內容。
 
@@ -162,11 +164,25 @@ const List<HomeAppearancePreset> homeAppearancePresets = <HomeAppearancePreset>[
     navigationLabel: '底部選單',
     apply: _applyCreamOrange,
   ),
+  HomeAppearancePreset(
+    id: 'catDiary',
+    name: 'C｜貓咪日常誌',
+    description: '店家照片分欄、爪印時間軸、交錯環境圖文與日記紙張，全部可微調。',
+    navigationLabel: '中央預約',
+    apply: _applyCatDiary,
+  ),
 ];
 
 // 舊設定仍可辨識來源，不再列於快速套用選單。
 const List<HomeAppearancePreset> legacyHomeAppearancePresets =
     <HomeAppearancePreset>[
+      HomeAppearancePreset(
+        id: 'storybookCottage',
+        name: '繪本小屋',
+        description: '水彩貓咪小屋、奶油黃與天空藍，保留各模組的店家照片。',
+        navigationLabel: '底部選單',
+        apply: _applyStorybook,
+      ),
       HomeAppearancePreset(
         id: 'classic',
         name: '經典完整',
@@ -1073,6 +1089,7 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
   return current.copyWith(
     desktopLayout: const HomeDesktopLayoutSetting(),
     theme: current.theme.copyWith(
+      storybook: const HomeStorybookSetting(),
       backgroundColorValue: 0xFFFFF9F0,
       cardColorValue: 0xFFFFF9F0,
       cardBorderColorValue: 0xFFFFD4AE,
@@ -1223,5 +1240,169 @@ HomeAppearanceDraft _applyCreamOrange(HomeAppearanceDraft current) {
     ),
     bannerButtonColorValue: 0xFFFF8B23,
     bannerButtonTextColorValue: 0xFFFFFFFF,
+  );
+}
+
+HomeAppearanceDraft _applyStorybook(HomeAppearanceDraft current) {
+  final base = _applyCreamOrange(current);
+  const order = [
+    'banners',
+    'dailyCare',
+    'quickBooking',
+    'facilities',
+    'announcements',
+    'rooms',
+    'featured',
+    'storeEntrance',
+    'about',
+    'services',
+    'policy',
+    'faq',
+    'reviews',
+    'sharedEntries',
+  ];
+  return base.copyWith(
+    theme: base.theme.copyWith(
+      storybook: const HomeStorybookSetting(enabled: true),
+      backgroundColorValue: 0xFFFFFEFA,
+      cardColorValue: 0xFFFFFEFA,
+      cardBorderColorValue: 0xFFF2DCA5,
+      primaryColorValue: 0xFF2384B2,
+      textColorValue: 0xFF563A28,
+      secondaryTextColorValue: 0xFF786350,
+      buttonBackgroundColorValue: 0xFF2384B2,
+      headingAccentColors: {},
+    ),
+    sectionOrder: order,
+    sectionVisibility: {
+      ...current.sectionVisibility,
+      // Preserve each shop's module switches while applying the visual layout.
+      for (final id in HomeSharedEntrySources.joinable)
+        id: current.sectionVisibility[id] ?? true,
+    },
+    environment: base.environment.copyWith(
+      showTitle: true,
+      showSubtitle: true,
+      facilityLimit: 2,
+    ),
+    quickBooking: current.quickBooking.copyWith(
+      layout: HomeQuickBookingLayouts.singleLine,
+    ),
+    information: base.information.copyWith(
+      policy: current.information.policy.copyWith(
+        layout: HomePolicyLayouts.summary,
+      ),
+      faq: base.information.faq.copyWith(
+        showOnHome: current.information.faq.showOnHome,
+      ),
+      reviews: base.information.reviews.copyWith(
+        showOnHome: current.information.reviews.showOnHome,
+      ),
+    ),
+    about: base.about.copyWith(enabled: current.about.enabled),
+    storeHome: current.storeHome.copyWith(
+      storeEntryPlacement: 'standalone',
+      storeSectionTitle: current.storeHome.storeSectionTitle,
+    ),
+    shopInfo: base.shopInfo.copyWith(layout: 'infoActions'),
+    showStayServiceStrip: current.showStayServiceStrip,
+    displayStyle: _displayStyle(
+      text: 0xFF563A28,
+      secondary: 0xFF786350,
+      spacing: HomeDisplaySpacings.normal,
+      radius: HomeDisplayRadii.large,
+      aspect: 'landscape',
+    ),
+    brandStyle: base.brandStyle.copyWith(
+      nameColorValue: 0xFF563A28,
+      subtitleColorValue: 0xFF786350,
+      headerBackgroundColorValue: 0xFFFFFEFA,
+    ),
+    bannerButtonColorValue: 0xFF2384B2,
+    bannerButtonTextColorValue: 0xFFFFFFFF,
+  );
+}
+
+HomeAppearanceDraft _applyCatDiary(HomeAppearanceDraft current) {
+  final base = _applyStorybook(current);
+  return base.copyWith(
+    shopInfo: base.shopInfo.copyWith(
+      layout: 'diaryContact',
+      imageSource: 'logo',
+      mode: 'scroll',
+      introText: '',
+      phoneLabel: '電話',
+      mapLabel: '地圖',
+      lineLabel: 'LINE',
+      buttonStyle: 'outlined',
+      actionIds: const ['phone', 'line', 'map'],
+    ),
+    theme: base.theme.copyWith(
+      storybook: const HomeStorybookSetting(
+        enabled: true,
+        heroSource: 'shop',
+        showShortcuts: false,
+        diary: HomeDiarySetting(enabled: true),
+        decorateSections: [],
+        gap: 10,
+        radius: 18,
+        padding: 10,
+      ),
+    ),
+    sectionOrder: const [
+      'banners',
+      'dailyCare',
+      'announcements',
+      'facilities',
+      'rooms',
+      'about',
+      'services',
+      'policy',
+      'faq',
+      'reviews',
+      'featured',
+      'storeEntrance',
+      'quickBooking',
+      'sharedEntries',
+    ],
+    environment: current.environment.copyWith(
+      layout: HomeEnvironmentLayouts.diaryRows,
+      facilityLimit: 2,
+      showTitle: false,
+      showDescription: false,
+    ),
+    rooms: base.rooms.copyWith(layout: HomeRoomSectionLayouts.diaryCards),
+    news: current.news.copyWith(
+      layout: HomeNewsLayouts.diaryNotes,
+      showHeading: false,
+      showDate: true,
+      showSummary: false,
+    ),
+    about: current.about.copyWith(
+      layout: HomeAboutLayouts.diaryQuote,
+      imagePosition: HomeAboutImagePositions.left,
+    ),
+    quickBooking: current.quickBooking.copyWith(showOnHome: false),
+    information: current.information.copyWith(
+      policy: current.information.policy.copyWith(
+        layout: HomePolicyLayouts.diaryDoor,
+      ),
+      faq: current.information.faq.copyWith(layout: HomeFaqLayouts.diaryDoor),
+      reviews: current.information.reviews.copyWith(
+        layout: HomeReviewLayouts.diaryQuote,
+      ),
+    ),
+    storeHome: current.storeHome.copyWith(storeEntryPlacement: 'standalone'),
+    featuredProductLayout: ModernFeaturedProductLayouts.diaryCards,
+    navigation: base.navigation.copyWith(
+      centerId: 'booking',
+      left1: 'home',
+      left2: 'rooms',
+      right1: 'orders',
+      right2: 'member',
+      bottomAppearance: FrontendNavigationConfig.appearanceDiaryBooking,
+    ),
+    sharedEntry: current.sharedEntry.copyWith(enabled: false),
+    showStayServiceStrip: current.showStayServiceStrip,
   );
 }

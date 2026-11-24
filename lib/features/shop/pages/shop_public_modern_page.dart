@@ -19,6 +19,9 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../widgets/modern_home/home_storybook_surface.dart';
+import '../widgets/modern_home/home_diary_widgets.dart';
+import '../widgets/modern_home/home_diary_reference_widgets.dart';
 import 'package:petnest_saas/core/models/home_section_visibility.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_actions.dart';
 import 'package:petnest_saas/features/shop/navigation/frontend_navigation_models.dart';
@@ -667,10 +670,18 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required String shopName,
     required HomeThemeModel theme,
   }) {
-    return ModernShopInfoPanel(
+    final panel = ModernShopInfoPanel(
       alwaysExpanded: _shopInfoSetting.mode == 'scroll',
       footer: _shopFooter(shop: shop, shopName: shopName, theme: theme),
     );
+    return theme.storybook.enabled && theme.storybook.diary.enabled
+        ? HomeDiaryChapter(
+            sectionId: 'shopInfo',
+            setting: theme.storybook.diary,
+            theme: theme,
+            child: panel,
+          )
+        : panel;
   }
 
   List<StoreBannerModel> _enabledHomeBanners(Map<String, dynamic> shop) {
@@ -922,8 +933,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 (newsItems.isNotEmpty &&
                     !(newsPhase == HomeNewsSectionPhase.empty &&
                         !newsSection.showEmptyPlaceholder)));
-        // 舊住宿服務快捷列已由精緻小卡區取代，預覽與正式前台都不再畫出。
-        const bool showStayServiceStrip = false;
+        // C has a separately configurable care-introduction strip; legacy shortcuts stay retired.
+        final bool showStayServiceStrip =
+            modernTheme.storybook.enabled &&
+            modernTheme.storybook.diary.enabled &&
+            modernTheme.storybook.diary.refFlag('careServices');
         final bool storeModuleEnabled = StorefrontAccess.isModuleEnabled(shop);
         final HomeQuickActionSetting quickActions =
             HomeQuickActionSetting.fromMap(
@@ -1012,9 +1026,25 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               );
         if (attached) visibleSections.remove('storeEntrance');
 
+        final diarySetting = modernTheme.storybook.diary;
+        final combinePreparation =
+            modernTheme.storybook.enabled &&
+            diarySetting.enabled &&
+            diarySetting.groupPreparation &&
+            visibleSections.contains('policy') &&
+            visibleSections.contains('faq');
+        final combineStore =
+            modernTheme.storybook.enabled &&
+            diarySetting.enabled &&
+            diarySetting.groupStore &&
+            visibleSections.contains('featured') &&
+            visibleSections.contains('storeEntrance');
+        if (combinePreparation) visibleSections.remove('faq');
+        if (combineStore) visibleSections.remove('storeEntrance');
+
         Widget sectionBody(String sectionId) {
-          final content = _homeSection(
-            sectionId: sectionId,
+          Widget module(String id) => _homeSection(
+            sectionId: id,
             shop: shop,
             shopName: shopName,
             headerSubtitle: headerSubtitle,
@@ -1052,12 +1082,97 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             quickActionsAtStart: quickActions.atStart,
             sharedEntry: sharedEntry,
           );
+          Widget content = module(sectionId);
+          if (sectionId == 'policy' && combinePreparation) {
+            content = HomeDiaryPreparation(
+              policy: module('policy'),
+              faq: module('faq'),
+            );
+          }
+          if (sectionId == 'featured' && combineStore) {
+            final products = content;
+            content = StoreEntranceBanner(
+              shopId: widget.shopId,
+              shop: shop,
+              theme: modernTheme,
+              setting: effectiveStoreSetting,
+              whenClosed: products,
+              builder: (open) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: editorPreview ? null : open,
+                      child: const Text('逛逛商城 ›'),
+                    ),
+                  ),
+                  products,
+                ],
+              ),
+            );
+          }
+          final framed = modernTheme.storybook.enabled && diarySetting.enabled
+              ? HomeDiaryChapter(
+                  sectionId: sectionId,
+                  setting: diarySetting,
+                  theme: modernTheme,
+                  child: content,
+                )
+              : HomeStorybookSurface(
+                  setting: modernTheme.storybook,
+                  sectionId: sectionId,
+                  child: content,
+                );
+          final story = modernTheme.storybook;
+          if (sectionId == 'dailyCare' &&
+              story.enabled &&
+              story.showShortcuts) {
+            final shortcutItems = <({String id, String label, IconData icon})>[
+              if (accommodationAvailable || daycareAvailable || editorPreview)
+                (
+                  id: 'booking',
+                  label: '預約住宿',
+                  icon: Icons.calendar_month_outlined,
+                ),
+              if (visibility.shows('rooms'))
+                (id: 'rooms', label: '房型介紹', icon: Icons.bed_outlined),
+              if (visibility.shows('policy'))
+                (id: 'policy', label: '入住須知', icon: Icons.article_outlined),
+              if (navShop.showMemberCenter)
+                (id: 'member', label: '會員中心', icon: Icons.person_outline),
+            ];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                framed,
+                HomeStorybookShortcuts(
+                  setting: story,
+                  theme: modernTheme,
+                  items: shortcutItems,
+                  onOpen: (id) {
+                    if (editorPreview || widget.platformPreview) return;
+                    final item = FrontendNavigationRegistry.find(id);
+                    if (item != null && navShop.isEnabled(item)) {
+                      _launch(
+                        shop: shop,
+                        theme: modernTheme,
+                        embeddedPreview: embeddedPreview,
+                        navigation: navigation,
+                        shopState: navShop,
+                      ).open(context, item);
+                    }
+                  },
+                ),
+              ],
+            );
+          }
           if (!attached ||
               sectionId != target ||
               (placement == 'news' &&
                   newsSection.layout == HomeNewsLayouts.feature) ||
               placement == 'rooms') {
-            return content;
+            return framed;
           }
           final side =
               HomeStorePlacement.mode(placement) == HomeStorePlacement.side;
@@ -1098,6 +1213,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         }
 
         HomeSectionSpan spanOf(String sectionId) {
+          if (modernTheme.storybook.enabled && diarySetting.enabled) {
+            return HomeSectionSpan.full;
+          }
           if (attached && sectionId == target) return HomeSectionSpan.full;
           return homeSectionSpan(
             sectionId: sectionId,
@@ -1225,11 +1343,14 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                                   ...buildHomeSectionRows(
                                     sectionIds: visibleSections,
                                     spanOf: spanOf,
-                                    gap:
-                                        HomeDesktopLayoutScope.maybeOf(
-                                          context,
-                                        )?.sectionGap ??
-                                        (constraints.maxWidth < 760 ? 8 : 10),
+                                    gap: modernTheme.storybook.enabled
+                                        ? modernTheme.storybook.gap
+                                        : HomeDesktopLayoutScope.maybeOf(
+                                                context,
+                                              )?.sectionGap ??
+                                              (constraints.maxWidth < 760
+                                                  ? 8
+                                                  : 10),
                                     itemBuilder: sectionBody,
                                   ),
                                   if (_shopInfoSetting.enabled &&
@@ -1290,6 +1411,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required bool showAboutEntry,
     required HomeInformationSectionsSetting information,
   }) {
+    if (theme.storybook.enabled && theme.storybook.diary.enabled) {
+      return HomeDiaryServices(theme: theme);
+    }
     final showCamera = shop['showCameraSection'] != false;
 
     final services = <Map<String, dynamic>>[
@@ -1674,6 +1798,55 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           theme: theme,
         ).buildDock(context, pull: true);
       case 'banners':
+        if (theme.storybook.enabled && theme.storybook.diary.enabled) {
+          final diary = theme.storybook.diary;
+          final cover = (shop['coverUrl'] ?? '').toString().trim();
+          final uploadedBanner = banners.isEmpty
+              ? ''
+              : banners.first.imageUrl.trim();
+          final image = diary.coverPhotoSource == 'cover'
+              ? (cover.isNotEmpty ? cover : uploadedBanner)
+              : (uploadedBanner.isNotEmpty ? uploadedBanner : cover);
+          final diaryCover = HomeDiaryCover(
+            setting: diary,
+            theme: theme,
+            imageUrl: image,
+          );
+          if (widget.platformPreview ||
+              widget.isPreview ||
+              widget.layoutCanvas ||
+              widget.isEmbeddedAdminPreview) {
+            return diaryCover;
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              diaryCover,
+              PreArrivalShortcutCards(shopId: widget.shopId, theme: theme),
+            ],
+          );
+        }
+        if (theme.storybook.enabled &&
+            theme.storybook.heroSource == 'builtin') {
+          final canBook = accommodationAvailable || daycareAvailable;
+          return HomeStorybookHero(
+            setting: theme.storybook,
+            theme: theme,
+            onBook:
+                canBook &&
+                    !widget.isPreview &&
+                    !widget.layoutCanvas &&
+                    !widget.platformPreview
+                ? () => _openPage(
+                    ShopBookingEntryPage(
+                      shopId: widget.shopId,
+                      theme: theme,
+                      useModernDrawer: true,
+                    ),
+                  )
+                : null,
+          );
+        }
         final banner = _buildBannerSection(
           shop: shop,
           banners: banners,

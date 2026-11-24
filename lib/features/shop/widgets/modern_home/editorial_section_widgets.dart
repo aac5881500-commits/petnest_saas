@@ -1,5 +1,6 @@
 import 'home_store_action.dart';
 import '../environment/environment_photo.dart';
+import 'home_diary_heading_scope.dart';
 import 'home_desktop_layout.dart';
 import '../room/room_feature_tags.dart';
 import 'package:flutter/material.dart';
@@ -58,33 +59,38 @@ class EditorialSectionHeading extends StatelessWidget {
   final bool accent;
   final String? fontFamily;
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      if (accent)
-        Container(
-          width: 3,
-          height: HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 24,
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            color: accentColor ?? theme.primaryColor,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-      Expanded(
-        child: titleStyle != null
-            ? Text(title, style: titleStyle)
-            : editorialText(
-                title,
-                HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 22,
-                theme,
-                bold: true,
-                fontFamily: fontFamily,
+  Widget build(BuildContext context) =>
+      HomeDiaryHeadingScope.hidesHeading(context)
+      ? const SizedBox.shrink()
+      : Row(
+          children: [
+            if (accent)
+              Container(
+                width: 3,
+                height: HomeDesktopLayoutScope.maybeOf(context) == null
+                    ? 17
+                    : 24,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: accentColor ?? theme.primaryColor,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
-      ),
-      ?trailing,
-      ?HomeStoreHeadingAction.of(context),
-    ],
-  );
+            Expanded(
+              child: titleStyle != null
+                  ? Text(title, style: titleStyle)
+                  : editorialText(
+                      title,
+                      HomeDesktopLayoutScope.maybeOf(context) == null ? 17 : 22,
+                      theme,
+                      bold: true,
+                      fontFamily: fontFamily,
+                    ),
+            ),
+            ?trailing,
+            ?HomeStoreHeadingAction.of(context),
+          ],
+        );
 }
 
 class EnvironmentHighlightCards extends StatelessWidget {

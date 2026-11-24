@@ -2204,27 +2204,37 @@ class _DashboardSideNavigationState extends State<_DashboardSideNavigation> {
                           in section.children.whereType<_MenuTile>())
                         if (!_orderSubpages.containsKey(entry.destinationId) ||
                             widget.navigation.selected == _orderManagementId ||
-                            _orderSubpages.containsKey(widget.navigation.selected))
-                        Padding(
-                          padding: EdgeInsets.only(left: _orderSubpages.containsKey(entry.destinationId) ? 18 : 0),
-                          child: item(
-                          entry.title,
-                          entry.icon,
-                          entry.destinationId != null &&
-                              widget.navigation.selected == entry.destinationId,
-                          !entry.enabled
-                              ? null
-                              : () {
-                                  if (entry.destinationId != null) {
-                                    widget.onOpen(entry.destinationId!);
-                                  } else {
-                                    entry.open(context);
-                                  }
-                                },
-                          id: entry.destinationId,
-                          child: true,
-                        ),
-                        ),
+                            _orderSubpages.containsKey(
+                              widget.navigation.selected,
+                            ))
+                          Padding(
+                            padding: EdgeInsets.only(
+                              left:
+                                  _orderSubpages.containsKey(
+                                    entry.destinationId,
+                                  )
+                                  ? 18
+                                  : 0,
+                            ),
+                            child: item(
+                              entry.title,
+                              entry.icon,
+                              entry.destinationId != null &&
+                                  widget.navigation.selected ==
+                                      entry.destinationId,
+                              !entry.enabled
+                                  ? null
+                                  : () {
+                                      if (entry.destinationId != null) {
+                                        widget.onOpen(entry.destinationId!);
+                                      } else {
+                                        entry.open(context);
+                                      }
+                                    },
+                              id: entry.destinationId,
+                              child: true,
+                            ),
+                          ),
                     ],
                   ],
                 ],
@@ -2272,7 +2282,8 @@ void _openBasicInfoPage(BuildContext context, String id, WidgetBuilder page) {
     Navigator.of(context, rootNavigator: true)
         .push(
           MaterialPageRoute<void>(
-            settings: (id == _orderManagementId || _orderSubpages.containsKey(id))
+            settings:
+                (id == _orderManagementId || _orderSubpages.containsKey(id))
                 ? RouteSettings(name: id)
                 : null,
             builder: destination == null ? page : (_) => destination,
@@ -2672,9 +2683,17 @@ class _BasicInfoTab extends StatelessWidget {
 /// ===== 貓咪旅店分頁 =====
 const _orderManagementId = 'AdminBookingListPage';
 const _orderSubpages = {
-  'order-today-care': (OrderManagementView.today, '今日與照護', Icons.today_outlined),
+  'order-today-care': (
+    OrderManagementView.today,
+    '今日與照護',
+    Icons.today_outlined,
+  ),
   'order-rooms': (OrderManagementView.rooms, '房況', Icons.meeting_room_outlined),
-  'order-reports': (OrderManagementView.reports, '回報', Icons.assignment_outlined),
+  'order-reports': (
+    OrderManagementView.reports,
+    '回報',
+    Icons.assignment_outlined,
+  ),
 };
 
 class _CatHotelTab extends StatelessWidget {
@@ -2719,7 +2738,9 @@ class _CatHotelTab extends StatelessWidget {
       _DashboardSection(
         title: '今日營運',
         children: [
-          if (_can(ShopPermissionKeys.manageBookings) || _can(ShopPermissionKeys.manageDaycareBookings) || _can(ShopPermissionKeys.manageRoomDashboard))
+          if (_can(ShopPermissionKeys.manageBookings) ||
+              _can(ShopPermissionKeys.manageDaycareBookings) ||
+              _can(ShopPermissionKeys.manageRoomDashboard))
             page(
               _orderManagementId,
               '訂單管理',
@@ -2739,7 +2760,10 @@ class _CatHotelTab extends StatelessWidget {
                 child.value.$2,
                 '',
                 child.value.$3,
-                (_) => RoomDashboardPage(shopId: shopId, initialView: child.value.$1),
+                (_) => RoomDashboardPage(
+                  shopId: shopId,
+                  initialView: child.value.$1,
+                ),
               ),
           if (_can(ShopPermissionKeys.manageChat))
             _MenuTile(
@@ -2912,6 +2936,25 @@ class _CatHotelTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sections = menuChildren(context);
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    final visibleSections = mobile
+        ? sections
+              .map(
+                (section) => _DashboardSection(
+                  title: section.title,
+                  preferredColumns: section.preferredColumns,
+                  compact: section.compact,
+                  children: section.children
+                      .where(
+                        (entry) =>
+                            entry is! _MenuTile ||
+                            !_orderSubpages.containsKey(entry.destinationId),
+                      )
+                      .toList(),
+                ),
+              )
+              .toList()
+        : sections;
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide =
@@ -2919,16 +2962,20 @@ class _CatHotelTab extends StatelessWidget {
             (_DashboardWorkspaceScope.maybeOf(context)?.enabled ?? false);
         if (!wide) {
           return _DashboardResponsiveBody(
-            children: [const ShopFeatureTourEntry(), ...sections],
+            children: [const ShopFeatureTourEntry(), ...visibleSections],
           );
         }
         Widget section(int index, int columns) => _DashboardSection(
           title: sections[index].title,
           preferredColumns: columns,
           compact: true,
-          children: sections[index].children.where((entry) =>
-            entry is! _MenuTile || !_orderSubpages.containsKey(entry.destinationId),
-          ).toList(),
+          children: sections[index].children
+              .where(
+                (entry) =>
+                    entry is! _MenuTile ||
+                    !_orderSubpages.containsKey(entry.destinationId),
+              )
+              .toList(),
         );
         Widget column(List<int> indexes) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

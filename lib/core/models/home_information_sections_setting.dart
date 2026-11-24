@@ -11,11 +11,13 @@ const String kHomeReviewEmptyMessage = '尚未有公開評價';
 const String kHomeInfoHiddenEntryMessage = '目前首頁與住宿服務都不會顯示此入口';
 
 class HomePolicyLayouts {
+  static const String diaryDoor = 'diaryDoor';
   static const String compact = 'compact';
   static const String singleLine = 'singleLine';
   static const String summary = 'summary';
   static const String serviceSplit = 'serviceSplit';
   static const List<String> all = <String>[
+    diaryDoor,
     compact,
     singleLine,
     summary,
@@ -24,6 +26,8 @@ class HomePolicyLayouts {
 
   static String label(String value) {
     switch (migrate(value)) {
+      case diaryDoor:
+        return '日常誌・書本入口';
       case singleLine:
         return '單行入口';
       case summary:
@@ -59,6 +63,7 @@ class HomePolicyLayouts {
 }
 
 class HomeFaqLayouts {
+  static const String diaryDoor = 'diaryDoor';
   static const String compact = 'compact';
   static const String singleLine = 'singleLine';
   static const String minimalAccordion = 'minimalAccordion';
@@ -66,6 +71,7 @@ class HomeFaqLayouts {
   static const String horizontalCards = 'horizontalCards';
   static const String twoColumnCards = 'twoColumnCards';
   static const List<String> all = <String>[
+    diaryDoor,
     compact,
     singleLine,
     preview,
@@ -76,6 +82,8 @@ class HomeFaqLayouts {
 
   static String label(String value) {
     switch (migrate(value)) {
+      case diaryDoor:
+        return '日常誌・對話入口';
       case singleLine:
         return '單行入口';
       case minimalAccordion:
@@ -126,6 +134,7 @@ class HomeFaqLayouts {
 }
 
 class HomeReviewLayouts {
+  static const String diaryQuote = 'diaryQuote';
   // Keep stored IDs compatible with existing appearance documents and presets.
   static const String scoreCompact = 'scoreCompact';
   static const String featured = 'featured';
@@ -134,6 +143,7 @@ class HomeReviewLayouts {
   static const String carousel = 'carousel';
   static const String mini = 'mini';
   static const List<String> all = [
+    diaryQuote,
     scoreCompact,
     featured,
     scoreOverview,
@@ -144,6 +154,7 @@ class HomeReviewLayouts {
   static String migrate(Object? raw) =>
       all.contains(raw) ? raw as String : carousel;
   static String label(String value) => switch (migrate(value)) {
+    diaryQuote => '日常誌・精簡留言紙卡',
     scoreCompact => 'A｜極簡短評',
     featured => 'B｜大字主視覺',
     scoreOverview => 'C｜多則評價牆',

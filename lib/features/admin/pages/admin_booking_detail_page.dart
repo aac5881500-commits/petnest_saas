@@ -1,3 +1,4 @@
+import '../widgets/admin_booking_communication_summary.dart';
 import '../widgets/admin_booking_schedule.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_order_workspace.dart';
@@ -19,7 +20,6 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_s
 import 'package:petnest_saas/features/admin/models/settlement_next_action.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_settlement_panel.dart';
 import 'package:petnest_saas/features/admin/widgets/settlement_next_action_view.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
 import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
@@ -45,13 +45,11 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_dialogs.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_extra_charge_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_header_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_shop_identity_debug_card.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_note_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_strip.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_price_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
-import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
 import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
@@ -219,6 +217,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                           await showAdminCancelBookingDialog(
                             context: context,
                             bookingId: bookingId,
+                            checkedIn: stayStatus == 'checked_in',
                           );
                         },
                         onCheckIn: () async {
@@ -308,6 +307,9 @@ class AdminBookingDetailPage extends StatelessWidget {
                       phoneInlineActions: showStayOps && stayFlags.hasInline
                           ? staySection(AdminBookingActionChrome.phoneInline)
                           : null,
+                      desktopStickyActions: showStayOps && stayNext.visible
+                          ? stayNextView(bar: true)
+                          : null,
                       phoneStickyActions: staySettlementSticky
                           ? stayNextView(bar: true)
                           : (showStayOps && stayFlags.hasSticky
@@ -317,6 +319,14 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 : null),
                       left: const <Widget>[],
                       workspace: AdminBookingWorkspaceContent(
+                        communicationSummary: AdminBookingCommunicationSummary(
+                          shopId: shopId,
+                          bookingId: bookingId,
+                          booking: data,
+                          readOnly:
+                              !canEdit ||
+                              BookingSettlementMath.isSettlementLocked(data),
+                        ),
                         initialSection: initialSection,
                         alerts: [
                           if (pets.any(PetSnapshot.hasDiseaseAlert)) '寵物健康注意事項',
@@ -440,40 +450,21 @@ class AdminBookingDetailPage extends StatelessWidget {
                         ),
                       ),
                       forms: <Widget>[
-                        AdminBookingFormAnswersSection(
-                          shopId: shopId,
-                          bookingId: bookingId,
-                          data: data,
-                        ),
-                      ],
-                      formSummary: AdminBookingFormSummaryCard(
-                        shopId: shopId,
-                        bookingId: bookingId,
-                        data: data,
-                      ),
-                      communication: <Widget>[
-                        _buildMemberAdminNote(data),
-                        AdminBookingDetailSection(
-                          title: '客戶備註',
-                          collapsible: true,
-                          initiallyExpanded: false,
-                          child: AdminBookingNoteSection(
-                            data: data,
+                        if (data['source'] == 'admin')
+                          AdminBookingFormAnswersSection(
                             shopId: shopId,
                             bookingId: bookingId,
+                            data: data,
                           ),
-                        ),
-                        AdminBookingDetailSection(
-                          title: '訂單留言',
-                          collapsible: true,
-                          initiallyExpanded: false,
-                          child: BookingDetailMessageSection(
-                            bookingId: bookingId,
-                            senderType: 'shop',
-                            bookingStatus: status.toString(),
-                          ),
-                        ),
                       ],
+                      formSummary: data['source'] == 'admin'
+                          ? AdminBookingFormSummaryCard(
+                              shopId: shopId,
+                              bookingId: bookingId,
+                              data: data,
+                            )
+                          : null,
+                      communication: <Widget>[_buildMemberAdminNote(data)],
                       right: <Widget>[
                         if (stayNext.visible) stayNextView(bar: false),
                         AdminBookingSettlementPanel(
@@ -505,13 +496,6 @@ class AdminBookingDetailPage extends StatelessWidget {
                               : null,
                         ),
                       ],
-                      handover: AdminInternalHandoverCard(
-                        shopId: shopId,
-                        bookingId: bookingId,
-                        readOnly:
-                            !canEdit ||
-                            BookingSettlementMath.isSettlementLocked(data),
-                      ),
                       handoverHasContent: handoverHasContent,
                     );
                   },

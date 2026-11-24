@@ -1,4 +1,5 @@
 import 'editorial_section_widgets.dart';
+import 'home_diary_reference_widgets.dart';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -73,6 +74,21 @@ class ModernHomeRoomSection extends StatelessWidget {
         return const SizedBox.shrink();
       }
       return _withFont(_emptyPreview());
+    }
+    if (setting.layout == HomeRoomSectionLayouts.diaryCards) {
+      return HomeDiaryRoomRail(
+        theme: theme,
+        rooms: [
+          for (final id in setting.homeRoomIds(roomTypes))
+            if (_byId[id] != null) _byId[id]!,
+        ],
+        imageOf: _firstImage,
+        priceOf: (room) => setting.showPrice
+            ? HomeRoomSectionSetting.priceLabel(room['price'])
+            : '',
+        onRoom: (room) => onOpenRoom?.call(room),
+        onAll: _openAll,
+      );
     }
     if (setting.layout == HomeRoomSectionLayouts.catalog) {
       final ids = setting.homeRoomIds(roomTypes);

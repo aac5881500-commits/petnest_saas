@@ -1,12 +1,14 @@
 /// 新版首頁環境展示。只決定入口怎麼顯示，不改 environmentIntro 內容。
 class HomeEnvironmentLayouts {
   static const String featureCards = 'featureCards';
+  static const String diaryRows = 'diaryRows';
   static const String facilityScroll = 'facilityScroll';
   static const String simpleEntry = 'simpleEntry';
   static const String imageEntry = 'imageEntry';
   static const String editorial = 'editorial';
   static const List<String> all = <String>[
     featureCards,
+    diaryRows,
     facilityScroll,
     simpleEntry,
     imageEntry,
@@ -17,6 +19,8 @@ class HomeEnvironmentLayouts {
     switch (migrate(value)) {
       case featureCards:
         return '環境特色三欄卡';
+      case diaryRows:
+        return '日記交錯圖文';
       case simpleEntry:
         return '簡約入口';
       case imageEntry:

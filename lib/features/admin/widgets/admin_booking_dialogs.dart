@@ -307,8 +307,9 @@ Future<void> showAdminChangeRoomDialog({
 Future<void> showAdminCancelBookingDialog({
   required BuildContext context,
   required String bookingId,
+  bool checkedIn = false,
 }) async {
-  String selectedReason = '客戶未付款';
+  String selectedReason = checkedIn ? '測試訂單取消' : '客戶未付款';
   final otherReasonController = TextEditingController();
 
   final result = await showDialog<String>(
@@ -318,40 +319,47 @@ Future<void> showAdminCancelBookingDialog({
         builder: (context, setDialogState) {
           return AlertDialog(
             title: const Text('取消訂單原因'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: selectedReason,
-                  items: const [
-                    DropdownMenuItem(value: '客戶未付款', child: Text('客戶未付款')),
-                    DropdownMenuItem(value: '客戶自行取消', child: Text('客戶自行取消')),
-                    DropdownMenuItem(value: '店家無法接待', child: Text('店家無法接待')),
-                    DropdownMenuItem(value: '重複預約', child: Text('重複預約')),
-                    DropdownMenuItem(value: '其他', child: Text('其他')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (checkedIn) ...[
+                    const Text('取消後會釋放房間並停止後續照護待辦。已收款與照護紀錄會保留，退款請另行處理。'),
+                    const SizedBox(height: 14),
                   ],
-                  onChanged: (v) {
-                    setDialogState(() {
-                      selectedReason = v ?? '客戶未付款';
-                    });
-                  },
-                  decoration: const InputDecoration(
-                    labelText: '取消原因',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-
-                if (selectedReason == '其他') ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: otherReasonController,
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    items: const [
+                      DropdownMenuItem(value: '測試訂單取消', child: Text('測試訂單取消')),
+                      DropdownMenuItem(value: '客戶未付款', child: Text('客戶未付款')),
+                      DropdownMenuItem(value: '客戶自行取消', child: Text('客戶自行取消')),
+                      DropdownMenuItem(value: '店家無法接待', child: Text('店家無法接待')),
+                      DropdownMenuItem(value: '重複預約', child: Text('重複預約')),
+                      DropdownMenuItem(value: '其他', child: Text('其他')),
+                    ],
+                    onChanged: (v) {
+                      setDialogState(() {
+                        selectedReason = v ?? '客戶未付款';
+                      });
+                    },
                     decoration: const InputDecoration(
-                      labelText: '其他原因',
+                      labelText: '取消原因',
                       border: OutlineInputBorder(),
                     ),
                   ),
+
+                  if (selectedReason == '其他') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: otherReasonController,
+                      decoration: const InputDecoration(
+                        labelText: '其他原因',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
             actions: [
               TextButton(

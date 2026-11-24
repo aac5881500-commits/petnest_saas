@@ -324,66 +324,176 @@ class SettlementActionRunner {
               ? SettlementAdjustDisplay.inStoreRefundMethod
               : (data['settlementRefundMethod'] ?? '').toString())
         : 'cash';
-    final TextEditingController amountCtrl = TextEditingController(
-      text: '$amount',
-    );
-    final TextEditingController refundNote = TextEditingController(
-      text: (data['settlementRefundNote'] ?? '').toString(),
-    );
+    String refundNote = (data['settlementRefundNote'] ?? '').toString();
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setDialog) {
             return AlertDialog(
-              title: Text(title),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text('選擇方式不等於已入帳，請確認實際收退後再儲存。'),
-                  TextField(
-                    controller: amountCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '金額'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 22),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      action == 'confirmRefund'
+                          ? Icons.currency_exchange_rounded
+                          : Icons.account_balance_wallet_outlined,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      size: 22,
+                    ),
                   ),
-                  DropdownButtonFormField<String>(
-                    initialValue: method,
-                    items: action == 'confirmRefund'
-                        ? SettlementAdjustDisplay.refundMethodOptions
-                              .map(
-                                (Map<String, String> item) =>
-                                    DropdownMenuItem<String>(
-                                      value: item['id'],
-                                      child: Text(item['title'] ?? ''),
-                                    ),
-                              )
-                              .toList()
-                        : const <DropdownMenuItem<String>>[
-                            DropdownMenuItem<String>(
-                              value: 'cash',
-                              child: Text('店內付款'),
-                            ),
-                            DropdownMenuItem<String>(
-                              value: 'transfer',
-                              child: Text('銀行轉帳'),
-                            ),
-                          ],
-                    onChanged: (String? value) {
-                      setDialog(() {
-                        method = value ?? 'cash';
-                      });
-                    },
-                    decoration: const InputDecoration(labelText: '方式'),
-                  ),
-                  if (action == 'confirmRefund' &&
-                      method == SettlementAdjustDisplay.otherRefundMethod)
-                    TextField(
-                      controller: refundNote,
-                      decoration: const InputDecoration(
-                        labelText: '其他退款註記（必填）',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
+                  ),
                 ],
+              ),
+              content: SizedBox(
+                width: 360,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: .07),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              action == 'confirmRefund' ? '本次應退款項' : '本次應收款項',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              'NT\$ $amount',
+                              key: const ValueKey('settlement-confirm-amount'),
+                              style: TextStyle(
+                                fontSize: 30,
+                                height: 1.2,
+                                fontWeight: FontWeight.w800,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 14,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 5),
+                                const Expanded(
+                                  child: Text(
+                                    '依目前結算金額確認',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        '金額如需修改，請先回到「調整結算」。',
+                        style: TextStyle(fontSize: 13, height: 1.5),
+                      ),
+                      const SizedBox(height: 18),
+                      DropdownButtonFormField<String>(
+                        initialValue: method,
+                        items: action == 'confirmRefund'
+                            ? SettlementAdjustDisplay.refundMethodOptions
+                                  .map(
+                                    (Map<String, String> item) =>
+                                        DropdownMenuItem<String>(
+                                          value: item['id'],
+                                          child: Text(item['title'] ?? ''),
+                                        ),
+                                  )
+                                  .toList()
+                            : const <DropdownMenuItem<String>>[
+                                DropdownMenuItem<String>(
+                                  value: 'cash',
+                                  child: Text('店內付款'),
+                                ),
+                                DropdownMenuItem<String>(
+                                  value: 'transfer',
+                                  child: Text('銀行轉帳'),
+                                ),
+                              ],
+                        onChanged: (String? value) {
+                          setDialog(() {
+                            method = value ?? 'cash';
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: action == 'confirmRefund'
+                              ? '退款方式'
+                              : '收款方式',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      if (action == 'confirmRefund' &&
+                          method == SettlementAdjustDisplay.otherRefundMethod)
+                        TextFormField(
+                          initialValue: refundNote,
+                          onChanged: (value) => refundNote = value,
+                          decoration: const InputDecoration(
+                            labelText: '其他退款註記（必填）',
+                          ),
+                        ),
+                      const SizedBox(height: 14),
+                      Text(
+                        action == 'confirmRefund'
+                            ? '請確認已實際退還款項，再完成退款紀錄。'
+                            : '請確認已實際收到款項，再確認入帳。',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               actions: <Widget>[
                 TextButton(
@@ -391,8 +501,10 @@ class SettlementActionRunner {
                   child: const Text('取消'),
                 ),
                 FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('確認入帳'),
+                  onPressed: amount > 0
+                      ? () => Navigator.pop(context, true)
+                      : null,
+                  child: Text(action == 'confirmRefund' ? '確認已退款' : '確認入帳'),
                 ),
               ],
             );
@@ -400,12 +512,13 @@ class SettlementActionRunner {
         );
       },
     );
+    final note = refundNote.trim();
     if (ok != true || !context.mounted) {
       return;
     }
     if (action == 'confirmRefund' &&
         method == SettlementAdjustDisplay.otherRefundMethod &&
-        refundNote.text.trim().isEmpty) {
+        note.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('其他退款請填寫註記')));
@@ -415,10 +528,10 @@ class SettlementActionRunner {
       context,
       action: action,
       extra: <String, dynamic>{
-        'amount': int.tryParse(amountCtrl.text.trim()) ?? 0,
+        'amount': amount,
         'method': method,
-        if (action == 'confirmRefund') 'refundNote': refundNote.text.trim(),
-        if (action == 'confirmRefund') 'reason': refundNote.text.trim(),
+        if (action == 'confirmRefund') 'refundNote': note,
+        if (action == 'confirmRefund') 'reason': note,
       },
     );
   }

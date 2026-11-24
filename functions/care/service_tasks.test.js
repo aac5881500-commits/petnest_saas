@@ -27,6 +27,7 @@ function fixture() {
   vm.runInNewContext(fs.readFileSync(require.resolve("./service_task_functions"), "utf8"), {exports, Buffer, Date, require: (name) => {
     if (name === "firebase-admin") return {firestore};
     if (name.includes("inspection_write_guard")) return {onCall: (_, fn) => fn, HttpsError};
+    if (name.includes("platform/booking_time_test")) return require("../platform/booking_time_test");
     if (name.includes("daycare_utils")) return {hasShopPermission: async (_, uid, permission) => ["owner", "worker"].includes(uid) && permission === "manage_bookings"};
     if (name === "./service_tasks") return require(name);
     throw Error(name);
@@ -51,19 +52,18 @@ test("record once, notify once, share results without report and keep fees uncha
   const f = fixture(); await f.call();
   assert.equal(f.docs["bookings/b"].careServiceRecords[f.task.id].result, "done");
   assert.equal(f.docs["bookings/b"].totalPrice, 1800);
-  assert.equal(f.docs["bookings/b"].customerUnreadMessageCount, 1);
-  assert.equal(f.docs[`bookings/b/messages/care_${f.task.id}`].source, "care_service");
+  assert.equal(f.docs["bookings/b"].customerUnreadMessageCount, undefined);
+  assert.equal(f.docs[`notifications/care_service_b_${f.task.id}_1`].data.careKind, "service");
+  assert.equal(f.docs[`bookings/b/messages/care_${f.task.id}`], undefined);
   await assert.rejects(f.call(), {code: "already-exists"});
-  assert.equal(f.docs["bookings/b"].customerUnreadMessageCount, 1);
+  assert.equal(f.docs["bookings/b"].customerUnreadMessageCount, undefined);
 });
-test("reject stale task, future/predating actual time and missing explanation", async () => {
+test("reject stale task and invalid time; skipped keeps fees unchanged", async () => {
   const f = fixture();
   await assert.rejects(f.call({scheduledAt: "2026-02-01"}), {code: "failed-precondition"});
   await assert.rejects(f.call({taskId: "another"}), {code: "failed-precondition"});
   await assert.rejects(f.call({actualAt: "2099-01-01"}), {code: "invalid-argument"});
   await assert.rejects(f.call({actualAt: "2020-01-01"}), {code: "invalid-argument"});
-  await assert.rejects(f.call({result: "partial"}), {code: "invalid-argument"});
-  await assert.rejects(f.call({result: "skipped"}), {code: "invalid-argument"});
   await f.call({result: "skipped", note: "家長要求取消，待確認費用"});
   assert.equal(serviceTasks(f.docs["bookings/b"])[0].record.result, "skipped");
   assert.equal(f.docs["bookings/b"].totalPrice, 1800);
@@ -84,7 +84,7 @@ test("cancelled, checkout and finalized bookings cannot accept new results", asy
     const f = fixture(); f.docs["bookings/b"][flag] = true; await assert.rejects(f.call(), {code: "failed-precondition"});
   }
 });
-test("future services cannot be pre-completed; skipping requires a reason", async () => {
+test("future services cannot be pre-completed; skipped can be recorded", async () => {
   const f = fixture(); f.docs["bookings/b"].addons[0].selections[0].dates[0].date = "2099-01-01";
   const t = serviceTasks(f.docs["bookings/b"])[0];
   await assert.rejects(f.call({taskId: t.id, scheduledAt: t.scheduledAt}), {code: "failed-precondition"});
@@ -93,7 +93,7 @@ test("future services cannot be pre-completed; skipping requires a reason", asyn
 test("soon/due transitions and completion stop service reminders", () => {
   const t = serviceTasks(booking())[0]; const at = Date.parse(t.scheduledAt);
   assert.equal(stageOf(t, at - 900001), null); assert.equal(stageOf(t, at - 900000), "soon");
-  assert.equal(stageOf(t, at), "due"); assert.equal(stageOf(t, at + 3600001), null);
+  assert.equal(stageOf(t, at), "due"); assert.equal(stageOf(t, at + 3600001), "overdue");
   assert.equal(stageOf({...t, record: {result: "skipped"}}, at), null);
 });
 test("reminders respect disabled setting, staff permission, dedup and fresh result", async () => {
@@ -126,4 +126,40 @@ test("legacy names resolve only when unique, and changing stay dates cannot orph
   assert.equal(fitsStayDates(b, "2026-01-01", "2026-01-02"), true);
   assert.equal(fitsStayDates(b, "2026-01-02", "2026-01-03"), false);
   b.pets.push({petId: "p2", name: "小布"}); assert.equal(serviceTasks(b)[0].petId, "");
+});
+
+test("skipped service before actual check-in records without forcing a refund or changing fees", async () => {
+  const f = fixture(); f.docs["bookings/b"].checkInAt = "2026-01-02T22:00:00+08:00";
+  await assert.rejects(f.call(), /早於入住時間/);
+  await f.call({result: "skipped", note: ""});
+  assert.equal(serviceTasks(f.docs["bookings/b"])[0].record.result, "skipped");
+  assert.equal(f.docs["bookings/b"].totalPrice, 1800);
+});
+
+test("private two-hour test window permits future result and syncs test-marked customer message", async () => {
+  const f = fixture(), b = f.docs["bookings/b"], now = Date.now();
+  b.bookingCode = "TEST";
+  f.docs["internal_booking_time_tests/b"] = {enabled: true, bookingId: "b", shopId: "s", bookingCode: "TEST", syncCustomer: true, startedAt: new Date(now - 1000).toISOString(), expiresAt: new Date(now + 7199000).toISOString()};
+  await f.call({actualAt: new Date(now + 3600000).toISOString()});
+  assert.ok(serviceTasks(f.docs["bookings/b"])[0].record.timeTest);
+  assert.match(f.docs[`notifications/care_service_b_${f.task.id}_1`].body, /測試訂單/);
+});
+test("expired private window restores normal future-time rejection despite client metadata", async () => {
+  const f = fixture(), b = f.docs["bookings/b"], now = Date.now(); b.bookingCode = "TEST";
+  const config = {enabled: true, bookingId: "b", shopId: "s", bookingCode: "TEST", syncCustomer: true, startedAt: new Date(now - 7200001).toISOString(), expiresAt: new Date(now - 1).toISOString()};
+  f.docs["internal_booking_time_tests/b"] = config;
+  b.temporaryTimeTest = {...config, expiresAt: new Date(now + 7200000).toISOString()};
+  await assert.rejects(f.call({actualAt: new Date(now + 3600000).toISOString()}), /晚於現在/);
+});
+
+test("correct recorded service with version check and retained history", async () => {
+  const f = fixture();
+  await f.call();
+  const old = structuredClone(f.docs["bookings/b"].careServiceRecords[f.task.id]);
+  await f.call({expectedRevision: old.revision, result: "skipped", note: "更正誤填"});
+  assert.equal(f.docs["bookings/b"].careServiceRecords[f.task.id].result, "skipped");
+  const history = Object.entries(f.docs).find(([key]) => key.includes("/careServiceCorrections/"));
+  assert.equal(history[1].previous.result, "done");
+  await assert.rejects(f.call({expectedRevision: old.revision}), {code: "aborted"});
+  assert.equal(f.docs["bookings/b"].careServiceRecords[f.task.id].revision, 2);
 });

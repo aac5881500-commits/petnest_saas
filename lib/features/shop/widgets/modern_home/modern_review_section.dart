@@ -1,4 +1,6 @@
 import 'home_store_action.dart';
+import 'home_diary_reference_widgets.dart';
+import 'editorial_section_widgets.dart';
 import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
@@ -42,6 +44,64 @@ class ModernReviewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (phase == HomeInfoSectionPhase.hidden) return const SizedBox.shrink();
+    if (setting.layout == HomeReviewLayouts.diaryQuote &&
+        phase == HomeInfoSectionPhase.ready &&
+        items.isNotEmpty) {
+      final r = items.first;
+      return HomeDiaryNote(
+        theme: theme,
+        flowers: true,
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onOpen,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(9),
+              child: Row(
+                children: [
+                  if (setting.showImages && r.imageUrls.isNotEmpty) ...[
+                    ClipOval(
+                      child: SizedBox(
+                        width: 43,
+                        height: 43,
+                        child: sectionPhoto(r.imageUrls.first),
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '「${text(r)}」',
+                          maxLines: HomeReviewSectionSetting.lines(
+                            setting.contentLines,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          style: body.copyWith(
+                            fontFamily: theme.storybook.diary.fontFamily,
+                            fontFamilyFallback: const ['NotoSansTC'],
+                          ),
+                        ),
+                        _meta(r),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '更多評價 ›',
+                    style: TextStyle(fontSize: 11, color: theme.primaryColor),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (setting.isMini) return _mini();
     if (phase == HomeInfoSectionPhase.loading) {
       return SizedBox(

@@ -102,7 +102,9 @@ class DailyCareCardSurface extends StatelessWidget {
           padding: padding,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(setting.cardRadius),
-            border: Border.all(color: colors.outline.withValues(alpha: 0.12)),
+            border: setting.showCardBorder
+                ? Border.all(color: colors.outline.withValues(alpha: 0.12))
+                : null,
             gradient: textVeil > 0
                 ? LinearGradient(
                     begin: Alignment.topCenter,

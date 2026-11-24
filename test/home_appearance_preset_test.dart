@@ -139,15 +139,22 @@ void main() {
     'legacy preset compatibility keeps shop content and only changes layout',
     () {
       final HomeAppearanceDraft current = _shopDraft();
-      expect(homeAppearancePresets.map((p) => p.id), ['creamOrange']);
-      expect(legacyHomeAppearancePresets, hasLength(5));
+      expect(homeAppearancePresets.map((p) => p.id), [
+        'creamOrange',
+        'catDiary',
+      ]);
+      expect(legacyHomeAppearancePresets, hasLength(6));
       expect(homeAppearancePresetById('missing'), isNull);
       expect(
         homeAppearancePresetStatus(presetId: null, draft: current),
         '尚未套用',
       );
 
-      for (final HomeAppearancePreset preset in legacyHomeAppearancePresets) {
+      // The retired cottage keeps its dedicated compatibility tests in home_storybook_test.
+      for (final HomeAppearancePreset preset
+          in legacyHomeAppearancePresets.where(
+            (p) => p.id != 'storybookCottage',
+          )) {
         final HomeAppearanceDraft next = preset.apply(current);
         expect(preset.matches(next), isTrue, reason: preset.id);
         expect(preset.matches(preset.apply(next)), isTrue, reason: preset.id);

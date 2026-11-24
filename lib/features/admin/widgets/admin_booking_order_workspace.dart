@@ -38,9 +38,10 @@ class AdminBookingWorkspaceContent {
     this.medicationDetailsBuilder,
     this.initialSection = 0,
     this.contacts,
+    this.communicationSummary,
   });
   final List<Widget> summary, care, charges, details, activity;
-  final Widget? balance, pets, carePreview, contacts;
+  final Widget? balance, pets, carePreview, contacts, communicationSummary;
   final String preferenceScope;
   final int initialSection;
   final List<String> alerts;
@@ -197,6 +198,8 @@ class AdminBookingOrderWorkspaceState
                     children: _spaced([
                       ...widget.banners,
                       widget.overview,
+                      if (widget.content.communicationSummary != null)
+                        widget.content.communicationSummary!,
                       if (schedule.arrived &&
                           !schedule.ended &&
                           timeline.isNotEmpty)
@@ -267,7 +270,10 @@ class AdminBookingOrderWorkspaceState
                                 ) ??
                                 widget.content.medicationDetails)
                           : null,
-                      note: schedule.canEdit && schedule.shopId.isNotEmpty
+                      note:
+                          widget.content.communicationSummary == null &&
+                              schedule.canEdit &&
+                              schedule.shopId.isNotEmpty
                           ? AdminInternalHandoverCard(
                               shopId: schedule.shopId,
                               bookingId: schedule.bookingId,
@@ -323,6 +329,8 @@ class AdminBookingOrderWorkspaceState
           children: _spaced([
             ...widget.banners,
             widget.overview,
+            if (widget.content.communicationSummary != null)
+              widget.content.communicationSummary!,
             if (widget.content.schedule == null) ?featured,
           ]),
         ),
@@ -737,12 +745,13 @@ class _BookingCareDeskState extends State<_BookingCareDesk> {
     final active = areas.containsKey(_area) ? _area : _CareArea.schedule;
 
     Widget areaBody(_CareArea area) => switch (area) {
-      _CareArea.schedule => widget.entries.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('目前沒有已安排的照護時程。'),
-            )
-          : widget.timeline(widget.entries),
+      _CareArea.schedule =>
+        widget.entries.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text('目前沒有已安排的照護時程。'),
+              )
+            : widget.timeline(widget.entries),
       _CareArea.medicine => widget.medicine ?? const SizedBox.shrink(),
       _CareArea.handover => widget.note ?? const SizedBox.shrink(),
       _ => _BookingCareAddons(

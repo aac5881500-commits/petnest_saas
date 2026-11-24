@@ -9,6 +9,9 @@ import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 
+// Temporary testing switch. Restore false together with the server policy switch.
+const temporarilyAllowCheckedInCancellation = true;
+
 enum AdminBookingActionChrome { full, phoneInline, phoneSticky }
 
 class StayBookingActionFlags {
@@ -77,7 +80,10 @@ StayBookingActionFlags stayBookingActionFlags({
     assignRoom: isConfirmed && !isAssigned,
     checkIn: isConfirmed && isAssigned,
     changeRoom: isAssigned && canOperate && !isCheckedOut,
-    cancel: isPending || isConfirmed,
+    cancel:
+        isPending ||
+        isConfirmed ||
+        (temporarilyAllowCheckedInCancellation && isCheckedIn && !locked),
     checkout: isCheckedIn && !locked,
     checkoutLabel: '辦理退房／結算',
   );

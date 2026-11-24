@@ -54,7 +54,12 @@ class CareActualTimeField extends StatelessWidget {
                   initialTime: TimeOfDay.fromDateTime(
                     BookingMedicationTask.taipei(value),
                   ),
-                  helpText: '選擇實際執行時間',
+                  initialEntryMode: TimePickerEntryMode.input,
+                  helpText: '輸入實際執行時間',
+                  hourLabelText: '時',
+                  minuteLabelText: '分',
+                  cancelText: '取消',
+                  confirmText: '套用時間',
                   builder: (context, child) => MediaQuery(
                     data: MediaQuery.of(
                       context,

@@ -26,6 +26,7 @@ class DailyCareRecordEditLauncher {
     DailyCareSettingModel? setting,
     DailyCareEntitlement? entitlement,
     bool readOnly = false,
+    bool asDialog = false,
   }) async {
     final DailyCareSettingModel resolved =
         setting ?? await DailyCareSettingService.instance.getSetting(shopId);
@@ -47,25 +48,45 @@ class DailyCareRecordEditLauncher {
         : (daycare
               ? resolved.daycareSessionLabelAt(sessionIndex)
               : resolved.sessionLabelAt(sessionIndex));
-    return Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => DailyCareRecordEditPage(
-          shopId: shopId,
-          bookingId: bookingId,
-          roomId: roomId,
-          roomName: roomName,
-          recordDate: recordDate,
-          sessionIndex: sessionIndex,
-          sessionName: sessionName,
-          customFields: resolved.customFields,
-          enabledFields: resolved.enabledFields,
-          photoEnabled: resolved.photoEnabled,
-          serviceType: serviceType,
-          petIds: petIds,
-          entitlement: entitlement,
-          readOnly: readOnly,
-        ),
-      ),
+    Widget editor(BuildContext context) => DailyCareRecordEditPage(
+      shopId: shopId,
+      bookingId: bookingId,
+      roomId: roomId,
+      roomName: roomName,
+      recordDate: recordDate,
+      sessionIndex: sessionIndex,
+      sessionName: sessionName,
+      customFields: resolved.customFields,
+      enabledFields: resolved.enabledFields,
+      photoEnabled: resolved.photoEnabled,
+      serviceType: serviceType,
+      petIds: petIds,
+      entitlement: entitlement,
+      readOnly: readOnly,
     );
+    if (asDialog) {
+      return showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 20,
+          ),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: SizedBox(
+            width: 1000,
+            height: MediaQuery.sizeOf(context).height * .9,
+            child: editor(context),
+          ),
+        ),
+      );
+    }
+    return Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute<bool>(builder: editor));
   }
 }

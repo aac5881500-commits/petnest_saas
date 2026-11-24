@@ -4,11 +4,13 @@ import 'package:petnest_saas/core/models/home_environment_section_setting.dart';
 
 /// 新版首頁關於我們區塊。內容仍來自既有 about 欄位，這裡只決定怎麼顯示。
 class HomeAboutLayouts {
+  static const String diaryQuote = 'diaryQuote';
   static const String editorial = 'editorial';
   static const String simpleEntry = 'simpleEntry';
   static const String imageEntry = 'imageEntry';
   static const String brandIntro = 'brandIntro';
   static const List<String> all = <String>[
+    diaryQuote,
     editorial,
     simpleEntry,
     imageEntry,
@@ -17,6 +19,8 @@ class HomeAboutLayouts {
 
   static String label(String value) {
     switch (migrate(value)) {
+      case diaryQuote:
+        return '日常誌・照片與手寫介紹';
       case editorial:
         return '標題與左右圖文';
       case imageEntry:

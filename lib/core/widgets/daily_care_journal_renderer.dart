@@ -899,7 +899,8 @@ class DailyCareJournalRenderer extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double maxW = constraints.maxWidth;
-        final double halfW = (maxW - 10) / 2;
+        final double gap = setting.cardGap;
+        final double halfW = (maxW - gap) / 2;
         final bool canHalf =
             maxW >= DailyCareJournalThemeTokens.minHalfPairWidth &&
             halfW >= 148;
@@ -915,7 +916,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Expanded(child: envCard.child),
-                  const SizedBox(width: 10),
+                  SizedBox(width: gap),
                   Expanded(child: toiletCard.child),
                 ],
               ),
@@ -938,14 +939,14 @@ class DailyCareJournalRenderer extends StatelessWidget {
                 halfW >= next.minHalfWidth;
             if (nextHalf) {
               if (rows.isNotEmpty) {
-                rows.add(const SizedBox(height: 10));
+                rows.add(SizedBox(height: gap));
               }
               rows.add(
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Expanded(child: current.child),
-                    const SizedBox(width: 10),
+                    SizedBox(width: gap),
                     Expanded(child: next.child),
                   ],
                 ),
@@ -955,7 +956,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
             }
           }
           if (rows.isNotEmpty) {
-            rows.add(const SizedBox(height: 10));
+            rows.add(SizedBox(height: gap));
           }
           rows.add(current.child);
           index += 1;
@@ -982,10 +983,14 @@ class DailyCareJournalRenderer extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 8,
           children: [
-            Text('${report['name'] ?? '貓咪'}', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              '${report['name'] ?? '貓咪'}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             if (values is Map)
               for (final label in labels.entries)
-                if (values[label.key] is String && (values[label.key] as String).isNotEmpty)
+                if (values[label.key] is String &&
+                    (values[label.key] as String).isNotEmpty)
                   Text('${label.value}　${values[label.key]}'),
           ],
         ),

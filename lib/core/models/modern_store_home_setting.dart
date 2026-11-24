@@ -207,13 +207,21 @@ class ModernStoreCardPositions {
 }
 
 class ModernFeaturedProductLayouts {
+  static const String diaryCards = 'diaryCards';
   static const String horizontal = 'horizontal';
   static const String featured = 'featured';
   static const String grid = 'grid';
-  static const List<String> all = <String>[horizontal, featured, grid];
+  static const List<String> all = <String>[
+    diaryCards,
+    horizontal,
+    featured,
+    grid,
+  ];
 
   static String label(String value) {
     switch (value) {
+      case diaryCards:
+        return '日常誌・橫式圖文商品';
       case featured:
         return '精選大卡';
       case grid:

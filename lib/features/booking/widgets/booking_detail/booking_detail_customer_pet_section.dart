@@ -143,24 +143,31 @@ class _BookingDetailCustomerPetSectionState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BookingDetailCard(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BookingDetailSectionTitle('本次預約的寵物'),
+              BookingDetailSectionTitle('入住寵物（共 ${view.petInfos.length} 隻）'),
               const SizedBox(height: 12),
               if (view.petInfos.isEmpty)
                 Text(view.petNames.isEmpty ? '這筆訂單未保存寵物資料。' : view.petNames),
               for (final pet in view.petInfos)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.card,
+                    border: Border.all(color: theme.border),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       BookingDetailSoftNetworkImage(
                         url: pet.photoUrl,
-                        width: 48,
-                        height: 48,
+                        width: 84,
+                        height: 84,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       const SizedBox(width: 12),
@@ -172,6 +179,10 @@ class _BookingDetailCustomerPetSectionState
                               pet.name,
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
+                                fontVariations: const [
+                                  FontVariation('wght', 800),
+                                ],
+                                fontSize: 18,
                                 color: theme.text,
                               ),
                             ),
@@ -199,11 +210,14 @@ class _BookingDetailCustomerPetSectionState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BookingDetailSectionTitle('預約與緊急聯絡資料'),
+              const BookingDetailSectionTitle('飼主資料'),
               const SizedBox(height: 14),
               _row('顧客姓名', view.customerName),
               _row('電話', view.customerPhone, phone: true),
               _row('地址', view.address),
+              const Divider(height: 28),
+              const BookingDetailSectionTitle('緊急聯絡人'),
+              const SizedBox(height: 14),
               _row('緊急聯絡人', view.emergencyName),
               _row('關係', view.emergencyRelation),
               _row('緊急電話', view.emergencyPhone, phone: true),

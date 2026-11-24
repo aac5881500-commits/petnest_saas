@@ -72,6 +72,121 @@ class ModernBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (appearance == FrontendNavigationConfig.appearanceDiaryBooking) {
+      return SafeArea(
+        top: false,
+        child: Material(
+          color: theme.cardColor,
+          child: SizedBox(
+            height: 62,
+            child: Row(
+              children: [
+                for (int i = 0; i < 5; i++)
+                  Expanded(
+                    flex: i == 2 ? 16 : 10,
+                    child: Builder(
+                      builder: (context) {
+                        final item = i < slots.length ? slots[i] : null;
+                        if (item == null) return const SizedBox.shrink();
+                        final selected = item.id == selectedId;
+                        final color = selected
+                            ? theme.primaryColor
+                            : theme.secondaryTextColor;
+                        if (i == 2)
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Semantics(
+                              button: true,
+                              selected: selected,
+                              label: item.label,
+                              child: Material(
+                                color: theme.primaryColor,
+                                borderRadius: BorderRadius.circular(24),
+                                child: InkWell(
+                                  onTap: () => onSelect(item),
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 10,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            item.icon,
+                                            color: Colors.white,
+                                            size: 21,
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            item.shortLabel,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        return Semantics(
+                          button: true,
+                          selected: selected,
+                          label: item.label,
+                          child: InkWell(
+                            onTap: () => onSelect(item),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(item.icon, color: color, size: 23),
+                                    Text(
+                                      item.shortLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: color,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (selected)
+                                  Positioned(
+                                    bottom: 3,
+                                    left: 9,
+                                    right: 9,
+                                    child: Container(
+                                      height: 2,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final double safeBottom = MediaQuery.paddingOf(context).bottom;
     final bool floating = isFloating(appearance);
     final double radius =

@@ -14,6 +14,7 @@ class HomeAppearancePresetStrip extends StatefulWidget {
     required this.onPreview,
     required this.onApply,
     required this.onRestore,
+    this.onOpenSettings,
     this.previewingId,
     this.showHeading = true,
     this.devicePreviewBuilder,
@@ -22,12 +23,18 @@ class HomeAppearancePresetStrip extends StatefulWidget {
   final HomeAppearanceDraft draft;
   final String? presetId;
   final String? previewingId;
+  final ValueChanged<HomeAppearancePreset>? onOpenSettings;
   final Color accent;
   final ValueChanged<HomeAppearancePreset> onPreview;
   final ValueChanged<HomeAppearancePreset> onApply;
   final VoidCallback onRestore;
   final bool showHeading;
-  final Widget Function(bool desktop, bool enlarged)? devicePreviewBuilder;
+  final Widget Function(
+    HomeAppearancePreset preset,
+    bool desktop,
+    bool enlarged,
+  )?
+  devicePreviewBuilder;
 
   @override
   State<HomeAppearancePresetStrip> createState() =>
@@ -105,10 +112,16 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
               children: <Widget>[
                 for (final HomeAppearancePreset preset in homeAppearancePresets)
                   SizedBox(
-                    width: preset.id == 'creamOrange'
+                    width:
+                        preset.id == 'creamOrange' ||
+                            (preset.id == 'storybookCottage' ||
+                                preset.id == 'catDiary')
                         ? constraints.maxWidth
                         : width,
-                    height: preset.id == 'creamOrange'
+                    height:
+                        preset.id == 'creamOrange' ||
+                            (preset.id == 'storybookCottage' ||
+                                preset.id == 'catDiary')
                         ? (constraints.maxWidth >= 420 ? 560 : 920)
                         : 300,
                     child: _PresetCard(
@@ -120,6 +133,9 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
                       applied: preset.id == widget.presetId,
                       previewing: preset.id == widget.previewingId,
                       onPreview: () => widget.onPreview(preset),
+                      onOpenSettings: widget.onOpenSettings == null
+                          ? null
+                          : () => widget.onOpenSettings!(preset),
                       onApply: () => _confirm(context, preset),
                     ),
                   ),
@@ -140,8 +156,10 @@ class _HomeAppearancePresetStripState extends State<HomeAppearancePresetStrip> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('套用「${preset.name}」？'),
-          content: const Text(
-            '將調整首頁排版、區塊樣式、色彩與導覽方式。\n店家 Logo、海報、房型、照片、商城圖片與實際內容不會被更換。',
+          content: Text(
+            (preset.id == 'storybookCottage' || preset.id == 'catDiary')
+                ? '將套用水彩模板的配色、區塊順序與卡片。封面、房型、環境與商品使用店家圖片，紙張、膠帶及花草由 APP 提供。套用後可逐項微調，確認後請儲存外觀。'
+                : '將調整首頁排版、區塊樣式、色彩與導覽方式。\n店家 Logo、海報、房型、照片、商城圖片與實際內容不會被更換。',
           ),
           actions: <Widget>[
             TextButton(
@@ -176,10 +194,16 @@ class _PresetCard extends StatelessWidget {
     required this.previewing,
     required this.onPreview,
     required this.onApply,
+    this.onOpenSettings,
     this.devicePreviewBuilder,
   });
 
-  final Widget Function(bool desktop, bool enlarged)? devicePreviewBuilder;
+  final Widget Function(
+    HomeAppearancePreset preset,
+    bool desktop,
+    bool enlarged,
+  )?
+  devicePreviewBuilder;
   final HomeAppearancePreset preset;
   final HomeAppearanceDraft draft;
   final Color accent;
@@ -188,13 +212,14 @@ class _PresetCard extends StatelessWidget {
   final bool previewing;
   final VoidCallback onPreview;
   final VoidCallback onApply;
+  final VoidCallback? onOpenSettings;
 
   void _openExample(BuildContext context) => showDialog<void>(
     context: context,
     builder: (context) => Dialog.fullscreen(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('奶油暖橘・排版範例'),
+          title: Text('・排版範例'),
           leading: CloseButton(onPressed: () => Navigator.pop(context)),
         ),
         body: LayoutBuilder(
@@ -233,23 +258,27 @@ class _PresetCard extends StatelessWidget {
         const SizedBox(height: 8),
         InkWell(
           key: ValueKey('home-example-${desktop ? "desktop" : "phone"}'),
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (dialogContext) => Dialog.fullscreen(
-              child: Scaffold(
-                appBar: AppBar(
-                  title: Text(label),
-                  leading: CloseButton(
-                    onPressed: () => Navigator.pop(dialogContext),
+          onTap:
+              onOpenSettings ??
+              () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => Dialog.fullscreen(
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: Text(label),
+                      leading: CloseButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                      ),
+                    ),
+                    body: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Center(
+                        child: devicePreviewBuilder!(preset, desktop, true),
+                      ),
+                    ),
                   ),
                 ),
-                body: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(child: devicePreviewBuilder!(desktop, true)),
-                ),
               ),
-            ),
-          ),
           child: Container(
             height: 360,
             clipBehavior: Clip.hardEdge,
@@ -261,14 +290,14 @@ class _PresetCard extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             child: IgnorePointer(
               child: ExcludeSemantics(
-                child: devicePreviewBuilder!(desktop, false),
+                child: devicePreviewBuilder!(preset, desktop, false),
               ),
             ),
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          '點擊放大查看',
+        Text(
+          onOpenSettings == null ? '點擊放大查看' : '點擊進入此風格設定',
           style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
         ),
         const SizedBox(height: 8),
@@ -298,14 +327,14 @@ class _PresetCard extends StatelessWidget {
           ],
         ),
         child: InkWell(
-          onTap: onPreview,
+          onTap: onOpenSettings ?? onPreview,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                if (preset.id == 'creamOrange' && devicePreviewBuilder != null)
+                if (devicePreviewBuilder != null)
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final desktop = _deviceExample(context, true);
@@ -332,15 +361,17 @@ class _PresetCard extends StatelessWidget {
                   SizedBox(
                     height: 264,
                     child: InkWell(
-                      onTap: () => _openExample(context),
+                      onTap: onOpenSettings ?? () => _openExample(context),
                       child: _MiniHome(
                         presetId: preset.id,
                         appearance: preset.apply(draft),
                       ),
                     ),
                   ),
-                const Text(
-                  '與店家目前的圖片、房型及草稿同步，點擊可放大查看。',
+                Text(
+                  onOpenSettings == null
+                      ? '與店家目前的圖片、房型及草稿同步，點擊可放大查看。'
+                      : '沿用店家目前圖片與內容，點擊進入此風格的專屬設定。',
                   style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
                 const SizedBox(height: 8),
@@ -400,7 +431,9 @@ class _PresetCard extends StatelessWidget {
                           ? '正在預覽'
                           : applied
                           ? '目前已套用'
-                          : '點擊預覽',
+                          : onOpenSettings == null
+                          ? '點擊預覽'
+                          : '進入設定',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -409,13 +442,13 @@ class _PresetCard extends StatelessWidget {
                     ),
                     TextButton(
                       key: Key('home-preset-apply-${preset.id}'),
-                      onPressed: onApply,
+                      onPressed: onOpenSettings ?? onApply,
                       style: TextButton.styleFrom(
                         visualDensity: VisualDensity.compact,
                         foregroundColor: accent,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
-                      child: const Text('套用此風格'),
+                      child: Text(onOpenSettings == null ? '套用此風格' : '進入此風格設定'),
                     ),
                   ],
                 ),

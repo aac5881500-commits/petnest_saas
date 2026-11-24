@@ -1113,3 +1113,6 @@ exports.recordBookingServiceTask = require("./care/service_task_functions").reco
 
 exports.manageBookingMedication =
   require("./medication/medication_functions").manageBookingMedication;
+
+exports.sendCareUpdatePush =
+  require("./notifications/care_update_push").sendCareUpdatePush;

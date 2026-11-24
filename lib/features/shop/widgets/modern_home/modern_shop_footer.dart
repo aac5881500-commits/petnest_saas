@@ -254,6 +254,7 @@ class ModernShopFooter extends StatelessWidget {
       );
     }
     if (const [
+      'diaryContact',
       'infoActions',
       'brandColumns',
       'photoDetails',
@@ -749,6 +750,33 @@ class ModernShopFooter extends StatelessWidget {
       final width = c.maxWidth;
       Widget body;
       switch (setting.layout) {
+        case 'diaryContact':
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (width < 270 ||
+                  MediaQuery.textScalerOf(context).scale(14) > 23) ...[
+                identity(),
+                SizedBox(height: gap),
+                details(),
+              ] else
+                Row(
+                  children: [
+                    Expanded(child: identity()),
+                    Container(
+                      width: 1,
+                      height: 60 * u,
+                      margin: EdgeInsets.symmetric(horizontal: gap),
+                      color: border,
+                    ),
+                    Expanded(child: details()),
+                  ],
+                ),
+              SizedBox(height: gap),
+              actions(),
+            ],
+          );
+          break;
         case 'infoActions':
           body = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,3 +1,4 @@
+import 'booking_time_test_banner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
@@ -29,10 +30,13 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
   late final _booking = BookingService.instance.streamBooking(widget.bookingId);
   final _note = TextEditingController();
   String? _result;
+  int? _expectedRevision;
+  bool _loadedRecord = false;
   late final DateTime _scheduled = DateTime.parse(widget.scheduledAt);
   late DateTime _actual = initialCareActualTime(_scheduled, DateTime.now());
   bool _saving = false;
   String? _error;
+  Map<String, dynamic> _latestBooking = const {};
   @override
   void dispose() {
     _note.dispose();
@@ -41,14 +45,16 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
 
   Future<void> _save(DateTime? checkIn) async {
     if (_saving) return;
-    if (_result == null || (_result != 'done' && _note.text.trim().isEmpty)) {
-      setState(() => _error = '請選擇結果；未完整執行時，請說明原因與後續安排。');
+    if (_result == null) {
+      setState(() => _error = '請選擇執行結果。');
       return;
     }
     final timeError = serviceActualTimeError(
-      actual: _actual,
+      actual: _result == 'skipped' ? DateTime.now() : _actual,
       checkIn: checkIn,
       now: DateTime.now(),
+      skipped: _result == 'skipped',
+      timeTest: activeBookingTimeTest(_latestBooking, widget.bookingId) != null,
     );
     if (timeError != null) {
       setState(() => _error = timeError);
@@ -66,8 +72,11 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
         'taskId': widget.taskId,
         'scheduledAt': widget.scheduledAt,
         'result': _result,
+        if (_expectedRevision != null) 'expectedRevision': _expectedRevision,
         'note': _note.text.trim(),
-        'actualAt': _actual.toUtc().toIso8601String(),
+        'actualAt': (_result == 'skipped' ? DateTime.now() : _actual)
+            .toUtc()
+            .toIso8601String(),
       });
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -118,6 +127,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                 return const Center(child: Text('正在讀取或訂單已不存在'));
               }
               final b = snapshot.data!;
+              _latestBooking = b;
               if (b['shopId'] != widget.shopId) {
                 return const Center(child: Text('找不到這筆服務'));
               }
@@ -134,6 +144,16 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
               if (task == null) {
                 return const Center(child: Text('時程已變更，請回待辦重新開啟'));
               }
+              if (!_loadedRecord) {
+                _loadedRecord = true;
+                if (task.record.isNotEmpty) {
+                  _expectedRevision =
+                      (task.record['revision'] as num?)?.toInt() ?? 0;
+                  _result = task.result;
+                  _actual = task.actualAt ?? _actual;
+                  _note.text = '${task.record['note'] ?? ''}';
+                }
+              }
               final checkIn = serviceBookingStart(b);
               final today = BookingMedicationTask.dateKey(
                 BookingMedicationTask.taipei(DateTime.now()),
@@ -141,7 +161,6 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
               final writable =
                   widget.canManage &&
                   BookingServiceTask.canRecord(b) &&
-                  task.pending &&
                   task.petId.isNotEmpty;
               return Align(
                 alignment: Alignment.topCenter,
@@ -150,6 +169,10 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                   child: ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
+                      BookingTimeTestBanner(
+                        booking: b,
+                        bookingId: widget.bookingId,
+                      ),
                       _ServiceSection(
                         icon: Icons.pets_outlined,
                         title: task.title,
@@ -207,18 +230,21 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                           icon: Icons.schedule,
                           title: '執行時間',
                           children: [
-                            CareActualTimeField(
-                              scheduledAt: _scheduled,
-                              value: _actual,
-                              enabled: !_saving,
-                              onChanged: (value) => setState(() {
-                                _actual = value;
-                                _error = null;
-                              }),
-                            ),
-                            if (checkIn != null)
+                            if (_result == 'skipped')
+                              const Text('未執行只記錄本次確認時間，原訂時段保留；費用另以加收／減免核對。')
+                            else
+                              CareActualTimeField(
+                                scheduledAt: _scheduled,
+                                value: _actual,
+                                enabled: !_saving,
+                                onChanged: (value) => setState(() {
+                                  _actual = value;
+                                  _error = null;
+                                }),
+                              ),
+                            if (_result != 'skipped' && checkIn != null)
                               Text('入住起算時間 ${_taipeiDateTimeLabel(checkIn)}'),
-                            if (task.day == today)
+                            if (_result != 'skipped' && task.day == today)
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: TextButton(
@@ -250,7 +276,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                               decoration: InputDecoration(
                                 labelText: _result == 'done'
                                     ? '給家長的說明（選填）'
-                                    : '原因與後續安排（必填）',
+                                    : '原因與後續安排（選填）',
                                 hintText: '可記錄服務情況與後續安排。',
                                 border: const OutlineInputBorder(),
                               ),
@@ -263,7 +289,7 @@ class _ServiceTaskPageState extends State<ServiceTaskPage> {
                           title: '送出前確認',
                           children: [
                             const Text(
-                              '送出後會通知客戶並同步到訂單。若有照護回報，也會帶入同日回報。送出前請確認寵物與時段，結果儲存後無法覆寫。',
+                              '送出後會通知客戶並同步到訂單。若有照護回報，也會帶入同日回報。送出前請確認寵物與時段，填寫錯誤可重新開啟修正。',
                             ),
                             if (_result == 'partial' || _result == 'skipped')
                               const Text(
@@ -388,13 +414,17 @@ String? serviceActualTimeError({
   required DateTime actual,
   required DateTime? checkIn,
   required DateTime now,
+  bool skipped = false,
+  bool timeTest = false,
 }) {
-  if (checkIn == null) return '缺少有效的入住時間，請先核對訂單資料。';
-  if (actual.millisecondsSinceEpoch ~/ 60000 <
-      checkIn.millisecondsSinceEpoch ~/ 60000) {
+  if (!skipped && checkIn == null) return '缺少有效的入住時間，請先核對訂單資料。';
+  if (!skipped &&
+      checkIn != null &&
+      actual.millisecondsSinceEpoch ~/ 60000 <
+          checkIn.millisecondsSinceEpoch ~/ 60000) {
     return '實際時間早於入住時間 ${_taipeiDateTimeLabel(checkIn)}，請修改時間。';
   }
-  if (actual.isAfter(now.add(const Duration(minutes: 1)))) {
+  if (!timeTest && actual.isAfter(now.add(const Duration(minutes: 1)))) {
     return '實際時間晚於現在，請修改時間。';
   }
   return null;

@@ -1,5 +1,6 @@
 import '../environment/environment_photo.dart';
 import 'editorial_section_widgets.dart';
+import 'home_diary_widgets.dart';
 import '../../data/environment_feature_icons.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'environment_end_entry.dart';
@@ -69,6 +70,7 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
     );
     switch (setting.layout) {
       case HomeEnvironmentLayouts.featureCards:
+      case HomeEnvironmentLayouts.diaryRows:
         final raw = environmentIntro['features'];
         final items = raw is List
             ? raw
@@ -86,6 +88,13 @@ class ModernHomeEnvironmentSection extends StatelessWidget {
           return preview
               ? const Text('請至環境介紹管理新增特色，首頁會自動同步。')
               : const SizedBox.shrink();
+        if (setting.layout == HomeEnvironmentLayouts.diaryRows) {
+          return HomeDiaryEnvironmentRows(
+            items: items,
+            theme: theme,
+            onOpen: _open,
+          );
+        }
         return EnvironmentHighlightCards(
           items: items,
           photoHeight: switch (setting.imageHeight) {

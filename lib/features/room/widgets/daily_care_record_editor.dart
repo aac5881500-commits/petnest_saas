@@ -49,6 +49,7 @@ class DailyCareRecordEditor extends StatefulWidget {
     this.readOnly = false,
     this.padding = const EdgeInsets.all(16),
     this.showHeaderCard = true,
+    this.showTaskSummary = true,
     this.onSaved,
   });
 
@@ -76,6 +77,9 @@ class DailyCareRecordEditor extends StatefulWidget {
 
   /// 嵌入右側面板時可關閉頁首卡片，避免資訊重複。
   final bool showHeaderCard;
+
+  /// Dedicated daily-care dialogs omit the separate medication/service worklist.
+  final bool showTaskSummary;
 
   /// 儲存成功後的回呼。
   ///
@@ -176,8 +180,10 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
       final booking = bookingSnap.data();
       final pets = booking?['pets'];
       final ids = booking?['petIds'];
-      _hasMultiplePets = (pets is List && pets.length > 1) ||
-          (ids is List && ids.length > 1) || widget.petIds.length > 1;
+      _hasMultiplePets =
+          (pets is List && pets.length > 1) ||
+          (ids is List && ids.length > 1) ||
+          widget.petIds.length > 1;
       _locked =
           widget.readOnly ||
           !DailyCareReportWriteAccess.canWrite(bookingSnap.data());
@@ -631,11 +637,12 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
                     onTap: _openPetReports,
                   ),
                 ),
-              StaffDailyCareMedicationSummary(
-                key: ValueKey(widget.bookingId),
-                bookingId: widget.bookingId,
-                recordDate: widget.recordDate,
-              ),
+              if (widget.showTaskSummary)
+                StaffDailyCareMedicationSummary(
+                  key: ValueKey(widget.bookingId),
+                  bookingId: widget.bookingId,
+                  recordDate: widget.recordDate,
+                ),
               if (_locked) ...<Widget>[
                 if (widget.showHeaderCard) const SizedBox(height: 12),
                 _lockBanner(),
@@ -897,16 +904,17 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
               Flexible(
                 child: DailyCarePetReports(
                   readOnly: _locked,
-                  request: (action) => DailyCarePhotoFunctionService.instance.managePetReport(
-                    shopId: widget.shopId,
-                    bookingId: widget.bookingId,
-                    roomId: widget.roomId,
-                    roomName: widget.roomName,
-                    recordDate: widget.recordDate,
-                    sessionIndex: widget.sessionIndex,
-                    sessionName: widget.sessionName,
-                    action: action,
-                  ),
+                  request: (action) =>
+                      DailyCarePhotoFunctionService.instance.managePetReport(
+                        shopId: widget.shopId,
+                        bookingId: widget.bookingId,
+                        roomId: widget.roomId,
+                        roomName: widget.roomName,
+                        recordDate: widget.recordDate,
+                        sessionIndex: widget.sessionIndex,
+                        sessionName: widget.sessionName,
+                        action: action,
+                      ),
                 ),
               ),
             ],

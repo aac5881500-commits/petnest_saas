@@ -246,7 +246,7 @@ class DailyCareIllustratedShell extends StatelessWidget {
       setting: visual,
       layout: layout,
       fill: fill,
-      padding: padding,
+      padding: setting == null ? padding : EdgeInsets.all(visual.cardPadding),
       longText: longText,
       child: body,
     );

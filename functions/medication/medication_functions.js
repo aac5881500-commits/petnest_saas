@@ -2,6 +2,7 @@
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("../platform/inspection_write_guard");
 const {hasShopPermission} = require("../daycare/daycare_utils");
+const {readWindow} = require("../platform/booking_time_test");
 const logic = require("./medication_logic");
 const {settlementFields} = require("../bookings/booking_settlement_math");
 const region = "asia-east1";
@@ -149,23 +150,34 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
       } else if (action === "record") {
         assert(m.state === "confirmed" && booking.status === "checked_in", "failed-precondition", "僅入住中且雙方已確認的需求可記錄");
         assert(logic.RESULTS.includes(data.result), "invalid-argument", "執行結果不正確");
-        if (data.result !== "done") assert(note, "invalid-argument", "未完成或拌食待確認時請填寫說明");
         const index = m.tasks.findIndex((t) => t.id === data.taskId);
         assert(index >= 0, "not-found", "找不到用藥待辦");
         const task = m.tasks[index];
-        assert(!task.finished && ["pending", "mixed", "partial"].includes(task.result), "failed-precondition", "此項已記錄最終結果，請勿重複執行");
+        assert(data.correctResult === true || (!task.finished && ["pending", "mixed", "partial"].includes(task.result)),
+            "failed-precondition", "此項已有結果，請重新開啟紀錄後修正");
         assert(data.result !== "mixed" || task.medicineIds.every((id) => m.request.medicines.find((x) => x.id === id).mix), "invalid-argument", "只有全部採拌食的待辦可記為待確認食用");
+        const testWindow = await readWindow(tx, db, bookingId, booking, Date.now());
         const actual = new Date(data.actualAt);
-        assert(Number.isFinite(actual.getTime()) && actual.getTime() <= Date.now() + 60000 && actual >= new Date(booking.checkInAt && booking.checkInAt.toDate ? booking.checkInAt.toDate() : m.request.careStart), "invalid-argument", "實際時間不得在入住前或未來");
-        assert(new Date(task.scheduledAt).getTime() <= Date.now() + 30 * 60000 || data.result === "skipped" || (data.medicineResults && Object.values(data.medicineResults).length > 0 && Object.values(data.medicineResults).every((v) => v === "skipped")), "failed-precondition", "尚未到執行時間；若已不需執行請記錄未執行及原因");
+        assert(Number.isFinite(actual.getTime()), "invalid-argument", "實際時間格式不正確");
+        assert(testWindow || actual.getTime() <= Date.now() + 60000, "invalid-argument", "實際時間不可晚於現在，請修改時間");
+        const parseDate = (value) => new Date(value && typeof value.toDate === "function" ? value.toDate() : value);
+        const allSkipped = data.medicineResults ? task.medicineIds.every((id) => data.medicineResults[id] === "skipped") : data.result === "skipped";
+        const start = parseDate(booking.startDate || m.request.careStart);
+        assert(allSkipped || Number.isFinite(start.getTime()) && actual.getTime() >= Math.floor(start.getTime() / 60000) * 60000, "invalid-argument", "實際時間早於預約入住日期，請核對日期與時間");
+        const checkedIn = booking.checkInAt ? parseDate(booking.checkInAt) : null;
+        const beforeCheckIn = !allSkipped && checkedIn && Number.isFinite(checkedIn.getTime()) && actual.getTime() < Math.floor(checkedIn.getTime() / 60000) * 60000;
+        if (beforeCheckIn) assert(data.lateCheckInBackfill === true, "invalid-argument", "實際時間早於系統辦理入住時間；若為晚辦入住補登，請勾選確認");
+        assert(testWindow || new Date(task.scheduledAt).getTime() <= Date.now() + 30 * 60000 || data.result === "skipped" || (data.medicineResults && Object.values(data.medicineResults).length > 0 && Object.values(data.medicineResults).every((v) => v === "skipped")), "failed-precondition", "尚未到執行時間；若已不需執行請記錄未執行");
         const medicineResults = {};
         for (const id of task.medicineIds) {
           const value = data.medicineResults ? data.medicineResults[id] : data.result;
           assert(logic.RESULTS.includes(value), "invalid-argument", "請記錄每項藥品的執行結果");
           assert(value !== "mixed" || m.request.medicines.find((x) => x.id === id).mix, "invalid-argument", "只有可拌食藥品可標記待確認食用");
-          if (value !== "done") assert(note, "invalid-argument", "非完成結果須填寫說明");
+
+
           const previous = task.medicineResults && task.medicineResults[id];
-          assert(!["done", "failed", "skipped"].includes(previous) || previous === value, "failed-precondition", "已記錄最終結果的藥品不得重新給藥或覆寫");
+          assert(data.correctResult === true || !["done", "failed", "skipped"].includes(previous) || previous === value,
+              "failed-precondition", "請重新開啟紀錄後修正已填寫的結果");
           medicineResults[id] = value;
         }
         const values = Object.values(medicineResults);
@@ -198,8 +210,8 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
                 .map(({id, name, dose, instruction}) => [id,
                   ["done", "failed", "skipped"].includes(task.medicineResults?.[id]) && task.medicineDetailsSnapshot?.[id] ||
                   {name: name || "", dose: dose || "", instruction: instruction || ""}]));
-        next.tasks[index] = {...task, result, medicineResults, medicineDetailsSnapshot, finished, actualAt: actual.toISOString(), by: uid, byName: actorName, note};
-        history.push({action, at: now, by: uid, taskId: task.id, previousResult: task.result, result, medicineResults, actualAt: actual.toISOString(), note});
+        next.tasks[index] = {...task, result, medicineResults, medicineDetailsSnapshot, finished, actualAt: actual.toISOString(), by: uid, byName: actorName, note, ...(testWindow ? {timeTest: testWindow, recordedAt: now} : {}), ...(beforeCheckIn ? {lateCheckInBackfill: true, recordedAt: now, checkInAtSnapshot: checkedIn.toISOString()} : {})};
+        history.push({action, at: now, by: uid, taskId: task.id, previousTask: task, previousResult: task.result, result, medicineResults, actualAt: actual.toISOString(), note, ...(testWindow ? {timeTest: testWindow} : {}), ...(beforeCheckIn ? {lateCheckInBackfill: true, checkInAtSnapshot: checkedIn.toISOString()} : {})});
       } else if (action === "finalize") {
         assert(m.state === "confirmed", "failed-precondition", "請先完成雙方確認");
         assert(["checked_in", "checked_out"].includes(booking.status), "failed-precondition", "僅入住或退房中的訂單可結算");
@@ -230,7 +242,7 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
       next.history = history;
       assert(Buffer.byteLength(JSON.stringify(next), "utf8") < 750000, "resource-exhausted", "用藥資料接近容量上限，請減少說明或分段安排");
       next.revision = m.revision + 1;
-      const notice = {
+      let notice = {
         confirmAtArrival: "店家已登記到店核對的用藥安排，請至訂單「服務與用藥」查看。",
         propose: "用藥安排與費用已提出，請開啟訂單確認。",
         accept: "客人已同意用藥安排與費用。",
@@ -239,8 +251,21 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
         cancel: "本次用藥協助已取消，請查看訂單確認。",
         finalize: "用藥費已整理並帶入退房結算，請查看訂單明細。",
       }[action] || (action === "record" && next.tasks.some((t) => t.id === data.taskId && t.result !== "done") ? "用藥協助有待確認或未完成事項，請查看訂單紀錄。" : action === "record" ? "用藥結果已更新，請至訂單「服務與用藥」查看實際時間與紀錄。" : "");
-      if (notice) {
-        const senderType = customer ? "customer" : "shop";
+      if (action === "record" && next.tasks.find((t) => t.id === data.taskId)?.timeTest) notice = "【測試訂單】" + notice;
+      if (notice && !customer && booking.userId) {
+        const data = {type: "booking_status", section: "care",
+          careKind: "medication", bookingId, shopId: booking.shopId};
+        tx.set(db.collection("notifications").doc(
+            `care_medication_${bookingId}_${next.revision}`), {
+          userId: booking.userId, title: action === "record" ? "用藥紀錄已更新" : "用藥安排已更新",
+          body: notice, ...data, data,
+          source: "system", category: "transactional", isMandatory: true,
+          status: "active", isRead: false, readAt: null,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      if (notice && customer) {
+        const senderType = "customer";
         const message = db.collection(`bookings/${bookingId}/messages`).doc(`medication_${next.revision}`);
         tx.set(message, {bookingId, senderId: uid, senderType, text: notice, createdAt: admin.firestore.FieldValue.serverTimestamp(), source: "medication"});
         patch.lastMessageText = notice;
@@ -250,7 +275,7 @@ exports.manageBookingMedication = onCall({region}, async (req) => {
         patch[unreadKey] = Number(booking[unreadKey] || 0) + 1;
       }
       tx.update(ref, {...patch, medication: next, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
-      return {ok: true};
+      return {ok: true, ...(action === "record" ? {medication: next} : {})};
     });
   } catch (e) {
     if (e instanceof HttpsError) throw e;

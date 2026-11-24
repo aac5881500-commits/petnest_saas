@@ -3,6 +3,7 @@
 import 'package:flutter/widgets.dart';
 
 class HomeRoomSectionLayouts {
+  static const String diaryCards = 'diaryCards';
   static const String catalog = 'catalog';
   static const String horizontalScroll = 'horizontalScroll';
   static const String cardGrid = 'cardGrid';
@@ -10,6 +11,7 @@ class HomeRoomSectionLayouts {
   static const String featured = 'featured';
   static const String refinedCards = 'refinedCards';
   static const List<String> all = <String>[
+    diaryCards,
     catalog,
     horizontalScroll,
     cardGrid,
@@ -20,6 +22,8 @@ class HomeRoomSectionLayouts {
 
   static String label(String value) {
     switch (value) {
+      case diaryCards:
+        return '日常誌・雙卡相簿與箭頭';
       case catalog:
         return '圖文標籤橫滑卡';
       case cardGrid:
@@ -38,6 +42,8 @@ class HomeRoomSectionLayouts {
   /// 舊版型只在讀取時轉換，不回寫 Firestore，直到店主再次儲存。
   static String migrate(Object? raw) {
     switch (raw?.toString().trim()) {
+      case diaryCards:
+        return diaryCards;
       case catalog:
         return catalog;
       case horizontalScroll:

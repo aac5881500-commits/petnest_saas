@@ -10,6 +10,35 @@ class BookingDetailUi {
   static ShopFrontendTheme of(BuildContext context) =>
       ShopFrontendTheme.of(context);
 
+  static ShopFrontendTheme milkTea(ShopFrontendTheme source) =>
+      ShopFrontendTheme(
+        home: source.home.copyWith(
+          backgroundColorValue: 0xFFF7F2EB,
+          cardColorValue: 0xFFFFFCF8,
+          cardBorderColorValue: 0xFFE4D9CB,
+          primaryColorValue: 0xFF7B8050,
+          textColorValue: 0xFF493B2F,
+          secondaryTextColorValue: 0xFF817465,
+          buttonBackgroundColorValue: 0xFF7B8050,
+          buttonTextColorValue: 0xFFFFFFFF,
+        ),
+        primaryColor: const Color(0xFF7B8050),
+        secondaryColor: const Color(0xFF746348),
+        pageBackgroundColor: const Color(0xFFF7F2EB),
+        cardColor: const Color(0xFFFFFCF8),
+        titleColor: const Color(0xFF493B2F),
+        bodyTextColor: const Color(0xFF493B2F),
+        subtitleColor: const Color(0xFF817465),
+        borderColor: const Color(0xFFE4D9CB),
+        buttonColor: const Color(0xFF7B8050),
+        onPrimaryColor: Colors.white,
+        primarySoft: const Color(0xFFEEEEDC),
+        disabledColor: const Color(0xFFB9B2A5),
+      );
+
+  static bool isMilkTea(BuildContext context) =>
+      context.findAncestorWidgetOfExactType<BookingDetailMilkTeaScope>() !=
+      null;
   static const double radius = 20;
   static const double pagePadding = 16;
   static const double cardGap = 18;
@@ -28,17 +57,19 @@ class BookingDetailUi {
     Color? borderColor,
   }) {
     final ShopFrontendTheme theme = of(context);
+    final milk = isMilkTea(context);
     return BoxDecoration(
       color: color ?? Color.lerp(theme.cardColor, theme.background, 0.15),
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(milk ? 18 : radius),
       border: Border.all(
-        color: borderColor ?? theme.borderColor.withValues(alpha: 0.38),
+        color:
+            borderColor ?? theme.borderColor.withValues(alpha: milk ? .8 : .38),
       ),
-      boxShadow: const <BoxShadow>[
+      boxShadow: <BoxShadow>[
         BoxShadow(
-          color: Color(0x073A2A20),
-          blurRadius: 24,
-          offset: Offset(0, 6),
+          color: Color(milk ? 0x043A2A20 : 0x073A2A20),
+          blurRadius: milk ? 12 : 24,
+          offset: Offset(0, milk ? 3 : 6),
         ),
       ],
     );
@@ -71,10 +102,13 @@ class BookingDetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final milk = BookingDetailUi.isMilkTea(context);
+    final gap = milk ? 14.0 : BookingDetailUi.cardGap;
+    final inset = milk ? 18.0 : BookingDetailUi.cardPadding;
     final Widget content = Container(
       width: double.infinity,
-      margin: margin ?? const EdgeInsets.only(bottom: BookingDetailUi.cardGap),
-      padding: padding ?? const EdgeInsets.all(BookingDetailUi.cardPadding),
+      margin: margin ?? EdgeInsets.only(bottom: gap),
+      padding: padding ?? EdgeInsets.all(inset),
       decoration: BookingDetailUi.cardDecoration(context),
       child: child,
     );
@@ -84,16 +118,17 @@ class BookingDetailCard extends StatelessWidget {
     }
 
     return Padding(
-      padding: margin ?? const EdgeInsets.only(bottom: BookingDetailUi.cardGap),
+      padding: margin ?? EdgeInsets.only(bottom: gap),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(BookingDetailUi.radius),
+          borderRadius: BorderRadius.circular(
+            milk ? 18 : BookingDetailUi.radius,
+          ),
           child: Ink(
             width: double.infinity,
-            padding:
-                padding ?? const EdgeInsets.all(BookingDetailUi.cardPadding),
+            padding: padding ?? EdgeInsets.all(inset),
             decoration: BookingDetailUi.cardDecoration(context),
             child: child,
           ),
@@ -113,21 +148,47 @@ class BookingDetailSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Container(
-          width: 4,
-          height: 18,
-          margin: const EdgeInsets.only(right: 10),
-          decoration: BoxDecoration(
-            color: BookingDetailUi.of(context).primary.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(4),
+        if (BookingDetailUi.isMilkTea(context))
+          Padding(
+            padding: const EdgeInsets.only(right: 9),
+            child: Icon(
+              text.contains('寵物')
+                  ? Icons.pets_outlined
+                  : text.contains('費用')
+                  ? Icons.receipt_long_outlined
+                  : text.contains('聯絡')
+                  ? Icons.call_outlined
+                  : text.contains('飼主')
+                  ? Icons.person_outline
+                  : Icons.notes_rounded,
+              color: BookingDetailUi.of(context).secondaryColor,
+              size: 22,
+            ),
+          )
+        else
+          Container(
+            width: 4,
+            height: 18,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(
+              color: BookingDetailUi.of(
+                context,
+              ).primary.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
-        ),
         Expanded(
           child: Text(
             text,
             style: TextStyle(
               fontSize: BookingDetailUi.sectionTitleSize,
-              fontWeight: FontWeight.w700,
+              fontFamily: BookingDetailUi.isMilkTea(context)
+                  ? 'NotoSerifTC'
+                  : null,
+              fontWeight: FontWeight.w800,
+              fontVariations: BookingDetailUi.isMilkTea(context)
+                  ? const [FontVariation('wght', 800)]
+                  : null,
               color: BookingDetailUi.of(context).text,
             ),
           ),
@@ -342,6 +403,105 @@ class BookingDetailResponsiveLayout extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Customer order detail appearance; business state and shop configuration stay intact.
+class BookingDetailMilkTeaScope extends StatelessWidget {
+  const BookingDetailMilkTeaScope({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    final palette = BookingDetailUi.milkTea(ShopFrontendTheme.of(context));
+    final base = Theme.of(context);
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: palette.primary,
+          primary: palette.primary,
+          onPrimary: Colors.white,
+          surface: palette.card,
+          onSurface: palette.text,
+          error: const Color(0xFFB65045),
+        ).copyWith(
+          primaryContainer: palette.primary,
+          onPrimaryContainer: Colors.white,
+          surfaceContainerLow: const Color(0xFFF0E9DF),
+          onSurfaceVariant: palette.muted,
+          outline: palette.border,
+        );
+    final readable = base.textTheme.apply(
+      fontFamily: 'NotoSansTC',
+      bodyColor: palette.text,
+      displayColor: palette.text,
+    );
+    return ShopFrontendThemeInherited(
+      theme: palette,
+      child: Theme(
+        data: base.copyWith(
+          colorScheme: scheme,
+          scaffoldBackgroundColor: palette.background,
+          textTheme: readable.copyWith(
+            bodyLarge: readable.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontVariations: const [FontVariation('wght', 600)],
+              height: 1.5,
+            ),
+            bodyMedium: readable.bodyMedium?.copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              fontVariations: const [FontVariation('wght', 600)],
+              height: 1.5,
+            ),
+            bodySmall: readable.bodySmall?.copyWith(
+              fontWeight: FontWeight.w500,
+              fontVariations: const [FontVariation('wght', 550)],
+              height: 1.45,
+            ),
+            labelLarge: readable.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontVariations: const [FontVariation('wght', 700)],
+            ),
+            labelMedium: readable.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontVariations: const [FontVariation('wght', 600)],
+            ),
+            titleLarge: readable.titleLarge?.copyWith(
+              fontFamily: 'NotoSerifTC',
+              fontWeight: FontWeight.w800,
+              fontVariations: const [FontVariation('wght', 800)],
+            ),
+            titleMedium: readable.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontVariations: const [FontVariation('wght', 700)],
+            ),
+          ),
+          appBarTheme: base.appBarTheme.copyWith(
+            backgroundColor: palette.background,
+            foregroundColor: palette.text,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+          ),
+          cardTheme: CardThemeData(
+            color: palette.card,
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: palette.border),
+            ),
+          ),
+          chipTheme: base.chipTheme.copyWith(
+            backgroundColor: palette.card,
+            selectedColor: palette.iconSoft,
+            side: BorderSide(color: palette.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        child: child,
+      ),
     );
   }
 }

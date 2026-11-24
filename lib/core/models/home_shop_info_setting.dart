@@ -39,6 +39,7 @@ class HomeShopInfoSetting {
     'compact': '固定底部・精簡資訊列',
   };
   static const layouts = {
+    'diaryContact': '日常誌・品牌資訊並排與底部聯絡',
     'photoContact': '左側照片・右側資訊與聯絡按鈕',
     'stacked': '直式資訊卡',
     'side': '照片與店名並排',

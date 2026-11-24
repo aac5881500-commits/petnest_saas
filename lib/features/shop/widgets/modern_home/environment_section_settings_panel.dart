@@ -218,7 +218,8 @@ class _EnvironmentSectionSettingsPanelState
           ),
         ]),
         _card('目前版型設定', [
-          if (setting.layout == HomeEnvironmentLayouts.featureCards) ...[
+          if (setting.layout == HomeEnvironmentLayouts.featureCards ||
+              setting.layout == HomeEnvironmentLayouts.diaryRows) ...[
             const Text('內容引用環境介紹管理的特色卡片，不需在首頁重複輸入。'),
             TextButton(
               onPressed: widget.onManage,

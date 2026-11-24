@@ -1,4 +1,5 @@
 import 'editorial_section_widgets.dart';
+import 'home_diary_reference_widgets.dart';
 import 'home_card_image.dart';
 import 'environment_end_entry.dart';
 import 'package:flutter/material.dart';
@@ -63,6 +64,16 @@ class ModernHomeFaqSection extends StatelessWidget {
             imageUrl: imageUrl,
           ),
         ],
+      );
+    }
+    if (setting.layout == HomeFaqLayouts.diaryDoor) {
+      return HomeDiaryDoor(
+        theme: theme,
+        title: setting.entryTitle,
+        subtitle: setting.entrySubtitle,
+        icon: Icons.forum_outlined,
+        onOpen: onOpen,
+        blue: true,
       );
     }
     final List<HomeFaqItem> source = items;

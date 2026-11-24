@@ -168,7 +168,9 @@ class _NewsSectionSettingsPanelState extends State<NewsSectionSettingsPanel> {
   Widget _details(String layout) {
     final HomeNewsSectionSetting setting = widget.setting;
     final bool single = layout == HomeNewsLayouts.singleLine;
-    final bool multi = layout == HomeNewsLayouts.multiLine;
+    final bool multi =
+        layout == HomeNewsLayouts.multiLine ||
+        layout == HomeNewsLayouts.diaryNotes;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[

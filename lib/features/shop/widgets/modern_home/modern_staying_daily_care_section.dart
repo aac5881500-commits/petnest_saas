@@ -14,6 +14,10 @@ import '../../../../core/models/daily_care_photo_model.dart';
 import '../../../../core/services/inspection_owner_context.dart';
 import '../../../../core/services/daily_care_setting_service.dart';
 import '../../../booking/pages/customer_daily_care_page.dart';
+import 'home_diary_widgets.dart';
+import '../../../../core/models/booking_medication_task.dart';
+import '../../../../core/models/booking_service_task.dart';
+import '../../../booking/pages/booking_detail_page.dart';
 
 class ModernStayingDailyCareSection extends StatelessWidget {
   const ModernStayingDailyCareSection({
@@ -85,7 +89,9 @@ class _StaysState extends State<_Stays> {
             bookings.data?.docs.where((doc) {
               final data = doc.data();
               return !BookingKind.isDaycare(data) &&
-                  !DailyCareEntitlement.explicitlyNoReports(data);
+                  data['checkOutAt'] == null &&
+                  data['checkedOutAt'] == null &&
+                  data['actualEndAt'] == null;
             }).toList() ??
             [];
         if (stays.isEmpty) return const SizedBox.shrink();
@@ -95,13 +101,33 @@ class _StaysState extends State<_Stays> {
             return Column(
               children: [
                 for (final stay in stays)
-                  _StayCard(
+                  Column(
                     key: ValueKey(stay.id),
-                    shopId: widget.shopId,
-                    bookingId: stay.id,
-                    booking: stay.data(),
-                    setting: settings.data,
-                    theme: widget.theme,
+                    children: [
+                      if (!DailyCareEntitlement.explicitlyNoReports(
+                        stay.data(),
+                      ))
+                        _StayCard(
+                          shopId: widget.shopId,
+                          bookingId: stay.id,
+                          booking: stay.data(),
+                          setting: settings.data,
+                          theme: widget.theme,
+                        ),
+                      StayingServiceUpdates(
+                        booking: stay.data(),
+                        theme: widget.theme,
+                        onOpen: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => BookingDetailPage(
+                              data: stay.data(),
+                              docId: stay.id,
+                              showCare: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
               ],
             );
@@ -114,7 +140,6 @@ class _StaysState extends State<_Stays> {
 
 class _StayCard extends StatefulWidget {
   const _StayCard({
-    super.key,
     required this.shopId,
     required this.bookingId,
     required this.booking,
@@ -184,6 +209,34 @@ class _StayCardState extends State<_StayCard> {
             : ready
             ? '$label ${done.length}／$count 場已更新'
             : '正在讀取回報進度';
+        if (theme.storybook.enabled &&
+            theme.storybook.diary.enabled &&
+            theme.storybook.diary.compactCare) {
+          return HomeDiaryCareRibbon(
+            petNames: stay.petNamesText,
+            petPhotoUrl:
+                stay.pets.where((pet) => pet.hasPhoto).firstOrNull?.photoUrl ??
+                '',
+            progressText: progressText,
+            theme: theme,
+            count: count,
+            completed: done,
+            ready: ready,
+            onOpen: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => CustomerDailyCarePage(
+                  shopId: widget.shopId,
+                  bookingId: widget.bookingId,
+                  roomName: stay.roomName,
+                  initialDate: careDay,
+                  initialSessionIndex: done.isEmpty
+                      ? null
+                      : completed.last.sessionIndex,
+                ),
+              ),
+            ),
+          );
+        }
         return Card(
           elevation: 0,
           color: theme.cardColor,
@@ -402,6 +455,140 @@ class _CareStage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class StayingServiceUpdates extends StatelessWidget {
+  const StayingServiceUpdates({
+    super.key,
+    required this.booking,
+    required this.theme,
+    required this.onOpen,
+    this.today,
+  });
+  final Map<String, dynamic> booking;
+  final HomeThemeModel theme;
+  final VoidCallback onOpen;
+  final DateTime? today;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = BookingMedicationTask.dateKey(
+      today ?? DailyCareDateHelper.todayInTaipei(),
+    );
+    if (booking['status'] != 'checked_in' ||
+        booking['checkOutAt'] != null ||
+        booking['checkedOutAt'] != null ||
+        booking['actualEndAt'] != null) {
+      return const SizedBox.shrink();
+    }
+    final medication = BookingMedicationTask.fromBooking(booking);
+    final services = BookingServiceTask.fromBooking(booking);
+    if (medication.isEmpty && services.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final todayMedication = medication
+        .where((task) => task.day == date)
+        .toList();
+    final todayServices = services.where((task) => task.day == date).toList();
+
+    Widget entry(String title, IconData icon, int total, int recorded) {
+      final accent = theme.primaryColor;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Material(
+          color: Color.alphaBlend(
+            accent.withValues(alpha: .065),
+            theme.cardColor,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onOpen,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: .10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: accent, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontFamily: theme.storybook.diary.enabled
+                                ? theme.storybook.diary.fontFamily
+                                : null,
+                            color: theme.textColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          total == 0 ? '今日無安排' : '今日 $recorded／$total 次已記錄',
+                          style: TextStyle(
+                            fontFamily: theme.storybook.diary.enabled
+                                ? theme.storybook.diary.fontFamily
+                                : null,
+                            color: theme.secondaryTextColor,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (total > 0) ...[
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              minHeight: 3,
+                              value: recorded / total,
+                              color: accent,
+                              backgroundColor: accent.withValues(alpha: .12),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.chevron_right, color: accent, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (medication.isNotEmpty)
+          entry(
+            '餵藥與用藥',
+            Icons.medication_outlined,
+            todayMedication.length,
+            todayMedication.where((task) => task.result != 'pending').length,
+          ),
+        if (services.isNotEmpty)
+          entry(
+            '專屬加購',
+            Icons.auto_awesome_outlined,
+            todayServices.length,
+            todayServices.where((task) => !task.pending).length,
+          ),
+      ],
     );
   }
 }

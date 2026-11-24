@@ -188,7 +188,28 @@ function quote(request, setting, tasks, booking, final = false) {
     units = petTypes.size * Math.max(1, Math.round((new Date(`${key(request.careEnd)}T00:00:00+08:00`) - new Date(`${key(request.careStart)}T00:00:00+08:00`)) / 86400000));
   }
   if (setting.mode === "free") manual = false;
-  return {units, amount: setting.mode === "free" ? 0 : manual ? null : units * setting.price, manual, plannedCount: tasks.length};
+  const billingBuckets = new Map();
+  const addBilling = (day, token) => {
+    if (!billingBuckets.has(day)) billingBuckets.set(day, new Set());
+    billingBuckets.get(day).add(token);
+  };
+  for (const t of included) {
+    const token = `${t.petId}|${setting.splitTypes ? meds.get(t.medicineIds[0]).type : "all"}`;
+    let day = key(t.scheduledAt);
+    if (setting.mode === "day" && setting.dayRule === "stay_days") {
+      const first = key(booking.startDate || request.careStart);
+      const end = key(booking.endDate || request.careEnd);
+      const last = end > first ? key(new Date(`${end}T00:00:00+08:00`).getTime() - 86400000) : first;
+      day = day > last ? last : day < first ? first : day;
+    }
+    if (setting.mode === "night" || (setting.mode === "day" && setting.dayRule === "all_dates")) {
+      const first = new Date(`${key(request.careStart)}T00:00:00+08:00`);
+      const count = setting.mode === "night" ? Math.max(1, Math.round((new Date(`${key(request.careEnd)}T00:00:00+08:00`) - first) / 86400000)) : Math.round((new Date(`${key(request.careEnd)}T00:00:00+08:00`) - first) / 86400000) + 1;
+      for (let n = 0; n < count; n++) addBilling(key(first.getTime() + n * 86400000), token);
+    } else addBilling(day, setting.mode === "day" ? token : t.id);
+  }
+  const billingDays = [...billingBuckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, tokens]) => ({date: day, count: tokens.size}));
+  return {units, amount: setting.mode === "free" ? 0 : manual ? null : units * setting.price, manual, plannedCount: tasks.length, billingDays, billingMode: setting.mode, dayRule: setting.dayRule};
 }
 function validatePreferences(entries, booking, setting) {
   if (!Array.isArray(entries)) fail("用藥時段資料不正確");
@@ -318,6 +339,6 @@ function initial(raw, booking, rawSetting, uid) {
 }
 function checkoutGuard(booking) {
   const m = booking.medication;
-  if (m && !["declined", "cancelled"].includes(m.state) && !m.finalized) fail("請先在用藥協助完成需求確認、執行紀錄及費用結算，再辦理退房");
+  if (m && !["declined", "cancelled"].includes(m.state) && (!m.finalized || (m.tasks || []).some((t) => !t.finished && ["pending", "partial", "mixed"].includes(t.result)))) fail("請先在用藥協助完成需求確認、執行紀錄及費用結算，再辦理退房");
 }
-module.exports = {TYPES, RESULTS, settings, validateRequest, plan, quote, initial, checkoutGuard, key};
+module.exports = { TYPES, RESULTS, settings, validateRequest, plan, quote, initial, checkoutGuard, key};

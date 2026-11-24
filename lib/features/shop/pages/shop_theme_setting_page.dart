@@ -23,6 +23,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'home_preset_settings_page.dart';
 import 'package:petnest_saas/core/models/home_section_visibility.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
 import 'package:image_picker/image_picker.dart';
@@ -237,6 +238,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   String? _appearancePresetId;
+  final Map<String, HomeAppearanceDraft> _styleDrafts = {};
   String? _browsingPresetId;
   bool _showStayServiceStrip = true;
   Map<String, dynamic> _loadedShop = <String, dynamic>{};
@@ -1269,14 +1271,17 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  Map<String, dynamic> get _previewModernAppearance {
-    final HomeAppearancePreset? browsing = homeAppearancePresetById(
-      _browsingPresetId,
-    );
+  Map<String, dynamic> get _previewModernAppearance =>
+      _appearanceForPreset(homeAppearancePresetById(_browsingPresetId));
+
+  Map<String, dynamic> _appearanceForPreset(HomeAppearancePreset? browsing) {
     if (browsing == null) {
       return _draftModernAppearance;
     }
-    final HomeAppearanceDraft next = browsing.apply(_appearanceDraft);
+    return _appearanceForDraft(browsing.apply(_appearanceDraft));
+  }
+
+  Map<String, dynamic> _appearanceForDraft(HomeAppearanceDraft next) {
     return <String, dynamic>{
       ..._draftModernAppearance,
       ...next.storeHome.toMap(),
@@ -1308,7 +1313,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   void _applyAppearancePreset(HomeAppearancePreset preset) {
-    final HomeAppearanceDraft next = preset.apply(_appearanceDraft);
+    _applyStyleDraft(preset, preset.apply(_appearanceDraft));
+  }
+
+  void _applyStyleDraft(HomeAppearancePreset preset, HomeAppearanceDraft next) {
     setState(() {
       if (_selectedLayout != 'modern') {
         _storeSelectedLayoutSettings();
@@ -1347,10 +1355,45 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
+  Future<void> _openPresetSettings(HomeAppearancePreset preset) async {
+    if (_appearancePresetId != null) {
+      _styleDrafts[_appearancePresetId!] = _appearanceDraft;
+    }
+    final initial = _styleDrafts[preset.id] ?? preset.apply(_appearanceDraft);
+    final result = await Navigator.of(context).push<HomePresetSettingsResult>(
+      MaterialPageRoute(
+        builder: (context) => HomePresetSettingsPage(
+          preset: preset,
+          initialDraft: initial,
+          navigationState: _navShopState,
+          previewBuilder: (draft) => ModernHomeEditorPreview(
+            shopId: widget.shopId,
+            draftModernAppearance: _appearanceForDraft(draft),
+            draftLogoUrl: _modernLogoUrl,
+            draftFloatingContact: _draftFloatingContact,
+            draftStoreChatEnabled: _chatReady,
+            showCaption: false,
+            showPhoneChrome: true,
+          ),
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    _styleDrafts[preset.id] = result.draft;
+    _applyStyleDraft(preset, result.draft);
+    if (result.openSection != null) {
+      if (result.openSection == 'brand') {
+        _selectAppearanceCategory(AppearanceCategories.brand);
+      } else {
+        _selectHomeSection(result.openSection!);
+      }
+    }
+  }
+
   Widget _appearancePresetStrip() {
     return HomeAppearancePresetStrip(
       showHeading: false,
-      devicePreviewBuilder: (desktop, enlarged) => LayoutBuilder(
+      devicePreviewBuilder: (preset, desktop, enlarged) => LayoutBuilder(
         builder: (context, constraints) {
           final width = desktop ? 1280.0 : 390.0;
           final height = enlarged
@@ -1372,7 +1415,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
                 ),
                 child: ModernHomeEditorPreview(
                   shopId: widget.shopId,
-                  draftModernAppearance: _previewModernAppearance,
+                  draftModernAppearance: _appearanceForPreset(preset),
                   draftLogoUrl: _modernLogoUrl,
                   draftFloatingContact: _draftFloatingContact,
                   draftStoreChatEnabled: _chatReady,
@@ -1396,6 +1439,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
         setState(() => _browsingPresetId = null);
       },
       onApply: _applyAppearancePreset,
+      onOpenSettings: _openPresetSettings,
     );
   }
 
@@ -2843,6 +2887,29 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
   }
 
   List<Widget> _storeEntryCategory() => [
+    _editorCard(
+      title: '首頁精選商品排列',
+      subtitle: '只調整首頁商品卡；商品照片、價格及上下架沿用商城管理。',
+      child: DropdownButtonFormField<String>(
+        key: ValueKey('featured-layout-$_featuredProductLayout'),
+        initialValue: _featuredProductLayout,
+        isExpanded: true,
+        items: [
+          for (final layout in ModernFeaturedProductLayouts.all)
+            DropdownMenuItem(
+              value: layout,
+              child: Text(ModernFeaturedProductLayouts.label(layout)),
+            ),
+        ],
+        onChanged: (value) {
+          if (value != null)
+            setState(() {
+              _featuredProductLayout = value;
+              _appearanceDirty = true;
+            });
+        },
+      ),
+    ),
     _headingAccentColorSetting('storeEntrance'),
     KeyedSubtree(
       key: _storeSettingsKey,
@@ -3052,19 +3119,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
     );
   }
 
-  List<Widget> _presetCategory() {
-    return <Widget>[
-      _appearancePresetStrip(),
-      const SizedBox(height: 20),
-      _desktopLayoutCard(),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        onPressed: () => _selectHomeSection('shopInfo'),
-        icon: const Icon(Icons.storefront_outlined),
-        label: const Text('設定首頁底部店家資訊（照片、版型、聯絡按鈕）'),
-      ),
-    ];
-  }
+  List<Widget> _presetCategory() => [
+    const Text('選擇風格後進入該風格的設定頁。各款式分開預覽、微調，套用後再儲存首頁。'),
+    const SizedBox(height: 12),
+    _appearancePresetStrip(),
+  ];
 
   List<Widget> _backgroundCategory() {
     return <Widget>[
@@ -3078,6 +3137,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
 
   List<Widget> _otherAppearanceCategory() {
     return <Widget>[
+      _desktopLayoutCard(),
       _editorCard(
         title: '新版首頁基本外觀',
         subtitle: '目前使用新版首頁',

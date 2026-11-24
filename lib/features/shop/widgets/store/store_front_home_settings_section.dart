@@ -553,6 +553,13 @@ class StoreFrontHomeSettingsSectionState
           ),
           const Text('商品排列', style: TextStyle(fontWeight: FontWeight.w700)),
           _option(
+            ModernFeaturedProductLayouts.diaryCards,
+            _featuredLayout,
+            '日常誌・橫式圖文商品',
+            enabled,
+            (String value) => _edit(() => _featuredLayout = value),
+          ),
+          _option(
             ModernFeaturedProductLayouts.horizontal,
             _featuredLayout,
             '橫向滑動',

@@ -88,6 +88,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.appBarActions = const <Widget>[],
     this.phoneInlineActions,
     this.phoneStickyActions,
+    this.desktopStickyActions,
     this.splitPhoneActions = false,
     this.handover,
     this.handoverHasContent = false,
@@ -111,6 +112,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final List<Widget> appBarActions;
   final Widget? phoneInlineActions;
   final Widget? phoneStickyActions;
+  final Widget? desktopStickyActions;
   final bool splitPhoneActions;
   final Widget? handover;
   final bool handoverHasContent;
@@ -151,11 +153,13 @@ class AdminBookingDetailScaffold extends StatelessWidget {
               elevation: 0,
               titleSpacing: 0,
               automaticallyImplyLeading: onClose == null,
-              leading: onClose == null ? null : IconButton(
-                tooltip: '關閉訂單',
-                onPressed: onClose,
-                icon: const Icon(Icons.close),
-              ),
+              leading: onClose == null
+                  ? null
+                  : IconButton(
+                      tooltip: '關閉訂單',
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close),
+                    ),
               title: Row(
                 children: [
                   if (paneToggle != null) ...[
@@ -206,7 +210,7 @@ class AdminBookingDetailScaffold extends StatelessWidget {
                     (workspace != null &&
                         mode != AdminBookingDetailMode.desktop))
                 ? phoneStickyActions
-                : null,
+                : desktopStickyActions,
           ),
         );
       },

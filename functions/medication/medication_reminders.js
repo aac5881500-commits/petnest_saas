@@ -18,7 +18,7 @@ function reminderStage(task, now) {
     !["pending", "partial", "mixed"].includes(task.result)) return null;
   const remaining = Date.parse(task.scheduledAt) - now;
   if (!Number.isFinite(remaining)) return null;
-  if (remaining <= 0) return remaining >= -CATCH_UP_MS ? "due" : null;
+  if (remaining <= 0) return remaining >= -CATCH_UP_MS ? "due" : "overdue";
   return remaining <= ADVANCE_MS ? "soon" : null;
 }
 
@@ -64,6 +64,7 @@ async function sendMedicationReminders(db, send, clock = Date.now) {
         const key = createHash("sha256")
             .update(JSON.stringify([
               doc.id, task.id, task.scheduledAt, stage, userId,
+              ...(stage === "overdue" ? [new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Taipei"}).format(new Date(clock()))] : []),
             ]))
             .digest("hex");
         const claim = doc.ref
@@ -97,8 +98,8 @@ async function sendMedicationReminders(db, send, clock = Date.now) {
           await send({
             notificationId: `staff_medication_${key}`,
             userId,
-            title: stage === "soon" ? "用藥即將到點" : "用藥已到點",
-            body: `${time} 的照護待辦，請開啟 PetNest 查看。`,
+            title: stage === "overdue" ? "用藥逾時未登錄，請補登結果" : stage === "soon" ? "用藥即將到點" : "用藥已到點",
+            body: stage === "overdue" ? `${new Intl.DateTimeFormat("zh-TW", {timeZone: "Asia/Taipei"}).format(new Date(task.scheduledAt))} ${time} 用藥尚未完成登錄，請核對實際結果，不要直接補成成功。` : `${time} 的照護待辦，請開啟 PetNest 查看。`,
             data: {
               type: "staff_medication_task", shopId: booking.shopId,
               bookingId: doc.id, taskId: task.id, scheduledAt: task.scheduledAt,

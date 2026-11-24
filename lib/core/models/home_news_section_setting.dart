@@ -4,12 +4,14 @@ import 'package:petnest_saas/core/models/discount_campaign_model.dart';
 
 /// 新版首頁最新消息版型。
 class HomeNewsLayouts {
+  static const String diaryNotes = 'diaryNotes';
   static const String compactCard = 'compactCard';
   static const String singleLine = 'singleLine';
   static const String multiLine = 'multiLine';
   static const String imageCarousel = 'imageCarousel';
   static const String feature = 'feature';
   static const List<String> all = <String>[
+    diaryNotes,
     compactCard,
     singleLine,
     multiLine,
@@ -19,6 +21,8 @@ class HomeNewsLayouts {
 
   static String label(String value) {
     switch (migrate(value)) {
+      case diaryNotes:
+        return '日常誌・短紙條消息';
       case imageCarousel:
         return '消息圖卡橫滑';
       case feature:

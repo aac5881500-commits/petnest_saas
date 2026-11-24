@@ -127,6 +127,9 @@ void main() {
       expect(find.text('付款摘要').hitTestable(), findsNothing);
       await tester.tap(find.text('服務與用藥'));
       await tester.pumpAndSettle();
+      expect(find.textContaining('10:00–11:00').hitTestable(), findsNothing);
+      await tester.tap(find.text('每日專屬陪玩時光'));
+      await tester.pumpAndSettle();
       final schedule = find.textContaining('10:00–11:00').hitTestable();
       expect(schedule, findsOneWidget);
       final services = find.byType(BookingDetailBookedServices);

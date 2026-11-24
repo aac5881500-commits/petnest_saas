@@ -1,3 +1,4 @@
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_shop_brand.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_tabs.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_booked_services.dart';
 import 'package:petnest_saas/features/medication/medication_widgets.dart';
@@ -129,7 +130,13 @@ class BookingDetailPage extends StatelessWidget {
     return ShopFrontendThemeScope(
       shopId: SafeParse.parseString(data['shopId']),
       builder: (BuildContext context) {
-        return _BookingDetailBody(data: data, docId: docId, showCare: showCare);
+        return BookingDetailMilkTeaScope(
+          child: _BookingDetailBody(
+            data: data,
+            docId: docId,
+            showCare: showCare,
+          ),
+        );
       },
     );
   }
@@ -343,6 +350,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody>
                 ],
               ),
               body: BookingDetailTabs(
+                brand: BookingDetailShopBrand(booking: data),
                 controller: _tabs,
                 overviewController: _scrollController,
                 view: view,
@@ -350,6 +358,8 @@ class _BookingDetailPageState extends State<_BookingDetailBody>
                   builder: (context, constraints) {
                     final summary = BookingDetailSummaryCard(
                       view: view,
+                      onOpenCare: () =>
+                          _tabs.index = BookingDetailTab.services.index,
                       onCancel: () => _onCancel(view),
                       onContactShop: _scrollToMessageSection,
                       onRequestRefund: () => _onRequestRefund(view),
@@ -449,32 +459,36 @@ class _BookingDetailPageState extends State<_BookingDetailBody>
                       ),
                   ],
                 ),
-                services: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    BookingCareActivity(
-                      bookingId: widget.docId,
-                      booking: view.raw,
-                    ),
-                    BookingDetailBookedServices(view: view),
-                    _customerMedicationPanel(view),
-                    FutureBuilder<DailyCareSettingModel>(
-                      future: _dailyCareSettingFuture,
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<DailyCareSettingModel> careSnap,
-                          ) {
-                            final DailyCareSettingModel setting =
-                                careSnap.data ?? const DailyCareSettingModel();
-                            return BookingDetailStayServicesSection(
-                              view: view,
-                              bookingId: widget.docId,
-                              daycareCareEnabled: setting.daycareEnabled,
-                            );
-                          },
-                    ),
-                  ],
+                services: CustomerCareSections(
+                  reports: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      BookingCareActivity(
+                        bookingId: widget.docId,
+                        booking: view.raw,
+                        recordedOnly: false,
+                      ),
+                      FutureBuilder<DailyCareSettingModel>(
+                        future: _dailyCareSettingFuture,
+                        builder:
+                            (
+                              BuildContext context,
+                              AsyncSnapshot<DailyCareSettingModel> careSnap,
+                            ) {
+                              final DailyCareSettingModel setting =
+                                  careSnap.data ??
+                                  const DailyCareSettingModel();
+                              return BookingDetailStayServicesSection(
+                                view: view,
+                                bookingId: widget.docId,
+                                daycareCareEnabled: setting.daycareEnabled,
+                              );
+                            },
+                      ),
+                    ],
+                  ),
+                  medication: _customerMedicationPanel(view),
+                  addons: BookingDetailBookedServices(view: view),
                 ),
                 payment: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1554,5 +1568,72 @@ class _BookingDetailPageState extends State<_BookingDetailBody>
       }
       _autoCancelExpiredBooking(data);
     });
+  }
+}
+
+class CustomerCareSections extends StatefulWidget {
+  const CustomerCareSections({
+    super.key,
+    required this.reports,
+    required this.medication,
+    required this.addons,
+  });
+  final Widget reports, medication, addons;
+
+  @override
+  State<CustomerCareSections> createState() => _CustomerCareSectionsState();
+}
+
+class _CustomerCareSectionsState extends State<CustomerCareSections> {
+  int _selected = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['照護回報', '用藥安排', '加購內容'];
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              for (var i = 0; i < labels.length; i++)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: TextButton(
+                      onPressed: () => setState(() => _selected = i),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _selected == i
+                            ? colors.onPrimaryContainer
+                            : colors.onSurfaceVariant,
+                        backgroundColor: _selected == i
+                            ? colors.primaryContainer
+                            : Colors.transparent,
+                        minimumSize: const Size(0, 44),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(labels[i], textAlign: TextAlign.center),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        [widget.reports, widget.medication, widget.addons][_selected],
+      ],
+    );
   }
 }

@@ -46,6 +46,65 @@ enum OrderManagementView {
   final String destinationId;
 }
 
+/// Compact order workspace navigation shown only on phone layouts.
+class MobileOrderManagementTabs extends StatelessWidget
+    implements PreferredSizeWidget {
+  const MobileOrderManagementTabs({
+    super.key,
+    required this.views,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<OrderManagementView> views;
+  final OrderManagementView selected;
+  final ValueChanged<OrderManagementView> onSelected;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    child: Material(
+      color: Theme.of(
+        context,
+      ).colorScheme.primaryContainer.withValues(alpha: .35),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: DefaultTabController(
+        key: ValueKey('${views.join(',')}:$selected'),
+        length: views.length,
+        initialIndex: views.indexOf(selected).clamp(0, views.length - 1),
+        child: TabBar(
+          dividerHeight: 0,
+          labelPadding: EdgeInsets.zero,
+          indicatorSize: TabBarIndicatorSize.tab,
+          indicatorPadding: const EdgeInsets.all(4),
+          indicator: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          labelColor: Theme.of(context).colorScheme.onPrimary,
+          unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+          onTap: (index) => onSelected(views[index]),
+          tabs: [
+            for (final view in views)
+              Tab(
+                text: switch (view) {
+                  OrderManagementView.orders => '訂單',
+                  OrderManagementView.today => '今日照護',
+                  OrderManagementView.rooms => '房況',
+                  OrderManagementView.reports => '回報',
+                },
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _DashRoom {
   const _DashRoom({
     required this.room,
@@ -473,10 +532,21 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     }
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
+        final mobile = MediaQuery.sizeOf(context).width < 700;
+        final mobileViews = <OrderManagementView>[
+          if (_canOpenOrders) OrderManagementView.orders,
+          if (_hasPermission) ...[
+            OrderManagementView.today,
+            OrderManagementView.rooms,
+            OrderManagementView.reports,
+          ],
+        ];
         final view =
             !_hasPermission ||
                 (_deskView == OrderManagementView.orders && !_canOpenOrders)
-            ? (_canOpenOrders ? OrderManagementView.orders : OrderManagementView.rooms)
+            ? (_canOpenOrders
+                  ? OrderManagementView.orders
+                  : OrderManagementView.rooms)
             : _deskView;
         return StreamBuilder<DailyCareReportCenterSnapshot>(
           stream: !_hasPermission
@@ -500,15 +570,24 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                   appBar: AppBar(
                     titleSpacing: 0,
                     title: Text(
-                      switch (view) {
-                        OrderManagementView.today => '今日與照護',
-                        OrderManagementView.orders => '訂單管理',
-                        OrderManagementView.rooms => '房況',
-                        OrderManagementView.reports => '回報',
-                      },
+                      mobile
+                          ? '訂單管理'
+                          : switch (view) {
+                              OrderManagementView.today => '今日與照護',
+                              OrderManagementView.orders => '訂單管理',
+                              OrderManagementView.rooms => '房況',
+                              OrderManagementView.reports => '回報',
+                            },
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
+                    bottom: mobile
+                        ? MobileOrderManagementTabs(
+                            views: mobileViews,
+                            selected: view,
+                            onSelected: _openOrderManagementView,
+                          )
+                        : null,
                     actions: <Widget>[
                       if (_activeShiftTask != null)
                         IconButton(
@@ -522,10 +601,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
                                 : Icons.keyboard_double_arrow_left,
                           ),
                         ),
-                      ShopTaskCenterButton(shopId: widget.shopId),
+                      if (!(ShopDashboardNavigationScope.maybeOf(
+                            context,
+                          )?.desktop ??
+                          false))
+                        ShopTaskCenterButton(shopId: widget.shopId),
                       if (_hasPermission &&
                           (view == OrderManagementView.rooms ||
-                           view == OrderManagementView.today))
+                              view == OrderManagementView.today))
                         WorkbenchSettingsMenu(
                           selected: _layout,
                           enabled: _busyKeys.isEmpty,
@@ -807,7 +890,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     }
   }
 
-
   Widget _workspace({
     required bool desktop,
     required List<Map<String, dynamic>> rooms,
@@ -906,7 +988,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
     final int pendingReports = reportsOn ? (report?.pendingCount ?? 0) : 0;
 
     if (_deskView == OrderManagementView.today ||
-        (_layout != WorkbenchView.original && _deskView == OrderManagementView.rooms)) {
+        (_layout != WorkbenchView.original &&
+            _deskView == OrderManagementView.rooms)) {
       return _alternativeOverview(
         rows: filtered,
         allRows: allRows,
@@ -975,7 +1058,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage>
               });
             },
     );
-
 
     return Column(
       children: <Widget>[

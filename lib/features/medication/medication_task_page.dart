@@ -5,7 +5,10 @@ import '../../core/models/booking_kind.dart';
 import '../../core/models/daily_care_setting_model.dart';
 import '../../core/services/daily_care_setting_service.dart';
 import '../admin/widgets/admin_daily_care_report_shortcut.dart';
-import '../shop/pages/daily_care_report_center_page.dart';
+import '../admin/widgets/order_care_progress_tables.dart';
+import '../../core/models/daily_care_report_center_snapshot.dart';
+import '../../core/services/daily_care_report_center_service.dart';
+import '../room/daily_care_record_edit_launcher.dart';
 
 import '../../core/models/booking_medication_task.dart';
 import '../../core/services/booking_service.dart';
@@ -68,6 +71,9 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
   late final _reportSetting = DailyCareSettingService.instance.streamSetting(
     widget.shopId,
   );
+
+  late final _reportProgress = DailyCareReportCenterService.instance
+      .streamToday(shopId: widget.shopId, canOperate: widget.canManage);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -225,17 +231,39 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
                 ),
               )
             else
-              Card.outlined(
-                clipBehavior: Clip.antiAlias,
-                child: SizedBox(
-                  height: 680,
-                  child: DailyCareReportCenterPage(
-                    shopId: widget.shopId,
-                    initialBookingId: widget.bookingId,
-                    embedded: true,
-                    canOperate: widget.canManage,
-                  ),
-                ),
+              StreamBuilder<DailyCareReportCenterSnapshot>(
+                stream: _reportProgress,
+                builder: (context, reports) {
+                  if (reports.hasError || (reports.data?.hasError ?? false)) {
+                    return const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text('無法讀取回報進度，請稍後重試'),
+                    );
+                  }
+                  if (!reports.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return OrderDailyCareProgressTable(
+                    sessions: reports.data!.items
+                        .where((item) => item.bookingId == widget.bookingId)
+                        .toList(),
+                    onSelect: (item) => DailyCareRecordEditLauncher.open(
+                      context: context,
+                      shopId: item.shopId,
+                      bookingId: item.bookingId,
+                      recordDate: item.recordDate,
+                      sessionIndex: item.sessionIndex,
+                      roomId: item.roomId,
+                      roomName: item.roomName,
+                      serviceType: item.serviceType,
+                      petIds: item.petIds,
+                      setting: setting,
+                      entitlement: item.entitlement,
+                      readOnly: item.reportsLocked,
+                      asDialog: true,
+                    ),
+                  );
+                },
               ),
           ],
         );
@@ -256,6 +284,15 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
     void showAll(String key) {
       if (mounted && _selectedTaskId == key) {
         setState(() => _selectedTaskId = null);
+      }
+    }
+
+    void recorded(String key) {
+      if (!mounted) return;
+      if (widget.recordDay != null) {
+        Navigator.of(context).pop();
+      } else {
+        showAll(key);
       }
     }
 
@@ -288,7 +325,7 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
           taskId: selectedService.id,
           scheduledAt: selectedService.scheduledAt.toUtc().toIso8601String(),
           canManage: widget.canManage,
-          onRecorded: () => showAll(key),
+          onRecorded: () => recorded(key),
         ),
         key,
       );
@@ -307,10 +344,10 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
         taskId: selected.id,
         canManage: widget.canManage,
         inlineTaskResult: true,
-        onTaskRecorded: () => showAll(key),
+        onTaskRecorded: () => recorded(key),
       );
       selectedDetail = detail(
-        canRecord && selected.pending
+        canRecord
             ? panel
             : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -349,8 +386,7 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
     }).toList();
 
     final recordDay = widget.recordDay;
-    final openInDialog =
-        recordDay == null && MediaQuery.sizeOf(context).width >= 900;
+    final openInDialog = recordDay == null;
 
     void openDay(String day, {String? taskKey}) {
       showGeneralDialog<void>(
@@ -373,49 +409,50 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
               child: child,
             ),
         pageBuilder: (dialogContext, animation, secondaryAnimation) => Align(
-          alignment: Alignment.centerRight,
-          child: Material(
-            elevation: 16,
-            color: Theme.of(dialogContext).colorScheme.surface,
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(24),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SizedBox(
-              width: 1000,
-              height: MediaQuery.sizeOf(dialogContext).height,
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 12, 16),
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.edit_note_rounded),
-                        ),
-                        title: Text(
-                          '${day.replaceAll('-', '/')} 照護紀錄',
-                          style: Theme.of(dialogContext).textTheme.titleLarge,
-                        ),
-                        subtitle: const Text('核對時程、補填用藥資料與記錄執行結果'),
-                        trailing: CloseButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(),
+          alignment: Alignment.center,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Material(
+              elevation: 16,
+              color: Theme.of(dialogContext).colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              clipBehavior: Clip.antiAlias,
+              child: SizedBox(
+                width: 1000,
+                height: MediaQuery.sizeOf(dialogContext).height * .9,
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 12, 16),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.edit_note_rounded),
+                          ),
+                          title: Text(
+                            '${day.replaceAll('-', '/')} 照護紀錄',
+                            style: Theme.of(dialogContext).textTheme.titleLarge,
+                          ),
+                          subtitle: const Text('核對時程、補填用藥資料與記錄執行結果'),
+                          trailing: CloseButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                          ),
                         ),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: MedicationTaskPage.orderRecords(
-                        shopId: widget.shopId,
-                        bookingId: widget.bookingId,
-                        canManage: widget.canManage,
-                        taskId: taskKey,
-                        embedded: true,
-                        recordDay: day,
+                      const Divider(height: 1),
+                      Expanded(
+                        child: MedicationTaskPage.orderRecords(
+                          shopId: widget.shopId,
+                          bookingId: widget.bookingId,
+                          canManage: widget.canManage,
+                          taskId: taskKey,
+                          embedded: true,
+                          recordDay: day,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -434,7 +471,7 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
             entries: entries,
             view: AdminBookingScheduleView.timeline,
             initialDay: recordDay ?? selected?.day ?? selectedService?.day,
-            minimumGridWidth: 550,
+            minimumGridWidth: 0,
             showAllDays: openInDialog,
             onSelectDay: openInDialog ? openDay : null,
             selectedTaskKey: openInDialog ? null : _selectedTaskId,
@@ -448,19 +485,18 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
           );
 
     if (recordDay != null) {
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          timeline,
-          if (selectedDetail != null)
-            SizedBox(height: 520, child: selectedDetail),
-        ],
-      );
+      if (selectedDetail != null) return selectedDetail;
+      return ListView(padding: const EdgeInsets.all(20), children: [timeline]);
     }
 
     return ListView(
       key: ValueKey('order-care-${widget.bookingId}'),
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+      padding: EdgeInsets.fromLTRB(
+        MediaQuery.sizeOf(context).width < 700 ? 12 : 24,
+        20,
+        MediaQuery.sizeOf(context).width < 700 ? 12 : 24,
+        28,
+      ),
       children: [
         Card.outlined(
           margin: EdgeInsets.zero,
@@ -610,10 +646,15 @@ class _MedicationTaskPageState extends State<MedicationTaskPage> {
             padding: EdgeInsets.all(16),
             child: Text('這筆訂單目前沒有照護排程。'),
           ),
-        if (visibleEntries.isNotEmpty) timeline,
-        if (!openInDialog && selectedDetail != null)
-          SizedBox(height: 520, child: selectedDetail),
-        _sectionTitle(context, '無指定時段'),
+        if (visibleEntries.isNotEmpty)
+          if (MediaQuery.sizeOf(context).width < 700)
+            OrderCareScheduleProgressTable(
+              entries: visibleEntries,
+              onSelect: (entry) => openDay(entry.day, taskKey: entry.taskKey),
+            )
+          else
+            timeline,
+        const SizedBox(height: 20),
         _buildDailyReport(booking),
         AdminBookingFormAnswersSection(
           shopId: widget.shopId,

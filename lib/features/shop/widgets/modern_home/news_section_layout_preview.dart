@@ -34,7 +34,7 @@ class NewsSectionLayoutPreview extends StatelessWidget {
             ),
             HomeNewsLayouts.feature => _single(),
             HomeNewsLayouts.compactCard => _compact(),
-            HomeNewsLayouts.multiLine => _multi(),
+            HomeNewsLayouts.multiLine || HomeNewsLayouts.diaryNotes => _multi(),
             _ => _single(),
           },
         ),

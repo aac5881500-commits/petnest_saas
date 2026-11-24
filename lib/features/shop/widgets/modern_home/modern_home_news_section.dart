@@ -1,4 +1,5 @@
 import 'news_image_cards.dart';
+import 'home_diary_reference_widgets.dart';
 import 'editorial_section_widgets.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
@@ -102,6 +103,62 @@ class ModernHomeNewsSection extends StatelessWidget {
     }
     if (phase == HomeNewsSectionPhase.empty || items.isEmpty) {
       return _messageCard(kHomeNewsEmptyMessage, imageUrl: imageUrl);
+    }
+    if (setting.layout == HomeNewsLayouts.diaryNotes) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final item in items.take(setting.multiLineCount))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: HomeDiaryNote(
+                theme: theme,
+                padding: EdgeInsets.zero,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    key: Key('home-news-item-${item.id}'),
+                    onTap: () => _open(_sectionFor(item)),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            homeNewsIcon(item.iconType),
+                            size: 18,
+                            color: theme.textColor,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              '${setting.showDate ? '${_date(item.publishedAt)}  ' : ''}${item.title}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: theme.textColor,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 17,
+                            color: theme.textColor,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
     }
     if (setting.layout == HomeNewsLayouts.imageCarousel ||
         setting.layout == HomeNewsLayouts.feature ||

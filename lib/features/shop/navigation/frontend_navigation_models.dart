@@ -383,6 +383,7 @@ class FrontendNavigationConfig {
     required this.right2,
     required this.bottomAppearance,
     required this.bottomSurface,
+    this.centerId = FrontendNavigationRegistry.homeId,
   });
 
   static const String styleDrawer = 'drawer';
@@ -394,6 +395,7 @@ class FrontendNavigationConfig {
   static const String appearanceFloatingIsland = 'floatingIsland';
   static const String appearanceSegmented = 'segmented';
   static const String appearanceHomeFocus = 'homeFocus';
+  static const String appearanceDiaryBooking = 'diaryBooking';
   static const String surfaceOpaque = 'opaque';
   static const String surfaceTranslucent = 'translucent';
   static const String surfaceTransparent = 'transparent';
@@ -408,6 +410,7 @@ class FrontendNavigationConfig {
   final String? right2;
   final String bottomAppearance;
   final String bottomSurface;
+  final String centerId;
 
   bool get isBottom => style == styleBottom;
 
@@ -449,7 +452,10 @@ class FrontendNavigationConfig {
     final Map<String, dynamic> slots = map['bottomNavigationSlots'] is Map
         ? Map<String, dynamic>.from(map['bottomNavigationSlots'] as Map)
         : <String, dynamic>{};
-    final Set<String> used = <String>{};
+    final centerId = slots['center'] == 'booking'
+        ? 'booking'
+        : FrontendNavigationRegistry.homeId;
+    final Set<String> used = <String>{centerId};
     String? take(Object? raw, String? fallbackId) {
       final String? cleaned = _cleanSlot(raw);
       final String? id = cleaned ?? fallbackId;
@@ -462,6 +468,7 @@ class FrontendNavigationConfig {
 
     return FrontendNavigationConfig(
       style: style,
+      centerId: centerId,
       drawerItemOrder: _cleanOrder(map['drawerItemOrder']),
       drawerHiddenItemIds: _cleanHidden(map['drawerHiddenItemIds']),
       left1: take(slots['left1'], fallback.left1),
@@ -481,6 +488,7 @@ class FrontendNavigationConfig {
       case appearanceFloatingIsland:
       case appearanceSegmented:
       case appearanceHomeFocus:
+      case appearanceDiaryBooking:
         return raw.toString();
       default:
         return appearanceAttached;
@@ -546,7 +554,7 @@ class FrontendNavigationConfig {
       return null;
     }
     final String id = raw.toString().trim();
-    if (id.isEmpty || id == FrontendNavigationRegistry.homeId) {
+    if (id.isEmpty) {
       return null;
     }
     final FrontendNavigationItem? known = FrontendNavigationRegistry.find(id);
@@ -565,6 +573,7 @@ class FrontendNavigationConfig {
         'left1': left1,
         'left2': left2,
         'home': FrontendNavigationRegistry.homeId,
+        'center': centerId,
         'right1': right1,
         'right2': right2,
       },
@@ -583,6 +592,7 @@ class FrontendNavigationConfig {
     String? right2,
     String? bottomAppearance,
     String? bottomSurface,
+    String? centerId,
     bool clearLeft1 = false,
     bool clearLeft2 = false,
     bool clearRight1 = false,
@@ -590,6 +600,7 @@ class FrontendNavigationConfig {
   }) {
     return FrontendNavigationConfig(
       style: style ?? this.style,
+      centerId: centerId ?? this.centerId,
       drawerItemOrder: drawerItemOrder ?? this.drawerItemOrder,
       drawerHiddenItemIds: drawerHiddenItemIds ?? this.drawerHiddenItemIds,
       left1: clearLeft1 ? null : (left1 ?? this.left1),
@@ -626,7 +637,13 @@ class FrontendNavigationConfig {
 
   List<FrontendNavigationItem?> resolvedBottomSlots(FrontendNavShopState shop) {
     final List<String?> requested = <String?>[left1, left2, right1, right2];
-    final List<String> used = <String>[];
+    final requestedCenter = FrontendNavigationRegistry.find(
+      centerId == 'booking' ? 'booking' : FrontendNavigationRegistry.homeId,
+    )!;
+    final center = shop.isEnabled(requestedCenter)
+        ? requestedCenter
+        : FrontendNavigationRegistry.find(FrontendNavigationRegistry.homeId)!;
+    final List<String> used = <String>[center.id];
     final List<String?> resolved = <String?>[];
     for (final String? id in requested) {
       final String? safe = _usableSlot(id, shop, used);
@@ -636,6 +653,8 @@ class FrontendNavigationConfig {
       resolved.add(safe);
     }
     final List<String> fallback = <String>[
+      if (center.id != FrontendNavigationRegistry.homeId)
+        FrontendNavigationRegistry.homeId,
       'booking',
       'rooms',
       'orders',
@@ -662,7 +681,7 @@ class FrontendNavigationConfig {
     return <FrontendNavigationItem?>[
       _itemOrNull(resolved[0]),
       _itemOrNull(resolved[1]),
-      FrontendNavigationRegistry.find(FrontendNavigationRegistry.homeId),
+      center,
       _itemOrNull(resolved[2]),
       _itemOrNull(resolved[3]),
     ];
@@ -677,9 +696,7 @@ class FrontendNavigationConfig {
       return null;
     }
     final FrontendNavigationItem? item = FrontendNavigationRegistry.find(id);
-    if (item == null ||
-        !item.ownerSelectable ||
-        item.id == FrontendNavigationRegistry.homeId) {
+    if (item == null || !item.ownerSelectable) {
       return null;
     }
     if (!shop.isEnabled(item)) {
@@ -723,7 +740,8 @@ class FrontendNavigationConfig {
         right1 == other.right1 &&
         right2 == other.right2 &&
         bottomAppearance == other.bottomAppearance &&
-        bottomSurface == other.bottomSurface;
+        bottomSurface == other.bottomSurface &&
+        centerId == other.centerId;
   }
 
   @override
@@ -737,6 +755,7 @@ class FrontendNavigationConfig {
     right2,
     bottomAppearance,
     bottomSurface,
+    centerId,
   );
 
   static bool _listEquals(List<String> a, List<String> b) {

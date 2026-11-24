@@ -24,6 +24,7 @@ function fixture() {
   vm.runInNewContext(fs.readFileSync(require.resolve("./medication_functions"), "utf8"), {exports, Buffer, Date, console, require: (name) => {
     if (name === "firebase-admin") return {firestore};
     if (name.includes("inspection_write_guard")) return {HttpsError, onCall: (_, fn) => fn};
+    if (name.includes("platform/booking_time_test")) return require("../platform/booking_time_test");
     if (name.includes("daycare_utils")) return {hasShopPermission: async (_, uid, permission) => uid === "owner" || (uid === "worker" && permission === "manage_bookings")};
     if (name === "./medication_logic") return logic;
     if (name.includes("booking_settlement_math")) return require(name);
@@ -67,7 +68,8 @@ test("staff arrival confirmation publishes the edited schedule and allows result
   assert.equal(booking.medication.state, "confirmed");
   assert.equal(booking.medication.request.medicines[0].dose, "2 ml");
   assert.equal(booking.medication.tasks[0].scheduledAt, "2026-01-01T09:00:00.000Z");
-  assert.equal(f.docs["bookings/b/messages/medication_2"].senderType, "shop");
+  assert.equal(f.docs["notifications/care_medication_b_2"].userId, "u");
+  assert.equal(f.docs["bookings/b/messages/medication_2"], undefined);
   assert.equal(booking.medication.tasks.length, 2);
   const [first, second] = booking.medication.tasks;
   assert.equal(second.scheduledAt, "2026-01-02T02:00:00.000Z");
@@ -154,8 +156,9 @@ test("different outcomes within one visit are final and bill only once", async (
 });
 test("accepted price snapshot survives shop changes; notifications are transactionally recorded", async () => {
   const f = fixture(); await f.call("propose");
-  assert.equal(f.docs["bookings/b/messages/medication_2"].senderType, "shop");
-  assert.equal(f.docs["bookings/b"].customerUnreadMessageCount, 1);
+  assert.equal(f.docs["notifications/care_medication_b_2"].userId, "u");
+  assert.equal(f.docs["bookings/b/messages/medication_2"], undefined);
+  assert.equal(f.docs["bookings/b"].customerUnreadMessageCount, undefined);
   f.docs["shops/s"].medicationSetting.price = 999;
   await f.call("accept", {}, "u");
   assert.equal(f.docs["bookings/b"].medication.setting.price, 50);
@@ -231,4 +234,81 @@ test("legacy requests can enter confirmation without silently changing payable a
   assert.equal(booking.totalPrice, 1800);
   await f.call("prepareLegacy");
   assert.equal(booking.medication.revision, 1);
+});
+
+
+test("billing-only bypass is unavailable and pending results block checkout even if fees finalized", async () => {
+  const f = fixture(); await f.call("propose"); await f.call("accept", {}, "u");
+  await assert.rejects(f.call("finalizeBilling", {selectedTaskIds: []}), {code: "invalid-argument"});
+  await assert.rejects(f.call("finalize"), {code: "failed-precondition"});
+  f.docs["bookings/b"].medication.finalized = true;
+  assert.throws(() => logic.checkoutGuard(f.docs["bookings/b"]));
+});
+
+test("historical entry retains original date; late check-in requires explicit confirmation without mandatory reason", async () => {
+  const f = fixture(); await f.call("propose"); await f.call("accept", {}, "u");
+  const b = f.docs["bookings/b"], t = b.medication.tasks[0];
+  b.checkInAt = "2026-01-02T12:00:00+08:00";
+  await assert.rejects(f.call("record", {taskId: t.id, result: "done", actualAt: t.scheduledAt}), /晚辦入住補登/);
+  await f.call("record", {taskId: t.id, result: "done", actualAt: t.scheduledAt, lateCheckInBackfill: true});
+  const recorded = f.docs["bookings/b"].medication.tasks[0];
+  assert.equal(recorded.actualAt, t.scheduledAt);
+  assert.equal(recorded.lateCheckInBackfill, true);
+  assert.ok(recorded.recordedAt);
+  assert.equal(recorded.checkInAtSnapshot, "2026-01-02T04:00:00.000Z");
+});
+test("actual time rejects future and before booking, accepts same check-in minute", async () => {
+  const f = fixture(); await f.call("propose"); await f.call("accept", {}, "u");
+  const b = f.docs["bookings/b"], t = b.medication.tasks[0];
+  await assert.rejects(f.call("record", {taskId: t.id, result: "done", actualAt: "2099-01-01T00:00:00Z"}), /不可晚於現在/);
+  await assert.rejects(f.call("record", {taskId: t.id, result: "done", actualAt: "2025-12-31T00:00:00Z", lateCheckInBackfill: true, note: "測試"}), /預約入住日期/);
+  b.checkInAt = t.scheduledAt.replace("00.000Z", "35.000Z");
+  await f.call("record", {taskId: t.id, result: "done", actualAt: t.scheduledAt});
+  assert.equal(f.docs["bookings/b"].medication.tasks[0].result, "done");
+});
+
+test("failed and skipped results allow empty note and return authoritative saved medication", async () => {
+  for (const result of ["failed", "skipped"]) {
+    const f = fixture(); await f.call("propose"); await f.call("accept", {}, "u");
+    const task = f.docs["bookings/b"].medication.tasks[0];
+    const response = await f.call("record", {taskId: task.id, result, actualAt: task.scheduledAt, note: ""});
+    assert.equal(response.medication.tasks[0].result, result);
+    assert.equal(response.medication.tasks[0].finished, true);
+    assert.equal(response.medication.tasks[0].note, "");
+    assert.equal(response.medication.revision, f.docs["bookings/b"].medication.revision);
+  }
+});
+
+test("skipped medication scheduled before check-in needs no late-entry confirmation", async () => {
+  const f = fixture(); await f.call("propose"); await f.call("accept", {}, "u");
+  const b = f.docs["bookings/b"], t = b.medication.tasks[0];
+  b.checkInAt = "2026-01-02T22:00:00+08:00";
+  await f.call("record", {taskId: t.id, result: "skipped", actualAt: t.scheduledAt});
+  assert.equal(f.docs["bookings/b"].medication.tasks[0].result, "skipped");
+  assert.equal(f.docs["bookings/b"].medication.tasks[0].lateCheckInBackfill, undefined);
+});
+
+test("medication test window marks real future record and customer message", async () => {
+  const f = fixture(); await f.call("propose"); await f.call("accept", {}, "u");
+  const now = Date.now(), b = f.docs["bookings/b"]; b.bookingCode = "TEST";
+  f.docs["internal_booking_time_tests/b"] = {enabled: true, bookingId: "b", shopId: "s", bookingCode: "TEST", syncCustomer: true, startedAt: new Date(now - 1000).toISOString(), expiresAt: new Date(now + 7199000).toISOString()};
+  const task = b.medication.tasks[0];
+  await f.call("record", {taskId: task.id, result: "done", actualAt: new Date(now + 3600000).toISOString()});
+  assert.ok(f.docs["bookings/b"].medication.tasks[0].timeTest);
+  assert.match(f.docs[`notifications/care_medication_b_${b.medication.revision}`].body, /測試訂單/);
+});
+
+test("explicit medication correction retains previous task and rejects stale revision", async () => {
+  const f = fixture();
+  await f.call("propose");
+  await f.call("accept", {}, "u");
+  const task = f.docs["bookings/b"].medication.tasks[0];
+  await f.call("record", {taskId: task.id, result: "done", actualAt: task.scheduledAt});
+  const revision = f.docs["bookings/b"].medication.revision;
+  await f.call("record", {taskId: task.id, result: "failed", actualAt: task.scheduledAt, correctResult: true});
+  const m = f.docs["bookings/b"].medication;
+  assert.equal(m.tasks[0].result, "failed");
+  assert.equal(m.history.at(-1).previousTask.result, "done");
+  await assert.rejects(f.call("record", {taskId: task.id, result: "done",
+    actualAt: task.scheduledAt, correctResult: true, revision}), {code: "aborted"});
 });

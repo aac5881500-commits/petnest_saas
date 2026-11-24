@@ -100,15 +100,13 @@ class _BookingDetailFinanceSectionState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const BookingDetailSectionTitle('付款資訊'),
+          const BookingDetailSectionTitle('費用總覽'),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: BookingDetailUi.of(
-                context,
-              ).iconSoft.withValues(alpha: 0.45),
+              color: BookingDetailUi.of(context).iconSoft,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(

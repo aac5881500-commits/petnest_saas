@@ -9,6 +9,11 @@ test("reminders switch at the exact boundary and ignore completed tasks", () => 
   assert.equal(reminderStage(task, at - 15 * 60000 - 1), null);
   assert.equal(reminderStage(task, at - 15 * 60000), "soon");
   assert.equal(reminderStage(task, at), "due");
+  assert.equal(reminderStage(task, at + 3600000), "due");
+  assert.equal(reminderStage(task, at + 3600001), "overdue");
+  assert.equal(reminderStage(task, at + 3 * 86400000), "overdue");
+  assert.equal(reminderStage({...task, result: "partial"}, at + 3 * 86400000), "overdue");
+  assert.equal(reminderStage({...task, finished: true}, at + 3 * 86400000), null);
   assert.equal(reminderStage({...task, finished: true}, at), null);
   assert.equal(reminderStage({...task, result: "failed"}, at), null);
 });
@@ -58,5 +63,14 @@ test("each stage sends once to permitted staff and owner, even on repeated scans
   await sendMedicationReminders(db, send, () => at + 30000);
   assert.deepEqual(pushes.map((p) => p.userId), ["owner", "worker", "owner", "worker"]);
   assert.deepEqual(pushes.map((p) => p.title), ["用藥即將到點", "用藥即將到點", "用藥已到點", "用藥已到點"]);
+  await sendMedicationReminders(db, send, () => at + 3600001);
+  await sendMedicationReminders(db, send, () => at + 3600002);
+  assert.equal(pushes.length, 6);
+  assert.equal(pushes[4].title, "用藥逾時未登錄，請補登結果");
+  await sendMedicationReminders(db, send, () => at + 86400000);
+  assert.equal(pushes.length, 8);
+  task.finished = true;
+  await sendMedicationReminders(db, send, () => at + 2 * 86400000);
+  assert.equal(pushes.length, 8);
   assert.ok(pushes.every((p) => p.data.bookingId === "b" && p.data.taskId === "t0"));
 });

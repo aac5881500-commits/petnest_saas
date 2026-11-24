@@ -3,6 +3,8 @@
 // 🛒 新版 Beta 首頁精選商品
 
 import 'package:flutter/material.dart';
+import '../modern_home/home_diary_reference_widgets.dart';
+import '../modern_home/home_diary_heading_scope.dart';
 import 'package:petnest_saas/core/models/home_display_style.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
@@ -108,61 +110,64 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
-                                  Row(
-                                    children: <Widget>[
-                                      Icon(
-                                        Icons.shopping_bag_outlined,
-                                        size: 16,
-                                        color: theme.primaryColor,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          setting.featuredTitle,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: homeDisplayFontSize(
-                                              displayStyle?.titleSize ??
-                                                  HomeDisplaySizes.medium,
-                                              fallback: 16,
+                                  if (!HomeDiaryHeadingScope.hidesHeading(
+                                    context,
+                                  ))
+                                    Row(
+                                      children: <Widget>[
+                                        Icon(
+                                          Icons.shopping_bag_outlined,
+                                          size: 16,
+                                          color: theme.primaryColor,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            setting.featuredTitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: homeDisplayFontSize(
+                                                displayStyle?.titleSize ??
+                                                    HomeDisplaySizes.medium,
+                                                fallback: 16,
+                                              ),
+                                              height: 1.2,
+                                              fontWeight: homeDisplayFontWeight(
+                                                displayStyle?.titleWeight ??
+                                                    HomeDisplayWeights.bold,
+                                              ),
+                                              color: displayStyle == null
+                                                  ? theme.textColor
+                                                  : Color(
+                                                      displayStyle!.titleColor,
+                                                    ),
                                             ),
-                                            height: 1.2,
-                                            fontWeight: homeDisplayFontWeight(
-                                              displayStyle?.titleWeight ??
-                                                  HomeDisplayWeights.bold,
-                                            ),
-                                            color: displayStyle == null
-                                                ? theme.textColor
-                                                : Color(
-                                                    displayStyle!.titleColor,
-                                                  ),
                                           ),
                                         ),
-                                      ),
-                                      GestureDetector(
-                                        onTap: () => _openStore(context),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: <Widget>[
-                                            Text(
-                                              '查看全部',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
+                                        GestureDetector(
+                                          onTap: () => _openStore(context),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: <Widget>[
+                                              Text(
+                                                '查看全部',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: theme.primaryColor,
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons.chevron_right_rounded,
+                                                size: 16,
                                                 color: theme.primaryColor,
                                               ),
-                                            ),
-                                            Icon(
-                                              Icons.chevron_right_rounded,
-                                              size: 16,
-                                              color: theme.primaryColor,
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
                                   const SizedBox(height: 9),
                                   _productBody(
                                     context: context,
@@ -234,6 +239,56 @@ class FeaturedStoreProductsSection extends StatelessWidget {
       );
     }
 
+    if (setting.featuredProductLayout ==
+        ModernFeaturedProductLayouts.diaryCards) {
+      return LayoutBuilder(
+        builder: (context, c) {
+          final width =
+              c.maxWidth < 300 ||
+                  MediaQuery.textScalerOf(context).scale(14) > 23
+              ? c.maxWidth
+              : c.maxWidth * .82;
+          return SizedBox(
+            height:
+                112 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.6),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: shown.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final product = shown[index];
+                final priced = StorePricingService.instance.quoteProduct(
+                  product: product,
+                  promotions: promotions,
+                );
+                return SizedBox(
+                  width: width,
+                  child: HomeDiaryProductCard(
+                    theme: theme,
+                    name: product.name,
+                    imageUrl: product.imageUrl,
+                    onOpen: () => _openProduct(context, product),
+                    price: StoreProductPriceView(
+                      line: priced,
+                      compact: true,
+                      showBadge: priced.isBuyXGetYOffer,
+                      color: theme.textColor,
+                    ),
+                    badge: priced.showsPromotionOnProductImage
+                        ? StorePromotionBadge(
+                            line: priced,
+                            color: theme.primaryColor,
+                          )
+                        : null,
+                    outOfStock: StoreStockHelper.isOutOfStock(product),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      );
+    }
     switch (setting.featuredProductLayout) {
       case ModernFeaturedProductLayouts.featured:
         final List<StoreProductModel> rest = shown.skip(1).take(2).toList();

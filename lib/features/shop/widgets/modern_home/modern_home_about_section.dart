@@ -1,5 +1,6 @@
 import '../environment/environment_photo.dart';
 import 'editorial_section_widgets.dart';
+import 'home_diary_reference_widgets.dart';
 import 'package:petnest_saas/core/services/shop_intro_content_status.dart';
 import 'home_card_image.dart';
 import 'package:flutter/material.dart';
@@ -125,6 +126,21 @@ class ModernHomeAboutSection extends StatelessWidget {
   }
 
   Widget _body(String imageUrl) {
+    if (setting.layout == HomeAboutLayouts.diaryQuote) {
+      return HomeDiaryAbout(
+        theme: theme,
+        photo: _photoUrl(imageUrl),
+        body: _summary,
+        button: setting.entryButton,
+        onOpen: _open,
+        showImage: setting.showImage,
+        showButton: setting.showButton,
+        imageLeft: setting.imagePosition != HomeAboutImagePositions.right,
+        imageTop: setting.imagePosition == HomeAboutImagePositions.top,
+        imageFit: _fit,
+        imageAlignment: _alignment,
+      );
+    }
     switch (HomeAboutLayouts.migrate(setting.layout)) {
       case HomeAboutLayouts.editorial:
         return EditorialAboutCard(

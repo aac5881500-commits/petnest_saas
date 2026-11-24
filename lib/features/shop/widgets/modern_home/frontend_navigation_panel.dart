@@ -325,7 +325,7 @@ class _BottomSlotEditor extends StatelessWidget {
   static const List<String> _labels = <String>[
     '左側 1',
     '左側 2',
-    '首頁',
+    '中央主入口',
     '右側 1',
     '右側 2',
   ];
@@ -335,7 +335,7 @@ class _BottomSlotEditor extends StatelessWidget {
     final List<String?> ids = <String?>[
       config.left1,
       config.left2,
-      FrontendNavigationRegistry.homeId,
+      config.centerId,
       config.right1,
       config.right2,
     ];
@@ -348,8 +348,31 @@ class _BottomSlotEditor extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          '中間固定為首頁。左右四格可點選更換，也可互相拖曳交換。',
+          '中央可選首頁或預約。左右四格可更換、交換，並會避開重複入口。',
           style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          key: ValueKey('bottom-center-${config.centerId}'),
+          initialValue: config.centerId,
+          decoration: const InputDecoration(labelText: '中央主入口'),
+          items: const [
+            DropdownMenuItem(value: 'home', child: Text('首頁')),
+            DropdownMenuItem(value: 'booking', child: Text('預約')),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+            final old = config.centerId;
+            onChanged(
+              config.copyWith(
+                centerId: value,
+                left1: config.left1 == value ? old : config.left1,
+                left2: config.left2 == value ? old : config.left2,
+                right1: config.right1 == value ? old : config.right1,
+                right2: config.right2 == value ? old : config.right2,
+              ),
+            );
+          },
         ),
         const SizedBox(height: 10),
         SizedBox(
@@ -395,7 +418,7 @@ class _BottomSlotEditor extends StatelessWidget {
               ),
               for (final FrontendNavigationItem item
                   in FrontendNavigationRegistry.selectableItems)
-                if (item.id != FrontendNavigationRegistry.homeId)
+                if (item.id != config.centerId)
                   ListTile(
                     leading: Icon(item.icon),
                     title: Text(item.label),
@@ -432,7 +455,7 @@ class _BottomSlotEditor extends StatelessWidget {
     final List<String?> ids = <String?>[
       config.left1,
       config.left2,
-      FrontendNavigationRegistry.homeId,
+      config.centerId,
       config.right1,
       config.right2,
     ];
@@ -483,6 +506,11 @@ class _BottomAppearanceEditor extends StatelessWidget {
       const SizedBox(height: 8),
       _ChoiceRow(
         options: const <_Choice>[
+          _Choice(
+            value: FrontendNavigationConfig.appearanceDiaryBooking,
+            title: '日常誌中央膠囊',
+            subtitle: '貼底、中央圖示與文字同排',
+          ),
           _Choice(
             value: FrontendNavigationConfig.appearanceUnderline,
             title: '選中底線',

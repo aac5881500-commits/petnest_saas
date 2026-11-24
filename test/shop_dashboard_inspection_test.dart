@@ -53,6 +53,12 @@ void main() {
         expect(tester.takeException(), isNull);
         await tester.tap(find.text('貓咪旅店').first);
         await tester.pumpAndSettle();
+        if (width < 700) {
+          expect(find.text('訂單管理'), findsOneWidget);
+          expect(find.text('今日與照護'), findsNothing);
+          expect(find.text('房況'), findsNothing);
+          expect(find.text('回報'), findsNothing);
+        }
         expect(tester.takeException(), isNull);
       },
     );

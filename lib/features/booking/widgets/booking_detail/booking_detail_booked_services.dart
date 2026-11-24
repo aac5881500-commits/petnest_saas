@@ -47,35 +47,29 @@ class BookingDetailBookedServices extends StatelessWidget {
                     color: theme.background,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name.isEmpty ? '加購服務' : name,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: theme.text,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            child: Text(
-                              'NT\$ $amount',
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: theme.text,
-                              ),
-                            ),
-                          ),
-                        ],
+                  child: ExpansionTile(
+                    key: PageStorageKey((
+                      'booked-addon',
+                      view.docId,
+                      addons.indexOf(addon),
+                    )),
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 8),
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    title: Text(
+                      name.isEmpty ? '加購服務' : name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: theme.text,
                       ),
+                    ),
+                    subtitle: Text(
+                      'NT\$ $amount',
+                      style: TextStyle(color: theme.muted, fontSize: 13),
+                    ),
+                    children: [
                       if (details.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
